@@ -661,12 +661,8 @@ def cleanup_old_runs():
                     save_run_metadata(run_id, metadata)
 
                     deleted_count += 1
-            except Exception as e:
+            except Exception:
                 continue
-
-        if deleted_count > 0:
-            freed_mb = freed_space / (1024 * 1024)
-        else:
     except Exception:
         pass
 
@@ -723,7 +719,8 @@ def cleanup_ephemeral_run(run_id: str):
                 checkpoint_file.unlink()
             except Exception:
                 pass
-    except Exception as e:
+    except Exception:
+        pass
 
 
 # Batch size for checkpointing (save checkpoint every N counties)
@@ -988,14 +985,13 @@ def kill_chrome_processes_bottom_up(current_pid: int = None):
                         proc.kill()  # Force kill if still running
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     continue
-        
-        if killed_count > 0:
-        
+
         # Monitor processes after cleanup
         after_zombies, after_orphaned, after_active = get_chrome_process_counts()
-        
-    except Exception as e:
-    
+
+    except Exception:
+        pass
+
     return killed_count
 
 
@@ -1126,9 +1122,8 @@ def log_resource_usage():
         rusage = resource.getrusage(resource.RUSAGE_SELF)
         memory_mb = rusage.ru_maxrss / 1024  # Convert KB to MB (on Linux)
         logging.info(f"Memory: {memory_mb:.1f}MB")
-    except Exception as e:
-
-
+    except Exception:
+        pass
 
 
 def save_checkpoint(run_id: str, state: str, completed_counties: list, next_county_index: int, total_counties: int):
@@ -1578,6 +1573,7 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
                     break
                 
                 if elapsed_time % 30 == 0:  # Log every 30 seconds
+                    pass
                 
                 time.sleep(wait_interval)
                 elapsed_time += wait_interval
@@ -1585,6 +1581,7 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
             if not all_complete:
                 log_warn(f"Some counties did not complete within timeout")
         else:
+            pass
             # Skip wait - proceed immediately with available data
         
         pipeline_runs[run_id]["statusMessage"] = "Aggregating results from all counties..."
@@ -1697,7 +1694,9 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
                 import traceback
                 traceback.print_exc()
         elif not hunter_io_enabled:
+            pass
         elif not contacts_without_emails_deduped:
+            pass
         
         # STEP 13: Compile final CSV (already deduplicated)
         pipeline_runs[run_id]["statusMessage"] = "Step 13: Compiling final CSV..."
@@ -1730,6 +1729,7 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
                 volume_saved = True
                 final_data_saved_to_volume = True
             except Exception as e:
+                pass
         
             # Count final contacts
             final_df = pd.read_csv(final_csv_path)
@@ -1782,6 +1782,7 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
                 status_message=f"Finalizing: {len(counties)} counties, {len(contacts_enriched)} enriched",
             )
         except Exception as db_err:
+            pass
         
         # Create restart marker for start.sh to detect restart
         try:
@@ -1954,6 +1955,7 @@ def run_streaming_pipeline(
                             break
                     
                     if completed_counties:
+                        pass
             
             # Save initial metadata for new run or resume
             initial_metadata = {
@@ -1970,7 +1972,9 @@ def run_streaming_pipeline(
             save_run_metadata(run_id, initial_metadata)
             
             if resume_from_checkpoint and completed_counties:
+                pass
             else:
+                pass
             
             # Update progress tracking with county info
             pipeline_runs[run_id]["totalCounties"] = total_counties
@@ -2016,7 +2020,9 @@ def run_streaming_pipeline(
             # Determine processing mode message
             remaining_count = total_counties - len(completed_counties)
             if MAX_WORKERS == 1:
+                pass
             else:
+                pass
             
             if not remaining_counties:
                 # Update progress to show all complete
@@ -2152,6 +2158,7 @@ def run_streaming_pipeline(
                         pool.join()
                         # Don't crash - try to continue to aggregation if we have some results
                         if len(completed_counties) > 0:
+                            pass
                         else:
                             # No progress made, mark as error
                             if run_id in pipeline_runs:
@@ -2237,6 +2244,7 @@ def run_streaming_pipeline(
                     # This prevents Railway from logging crashes and allows the container to handle multiple runs
                     pipeline_runs[run_id]["progress"] = 100
             else:
+                pass
         
         except FileNotFoundError as e:
             # State file not found
@@ -2263,6 +2271,7 @@ def run_streaming_pipeline(
                     if len(completed_counties) > 0:
                         save_checkpoint(run_id, state, completed_counties, len(completed_counties), total_counties)
             except Exception as checkpoint_error:
+                pass
             
             # Only update pipeline_runs if run_id still exists (may have been cleaned up)
             if run_id in pipeline_runs:
@@ -2289,6 +2298,7 @@ def run_streaming_pipeline(
                 try:
                     queue_store.queue_finalize(run_id, SCRAPER_TYPE, str(pst), perr)
                 except Exception as qe:
+                    pass
             # Always clean up thread tracking
             if run_id in running_threads:
                 # Don't remove, just mark as not running
@@ -2835,6 +2845,7 @@ def list_runs():
                 if db_row["run_id"] not in existing_ids:
                     runs.append(queue_store.row_to_list_format(db_row))
         except Exception as e:
+            pass
 
         # Sort by created_at (newest first)
         runs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -3219,6 +3230,7 @@ def delete_run(run_id: str):
                 except Exception:
                     pass
         except Exception as e:
+            pass
 
         # Mark as deleted in metadata
         metadata["deleted"] = True
