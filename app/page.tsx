@@ -7,7 +7,7 @@ import { COLORS } from "../lib/constants";
 import { fetchRuns } from "../lib/api";
 import MetricCards from "../components/MetricCards";
 import ActivePipelineHero from "../components/ActivePipelineHero";
-import ChurchScraperBanner, { CHURCH_SCRAPER_DISABLED } from "../components/ChurchScraperBanner";
+import ScrapersBanner, { SCRAPERS_DISABLED } from "../components/ScrapersBanner";
 import type { RunMetadata } from "../lib/types";
 
 // Lazy-load USStateMap (large SVG component)
@@ -123,71 +123,93 @@ export default function HomePage() {
           <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>{today}</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {CHURCH_SCRAPER_DISABLED ? (
-            <span
-              title="Church scraper is temporarily disabled — see banner above"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "8px 16px",
-                background: "#ccc",
-                color: "#fff",
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "not-allowed",
-                opacity: 0.7,
-              }}
-            >
-              + Church Run
-            </span>
+          {SCRAPERS_DISABLED ? (
+            <>
+              <span
+                title="Scrapers are temporarily disabled — see banner above"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 16px",
+                  background: "#ccc",
+                  color: "#fff",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "not-allowed",
+                  opacity: 0.7,
+                }}
+              >
+                + Church Run
+              </span>
+              <span
+                title="Scrapers are temporarily disabled — see banner above"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 16px",
+                  background: "#ccc",
+                  color: "#fff",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "not-allowed",
+                  opacity: 0.7,
+                }}
+              >
+                + School Run
+              </span>
+            </>
           ) : (
-            <Link
-              href="/church/new"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "8px 16px",
-                background: COLORS.accent,
-                color: "#fff",
-                borderRadius: 8,
-                textDecoration: "none",
-                fontSize: 12,
-                fontWeight: 600,
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(30,58,95,0.3)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              + Church Run
-            </Link>
+            <>
+              <Link
+                href="/church/new"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 16px",
+                  background: COLORS.accent,
+                  color: "#fff",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(30,58,95,0.3)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                + Church Run
+              </Link>
+              <Link
+                href="/school/new"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 16px",
+                  background: COLORS.green,
+                  color: "#fff",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(107,142,35,0.3)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                + School Run
+              </Link>
+            </>
           )}
-          <Link
-            href="/school/new"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
-              background: COLORS.green,
-              color: "#fff",
-              borderRadius: 8,
-              textDecoration: "none",
-              fontSize: 12,
-              fontWeight: 600,
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(107,142,35,0.3)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
-          >
-            + School Run
-          </Link>
         </div>
       </div>
 
-      <ChurchScraperBanner />
+      <ScrapersBanner />
 
       {/* Active Pipeline Hero — collapses when no active runs */}
       {activeRuns.length > 0 && (

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLORS, US_STATES, SCRAPER_LABELS } from "../lib/constants";
 import { startPipeline } from "../lib/api";
-import ChurchScraperBanner, { CHURCH_SCRAPER_DISABLED } from "./ChurchScraperBanner";
+import ScrapersBanner, { SCRAPERS_DISABLED } from "./ScrapersBanner";
 import type { ScraperType } from "../lib/types";
 
 export default function NewRunPage({ scraperType }: { scraperType: ScraperType }) {
@@ -16,10 +16,10 @@ export default function NewRunPage({ scraperType }: { scraperType: ScraperType }
   const [error, setError] = useState<string | null>(null);
   const [queued, setQueued] = useState<{ jobId: number; position: number } | null>(null);
 
-  const isChurchDisabled = scraperType === "church" && CHURCH_SCRAPER_DISABLED;
+  const isDisabled = SCRAPERS_DISABLED;
 
   const handleStart = async () => {
-    if (isChurchDisabled) return;
+    if (isDisabled) return;
     if (!selectedState) return;
     setStarting(true);
     setError(null);
@@ -53,7 +53,7 @@ export default function NewRunPage({ scraperType }: { scraperType: ScraperType }
         &larr; Back to {labels.title}
       </Link>
 
-      {scraperType === "church" && <ChurchScraperBanner />}
+      <ScrapersBanner />
 
       <div className="animate-in delay-1" style={{
         background: COLORS.cardBg,
@@ -139,8 +139,8 @@ export default function NewRunPage({ scraperType }: { scraperType: ScraperType }
 
         <button
           onClick={handleStart}
-          disabled={isChurchDisabled || !selectedState || starting}
-          title={isChurchDisabled ? "Church scraper is temporarily disabled" : undefined}
+          disabled={isDisabled || !selectedState || starting}
+          title={isDisabled ? "Scrapers are temporarily disabled" : undefined}
           style={{
             width: "100%",
             padding: "12px",
@@ -148,14 +148,14 @@ export default function NewRunPage({ scraperType }: { scraperType: ScraperType }
             fontWeight: 600,
             borderRadius: 8,
             border: "none",
-            background: !isChurchDisabled && selectedState && !starting ? COLORS.accent : "#ccc",
+            background: !isDisabled && selectedState && !starting ? COLORS.accent : "#ccc",
             color: "#fff",
-            cursor: !isChurchDisabled && selectedState && !starting ? "pointer" : "not-allowed",
+            cursor: !isDisabled && selectedState && !starting ? "pointer" : "not-allowed",
             transition: "background 0.15s ease",
-            opacity: isChurchDisabled ? 0.7 : 1,
+            opacity: isDisabled ? 0.7 : 1,
           }}
         >
-          {isChurchDisabled ? "Disabled" : starting ? "Starting..." : queued ? "Queue Another State" : "Start Run"}
+          {isDisabled ? "Disabled" : starting ? "Starting..." : queued ? "Queue Another State" : "Start Run"}
         </button>
       </div>
     </div>
