@@ -3,16 +3,16 @@
 import { COLORS } from "../lib/constants";
 
 // --- TEMPORARY: REMOVE THIS FILE (and its imports) WHEN OPENAI QUOTA IS RESTORED ---
-// Added 2026-04-20: Both church and school scrapers share the same OpenAI key,
-// and the quota is exhausted. Every LLM filter call returns 429, so any run
-// would produce 0 contacts while still burning Google Places API budget
-// (~$130/state for Texas-sized). Until OpenAI is topped up, no runs may start.
+// Added 2026-04-20: Church scraper's OpenAI quota is exhausted. Every LLM
+// filter call returns 429, causing every run to produce 0 contacts while
+// still burning Google Places API budget (~$130/state for Texas-sized).
+// Until the OpenAI key is topped up, the church scraper must not be used.
 // ------------------------------------------------------------------------------------
 
-export const SCRAPERS_DISABLED = true;
+export const CHURCH_SCRAPER_DISABLED = true;
 
-export default function ScrapersBanner() {
-  if (!SCRAPERS_DISABLED) return null;
+export default function ChurchScraperBanner() {
+  if (!CHURCH_SCRAPER_DISABLED) return null;
 
   return (
     <div
@@ -50,13 +50,13 @@ export default function ScrapersBanner() {
             marginBottom: 4,
           }}
         >
-          Scrapers Temporarily Disabled
+          Church Scraper Temporarily Disabled
         </div>
         <div style={{ fontSize: 13, color: COLORS.textPrimary, lineHeight: 1.5 }}>
-          The OpenAI API quota is exhausted. Neither church nor school runs can be
-          started — any attempt would produce 0 contacts while still spending
-          Google Places API credits. Existing completed runs and CSVs are
-          unaffected.
+          The OpenAI API quota is exhausted. Church runs cannot be started — any
+          attempt would produce 0 contacts while still spending Google Places API
+          credits. Existing completed runs and CSVs are unaffected. School scraper
+          is operating normally.
         </div>
       </div>
     </div>

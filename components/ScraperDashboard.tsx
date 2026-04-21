@@ -9,7 +9,7 @@ import StatCard from "./StatCard";
 import ProgressBar from "./ProgressBar";
 import RunsTable from "./RunsTable";
 import StatusBadge from "./StatusBadge";
-import ScrapersBanner, { SCRAPERS_DISABLED } from "./ScrapersBanner";
+import ChurchScraperBanner, { CHURCH_SCRAPER_DISABLED } from "./ChurchScraperBanner";
 import type { RunMetadata, ScraperType, PipelineStatus, QueueJob } from "../lib/types";
 
 export default function ScraperDashboard({ scraperType }: { scraperType: ScraperType }) {
@@ -124,9 +124,9 @@ export default function ScraperDashboard({ scraperType }: { scraperType: Scraper
         <h1 style={{ fontSize: 22, fontWeight: 700, color: COLORS.textPrimary, margin: 0, letterSpacing: "-0.02em" }}>
           {labels.title}
         </h1>
-        {SCRAPERS_DISABLED ? (
+        {scraperType === "church" && CHURCH_SCRAPER_DISABLED ? (
           <span
-            title="Scrapers are temporarily disabled — see banner below"
+            title="Church scraper is temporarily disabled — see banner below"
             style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "8px 16px", background: "#ccc", color: "#fff",
@@ -153,7 +153,7 @@ export default function ScraperDashboard({ scraperType }: { scraperType: Scraper
         )}
       </div>
 
-      <ScrapersBanner />
+      {scraperType === "church" && <ChurchScraperBanner />}
 
       {/* Active Run */}
       {activeRun && (
