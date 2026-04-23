@@ -304,7 +304,8 @@ const defaultForm = {
   inhEarlySigningDate:"March 15, 2026", inhEarlySigningAmount:"1,500",
   inhPostAwardFee:"0",
   inhCustomClause:"", inhPolishedClause:"",
-  postFee:"7,000", postPmt1:"40", postPmt2:"30", postPmt3:"30", postGrantYear:String(new Date().getFullYear()), postStateProgram:"",
+  postFee:"7,000", postPmt1:"40", postPmt2:"30", postPmt3:"30",
+  postPrograms:[{key:"federal",year:String(new Date().getFullYear())}],
   postCustomClause:"", postPolishedClause:"",
   // Grant Writer fields
   gwRecipientName:"", gwRecipientEmail:"", gwOrgName:"",
@@ -402,10 +403,6 @@ const SHARED_FIELDS = [
   { key:"contactPhone", label:"Phone", placeholder:"(xxx) xxx-xxxx", formatFn:(v)=>{const d=v.replace(/\D/g,"").slice(0,10);if(d.length<=3)return d;if(d.length<=6)return `(${d.slice(0,3)}) ${d.slice(3)}`;return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;} },
 ];
 const POST_FIELDS = [
-  { section:"Grant Details" },
-  { key:"postGrantYear", label:"Award Year", placeholder:"2024" },
-  { key:"postStateProgram", label:"State Program (if applicable)", type:"select",
-    options:[{value:"",label:"Federal NSGP only"},{value:"illinois",label:"Illinois (NSGP-IL)"},{value:"california",label:"California (CSNSGP)"},{value:"newyork",label:"New York (NYSCAHC)"}] },
   { section:"Compensation" },
   { key:"postFee", label:"Total Fixed Fee ($)", placeholder:"7,000" },
   { key:"postPmt1", label:"Payment 1 — At Signing (%)", placeholder:"40" },
@@ -735,16 +732,14 @@ export default function App() {
       })())
       .replace(/\[COMP_BLOCK\]/g, compBlock);
   };
-  const postStateCfg = form.postStateProgram ? PROGRAMS[form.postStateProgram] : null;
-  const postStateAcronym = postStateCfg ? postStateCfg.acronym : "";
-  const postStateFullName = postStateCfg ? postStateCfg.fullName(form.postGrantYear) : "";
-  // [STATE_AND_ACRONYM] => " & CSNSGP" or "" ; [STATE_AND_AWARD] => " and CSNSGP award" or ""
-  // [STATE_FULL_SUFFIX] => ' & California State Nonprofit Security Grant Program ("CSNSGP")' or ""
+  const postPrograms = form.postPrograms||[{key:"federal",year:String(new Date().getFullYear())}];
+  const postGrantYear = postPrograms[0]?.year||String(new Date().getFullYear());
+  const postNonFederal = postPrograms.filter(p=>p.key!=="federal");
   const interpolatePost = (t) => t
     .replace(/\[CLIENT_NAME\]/g, form.clientName||"[CLIENT NAME]")
-    .replace(/\[GRANT_YEAR\]/g, form.postGrantYear)
-    .replace(/\[STATE_FULL_SUFFIX\]/g, postStateCfg ? ` & ${postStateFullName}` : "")
-    .replace(/\[STATE_AWARD_SUFFIX\]/g, postStateCfg ? ` and ${postStateAcronym}` : "")
+    .replace(/\[GRANT_YEAR\]/g, postGrantYear)
+    .replace(/\[STATE_FULL_SUFFIX\]/g, postNonFederal.map(p=>` & ${(PROGRAMS[p.key]||PROGRAMS.federal).fullName(p.year)}`).join(""))
+    .replace(/\[STATE_AWARD_SUFFIX\]/g, postNonFederal.map(p=>` and ${(PROGRAMS[p.key]||PROGRAMS.federal).acronym}`).join(""))
     .replace(/\[POST_FEE\]/g, `$${form.postFee}`)
     .replace(/\[POST_PMT1\]/g, form.postPmt1)
     .replace(/\[POST_PMT2\]/g, form.postPmt2)
@@ -1278,6 +1273,37 @@ export default function App() {
             Short-notice application
           </label>
         </>}
+        {/* Post-award grant program selector */}
+        {!isPre&&!isGw&&!isInh&&<>
+          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Programs</div>
+          {postPrograms.map((pg,pgIdx)=>{
+            const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
+            return (
+              <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 12px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
+                  {pgIdx>0&&<button onClick={()=>setF("postPrograms",postPrograms.filter((_,i)=>i!==pgIdx))}
+                    style={{background:"none",border:"none",color:"#e05050",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>×</button>}
+                </div>
+                <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Award Year</label>
+                <input value={pg.year||String(new Date().getFullYear())} onChange={e=>{
+                  const updated=[...postPrograms];
+                  updated[pgIdx]={...updated[pgIdx],year:e.target.value};
+                  setF("postPrograms",updated);
+                }} style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:4,padding:"5px 8px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                <div style={{fontSize:10,color:"#6c7a9c",marginTop:4}}>Max Award: <span style={{color:"#9aab2e"}}>${cfg.maxAward}</span></div>
+              </div>
+            );
+          })}
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+            {Object.entries(PROGRAMS).filter(([k])=>!postPrograms.some(p=>p.key===k)).map(([k,cfg])=>(
+              <button key={k} onClick={()=>setF("postPrograms",[...postPrograms,{key:k,year:postPrograms[0]?.year||String(new Date().getFullYear())}])}
+                style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #3a5080",background:"#222e4a",color:"#6c9ecf",cursor:"pointer"}}>
+                + {cfg.label}
+              </button>
+            ))}
+          </div>
+        </>}
         {/* Post-award fields */}
         {!isPre&&!isGw&&!isInh&&POST_FIELDS.map((f2,i)=>{
           if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>{f2.section}</div>;
@@ -1617,11 +1643,12 @@ ${form.npsa1Name||"NPSA"}`
             <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{isGw?"New Client Form":"Engagement Letter"}</div>
             <div style={{fontSize:13,fontStyle:"italic",color:"#444",marginTop:4}}>
               {(()=>{
-                const progLabel = (form.programs||[{key:"federal"}]).map(pg=>(PROGRAMS[pg.key]||PROGRAMS.federal).acronym).join(" / ");
+                const preProgLabel = (form.programs||[{key:"federal"}]).map(pg=>(PROGRAMS[pg.key]||PROGRAMS.federal).acronym).join(" / ");
+                const postProgLabel = postPrograms.map(pg=>(PROGRAMS[pg.key]||PROGRAMS.federal).acronym).join(" / ");
                 return isGw?"3rd Party Grant Writer Engagement"
-                  :isInh?`Pre-Award ${progLabel} Consulting Services: Pre-Award & Compliance Periods`
-                  :isPre?`Pre-Award ${progLabel} Consulting Services: Pre-Award & Compliance Periods`
-                  :`Award Implementation ${progLabel} Consulting Services`;
+                  :isInh?`Pre-Award ${preProgLabel} Consulting Services: Pre-Award & Compliance Periods`
+                  :isPre?`Pre-Award ${preProgLabel} Consulting Services: Pre-Award & Compliance Periods`
+                  :`Award Implementation ${postProgLabel} Consulting Services`;
               })()}
             </div>
             <div style={{fontSize:11,color:"#666",marginTop:5}}>{today}</div>
@@ -1858,7 +1885,7 @@ ${form.npsa1Name||"NPSA"}`
               return (
                 <div style={{border:"1px solid #1a4a6e",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#f4f7fb"}}>
                   <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>
-                    Fee Summary — Award Implementation M&A · {form.postGrantYear||new Date().getFullYear()}
+                    Fee Summary — Award Implementation M&A · {postGrantYear}
                   </div>
                   <div style={{display:"flex",gap:0}}>
                     <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
