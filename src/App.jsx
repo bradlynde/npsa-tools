@@ -285,7 +285,7 @@ const defaultForm = {
   programs:[{key:"federal",year:"2026"}],
   contactName:"", contactTitle:"", contactEmail:"", contactPhone:"",
   grantYear:"2026", grantType:"Federal", grantState:"other", engagementModel:"pre-only", pricingTier:"undiscounted",
-  customFee:"",
+  customFee:"", customContingencyFee:"",
   installments: false, installmentCount:2,
   installment1Pct:"50", installment1Label:"upon execution",
   installment2Pct:"50", installment2Label:"upon award notification",
@@ -295,7 +295,7 @@ const defaultForm = {
   postAwardFee:"0",
   customClause:"", polishedClause:"",
   // In-house pre-award fields
-  inhEngagementModel:"inh-pre-only", inhPricingTier:"undiscounted", inhCustomFee:"",
+  inhEngagementModel:"inh-pre-only", inhPricingTier:"undiscounted", inhCustomFee:"", inhCustomContingencyFee:"",
   inhInstallments:false, inhInstallmentCount:2,
   inhInstallment1Pct:"50", inhInstallment1Label:"upon execution",
   inhInstallment2Pct:"50", inhInstallment2Label:"upon award notification",
@@ -317,7 +317,7 @@ const defaultForm = {
   gwGuar1:true, gwGuar2:false, gwGuar3:true, gwGuar4:false,
   gwGuar4Deadline:"", gwNotes:"",
 };
-function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount) {
+function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount, customContingencyFee) {
   const n = Math.max(parseInt(locs) || 1, 1); // no cap — extrapolate beyond 3
   const isEarlySigning = tier === "discounted";
   const effectiveTier = isEarlySigning ? "undiscounted" : tier; // use undiscounted base to apply discount cleanly
@@ -343,7 +343,9 @@ function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee,
     const pricing = PRICING[model] || PRICING["partial-contingency"];
     const base = lookup(pricing.tiers[effectiveTier]?.upfront || {});
     const up = Math.max(0, base - discount);
-    const con = lookup(pricing.tiers[effectiveTier]?.contingent || {});
+    const con = customContingencyFee
+      ? (parseFloat(String(customContingencyFee).replace(/,/g,"")) || 0)
+      : lookup(pricing.tiers[effectiveTier]?.contingent || {});
     return { upfront: up, baseUpfront: base, discount, contingent: con, postAward: optPostAwardScope ? postAward : null, total: up + con + postAward };
   }
 }
@@ -466,8 +468,8 @@ export default function App() {
   }));
   const totalApps = programApps.reduce((s,p)=>s+p.appCount,0) || 1;
   const numLocs = totalApps; // fees scale on total applications
-  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount);
-  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount);
+  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee);
+  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee);
   // Load templates from server on mount; fall back to hardcoded defaults
   useEffect(() => {
     const load = async (type, setter) => {
@@ -947,7 +949,7 @@ export default function App() {
               <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
-                  {pgIdx>0&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
+                  {(form.programs||[]).length>1&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
                     style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
                 </div>
                 <div style={{marginBottom:6}}>
@@ -975,6 +977,10 @@ export default function App() {
           </div>
           {/* Fee Calculator */}
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Fee Calculator</div>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:10,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.engagementModel==="partial-contingency"} onChange={e=>setF("engagementModel",e.target.checked?"partial-contingency":"pre-only")} style={{accentColor:"#9aab2e"}}/>
+            Partial Contingency
+          </label>
           <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Pricing Tier</label>
           <select value={form.pricingTier} onChange={e=>setF("pricingTier",e.target.value)}
             style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:10,outline:"none"}}>
@@ -984,6 +990,13 @@ export default function App() {
             <div style={{marginBottom:10,marginTop:-4,paddingLeft:0}}>
               <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
               <input value={form.customFee||""} onChange={e=>setF("customFee",e.target.value)} placeholder="e.g. 5,000"
+                style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+            </div>
+          )}
+          {form.engagementModel==="partial-contingency"&&(
+            <div style={{marginBottom:10,marginTop:-4}}>
+              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
+              <input value={form.customContingencyFee||""} onChange={e=>setF("customContingencyFee",e.target.value)} placeholder="e.g. 3,500"
                 style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
@@ -1113,7 +1126,7 @@ export default function App() {
               <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
-                  {pgIdx>0&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
+                  {(form.programs||[]).length>1&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
                     style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
                 </div>
                 <div style={{marginBottom:6}}>
@@ -1153,6 +1166,13 @@ export default function App() {
             <div style={{marginBottom:10,marginTop:-4}}>
               <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
               <input value={form.inhCustomFee||""} onChange={e=>setF("inhCustomFee",e.target.value)} placeholder="e.g. 5,000"
+                style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+            </div>
+          )}
+          {form.inhEngagementModel==="inh-partial-contingency"&&(
+            <div style={{marginBottom:10,marginTop:-4}}>
+              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
+              <input value={form.inhCustomContingencyFee||""} onChange={e=>setF("inhCustomContingencyFee",e.target.value)} placeholder="e.g. 3,500"
                 style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
@@ -1282,7 +1302,7 @@ export default function App() {
               <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 12px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
-                  {pgIdx>0&&<button onClick={()=>setF("postPrograms",postPrograms.filter((_,i)=>i!==pgIdx))}
+                  {postPrograms.length>1&&<button onClick={()=>setF("postPrograms",postPrograms.filter((_,i)=>i!==pgIdx))}
                     style={{background:"none",border:"none",color:"#e05050",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>×</button>}
                 </div>
                 <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Award Year</label>
