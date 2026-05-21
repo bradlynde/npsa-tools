@@ -1632,10 +1632,64 @@ ${form.npsa1Name||"NPSA"}`
             </style></head><body>
               <div id="editable-body" contenteditable="true">${reviewHtml}</div>
               <script>
-                document.getElementById('editable-body').addEventListener('paste', function(e) {
+                var body = document.getElementById('editable-body');
+                body.addEventListener('paste', function(e) {
                   e.preventDefault();
                   var text = (e.clipboardData || window.clipboardData).getData('text/plain');
-                  document.execCommand('insertText', false, text);
+                  var sel = window.getSelection();
+                  if (!sel.rangeCount) return;
+                  sel.deleteFromDocument();
+                  var range = sel.getRangeAt(0);
+                  var lines = text.split(/\r?\n/);
+                  var frag = document.createDocumentFragment();
+                  lines.forEach(function(line, i) {
+                    if (i > 0) frag.appendChild(document.createElement('br'));
+                    if (line) frag.appendChild(document.createTextNode(line));
+                  });
+                  range.insertNode(frag);
+                  range.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                });
+                body.addEventListener('keydown', function(e) {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  var sel = window.getSelection();
+                  if (!sel.rangeCount) { document.execCommand('insertLineBreak'); return; }
+                  var range = sel.getRangeAt(0);
+                  var container = range.startContainer;
+                  // Find nearest block ancestor inside editable-body
+                  var block = container.nodeType === 3 ? container.parentNode : container;
+                  while (block && block !== body && !['DIV','P','LI','H1','H2','H3','H4'].includes(block.tagName)) {
+                    block = block.parentNode;
+                  }
+                  if (!block || block === body) block = container.nodeType === 3 ? container.parentNode : container;
+                  // Get text from block start to cursor, take last line after any <br>s
+                  var lineText = '';
+                  try {
+                    var scan = document.createRange();
+                    scan.setStart(block, 0);
+                    scan.setEnd(range.startContainer, range.startOffset);
+                    var lines = scan.toString().split('\n');
+                    lineText = lines[lines.length - 1];
+                  } catch(err) {}
+                  // Detect list pattern and build continuation prefix
+                  var prefix = '';
+                  var numMatch = lineText.match(/^(\d+)\.\s/);
+                  if (numMatch) {
+                    prefix = (parseInt(numMatch[1]) + 1) + '. ';
+                  } else {
+                    var parenMatch = lineText.match(/^\(([a-z])\)\s/i);
+                    if (parenMatch) {
+                      var next = parenMatch[1].toLowerCase().charCodeAt(0) + 1;
+                      if (next <= 122) prefix = '(' + String.fromCharCode(next) + ') ';
+                    } else {
+                      var bulletMatch = lineText.match(/^([•\-\*])\s/);
+                      if (bulletMatch) prefix = bulletMatch[1] + ' ';
+                    }
+                  }
+                  document.execCommand('insertLineBreak');
+                  if (prefix) document.execCommand('insertText', false, prefix);
                 });
               </script>
             </body></html>`}
