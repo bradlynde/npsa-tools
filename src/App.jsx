@@ -1657,36 +1657,47 @@ ${form.npsa1Name||"NPSA"}`
                   var sel = window.getSelection();
                   if (!sel.rangeCount) { document.execCommand('insertLineBreak'); return; }
                   var range = sel.getRangeAt(0);
-                  var container = range.startContainer;
-                  // Find nearest block ancestor inside editable-body
-                  var block = container.nodeType === 3 ? container.parentNode : container;
-                  while (block && block !== body && !['DIV','P','LI','H1','H2','H3','H4'].includes(block.tagName)) {
-                    block = block.parentNode;
-                  }
-                  if (!block || block === body) block = container.nodeType === 3 ? container.parentNode : container;
-                  // Get text from block start to cursor, take last line after any <br>s
+                  // Walk backwards from cursor to collect current line text,
+                  // stopping at <br> elements or block boundaries.
+                  // List items render as flex-div > [span.number, span.content] so
+                  // we must cross the span boundary to reach the number prefix.
                   var lineText = '';
-                  try {
-                    var scan = document.createRange();
-                    scan.setStart(block, 0);
-                    scan.setEnd(range.startContainer, range.startOffset);
-                    var lines = scan.toString().split('\n');
-                    lineText = lines[lines.length - 1];
-                  } catch(err) {}
+                  var node = range.startContainer;
+                  var offset = range.startOffset;
+                  if (node.nodeType === 3) {
+                    lineText = node.textContent.slice(0, offset);
+                    node = node.previousSibling;
+                    if (!node) {
+                      var par = range.startContainer.parentNode;
+                      if (par && par !== body && !['DIV','P','LI'].includes(par.tagName)) {
+                        node = par.previousSibling;
+                      }
+                    }
+                  }
+                  while (node) {
+                    if (node.nodeType === 1 && node.tagName === 'BR') break;
+                    if (node.nodeType === 1 && ['DIV','P','LI'].includes(node.tagName)) break;
+                    var nodeText = node.nodeType === 3 ? node.textContent : (node.textContent || '');
+                    lineText = nodeText + lineText;
+                    if (node.previousSibling) {
+                      node = node.previousSibling;
+                    } else {
+                      var p = node.parentNode;
+                      if (!p || p === body || ['DIV','P','LI'].includes(p.tagName)) break;
+                      node = p.previousSibling;
+                    }
+                  }
+                  lineText = lineText.replace(/ /g, ' ');
                   // Detect list pattern and build continuation prefix
                   var prefix = '';
-                  var numMatch = lineText.match(/^(\d+)\.\s/);
-                  if (numMatch) {
-                    prefix = (parseInt(numMatch[1]) + 1) + '. ';
-                  } else {
-                    var parenMatch = lineText.match(/^\(([a-z])\)\s/i);
-                    if (parenMatch) {
-                      var next = parenMatch[1].toLowerCase().charCodeAt(0) + 1;
-                      if (next <= 122) prefix = '(' + String.fromCharCode(next) + ') ';
-                    } else {
-                      var bulletMatch = lineText.match(/^([•\-\*])\s/);
-                      if (bulletMatch) prefix = bulletMatch[1] + ' ';
-                    }
+                  var m;
+                  if ((m = lineText.match(/^(\d+)\.\s+/))) {
+                    prefix = (parseInt(m[1]) + 1) + '. ';
+                  } else if ((m = lineText.match(/^\(([a-z])\)\s+/i))) {
+                    var next = m[1].toLowerCase().charCodeAt(0) + 1;
+                    if (next <= 122) prefix = '(' + String.fromCharCode(next) + ') ';
+                  } else if ((m = lineText.match(/^([•\-\*])\s+/))) {
+                    prefix = m[1] + ' ';
                   }
                   document.execCommand('insertLineBreak');
                   if (prefix) document.execCommand('insertText', false, prefix);
