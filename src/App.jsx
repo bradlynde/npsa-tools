@@ -1632,10 +1632,30 @@ ${form.npsa1Name||"NPSA"}`
             </style></head><body>
               <div id="editable-body" contenteditable="true">${reviewHtml}</div>
               <script>
-                document.getElementById('editable-body').addEventListener('paste', function(e) {
+                var body = document.getElementById('editable-body');
+                body.addEventListener('paste', function(e) {
                   e.preventDefault();
                   var text = (e.clipboardData || window.clipboardData).getData('text/plain');
-                  document.execCommand('insertText', false, text);
+                  var sel = window.getSelection();
+                  if (!sel.rangeCount) return;
+                  sel.deleteFromDocument();
+                  var range = sel.getRangeAt(0);
+                  var lines = text.split(/\r?\n/);
+                  var frag = document.createDocumentFragment();
+                  lines.forEach(function(line, i) {
+                    if (i > 0) frag.appendChild(document.createElement('br'));
+                    if (line) frag.appendChild(document.createTextNode(line));
+                  });
+                  range.insertNode(frag);
+                  range.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                });
+                body.addEventListener('keydown', function(e) {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.execCommand('insertLineBreak');
+                  }
                 });
               </script>
             </body></html>`}
