@@ -1655,52 +1655,63 @@ ${form.npsa1Name||"NPSA"}`
                   if (e.key !== 'Enter') return;
                   e.preventDefault();
                   var sel = window.getSelection();
-                  if (!sel.rangeCount) { document.execCommand('insertLineBreak'); return; }
-                  var range = sel.getRangeAt(0);
-                  // Walk backwards from cursor to collect current line text,
-                  // stopping at <br> elements or block boundaries.
-                  // List items render as flex-div > [span.number, span.content] so
-                  // we must cross the span boundary to reach the number prefix.
-                  var lineText = '';
-                  var node = range.startContainer;
-                  var offset = range.startOffset;
-                  if (node.nodeType === 3) {
-                    lineText = node.textContent.slice(0, offset);
-                    node = node.previousSibling;
-                    if (!node) {
-                      var par = range.startContainer.parentNode;
-                      if (par && par !== body && !['DIV','P','LI'].includes(par.tagName)) {
-                        node = par.previousSibling;
+                  if (!sel.rangeCount) return;
+
+                  // Detect prefix of current line via backwards DOM walk.
+                  // List items are flex-div > [span.number, span.content] so we
+                  // must cross the span boundary to reach the number/bullet prefix.
+                  var prefix = '';
+                  try {
+                    var range0 = sel.getRangeAt(0);
+                    var lineText = '';
+                    var wNode = range0.startContainer;
+                    var wOffset = range0.startOffset;
+                    if (wNode.nodeType === 3) {
+                      lineText = wNode.textContent.slice(0, wOffset);
+                      wNode = wNode.previousSibling;
+                      if (!wNode) {
+                        var par = range0.startContainer.parentNode;
+                        if (par && par !== body && !['DIV','P','LI'].includes(par.tagName)) {
+                          wNode = par.previousSibling;
+                        }
                       }
                     }
-                  }
-                  while (node) {
-                    if (node.nodeType === 1 && node.tagName === 'BR') break;
-                    if (node.nodeType === 1 && ['DIV','P','LI'].includes(node.tagName)) break;
-                    var nodeText = node.nodeType === 3 ? node.textContent : (node.textContent || '');
-                    lineText = nodeText + lineText;
-                    if (node.previousSibling) {
-                      node = node.previousSibling;
-                    } else {
-                      var p = node.parentNode;
-                      if (!p || p === body || ['DIV','P','LI'].includes(p.tagName)) break;
-                      node = p.previousSibling;
+                    while (wNode) {
+                      if (wNode.nodeType === 1 && wNode.tagName === 'BR') break;
+                      if (wNode.nodeType === 1 && ['DIV','P','LI'].includes(wNode.tagName)) break;
+                      lineText = (wNode.textContent || '') + lineText;
+                      if (wNode.previousSibling) {
+                        wNode = wNode.previousSibling;
+                      } else {
+                        var wp = wNode.parentNode;
+                        if (!wp || wp === body || ['DIV','P','LI'].includes(wp.tagName)) break;
+                        wNode = wp.previousSibling;
+                      }
                     }
-                  }
-                  lineText = lineText.replace(/ /g, ' ');
-                  // Detect list pattern and build continuation prefix
-                  var prefix = '';
-                  var m;
-                  if ((m = lineText.match(/^(\d+)\.\s+/))) {
-                    prefix = (parseInt(m[1]) + 1) + '. ';
-                  } else if ((m = lineText.match(/^\(([a-z])\)\s+/i))) {
-                    var next = m[1].toLowerCase().charCodeAt(0) + 1;
-                    if (next <= 122) prefix = '(' + String.fromCharCode(next) + ') ';
-                  } else if ((m = lineText.match(/^([•\-\*])\s+/))) {
-                    prefix = m[1] + ' ';
-                  }
-                  document.execCommand('insertLineBreak');
-                  if (prefix) document.execCommand('insertText', false, prefix);
+                    lineText = lineText.replace(/\u00a0/g, ' ');
+                    var m;
+                    if ((m = lineText.match(/^(\d+)\.\s/))) {
+                      prefix = (parseInt(m[1]) + 1) + '. ';
+                    } else if ((m = lineText.match(/^\(([a-z])\)\s/i))) {
+                      var next = m[1].toLowerCase().charCodeAt(0) + 1;
+                      if (next <= 122) prefix = '(' + String.fromCharCode(next) + ') ';
+                    } else if ((m = lineText.match(/^([\u2022\-\*])\s/))) {
+                      prefix = m[1] + ' ';
+                    }
+                  } catch(err) {}
+
+                  // Insert <br> + prefix text via DOM (avoids deprecated execCommand)
+                  var range = sel.getRangeAt(0);
+                  range.deleteContents();
+                  var br = document.createElement('br');
+                  range.insertNode(br);
+                  var textNode = document.createTextNode(prefix);
+                  range.setStartAfter(br);
+                  range.insertNode(textNode);
+                  range.setStart(textNode, prefix.length);
+                  range.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
                 });
               </script>
             </body></html>`}
