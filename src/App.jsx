@@ -1631,6 +1631,13 @@ ${form.npsa1Name||"NPSA"}`
               @media print{body{margin:0;padding:0;background:#fff;}#editable-body{box-shadow:none;padding:72pt;max-width:100%;}}
             </style></head><body>
               <div id="editable-body" contenteditable="true">${reviewHtml}</div>
+              <script>
+                document.getElementById('editable-body').addEventListener('paste', function(e) {
+                  e.preventDefault();
+                  var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+                  document.execCommand('insertText', false, text);
+                });
+              </script>
             </body></html>`}
           />
         </div>
