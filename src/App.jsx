@@ -2310,7 +2310,7 @@ ${form.npsa1Name||"NPSA"}`
       {/* ── PREVIEW ── */}
       <div style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#dde0e6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
         {/* Tabs */}
-        <div style={{maxWidth:800,margin:"0 auto",paddingTop:28,display:"flex",overflowX:"auto"}}>
+        <div style={{position:"sticky",top:0,zIndex:10,background:"#dde0e6",paddingTop:28}}><div style={{maxWidth:800,margin:"0 auto",display:"flex",overflowX:"auto"}}>
           {[{id:"pre",label:"Pre-Award"},{id:"inh",label:"Pre-Award (In-House)"},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>(
             <button key={t.id} onClick={()=>setDocTab(t.id)}
               style={{padding:"10px 18px",fontSize:12,fontWeight:700,border:"none",whiteSpace:"nowrap",flexShrink:0,
@@ -2322,7 +2322,7 @@ ${form.npsa1Name||"NPSA"}`
               {t.label}
             </button>
           ))}
-        </div>
+        </div></div>
         <div style={{maxWidth:800,margin:"0 auto",background:"#fff",boxShadow:"0 4px 32px rgba(0,0,0,0.13)",padding:"64px 72px"}} ref={previewRef}>
           {savedLetterOverride ? <div dangerouslySetInnerHTML={{__html: savedLetterOverride}} /> : isProposal ? (()=>{
             const pgYear = proposalProgs[0]?.year || form.grantYear;
@@ -2427,7 +2427,7 @@ ${form.npsa1Name||"NPSA"}`
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:26,marginBottom:14}}>Acknowledged and Agreed</div>
               <div style={{display:"flex",gap:48}}>
                 {[
-                  {party:addClient,sub:null,isNpsa:false,fields:[["Signature",""],["Printed Name",""],["Title",""],["Date",""]]},
+                  {party:addClient,sub:null,isNpsa:false,fields:[["Signature",""],["Printed Name",form.contactName||""],["Title",form.contactTitle||""],["Date",""]]},
                   {party:"Lynde Consulting, LLC",sub:"DBA Nonprofit Security Advisors",isNpsa:true,fields:[["Signature",form.npsaSignerName||""],["Printed Name",form.npsaSignerName||""],["Title",form.npsaSignerTitle||""],["Date",npsaDate]]},
                 ].map((p,i)=>(
                   <div key={i} style={{flex:1}}>
