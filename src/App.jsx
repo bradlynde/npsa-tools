@@ -311,7 +311,7 @@ const defaultForm = {
   gwRecipientName:"", gwRecipientEmail:"", gwOrgName:"",
   gwDate:"",
   npsa1Name:"", npsa1Email:"", npsa1Phone:"", npsa2Selected:[],
-  npsaSignerName:"Brad Lynde", npsaSignerTitle:"Managing Partner", npsaSigningDate:"2026-03-18",
+  npsaSignerName:"Brad Lynde", npsaSignerTitle:"Managing Partner", npsaSigningDate:new Date().toISOString().split('T')[0],
   gwCcContacts:[],
   gwProfFee:"", gwPaymentTerms:"Net 30",
   gwGuar1:true, gwGuar2:false, gwGuar3:true, gwGuar4:false,
@@ -990,7 +990,7 @@ export default function App() {
 
             {/* Action cards */}
             <div style={{display:'flex',gap:18,marginBottom:18}}>
-              <div onClick={()=>{ setForm(defaultForm); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
+              <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
