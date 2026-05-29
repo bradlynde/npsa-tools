@@ -992,9 +992,9 @@ export default function App() {
             <div style={{display:'flex',gap:18,marginBottom:18}}>
               <div onClick={()=>{ setForm(defaultForm); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
-                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(99,102,241,0.2)';}}
+                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(99,102,241,0.35)'}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#1a2540,#1a4a6e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </div>
                 <div>
@@ -1005,9 +1005,9 @@ export default function App() {
               {dbAvailable && (
                 <div onClick={()=>{ fetchLetters(); setLetterSearch(''); setShowLetterBrowser(true); }}
                   style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
-                  onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(16,185,129,0.2)';}}
+                  onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(122,140,30,0.25)';}}
                   onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                  <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#10b981,#34d399)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(16,185,129,0.35)'}}>
+                  <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#7a8c1e,#9aab2e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                   </div>
                   <div>
@@ -1021,13 +1021,13 @@ export default function App() {
             {/* Stats + leaderboard */}
             {dbAvailable && dashStats && (<>
               <div style={{display:'flex',gap:18,marginBottom:18}}>
-                <div style={{flex:1,background:'linear-gradient(135deg,#4f46e5,#7c3aed)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(79,70,229,0.25)'}}>
+                <div style={{flex:1,background:'linear-gradient(135deg,#1a2540,#1a4a6e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(26,37,64,0.3)'}}>
                   <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}>{dashStats.total}</div>
-                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
+                  <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
                 </div>
-                <div style={{flex:1,background:'linear-gradient(135deg,#059669,#10b981)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(5,150,105,0.25)'}}>
+                <div style={{flex:1,background:'linear-gradient(135deg,#7a8c1e,#9aab2e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(122,140,30,0.3)'}}>
                   <div style={{color:'#fff',fontWeight:800,fontSize:dashStats.total_fees>0?36:42,lineHeight:1}}>{fmtFee(dashStats.total_fees)}</div>
-                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Fees Generated</div>
+                  <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Fees Generated</div>
                 </div>
               </div>
 
@@ -1043,7 +1043,7 @@ export default function App() {
                         {i+1}
                       </div>
                       <div style={{flex:1,fontWeight:600,color:'#1a2540',fontSize:16}}>{row.rep_name}</div>
-                      <div style={{fontWeight:800,color:'#4f46e5',fontSize:17}}>{row.count}</div>
+                      <div style={{fontWeight:800,color:'#7a8c1e',fontSize:17}}>{row.count}</div>
                       <div style={{color:'#9aa3b8',fontSize:13}}>{row.count === 1 ? 'letter' : 'letters'}</div>
                     </div>
                   ))}
@@ -1089,7 +1089,7 @@ export default function App() {
                     placeholder="Rep name..."
                     style={{flex:1,border:'1px solid #dde1ea',borderRadius:10,padding:'10px 14px',fontSize:14,outline:'none'}}/>
                   <button onClick={addRep}
-                    style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 14px rgba(99,102,241,0.3)'}}>
+                    style={{background:'linear-gradient(135deg,#1a2540,#1a4a6e)',color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 14px rgba(26,37,64,0.3)'}}>
                     Add Rep
                   </button>
                 </div>
@@ -1246,7 +1246,7 @@ export default function App() {
             )}
             {form.optPostAwardScope&&(
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
-                <span>Award Implementation Fee (on award){numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(fees.postAward)}</span>
+                <span>Compliance Consulting Fee{numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(fees.postAward)}</span>
               </div>
             )}
             <div style={{borderTop:"1px solid #2e4060",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
@@ -1422,7 +1422,7 @@ export default function App() {
             )}
             {form.inhOptPostAwardScope&&(
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
-                <span>Award Implementation Fee (on award){numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.postAward)}</span>
+                <span>Compliance Consulting Fee{numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.postAward)}</span>
               </div>
             )}
             <div style={{borderTop:"1px solid #2e4060",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
@@ -2060,7 +2060,7 @@ ${form.npsa1Name||"NPSA"}`
                 )}
                 {form.optPostAwardScope&&(
                   <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
-                    <div style={{fontSize:10,color:"#888",marginBottom:2}}>Award Implementation Fee{numLocs>1?` (×${numLocs})`:""}</div>
+                    <div style={{fontSize:10,color:"#888",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
                     <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(fees.postAward)}</div>
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
@@ -2117,7 +2117,7 @@ ${form.npsa1Name||"NPSA"}`
                 )}
                 {form.inhOptPostAwardScope&&(
                   <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
-                    <div style={{fontSize:10,color:"#888",marginBottom:2}}>Award Implementation Fee{numLocs>1?` (×${numLocs})`:""}</div>
+                    <div style={{fontSize:10,color:"#888",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
                     <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(inhFees.postAward)}</div>
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
@@ -2608,7 +2608,7 @@ ${form.npsa1Name||"NPSA"}`
                           <td style={{padding:"16px 14px"}}>
                             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                               <button onClick={()=>loadLetter(l.id)}
-                                style={{background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 3px 10px rgba(99,102,241,0.28)"}}>
+                                style={{background:"linear-gradient(135deg,#1a2540,#1a4a6e)",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 3px 10px rgba(26,37,64,0.3)"}}>
                                 Load
                               </button>
                               <button onClick={()=>deleteLetter(l.id)}
