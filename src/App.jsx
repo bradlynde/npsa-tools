@@ -305,6 +305,7 @@ const defaultForm = {
   inhPostAwardFee:"0",
   inhCustomClause:"", inhPolishedClause:"",
   postFee:"7,000", postPmt1:"40", postPmt2:"30", postPmt3:"30",
+  postEffectiveDate:"", postReimbursementOption:"",
   postPrograms:[{key:"federal",year:String(new Date().getFullYear())}],
   postCustomClause:"", postPolishedClause:"",
   // Grant Writer fields
@@ -407,9 +408,10 @@ const SHARED_FIELDS = [
 const POST_FIELDS = [
   { section:"Compensation" },
   { key:"postFee", label:"Total Fixed Fee ($)", placeholder:"7,000" },
+  { key:"postEffectiveDate", label:"Effective Date", type:"date" },
   { key:"postPmt1", label:"Payment 1 — At Signing (%)", placeholder:"40" },
-  { key:"postPmt2", label:"Payment 2 — Post-Procurement (%)", placeholder:"30" },
-  { key:"postPmt3", label:"Payment 3 — Final Reimbursement (%)", placeholder:"30" },
+  { key:"postPmt2", label:"Payment 2 — Month 4 (%)", placeholder:"30" },
+  { key:"postPmt3", label:"Payment 3 — Month 8 (%)", placeholder:"30" },
 ];
 function useAI() {
   const [loading, setLoading] = useState(false);
@@ -865,15 +867,46 @@ export default function App() {
   const postPrograms = form.postPrograms||[{key:"federal",year:String(new Date().getFullYear())}];
   const postGrantYear = postPrograms[0]?.year||String(new Date().getFullYear());
   const postNonFederal = postPrograms.filter(p=>p.key!=="federal");
-  const interpolatePost = (t) => t
-    .replace(/\[CLIENT_NAME\]/g, form.clientName||"[CLIENT NAME]")
-    .replace(/\[GRANT_YEAR\]/g, postGrantYear)
-    .replace(/\[STATE_FULL_SUFFIX\]/g, postNonFederal.map(p=>` & ${(PROGRAMS[p.key]||PROGRAMS.federal).fullName(p.year)}`).join(""))
-    .replace(/\[STATE_AWARD_SUFFIX\]/g, postNonFederal.map(p=>` and ${(PROGRAMS[p.key]||PROGRAMS.federal).acronym}`).join(""))
-    .replace(/\[POST_FEE\]/g, `$${form.postFee}`)
-    .replace(/\[POST_PMT1\]/g, form.postPmt1)
-    .replace(/\[POST_PMT2\]/g, form.postPmt2)
-    .replace(/\[POST_PMT3\]/g, form.postPmt3);
+  const interpolatePost = (t) => {
+    const effDate = form.postEffectiveDate || "";
+    let effDateLabel = "[Effective Date not set]";
+    let pmt2DateLabel = "[Month 4 date]";
+    let pmt3DateLabel = "[Month 8 date]";
+    if (effDate) {
+      const d = new Date(effDate + "T12:00:00");
+      const m4 = new Date(d); m4.setMonth(m4.getMonth() + 4);
+      const m8 = new Date(d); m8.setMonth(m8.getMonth() + 8);
+      const fmtD = (dt) => dt.toLocaleDateString("en-US", {month:"long", day:"numeric", year:"numeric"});
+      effDateLabel = fmtD(d);
+      pmt2DateLabel = fmtD(m4);
+      pmt3DateLabel = fmtD(m8);
+    }
+    const postLocLines = (form.locations||[]).length > 0
+      ? (form.locations||[]).map((loc,i) => {
+          const parts = [loc.name, loc.address, [loc.city, loc.state, loc.zip].filter(Boolean).join(", ")].filter(Boolean);
+          return `       ${i+1}. ${parts.join(" — ")}`;
+        }).join("\n")
+      : "       1. [No addresses entered — add locations in the Locations section]";
+    const reimbOption = form.postReimbursementOption === "optionA"
+      ? "\n6. CLIENT acknowledges that M&A consulting fees may be eligible for reimbursement through NSGP grant proceeds, subject to approval by the administering State agency. CLIENT further acknowledges that the timing of grant reimbursements may not align with NPSA's payment schedule, and that CLIENT is solely responsible for making all payments to NPSA in accordance with the schedule above, regardless of whether or when CLIENT receives grant reimbursement."
+      : form.postReimbursementOption === "optionB"
+      ? "\n6. CLIENT acknowledges that NPSA's M&A consulting fees are not reimbursable through NSGP grant proceeds and that CLIENT is solely responsible for all payments to NPSA from CLIENT's own funds."
+      : "";
+    return t
+      .replace(/\[CLIENT_NAME\]/g, form.clientName||"[CLIENT NAME]")
+      .replace(/\[GRANT_YEAR\]/g, postGrantYear)
+      .replace(/\[STATE_FULL_SUFFIX\]/g, postNonFederal.map(p=>` & ${(PROGRAMS[p.key]||PROGRAMS.federal).fullName(p.year)}`).join(""))
+      .replace(/\[STATE_AWARD_SUFFIX\]/g, postNonFederal.map(p=>` and ${(PROGRAMS[p.key]||PROGRAMS.federal).acronym}`).join(""))
+      .replace(/\[POST_FEE\]/g, `$${form.postFee}`)
+      .replace(/\[POST_PMT1\]/g, form.postPmt1)
+      .replace(/\[POST_PMT2\]/g, form.postPmt2)
+      .replace(/\[POST_PMT3\]/g, form.postPmt3)
+      .replace(/\[POST_EFFECTIVE_DATE\]/g, effDateLabel)
+      .replace(/\[POST_PMT2_DATE\]/g, pmt2DateLabel)
+      .replace(/\[POST_PMT3_DATE\]/g, pmt3DateLabel)
+      .replace(/\[POST_LOCATION_LIST\]/g, postLocLines)
+      .replace(/\[POST_REIMBURSEMENT_OPTION\]/g, reimbOption);
+  };
   const getContent = (sections,id,subId,interp) => {
     const s = sections.find(x=>x.id===id); if(!s) return "";
     if(subId&&s.subsections){ const sub=s.subsections.find(x=>x.id===subId); return sub?interp(sub.content):""; }
@@ -1679,12 +1712,34 @@ export default function App() {
                     style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}>
                     {f2.options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
-                : <input value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder||""}
-                    style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                : <input type={f2.type||"text"} value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder||""}
+                    style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none",colorScheme:"dark"}}/>
               }
             </div>
           );
         })}
+        {/* Post-award: Reimbursement Option A/B */}
+        {!isPre&&!isGw&&!isInh&&(
+          <>
+            <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Reimbursement Expectation</div>
+            {!form.postReimbursementOption&&(
+              <div style={{fontSize:11,color:"#e07070",marginBottom:8}}>⚠ Rep must select Option A or Option B</div>
+            )}
+            {[
+              {val:"optionA", label:"Option A — Reimbursement Expected", desc:"M&A fees may be reimbursed through grant funds (timing may differ)"},
+              {val:"optionB", label:"Option B — No Grant Reimbursement", desc:"M&A fees are not reimbursable through grant proceeds"},
+            ].map(opt=>(
+              <label key={opt.val} onClick={()=>setF("postReimbursementOption",opt.val)}
+                style={{display:"flex",alignItems:"flex-start",gap:10,fontSize:12,color:form.postReimbursementOption===opt.val?"#fff":"#b0b8cc",marginBottom:8,cursor:"pointer",background:form.postReimbursementOption===opt.val?"#1a4a6e":"#1a2540",border:`1px solid ${form.postReimbursementOption===opt.val?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"8px 10px"}}>
+                <input type="radio" name="postReimbursementOption" value={opt.val} checked={form.postReimbursementOption===opt.val} onChange={()=>setF("postReimbursementOption",opt.val)} style={{accentColor:"#5b9ec9",marginTop:3,flexShrink:0}}/>
+                <div>
+                  <div style={{fontWeight:700}}>{opt.label}</div>
+                  <div style={{fontSize:10,color:"#6c7a9c",marginTop:2}}>{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+          </>
+        )}
         {/* Grant Writer sidebar fields */}
         {isGw&&<>
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:4,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Writer</div>
@@ -2259,6 +2314,16 @@ ${form.npsa1Name||"NPSA"}`
               const pmt1 = Math.round(fee * p1 / 100);
               const pmt2 = Math.round(fee * p2 / 100);
               const pmt3 = Math.round(fee * p3 / 100);
+              let pmt2Due = "Month 4 from effective date";
+              let pmt3Due = "Month 8 from effective date";
+              if (form.postEffectiveDate) {
+                const d = new Date(form.postEffectiveDate + "T12:00:00");
+                const m4 = new Date(d); m4.setMonth(m4.getMonth() + 4);
+                const m8 = new Date(d); m8.setMonth(m8.getMonth() + 8);
+                const fmtShort = (dt) => dt.toLocaleDateString("en-US", {month:"short", day:"numeric", year:"numeric"});
+                pmt2Due = `Due ${fmtShort(m4)}`;
+                pmt3Due = `Due ${fmtShort(m8)}`;
+              }
               return (
                 <div style={{border:"1px solid #1a4a6e",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#f4f7fb"}}>
                   <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>
@@ -2271,14 +2336,14 @@ ${form.npsa1Name||"NPSA"}`
                       <div style={{fontSize:10,color:"#888",marginTop:2}}>Due at signing</div>
                     </div>
                     <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
-                      <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment 2 — Post-Procurement{p2>0?` (${p2}%)`:""}</div>
+                      <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment 2 — Month 4{p2>0?` (${p2}%)`:""}</div>
                       <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fee>0&&p2>0?fmt(pmt2):"—"}</div>
-                      <div style={{fontSize:10,color:"#888",marginTop:2}}>After procurement</div>
+                      <div style={{fontSize:10,color:"#888",marginTop:2}}>{pmt2Due}</div>
                     </div>
                     <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
-                      <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment 3 — Final Reimbursement{p3>0?` (${p3}%)`:""}</div>
+                      <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment 3 — Month 8{p3>0?` (${p3}%)`:""}</div>
                       <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fee>0&&p3>0?fmt(pmt3):"—"}</div>
-                      <div style={{fontSize:10,color:"#888",marginTop:2}}>After final reimbursement</div>
+                      <div style={{fontSize:10,color:"#888",marginTop:2}}>{pmt3Due}</div>
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:10,color:"#888",marginBottom:2}}>Total Fixed Fee</div>
