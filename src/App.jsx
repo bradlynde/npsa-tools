@@ -894,12 +894,18 @@ export default function App() {
   };
 
   const saveLetter = async () => {
+    const parseFee = (s) => parseFloat(String(s||'').replace(/[^0-9.]/g,'')) || 0;
+    const computedFee = docTab === 'post' ? parseFee(form.postFee)
+      : docTab === 'gw' ? parseFee(form.gwProfFee)
+      : docTab === 'inh' ? (inhFees.total || 0)
+      : (fees.total || 0);
     const payload = {
       client_name: form.clientName || 'Untitled',
       rep_name: selectedRep || 'Unknown',
       doc_tab: docTab,
       form_data: form,
       saved_html: savedLetterOverride || null,
+      total_fee: computedFee,
     };
     if (currentLetterId) {
       await fetch(`/api/letters/${currentLetterId}`, {
@@ -951,89 +957,88 @@ export default function App() {
   };
 
   const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
-  const tabBadge = { pre: 'PRE', inh: 'INH', post: 'POST', gw: 'GW' };
+  const tabLabel = { pre: 'Pre-Award', inh: 'Pre-Award In-House', post: 'Award Implementation', gw: '3rd Party Grant Writer' };
   const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtFee = (n) => n > 0 ? '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:0,maximumFractionDigits:0}) : '—';
 
   return (
     <>
       {/* ── DASHBOARD ── */}
       {appView === 'dashboard' && (
-        <div style={{minHeight:'100vh',background:'#f4f6fb',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column'}}>
-          {/* Top bar — gear only */}
-          <div style={{padding:'20px 32px 0',display:'flex',alignItems:'center',justifyContent:'flex-end'}}>
-            {dbAvailable && (
+        <div style={{minHeight:'100vh',background:'#d8dfe8',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column',alignItems:'center'}}>
+          {/* Gear — top right */}
+          {dbAvailable && (
+            <div style={{width:'100%',maxWidth:720,padding:'20px 24px 0',boxSizing:'border-box',display:'flex',justifyContent:'flex-end'}}>
               <button onClick={()=>setAppView('settings')}
-                style={{background:'#fff',border:'1px solid #e6e9f2',borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',color:'#5b6b8c',cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}
+                style={{background:'#fff',border:'1px solid #d0d6e0',borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',color:'#5b6b8c',cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.08)',transition:'color 0.2s, transform 0.3s'}}
                 title="Settings"
-                onMouseEnter={e=>{e.currentTarget.style.color='#1a2540';e.currentTarget.style.transform='rotate(45deg)';}}
+                onMouseEnter={e=>{e.currentTarget.style.color='#1a2540';e.currentTarget.style.transform='rotate(60deg)';}}
                 onMouseLeave={e=>{e.currentTarget.style.color='#5b6b8c';e.currentTarget.style.transform='rotate(0deg)';}}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Welcome heading */}
-          <div style={{textAlign:'center',padding:'28px 32px 8px'}}>
+          <div style={{textAlign:'center',padding:'20px 32px 16px'}}>
             <div style={{fontSize:30,fontWeight:800,color:'#1a2540',letterSpacing:-0.5}}>Letters of Engagement</div>
-            <div style={{fontSize:15,color:'#7a869f',marginTop:6}}>Generate, save, and pick up any draft where you left off.</div>
+            <div style={{fontSize:15,color:'#5b6b8c',marginTop:6}}>Generate, save, and pick up any draft where you left off.</div>
           </div>
 
-          {/* Action cards */}
-          <div style={{display:'flex',justifyContent:'center',gap:22,padding:'28px 32px 8px',flexWrap:'wrap'}}>
-            {/* Generate */}
-            <div onClick={()=>{ setForm(defaultForm); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
-              style={{width:330,background:'#fff',borderRadius:18,padding:'22px',cursor:'pointer',boxShadow:'0 6px 24px rgba(2,6,23,0.06)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid #eef1f7'}}
-              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(99,102,241,0.18)';}}
-              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 6px 24px rgba(2,6,23,0.06)';}}>
-              <div style={{width:58,height:58,borderRadius:15,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(99,102,241,0.35)'}}>
-                <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
-              </div>
-              <div>
-                <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Generate New Letter</div>
-                <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:3}}>Start a new engagement letter from scratch</div>
-              </div>
-            </div>
-            {/* Load */}
-            {dbAvailable && (
-              <div onClick={()=>{ fetchLetters(); setLetterSearch(''); setShowLetterBrowser(true); }}
-                style={{width:330,background:'#fff',borderRadius:18,padding:'22px',cursor:'pointer',boxShadow:'0 6px 24px rgba(2,6,23,0.06)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid #eef1f7'}}
-                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(16,185,129,0.18)';}}
-                onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 6px 24px rgba(2,6,23,0.06)';}}>
-                <div style={{width:58,height:58,borderRadius:15,background:'linear-gradient(135deg,#10b981,#34d399)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(16,185,129,0.35)'}}>
-                  <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          {/* All cards in one aligned container */}
+          <div style={{width:'100%',maxWidth:720,padding:'0 24px 48px',boxSizing:'border-box'}}>
+
+            {/* Action cards */}
+            <div style={{display:'flex',gap:18,marginBottom:18}}>
+              <div onClick={()=>{ setForm(defaultForm); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
+                style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
+                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(99,102,241,0.2)';}}
+                onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(99,102,241,0.35)'}}>
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </div>
                 <div>
-                  <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Load Previous Letter</div>
-                  <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:3}}>Search and reload a saved draft</div>
+                  <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Generate New Letter</div>
+                  <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>Start a new engagement letter from scratch</div>
                 </div>
               </div>
-            )}
-          </div>
+              {dbAvailable && (
+                <div onClick={()=>{ fetchLetters(); setLetterSearch(''); setShowLetterBrowser(true); }}
+                  style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
+                  onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(16,185,129,0.2)';}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
+                  <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#10b981,#34d399)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(16,185,129,0.35)'}}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                  <div>
+                    <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Load Previous Letter</div>
+                    <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>Search and reload a saved draft</div>
+                  </div>
+                </div>
+              )}
+            </div>
 
-          {/* Stats + leaderboard */}
-          {dbAvailable && dashStats && (
-            <div style={{maxWidth:694,margin:'0 auto',padding:'20px 32px 48px',width:'100%'}}>
-              {/* Stat cards */}
-              <div style={{display:'flex',gap:22,marginBottom:22,flexWrap:'wrap'}}>
-                <div style={{flex:1,minWidth:200,background:'linear-gradient(135deg,#4f46e5,#7c3aed)',borderRadius:18,padding:'26px 28px',boxShadow:'0 10px 28px rgba(79,70,229,0.28)'}}>
+            {/* Stats + leaderboard */}
+            {dbAvailable && dashStats && (<>
+              <div style={{display:'flex',gap:18,marginBottom:18}}>
+                <div style={{flex:1,background:'linear-gradient(135deg,#4f46e5,#7c3aed)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(79,70,229,0.25)'}}>
                   <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}>{dashStats.total}</div>
-                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12.5,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
+                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
                 </div>
-                <div style={{flex:1,minWidth:200,background:'linear-gradient(135deg,#059669,#10b981)',borderRadius:18,padding:'26px 28px',boxShadow:'0 10px 28px rgba(5,150,105,0.28)'}}>
-                  <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}>{dashStats.by_rep?.length || 0}</div>
-                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12.5,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Active Reps</div>
+                <div style={{flex:1,background:'linear-gradient(135deg,#059669,#10b981)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(5,150,105,0.25)'}}>
+                  <div style={{color:'#fff',fontWeight:800,fontSize:dashStats.total_fees>0?36:42,lineHeight:1}}>{fmtFee(dashStats.total_fees)}</div>
+                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Fees Generated</div>
                 </div>
               </div>
 
-              {/* Leaderboard */}
               {dashStats.by_rep?.length > 0 && (
-                <div style={{background:'#fff',borderRadius:18,boxShadow:'0 6px 24px rgba(2,6,23,0.06)',overflow:'hidden',border:'1px solid #eef1f7'}}>
-                  <div style={{padding:'18px 26px',borderBottom:'1px solid #f0f2f7',display:'flex',alignItems:'center',gap:9}}>
+                <div style={{background:'#fff',borderRadius:18,boxShadow:'0 4px 16px rgba(2,6,23,0.07)',overflow:'hidden',border:'1px solid rgba(255,255,255,0.8)'}}>
+                  <div style={{padding:'16px 24px',borderBottom:'1px solid #f0f2f7',display:'flex',alignItems:'center',gap:9}}>
                     <span style={{fontSize:19}}>&#127942;</span>
                     <span style={{color:'#1a2540',fontWeight:700,fontSize:16}}>Rep Leaderboard</span>
                   </div>
                   {dashStats.by_rep.map((row, i) => (
-                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'16px 26px',borderBottom:i===dashStats.by_rep.length-1?'none':'1px solid #f4f5f9',gap:14}}>
+                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'15px 24px',borderBottom:i===dashStats.by_rep.length-1?'none':'1px solid #f4f5f9',gap:14}}>
                       <div style={{width:32,height:32,borderRadius:'50%',background:rankColors[i]||'#eceef4',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,color:i<3?'#1a2540':'#9aa3b8',flexShrink:0,boxShadow:i<3?'0 2px 8px rgba(0,0,0,0.12)':'none'}}>
                         {i+1}
                       </div>
@@ -1044,8 +1049,8 @@ export default function App() {
                   ))}
                 </div>
               )}
-            </div>
-          )}
+            </>)}
+          </div>
         </div>
       )}
 
@@ -2596,10 +2601,8 @@ ${form.npsa1Name||"NPSA"}`
                         <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid #f4f5f9",background:currentLetterId===l.id?"#f5f3ff":"#fff"}}>
                           <td style={{padding:"16px 14px",fontWeight:700,color:"#1a2540",fontSize:16}}>{l.client_name}</td>
                           <td style={{padding:"16px 14px",color:"#475569",fontSize:15}}>{l.rep_name}</td>
-                          <td style={{padding:"16px 14px"}}>
-                            <span style={{background:"#eef0fb",color:"#4f46e5",borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:700}}>
-                              {tabBadge[l.doc_tab]||l.doc_tab}
-                            </span>
+                          <td style={{padding:"16px 14px",color:"#4f46e5",fontSize:14,fontWeight:600}}>
+                            {tabLabel[l.doc_tab]||l.doc_tab}
                           </td>
                           <td style={{padding:"16px 14px",color:"#94a3b8",fontSize:14}}>{fmtDate(l.updated_at)}</td>
                           <td style={{padding:"16px 14px"}}>
