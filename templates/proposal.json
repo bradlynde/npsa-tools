@@ -1,0 +1,22 @@
+{
+  "execSummary": "Nonprofit Security Advisors (NPSA) proposes to provide grant consulting, grant writing, and administrative support to assist [CLIENT_NAME] in pursuing funding through the [PROPOSAL_PROGRAM_LIST]. This proposal is intended to provide leadership with a concise overview of services, deliverables, and investment.",
+  "phases": [
+    {
+      "title": "1. PRE-AWARD PERIOD — WHITE-GLOVE GRANT DEVELOPMENT SUPPORT",
+      "body": "NPSA manages the application process from project planning through submission, including eligibility review, vulnerability assessment coordination, project prioritization, budget development, grant writing, application preparation, and submission management.",
+      "deliverable": "Completed [PROPOSAL_PROGRAM_ACRONYMS] application packages submitted for funding consideration."
+    },
+    {
+      "title": "2. COMPLIANCE PERIOD — WHITE-GLOVE POST-AWARD SUPPORT",
+      "body": "If funding is awarded, NPSA guides [CLIENT_NAME] through the administrative and compliance steps required to reach State authorization to proceed. Services include registration assistance, compliance documentation, EHP coordination, budget alignment, grant agreement review, procurement guidance, and coordination with the State administering agency.",
+      "deliverable": "Formal State authorization permitting the organization to begin committing grant funds."
+    },
+    {
+      "title": "3. AWARD IMPLEMENTATION PERIOD — OPTIONAL, UNDER SEPARATE AGREEMENT",
+      "body": "Award implementation support is not included in this engagement. Grant program rules prohibit contracting for implementation services until all compliance requirements have been completed. Following State authorization, NPSA is available — at CLIENT's election — to provide implementation planning, procurement coordination, reimbursement readiness, documentation, and grant administration support under a separate written agreement.",
+      "deliverable": null
+    }
+  ],
+  "eligible": "Physical security equipment • Surveillance and monitoring equipment and services • Communications systems • Cybersecurity improvements • Security training and drills • Contracted security personnel",
+  "note": "This proposal is a summary for leadership review. The complete scope of services, client responsibilities, limitations, compensation provisions, and governing terms are contained in the associated Engagement Letter, which controls in the event of any inconsistency."
+}
