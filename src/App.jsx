@@ -513,18 +513,133 @@ export default function App() {
       gwGuar4: f.optShortNotice ? true : f.gwGuar4,
     }));
   },[form.optNofo, form.optShortNotice]);
-  // When reviewMode activates, write HTML into iframe
+  // When reviewMode activates, write HTML into iframe and attach editing handlers.
+  // Handlers are attached from the parent (same-origin iframe) using real JS so the
+  // regexes below are NOT mangled by template-literal escape processing.
   useEffect(()=>{
     if(!reviewMode || !reviewIframeRef.current) return;
     const iframe = reviewIframeRef.current;
-    const tryWrite = () => {
+
+    // Plain-text paste: preserve line breaks as <br>, strip formatting
+    const onPaste = (e) => {
+      e.preventDefault();
       const doc = iframe.contentDocument;
-      if(doc && doc.getElementById("editable-body")){
-        doc.getElementById("editable-body").innerHTML = reviewHtml;
-      }
+      const text = (e.clipboardData || iframe.contentWindow.clipboardData).getData("text/plain");
+      const sel = doc.getSelection();
+      if(!sel.rangeCount) return;
+      sel.deleteFromDocument();
+      const range = sel.getRangeAt(0);
+      const frag = doc.createDocumentFragment();
+      text.split(/\r?\n/).forEach((line,i)=>{
+        if(i>0) frag.appendChild(doc.createElement("br"));
+        if(line) frag.appendChild(doc.createTextNode(line));
+      });
+      range.insertNode(frag);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
     };
-    iframe.onload = tryWrite;
-    tryWrite();
+
+    // Find the nearest enclosing list-item div (flex row: [prefix span][content span])
+    const findListItem = (node, body) => {
+      while(node && node !== body){
+        if(node.nodeType===1 && node.tagName==="DIV" && node.style && node.style.display==="flex"){
+          const first = node.firstElementChild, last = node.lastElementChild;
+          if(first && last && first!==last && first.tagName==="SPAN" && last.tagName==="SPAN"){
+            const pfx = (first.textContent||"").replace(/ /g," ").trim();
+            if(/^(\d+\.|\([a-zA-Z]\)|[a-zA-Z]\.|[ivxIVX]+\.|[•\-*])$/.test(pfx)) return node;
+          }
+        }
+        node = node.parentNode;
+      }
+      return null;
+    };
+
+    // Compute the next prefix in a sequence (1.->2., (a)->(b), bullet stays)
+    const nextPrefix = (pfx) => {
+      let m;
+      if((m = pfx.match(/^(\d+)\.$/))) return (parseInt(m[1])+1)+".";
+      if((m = pfx.match(/^\(([a-z])\)$/)))  return m[1]>="z" ? "(a)" : "("+String.fromCharCode(m[1].charCodeAt(0)+1)+")";
+      if((m = pfx.match(/^\(([A-Z])\)$/)))  return m[1]>="Z" ? "(A)" : "("+String.fromCharCode(m[1].charCodeAt(0)+1)+")";
+      if((m = pfx.match(/^([a-z])\.$/)))    return m[1]>="z" ? "a." : String.fromCharCode(m[1].charCodeAt(0)+1)+".";
+      if((m = pfx.match(/^([•\-*])$/))) return m[1];
+      return pfx;
+    };
+
+    const onKeyDown = (e) => {
+      if(e.key !== "Enter") return;
+      const doc = iframe.contentDocument;
+      const body = doc.getElementById("editable-body");
+      const sel = doc.getSelection();
+      if(!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const item = findListItem(range.startContainer, body);
+
+      // Shift+Enter, or not inside a list item → simple soft line break (never breaks layout)
+      if(e.shiftKey || !item){
+        e.preventDefault();
+        range.deleteContents();
+        const br = doc.createElement("br");
+        range.insertNode(br);
+        // trailing zero-width char so the caret lands on the new visual line
+        const stop = doc.createTextNode("​");
+        range.setStartAfter(br);
+        range.insertNode(stop);
+        range.setStart(stop, 1); range.collapse(true);
+        sel.removeAllRanges(); sel.addRange(range);
+        return;
+      }
+
+      // Inside a list item: build a proper sibling list item with the next prefix
+      e.preventDefault();
+      const prefixSpan = item.firstElementChild;
+      const contentSpan = item.lastElementChild;
+      const pfx = (prefixSpan.textContent||"").replace(/ /g," ").trim();
+
+      // Split the content span at the caret; trailing content moves to the new item
+      let afterFrag = null;
+      if(contentSpan.contains(range.startContainer) || range.startContainer===contentSpan){
+        const tail = doc.createRange();
+        tail.setStart(range.startContainer, range.startOffset);
+        tail.setEnd(contentSpan, contentSpan.childNodes.length);
+        afterFrag = tail.extractContents();
+      }
+
+      const newItem = item.cloneNode(false);
+      const newPrefix = prefixSpan.cloneNode(false);
+      newPrefix.appendChild(doc.createTextNode(nextPrefix(pfx)));
+      newPrefix.appendChild(doc.createTextNode(" "));
+      const newContent = contentSpan.cloneNode(false);
+      if(afterFrag) newContent.appendChild(afterFrag);
+      newItem.appendChild(newPrefix);
+      newItem.appendChild(newContent);
+      item.parentNode.insertBefore(newItem, item.nextSibling);
+
+      const nr = doc.createRange();
+      nr.setStart(newContent, 0); nr.collapse(true);
+      sel.removeAllRanges(); sel.addRange(nr);
+    };
+
+    const attach = () => {
+      const doc = iframe.contentDocument;
+      const el = doc && doc.getElementById("editable-body");
+      if(!el) return;
+      el.innerHTML = reviewHtml;
+      // remove-then-add so listeners are never duplicated (attach runs on both
+      // the immediate call and the iframe onload event)
+      el.removeEventListener("paste", onPaste);
+      el.removeEventListener("keydown", onKeyDown);
+      el.addEventListener("paste", onPaste);
+      el.addEventListener("keydown", onKeyDown);
+    };
+    iframe.onload = attach;
+    attach();
+    return () => {
+      const doc = iframe.contentDocument;
+      const el = doc && doc.getElementById("editable-body");
+      if(el){ el.removeEventListener("paste", onPaste); el.removeEventListener("keydown", onKeyDown); }
+      iframe.onload = null;
+    };
   },[reviewMode, reviewHtml]);
 
   const today = (()=>{ const d=new Date(); const mm=String(d.getMonth()+1).padStart(2,"0"); const dd=String(d.getDate()).padStart(2,"0"); const yyyy=d.getFullYear(); return `${mm}-${dd}-${yyyy}`; })();
@@ -1873,89 +1988,6 @@ ${form.npsa1Name||"NPSA"}`
               @media print{body{margin:0;padding:0;background:#fff;}#editable-body{box-shadow:none;padding:72pt;max-width:100%;}}
             </style></head><body>
               <div id="editable-body" contenteditable="true">${reviewHtml}</div>
-              <script>
-                var body = document.getElementById('editable-body');
-                body.addEventListener('paste', function(e) {
-                  e.preventDefault();
-                  var text = (e.clipboardData || window.clipboardData).getData('text/plain');
-                  var sel = window.getSelection();
-                  if (!sel.rangeCount) return;
-                  sel.deleteFromDocument();
-                  var range = sel.getRangeAt(0);
-                  var lines = text.split(/\r?\n/);
-                  var frag = document.createDocumentFragment();
-                  lines.forEach(function(line, i) {
-                    if (i > 0) frag.appendChild(document.createElement('br'));
-                    if (line) frag.appendChild(document.createTextNode(line));
-                  });
-                  range.insertNode(frag);
-                  range.collapse(false);
-                  sel.removeAllRanges();
-                  sel.addRange(range);
-                });
-                body.addEventListener('keydown', function(e) {
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  var sel = window.getSelection();
-                  if (!sel.rangeCount) return;
-
-                  // Detect prefix of current line via backwards DOM walk.
-                  // List items are flex-div > [span.number, span.content] so we
-                  // must cross the span boundary to reach the number/bullet prefix.
-                  var prefix = '';
-                  try {
-                    var range0 = sel.getRangeAt(0);
-                    var lineText = '';
-                    var wNode = range0.startContainer;
-                    var wOffset = range0.startOffset;
-                    if (wNode.nodeType === 3) {
-                      lineText = wNode.textContent.slice(0, wOffset);
-                      wNode = wNode.previousSibling;
-                      if (!wNode) {
-                        var par = range0.startContainer.parentNode;
-                        if (par && par !== body && !['DIV','P','LI'].includes(par.tagName)) {
-                          wNode = par.previousSibling;
-                        }
-                      }
-                    }
-                    while (wNode) {
-                      if (wNode.nodeType === 1 && wNode.tagName === 'BR') break;
-                      if (wNode.nodeType === 1 && ['DIV','P','LI'].includes(wNode.tagName)) break;
-                      lineText = (wNode.textContent || '') + lineText;
-                      if (wNode.previousSibling) {
-                        wNode = wNode.previousSibling;
-                      } else {
-                        var wp = wNode.parentNode;
-                        if (!wp || wp === body || ['DIV','P','LI'].includes(wp.tagName)) break;
-                        wNode = wp.previousSibling;
-                      }
-                    }
-                    lineText = lineText.replace(/\u00a0/g, ' ');
-                    var m;
-                    if ((m = lineText.match(/^(\d+)\.\s/))) {
-                      prefix = (parseInt(m[1]) + 1) + '. ';
-                    } else if ((m = lineText.match(/^\(([a-z])\)\s/i))) {
-                      var next = m[1].toLowerCase().charCodeAt(0) + 1;
-                      if (next <= 122) prefix = '(' + String.fromCharCode(next) + ') ';
-                    } else if ((m = lineText.match(/^([\u2022\-\*])\s/))) {
-                      prefix = m[1] + ' ';
-                    }
-                  } catch(err) {}
-
-                  // Insert <br> + prefix text via DOM (avoids deprecated execCommand)
-                  var range = sel.getRangeAt(0);
-                  range.deleteContents();
-                  var br = document.createElement('br');
-                  range.insertNode(br);
-                  var textNode = document.createTextNode(prefix);
-                  range.setStartAfter(br);
-                  range.insertNode(textNode);
-                  range.setStart(textNode, prefix.length);
-                  range.collapse(true);
-                  sel.removeAllRanges();
-                  sel.addRange(range);
-                });
-              </script>
             </body></html>`}
           />
         </div>
