@@ -923,7 +923,8 @@ export default function App() {
 
   const loadLetter = async (id) => {
     const letter = await fetch(`/api/letters/${id}`).then(r => r.json());
-    setForm(letter.form_data);
+    // Always stamp today's date so a re-opened draft never goes out with a stale signing date
+    setForm({...letter.form_data, npsaSigningDate: new Date().toISOString().split('T')[0]});
     setDocTab(letter.doc_tab);
     setSavedLetterOverride(letter.saved_html || null);
     setCurrentLetterId(id);
