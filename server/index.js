@@ -31,6 +31,7 @@ if (process.env.DATABASE_URL) {
       doc_tab     TEXT    NOT NULL DEFAULT 'pre',
       form_data   JSONB   NOT NULL,
       saved_html  TEXT,
+      total_fee   NUMERIC DEFAULT 0,
       created_at  TIMESTAMPTZ DEFAULT NOW(),
       updated_at  TIMESTAMPTZ DEFAULT NOW()
     );
@@ -38,6 +39,7 @@ if (process.env.DATABASE_URL) {
       id   SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE
     );
+    ALTER TABLE letters ADD COLUMN IF NOT EXISTS total_fee NUMERIC DEFAULT 0;
   `).catch(err => console.error('DB init error:', err.message));
 }
 
@@ -88,10 +90,10 @@ app.get('/api/letters/stats', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Storage not configured' });
   try {
     const [totalRes, byRepRes] = await Promise.all([
-      pool.query('SELECT COUNT(*)::int AS total FROM letters'),
+      pool.query('SELECT COUNT(*)::int AS total, COALESCE(SUM(total_fee),0)::numeric AS total_fees FROM letters'),
       pool.query('SELECT rep_name, COUNT(*)::int AS count FROM letters GROUP BY rep_name ORDER BY count DESC'),
     ]);
-    res.json({ total: totalRes.rows[0].total, by_rep: byRepRes.rows });
+    res.json({ total: totalRes.rows[0].total, total_fees: Number(totalRes.rows[0].total_fees), by_rep: byRepRes.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -127,10 +129,10 @@ app.get('/api/letters/:id', async (req, res) => {
 app.post('/api/letters', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Storage not configured' });
   try {
-    const { client_name, rep_name, doc_tab, form_data, saved_html } = req.body;
+    const { client_name, rep_name, doc_tab, form_data, saved_html, total_fee } = req.body;
     const result = await pool.query(
-      'INSERT INTO letters (client_name, rep_name, doc_tab, form_data, saved_html) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [client_name || 'Untitled', rep_name || 'Unknown', doc_tab || 'pre', JSON.stringify(form_data), saved_html || null]
+      'INSERT INTO letters (client_name, rep_name, doc_tab, form_data, saved_html, total_fee) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [client_name || 'Untitled', rep_name || 'Unknown', doc_tab || 'pre', JSON.stringify(form_data), saved_html || null, Number(total_fee) || 0]
     );
     res.json({ id: result.rows[0].id });
   } catch (err) {
@@ -141,10 +143,10 @@ app.post('/api/letters', async (req, res) => {
 app.put('/api/letters/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Storage not configured' });
   try {
-    const { client_name, rep_name, doc_tab, form_data, saved_html } = req.body;
+    const { client_name, rep_name, doc_tab, form_data, saved_html, total_fee } = req.body;
     await pool.query(
-      'UPDATE letters SET client_name=$1, rep_name=$2, doc_tab=$3, form_data=$4, saved_html=$5, updated_at=NOW() WHERE id=$6',
-      [client_name || 'Untitled', rep_name || 'Unknown', doc_tab || 'pre', JSON.stringify(form_data), saved_html || null, req.params.id]
+      'UPDATE letters SET client_name=$1, rep_name=$2, doc_tab=$3, form_data=$4, saved_html=$5, total_fee=$6, updated_at=NOW() WHERE id=$7',
+      [client_name || 'Untitled', rep_name || 'Unknown', doc_tab || 'pre', JSON.stringify(form_data), saved_html || null, Number(total_fee) || 0, req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
