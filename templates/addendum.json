@@ -1,0 +1,29 @@
+{
+  "sections": [
+    {
+      "id": "add_purpose",
+      "heading": "1. Purpose of Addendum",
+      "content": "The purpose of this Addendum is to address certain services included in the original Agreement that relate to post-award grant implementation activities (the \"Implementation Period\"), including management, administrative, and project oversight services following a grant award.\nApplicable grant program rules for [ADDENDUM_PROGRAM_RULES] require that services associated with the Implementation Period not be contracted for prior to completion of required award compliance steps.\nAt the time the Agreement was executed, both parties included these services in anticipation of a potential award. Upon further review of applicable grant guidance, NPSA has determined that inclusion of Implementation Period services in the original Agreement was premature."
+    },
+    {
+      "id": "add_remove",
+      "heading": "2. Mutual Agreement to Remove Implementation Period Services",
+      "content": "Accordingly, NPSA and CLIENT mutually agree to remove and cancel all services, obligations, and compensation provisions related to the Implementation Period under the Agreement, including but not limited to:\n- Project management and oversight of vendor implementation\n- Procurement support and bid coordination post-award\n- Any administrative or management services performed after grant award\n- Any fees associated with such services, including but not limited to the percentage-based fee outlined in Compensation Section 2\nThis removal applies to [ADDENDUM_PROGRAMS]."
+    },
+    {
+      "id": "add_noobligation",
+      "heading": "3. No Obligation to Enter New Agreement",
+      "content": "NPSA may present CLIENT with a separate agreement covering Implementation Period (Management and Administration) services following completion of all required award compliance steps.\nCLIENT is under no obligation to enter into any new agreement, and this Addendum does not create any requirement for CLIENT to do so."
+    },
+    {
+      "id": "add_preservation",
+      "heading": "4. Preservation of Remaining Terms",
+      "content": "All other terms, conditions, and provisions of the original Agreement—including those related to pre-award consulting, grant support, and initial services—remain in full force and effect."
+    },
+    {
+      "id": "add_intent",
+      "heading": "5. Intent and Good Faith",
+      "content": "This Addendum is executed in good faith by both parties to ensure compliance with applicable grant requirements and to preserve CLIENT's ability to seek reimbursement or include eligible costs associated with Implementation Period services under applicable grant programs."
+    }
+  ]
+}
