@@ -457,6 +457,17 @@ export default function App() {
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewHtml, setReviewHtml] = useState("");
   const [savedLetterOverride, setSavedLetterOverride] = useState(null);
+  const [appView, setAppView] = useState('dashboard');
+  const [dbAvailable, setDbAvailable] = useState(false);
+  const [dashStats, setDashStats] = useState(null);
+  const [savedLetters, setSavedLetters] = useState([]);
+  const [showLetterBrowser, setShowLetterBrowser] = useState(false);
+  const [letterSearch, setLetterSearch] = useState('');
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [selectedRep, setSelectedRep] = useState('');
+  const [reps, setReps] = useState([]);
+  const [currentLetterId, setCurrentLetterId] = useState(null);
+  const [newRepName, setNewRepName] = useState('');
   const reviewIframeRef = useRef(null);
   const previewRef = useRef();
   const { polish, loading } = useAI();
@@ -481,6 +492,8 @@ export default function App() {
     load('pre-award', setPreSections);
     load('in-house', setInhSections);
     load('post-award', setPostSections);
+    fetch('/api/letters/stats').then(r => { if (r.ok) { setDbAvailable(true); r.json().then(setDashStats); } }).catch(() => {});
+    fetch('/api/reps').then(r => { if (r.ok) r.json().then(setReps); }).catch(() => {});
   }, []);
   // Inject Ms Madi font for signatures
   useEffect(()=>{
@@ -875,11 +888,196 @@ export default function App() {
       {parts[1]&&<div style={{marginBottom:8}}>{renderLines(parts[1].trimStart())}</div>}
     </>;
   };
+  const fetchLetters = async (search = '') => {
+    const r = await fetch(`/api/letters?search=${encodeURIComponent(search)}`);
+    if (r.ok) setSavedLetters(await r.json());
+  };
+
+  const saveLetter = async () => {
+    const payload = {
+      client_name: form.clientName || 'Untitled',
+      rep_name: selectedRep || 'Unknown',
+      doc_tab: docTab,
+      form_data: form,
+      saved_html: savedLetterOverride || null,
+    };
+    if (currentLetterId) {
+      await fetch(`/api/letters/${currentLetterId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+    } else {
+      const data = await fetch('/api/letters', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      }).then(r => r.json());
+      setCurrentLetterId(data.id);
+    }
+    setShowSaveModal(false);
+    fetch('/api/letters/stats').then(r => r.json()).then(setDashStats);
+  };
+
+  const loadLetter = async (id) => {
+    const letter = await fetch(`/api/letters/${id}`).then(r => r.json());
+    setForm(letter.form_data);
+    setDocTab(letter.doc_tab);
+    setSavedLetterOverride(letter.saved_html || null);
+    setCurrentLetterId(id);
+    setShowLetterBrowser(false);
+    setAppView('generator');
+  };
+
+  const deleteLetter = async (id) => {
+    if (!confirm('Delete this saved letter?')) return;
+    await fetch(`/api/letters/${id}`, { method: 'DELETE' });
+    setSavedLetters(prev => prev.filter(l => l.id !== id));
+    if (currentLetterId === id) setCurrentLetterId(null);
+    fetch('/api/letters/stats').then(r => r.json()).then(setDashStats);
+  };
+
+  const addRep = async () => {
+    if (!newRepName.trim()) return;
+    const r = await fetch('/api/reps', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newRepName.trim() }),
+    });
+    if (r.ok) {
+      const rep = await r.json();
+      setReps(prev => [...prev, rep].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewRepName('');
+    }
+  };
+
+  const deleteRep = async (id) => {
+    await fetch(`/api/reps/${id}`, { method: 'DELETE' });
+    setReps(prev => prev.filter(r => r.id !== id));
+  };
+
+  const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+  const tabBadge = { pre: 'PRE', inh: 'INH', post: 'POST', gw: 'GW' };
+  const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
   return (
+    <>
+      {/* ── DASHBOARD ── */}
+      {appView === 'dashboard' && (
+        <div style={{minHeight:'100vh',background:'#f4f5f7',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column'}}>
+          {/* Header */}
+          <div style={{background:'#1a2540',padding:'18px 32px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{color:'#fff',fontWeight:800,fontSize:20,letterSpacing:0.5}}>LOE Generator</div>
+            {dbAvailable && (
+              <button onClick={()=>setAppView('settings')}
+                style={{background:'none',border:'none',color:'#9aa3b8',fontSize:20,cursor:'pointer',padding:'4px 8px',lineHeight:1}}
+                title="Settings">&#9881;</button>
+            )}
+          </div>
+
+          {/* Action cards */}
+          <div style={{display:'flex',justifyContent:'center',gap:24,padding:'48px 32px 32px',flexWrap:'wrap'}}>
+            <div onClick={()=>{ setForm(defaultForm); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
+              style={{width:280,background:'#1a2540',borderRadius:12,padding:'36px 28px',cursor:'pointer',boxShadow:'0 4px 20px rgba(0,0,0,0.15)',transition:'transform 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}
+              onMouseEnter={e=>e.currentTarget.style.transform='translateY(-3px)'}
+              onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
+              <div style={{fontSize:40,lineHeight:1}}>&#9998;</div>
+              <div style={{color:'#fff',fontWeight:700,fontSize:17,textAlign:'center'}}>Generate New Letter</div>
+              <div style={{color:'#9aa3b8',fontSize:13,textAlign:'center',lineHeight:1.5}}>Start a new engagement letter from scratch</div>
+            </div>
+            {dbAvailable && (
+              <div onClick={()=>{ fetchLetters(); setLetterSearch(''); setShowLetterBrowser(true); }}
+                style={{width:280,background:'#fff',border:'2px solid #1a2540',borderRadius:12,padding:'36px 28px',cursor:'pointer',boxShadow:'0 4px 20px rgba(0,0,0,0.08)',transition:'transform 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}
+                onMouseEnter={e=>e.currentTarget.style.transform='translateY(-3px)'}
+                onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
+                <div style={{fontSize:40,lineHeight:1}}>&#128196;</div>
+                <div style={{color:'#1a2540',fontWeight:700,fontSize:17,textAlign:'center'}}>Load Previous Letter</div>
+                <div style={{color:'#555',fontSize:13,textAlign:'center',lineHeight:1.5}}>Search and reload a saved draft</div>
+              </div>
+            )}
+          </div>
+
+          {/* Stats + leaderboard */}
+          {dbAvailable && dashStats && (
+            <div style={{maxWidth:640,margin:'0 auto',padding:'0 32px 48px',width:'100%'}}>
+              {/* Stats strip */}
+              <div style={{background:'#1a2540',borderRadius:12,padding:'24px 32px',display:'flex',alignItems:'center',justifyContent:'center',gap:48,marginBottom:24}}>
+                <div style={{textAlign:'center'}}>
+                  <div style={{color:'#fff',fontWeight:800,fontSize:36,lineHeight:1}}>{dashStats.total}</div>
+                  <div style={{color:'#9aa3b8',fontSize:12,marginTop:4,textTransform:'uppercase',letterSpacing:0.5}}>Total Letters Generated</div>
+                </div>
+              </div>
+
+              {/* Leaderboard */}
+              {dashStats.by_rep?.length > 0 && (
+                <div style={{background:'#fff',borderRadius:12,boxShadow:'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden'}}>
+                  <div style={{background:'#1a2540',padding:'14px 24px'}}>
+                    <span style={{color:'#fff',fontWeight:700,fontSize:14,textTransform:'uppercase',letterSpacing:0.5}}>Rep Leaderboard</span>
+                  </div>
+                  {dashStats.by_rep.map((row, i) => (
+                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'14px 24px',borderBottom:'1px solid #f0f0f0',gap:12}}>
+                      <div style={{width:28,height:28,borderRadius:'50%',background:rankColors[i]||'#e0e0e0',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,color:'#1a2540',flexShrink:0}}>
+                        {i+1}
+                      </div>
+                      <div style={{flex:1,fontWeight:600,color:'#1a2540',fontSize:14}}>{row.rep_name}</div>
+                      <div style={{fontWeight:700,color:'#1a2540',fontSize:14}}>{row.count}</div>
+                      <div style={{color:'#888',fontSize:12}}>{row.count === 1 ? 'letter' : 'letters'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SETTINGS ── */}
+      {appView === 'settings' && (
+        <div style={{minHeight:'100vh',background:'#f4f5f7',fontFamily:'Inter,sans-serif'}}>
+          <div style={{background:'#1a2540',padding:'18px 32px',display:'flex',alignItems:'center',gap:16}}>
+            <button onClick={()=>setAppView('dashboard')}
+              style={{background:'none',border:'none',color:'#9aa3b8',fontSize:13,cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:6}}>
+              &#8592; Dashboard
+            </button>
+            <div style={{color:'#fff',fontWeight:700,fontSize:16}}>Settings</div>
+          </div>
+          <div style={{maxWidth:500,margin:'40px auto',padding:'0 24px'}}>
+            <div style={{background:'#fff',borderRadius:12,boxShadow:'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden'}}>
+              <div style={{background:'#1a2540',padding:'14px 24px'}}>
+                <span style={{color:'#fff',fontWeight:700,fontSize:14}}>Sales Reps</span>
+              </div>
+              <div style={{padding:'20px 24px'}}>
+                {reps.length === 0 && (
+                  <div style={{color:'#888',fontSize:13,marginBottom:16}}>No reps added yet.</div>
+                )}
+                {reps.map(rep => (
+                  <div key={rep.id} style={{display:'flex',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f0f0f0',gap:8}}>
+                    <div style={{flex:1,fontSize:14,color:'#1a2540',fontWeight:500}}>{rep.name}</div>
+                    <button onClick={()=>deleteRep(rep.id)}
+                      style={{background:'none',border:'1px solid #e07070',color:'#c0392b',borderRadius:5,padding:'4px 12px',fontSize:12,cursor:'pointer',fontWeight:600}}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <div style={{display:'flex',gap:8,marginTop:20}}>
+                  <input value={newRepName} onChange={e=>setNewRepName(e.target.value)}
+                    onKeyDown={e=>e.key==='Enter'&&addRep()}
+                    placeholder="Rep name..."
+                    style={{flex:1,border:'1px solid #ccc',borderRadius:6,padding:'8px 12px',fontSize:13,outline:'none'}}/>
+                  <button onClick={addRep}
+                    style={{background:'#1a2540',color:'#fff',border:'none',borderRadius:6,padding:'8px 18px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                    Add Rep
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── GENERATOR ── */}
+      {appView === 'generator' && (
     <div style={{display:"flex",height:"100vh",fontFamily:"Inter,sans-serif",background:"#f4f5f7"}}>
       {/* ── SIDEBAR ── */}
       <div style={{width:320,background:"#1a2540",color:"#e8eaf0",overflowY:"auto",padding:"20px 16px",flexShrink:0}}>
-        
+        <button onClick={()=>setAppView('dashboard')}
+          style={{background:'none',border:'none',color:'#6c7a9c',fontSize:12,cursor:'pointer',padding:'0 0 14px',display:'flex',alignItems:'center',gap:5,fontFamily:'Inter,sans-serif'}}>
+          &#8592; Dashboard
+        </button>
         {SHARED_FIELDS.map((f2,i)=>{
           if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>{f2.section}</div>;
           return (
@@ -1594,6 +1792,19 @@ ${form.npsa1Name||"NPSA"}`
             Email to Grant Writer
           </button>
         )}
+        {dbAvailable && (
+          <div style={{marginTop:16,borderTop:"1px solid #2a3550",paddingTop:14}}>
+            <button onClick={()=>setShowSaveModal(true)}
+              style={{width:"100%",background:"#2e3d60",color:"#e8eaf0",border:"1px solid #3d5080",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+              {currentLetterId ? "Update Letter" : "Save Letter"}
+            </button>
+            {currentLetterId && (
+              <div style={{fontSize:11,color:"#6c7a9c",marginTop:6,textAlign:"center"}}>
+                Saved as: {form.clientName||"Untitled"}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {/* ── REVIEW & EDIT MODE ── */}
       {reviewMode && (
@@ -2290,6 +2501,102 @@ ${form.npsa1Name||"NPSA"}`
           </div>
         </div>
       )}
+      {/* ── SAVE MODAL ── */}
+      {showSaveModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}}>
+          <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:420,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
+            <div style={{fontWeight:700,fontSize:16,color:"#1a2540",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
+            <div style={{fontSize:12,color:"#777",marginBottom:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
+            <div style={{marginBottom:20}}>
+              <label style={{fontSize:12,fontWeight:600,color:"#444",display:"block",marginBottom:6}}>Sales Rep</label>
+              {reps.length === 0 ? (
+                <div style={{fontSize:12,color:"#c0392b",background:"#fff5f5",border:"1px solid #f5c6c6",borderRadius:6,padding:"10px 12px"}}>
+                  No reps configured. Go to Settings to add reps first.
+                </div>
+              ) : (
+                <select value={selectedRep} onChange={e=>setSelectedRep(e.target.value)}
+                  style={{width:"100%",border:"1px solid #ccc",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",background:"#fff"}}>
+                  <option value="">— Select rep —</option>
+                  {reps.map(r=><option key={r.id} value={r.name}>{r.name}</option>)}
+                </select>
+              )}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setShowSaveModal(false)}
+                style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #ccc",background:"#f5f5f5",color:"#555",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                Cancel
+              </button>
+              <button onClick={saveLetter} disabled={!selectedRep}
+                style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:selectedRep?"#1a2540":"#ccc",color:"#fff",fontSize:13,fontWeight:700,cursor:selectedRep?"pointer":"not-allowed"}}>
+                {currentLetterId ? "Update" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+      )} {/* end generator */}
+
+      {/* ── LETTER BROWSER MODAL ── */}
+      {showLetterBrowser && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",flexDirection:"column",zIndex:2000,fontFamily:"Inter,sans-serif"}}>
+          <div style={{background:"#fff",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
+            {/* Header */}
+            <div style={{background:"#1a2540",padding:"18px 28px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
+              <div style={{color:"#fff",fontWeight:700,fontSize:16,flex:1}}>Saved Letters</div>
+              <input value={letterSearch} onChange={e=>{ setLetterSearch(e.target.value); fetchLetters(e.target.value); }}
+                placeholder="Search by client or rep..."
+                style={{border:"none",borderRadius:6,padding:"8px 14px",fontSize:13,outline:"none",width:260}}/>
+              <button onClick={()=>setShowLetterBrowser(false)}
+                style={{background:"none",border:"none",color:"#9aa3b8",fontSize:22,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>&#10005;</button>
+            </div>
+            {/* Table */}
+            <div style={{flex:1,overflowY:"auto",padding:0}}>
+              {savedLetters.length === 0 ? (
+                <div style={{padding:40,textAlign:"center",color:"#888",fontSize:14}}>
+                  {letterSearch ? "No letters match your search." : "No saved letters yet."}
+                </div>
+              ) : (
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead>
+                    <tr style={{background:"#f4f5f7",borderBottom:"2px solid #e0e0e0"}}>
+                      {["Client","Rep","Type","Last Updated",""].map(h=>(
+                        <th key={h} style={{padding:"12px 20px",textAlign:"left",fontSize:12,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedLetters.map(l=>(
+                      <tr key={l.id} style={{borderBottom:"1px solid #f0f0f0",background:currentLetterId===l.id?"#f0f4ff":"#fff"}}>
+                        <td style={{padding:"14px 20px",fontWeight:600,color:"#1a2540",fontSize:14}}>{l.client_name}</td>
+                        <td style={{padding:"14px 20px",color:"#555",fontSize:13}}>{l.rep_name}</td>
+                        <td style={{padding:"14px 20px"}}>
+                          <span style={{background:"#e8eaf0",color:"#1a2540",borderRadius:4,padding:"3px 8px",fontSize:11,fontWeight:700}}>
+                            {tabBadge[l.doc_tab]||l.doc_tab}
+                          </span>
+                        </td>
+                        <td style={{padding:"14px 20px",color:"#888",fontSize:12}}>{fmtDate(l.updated_at)}</td>
+                        <td style={{padding:"14px 20px"}}>
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={()=>loadLetter(l.id)}
+                              style={{background:"#1a2540",color:"#fff",border:"none",borderRadius:5,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                              Load
+                            </button>
+                            <button onClick={()=>deleteLetter(l.id)}
+                              style={{background:"none",border:"1px solid #e07070",color:"#c0392b",borderRadius:5,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
