@@ -2329,19 +2329,41 @@ ${form.npsa1Name||"NPSA"}`
             const isDisc = form.pricingTier==="discounted" && fees.discount>0;
             const complianceIncluded = !form.optPostAwardScope || (fees.postAward||0)===0;
             const summaryRows = [
-              ["CLIENT", form.clientName||"[CLIENT NAME]"],
               ["PROJECT", `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${totalApps} Location${totalApps>1?"s":""})`],
               ["POTENTIAL FUNDING", `Up to ${fmt(proposalMaxFunding)}`],
               ["PROFESSIONAL FEE", fmt(fees.upfront)],
             ];
             return <>
-              {/* Proposal header */}
-              <div style={{textAlign:"center",borderBottom:"2.5px solid #1a4a6e",paddingBottom:14,marginBottom:6}}>
-                <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto 8px",maxHeight:70,maxWidth:320}}/>
-                <div style={{fontSize:22,fontWeight:700,letterSpacing:8,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Proposal</div>
-                <div style={{fontSize:13,color:"#444",marginTop:4,fontFamily:"Georgia,serif"}}>{proposalProgramList}</div>
+              {/* Logo */}
+              <div style={{textAlign:"center",borderBottom:"2.5px solid #1a4a6e",paddingBottom:10,marginBottom:12}}>
+                <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
+                <div style={{fontSize:10,color:"#888",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
               </div>
-              <div style={{textAlign:"right",fontSize:11,color:"#666",marginBottom:14}}>{today}</div>
+              {/* Title */}
+              <div style={{textAlign:"center",margin:"12px 0 4px"}}>
+                <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Proposal</div>
+                <div style={{fontSize:13,fontStyle:"italic",color:"#444",marginTop:4}}>{proposalProgramList}</div>
+                <div style={{fontSize:11,color:"#666",marginTop:5}}>{today}</div>
+              </div>
+              {/* Parties */}
+              <div style={{border:"1px solid #c0c8d8",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f8f9fc",display:"flex",gap:40}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Client</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.clientName||"[CLIENT NAME]"}</div>
+                  {clientAddr&&<div style={{fontSize:11,color:"#666",marginTop:2}}>{clientAddr}</div>}
+                  {form.contactName&&<div style={{fontSize:11,color:"#666",marginTop:2}}>{form.contactName}</div>}
+                  {form.contactTitle&&<div style={{fontSize:11,color:"#666"}}>{form.contactTitle}</div>}
+                  {form.contactEmail&&<div style={{fontSize:11,color:"#666"}}>{form.contactEmail}</div>}
+                  {form.contactPhone&&<div style={{fontSize:11,color:"#666"}}>{form.contactPhone}</div>}
+                </div>
+                <div style={{width:1,background:"#c0c8d8"}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Consultant</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
+                  <div style={{fontSize:12,color:"#555"}}>Lynde Consulting LLC</div>
+                  <div style={{fontSize:11,color:"#666",marginTop:2}}>Winnebago County, Illinois</div>
+                </div>
+              </div>
               {/* Summary box */}
               <div style={{border:"1px solid #1a4a6e",borderRadius:4,overflow:"hidden",marginBottom:24}}>
                 {summaryRows.map(([k,v],i)=>(
@@ -2410,10 +2432,29 @@ ${form.npsa1Name||"NPSA"}`
                 <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
                 <div style={{fontSize:10,color:"#888",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
               </div>
-              <div style={{textAlign:"center",margin:"16px 0 6px"}}>
-                <div style={{fontSize:17,fontWeight:700,letterSpacing:3,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Addendum to Engagement Letter</div>
-                <div style={{fontSize:14,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif",marginTop:6}}>{addClient}</div>
-                <div style={{fontSize:12,fontStyle:"italic",color:"#444",marginTop:2}}>Dated {origDate}</div>
+              <div style={{textAlign:"center",margin:"12px 0 4px"}}>
+                <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Addendum to Engagement Letter</div>
+                <div style={{fontSize:13,fontStyle:"italic",color:"#444",marginTop:4}}>Dated {origDate}</div>
+                <div style={{fontSize:11,color:"#666",marginTop:5}}>{today}</div>
+              </div>
+              {/* Parties */}
+              <div style={{border:"1px solid #c0c8d8",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f8f9fc",display:"flex",gap:40}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Client</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{addClient}</div>
+                  {clientAddr&&<div style={{fontSize:11,color:"#666",marginTop:2}}>{clientAddr}</div>}
+                  {form.contactName&&<div style={{fontSize:11,color:"#666",marginTop:2}}>{form.contactName}</div>}
+                  {form.contactTitle&&<div style={{fontSize:11,color:"#666"}}>{form.contactTitle}</div>}
+                  {form.contactEmail&&<div style={{fontSize:11,color:"#666"}}>{form.contactEmail}</div>}
+                  {form.contactPhone&&<div style={{fontSize:11,color:"#666"}}>{form.contactPhone}</div>}
+                </div>
+                <div style={{width:1,background:"#c0c8d8"}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Consultant</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
+                  <div style={{fontSize:12,color:"#555"}}>Lynde Consulting LLC</div>
+                  <div style={{fontSize:11,color:"#666",marginTop:2}}>Winnebago County, Illinois</div>
+                </div>
               </div>
               <div style={{marginTop:18}}>
                 {(addendumTpl.sections||[]).map(sec=>(
