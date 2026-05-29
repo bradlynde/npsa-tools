@@ -1230,12 +1230,15 @@ export default function App() {
 
           {/* Welcome heading */}
           <div style={{textAlign:'center',padding:'20px 32px 16px'}}>
-            <div style={{fontSize:30,fontWeight:800,color:'#1a2540',letterSpacing:-0.5}}>Letters of Engagement</div>
-            <div style={{fontSize:15,color:'#5b6b8c',marginTop:6}}>Generate, save, and pick up any draft where you left off.</div>
+            <div style={{fontSize:30,fontWeight:800,color:'#1a2540',letterSpacing:-0.5}}>Sales Toolbox</div>
+            <div style={{fontSize:15,color:'#5b6b8c',marginTop:6}}>Generate engagement documents and prep for calls — all in one place.</div>
           </div>
 
           {/* All cards in one aligned container */}
           <div style={{width:'100%',maxWidth:720,padding:'0 24px 48px',boxSizing:'border-box'}}>
+
+            {/* ── Engagement Letters ── */}
+            <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginBottom:14}}>Engagement Letters</div>
 
             {/* Action cards */}
             <div style={{display:'flex',gap:18,marginBottom:18}}>
@@ -1339,7 +1342,7 @@ export default function App() {
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.7 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0 1 22 16.92z"/></svg>
               </div>
               <div>
-                <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Pre-Call Notes Generator</div>
+                <div style={{color:'#1a2540',fontWeight:700,fontSize:17,display:'flex',alignItems:'center',gap:8}}>Pre-Call Notes Generator<span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span></div>
                 <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>Paste a Calendly invite and generate AI-powered prep notes</div>
               </div>
             </div>
