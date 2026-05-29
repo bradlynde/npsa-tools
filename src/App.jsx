@@ -1230,12 +1230,15 @@ export default function App() {
 
           {/* Welcome heading */}
           <div style={{textAlign:'center',padding:'20px 32px 16px'}}>
-            <div style={{fontSize:30,fontWeight:800,color:'#1a2540',letterSpacing:-0.5}}>Letters of Engagement</div>
-            <div style={{fontSize:15,color:'#5b6b8c',marginTop:6}}>Generate, save, and pick up any draft where you left off.</div>
+            <div style={{fontSize:30,fontWeight:800,color:'#1a2540',letterSpacing:-0.5}}>Sales Toolbox</div>
+            <div style={{fontSize:15,color:'#5b6b8c',marginTop:6}}>Generate engagement documents and prep for calls — all in one place.</div>
           </div>
 
           {/* All cards in one aligned container */}
           <div style={{width:'100%',maxWidth:720,padding:'0 24px 48px',boxSizing:'border-box'}}>
+
+            {/* ── Engagement Letters ── */}
+            <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginBottom:14}}>Engagement Letters</div>
 
             {/* Action cards */}
             <div style={{display:'flex',gap:18,marginBottom:18}}>
