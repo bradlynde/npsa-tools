@@ -490,6 +490,28 @@ const NPSA_SIGNATURES = {
   "Steven Timlick": { font:"'Ms Madi', cursive", size:"38px", color:"#1a2a4a" },
   "Stuart Reese":   { font:"'Ms Madi', cursive", size:"38px", color:"#1a2a4a" },
 };
+
+// Slot-machine count-up: animates 0 → value whenever `playToken` changes (mount + each hover)
+function RollUp({ value, format, playToken, duration = 850 }) {
+  const [display, setDisplay] = useState(value);
+  const rafRef = useRef();
+  useEffect(() => {
+    cancelAnimationFrame(rafRef.current);
+    const to = Number(value) || 0;
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      setDisplay(to * eased);
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      else setDisplay(to);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [playToken, value, duration]);
+  return <>{format ? format(display) : Math.round(display)}</>;
+}
+
 export default function App() {
   const [docTab, setDocTab] = useState("pre");
   const [form, setForm] = useState(defaultForm);
@@ -512,6 +534,8 @@ export default function App() {
   const [reviewHtml, setReviewHtml] = useState("");
   const [savedLetterOverride, setSavedLetterOverride] = useState(null);
   const [appView, setAppView] = useState('dashboard');
+  const [letterRoll, setLetterRoll] = useState(0);
+  const [feeRoll, setFeeRoll] = useState(0);
   const [dbAvailable, setDbAvailable] = useState(false);
   const [dashStats, setDashStats] = useState(null);
   const [savedLetters, setSavedLetters] = useState([]);
@@ -1273,12 +1297,14 @@ export default function App() {
             {/* Stats + leaderboard */}
             {dbAvailable && dashStats && (<>
               <div style={{display:'flex',gap:18,marginBottom:18}}>
-                <div style={{flex:1,background:'linear-gradient(135deg,#1a2540,#1a4a6e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(26,37,64,0.3)'}}>
-                  <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}>{dashStats.total}</div>
+                <div onMouseEnter={()=>setLetterRoll(k=>k+1)}
+                  style={{flex:1,background:'linear-gradient(135deg,#1a2540,#1a4a6e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(26,37,64,0.3)',cursor:'default'}}>
+                  <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}><RollUp value={dashStats.total} playToken={letterRoll} format={(n)=>Math.round(n).toLocaleString('en-US')} /></div>
                   <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
                 </div>
-                <div style={{flex:1,background:'linear-gradient(135deg,#7a8c1e,#9aab2e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(122,140,30,0.3)'}}>
-                  <div style={{color:'#fff',fontWeight:800,fontSize:dashStats.total_fees>0?36:42,lineHeight:1}}>{fmtFee(dashStats.total_fees)}</div>
+                <div onMouseEnter={()=>setFeeRoll(k=>k+1)}
+                  style={{flex:1,background:'linear-gradient(135deg,#7a8c1e,#9aab2e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(122,140,30,0.3)',cursor:'default'}}>
+                  <div style={{color:'#fff',fontWeight:800,fontSize:dashStats.total_fees>0?36:42,lineHeight:1}}><RollUp value={dashStats.total_fees} playToken={feeRoll} format={(n)=> dashStats.total_fees>0 ? '$'+Math.round(n).toLocaleString('en-US') : '—'} /></div>
                   <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Fees Generated</div>
                 </div>
               </div>
