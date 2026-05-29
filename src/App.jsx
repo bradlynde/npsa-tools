@@ -958,64 +958,88 @@ export default function App() {
     <>
       {/* ── DASHBOARD ── */}
       {appView === 'dashboard' && (
-        <div style={{minHeight:'100vh',background:'#f4f5f7',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column'}}>
-          {/* Header */}
-          <div style={{background:'#1a2540',padding:'18px 32px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <div style={{color:'#fff',fontWeight:800,fontSize:20,letterSpacing:0.5}}>LOE Generator</div>
+        <div style={{minHeight:'100vh',background:'#f4f6fb',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column'}}>
+          {/* Top bar — gear only */}
+          <div style={{padding:'20px 32px 0',display:'flex',alignItems:'center',justifyContent:'flex-end'}}>
             {dbAvailable && (
               <button onClick={()=>setAppView('settings')}
-                style={{background:'none',border:'none',color:'#9aa3b8',fontSize:20,cursor:'pointer',padding:'4px 8px',lineHeight:1}}
-                title="Settings">&#9881;</button>
+                style={{background:'#fff',border:'1px solid #e6e9f2',borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',color:'#5b6b8c',cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}
+                title="Settings"
+                onMouseEnter={e=>{e.currentTarget.style.color='#1a2540';e.currentTarget.style.transform='rotate(45deg)';}}
+                onMouseLeave={e=>{e.currentTarget.style.color='#5b6b8c';e.currentTarget.style.transform='rotate(0deg)';}}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              </button>
             )}
           </div>
 
+          {/* Welcome heading */}
+          <div style={{textAlign:'center',padding:'28px 32px 8px'}}>
+            <div style={{fontSize:30,fontWeight:800,color:'#1a2540',letterSpacing:-0.5}}>Letters of Engagement</div>
+            <div style={{fontSize:15,color:'#7a869f',marginTop:6}}>Generate, save, and pick up any draft where you left off.</div>
+          </div>
+
           {/* Action cards */}
-          <div style={{display:'flex',justifyContent:'center',gap:24,padding:'48px 32px 32px',flexWrap:'wrap'}}>
+          <div style={{display:'flex',justifyContent:'center',gap:22,padding:'28px 32px 8px',flexWrap:'wrap'}}>
+            {/* Generate */}
             <div onClick={()=>{ setForm(defaultForm); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
-              style={{width:280,background:'#1a2540',borderRadius:12,padding:'36px 28px',cursor:'pointer',boxShadow:'0 4px 20px rgba(0,0,0,0.15)',transition:'transform 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}
-              onMouseEnter={e=>e.currentTarget.style.transform='translateY(-3px)'}
-              onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
-              <div style={{fontSize:40,lineHeight:1}}>&#9998;</div>
-              <div style={{color:'#fff',fontWeight:700,fontSize:17,textAlign:'center'}}>Generate New Letter</div>
-              <div style={{color:'#9aa3b8',fontSize:13,textAlign:'center',lineHeight:1.5}}>Start a new engagement letter from scratch</div>
+              style={{width:330,background:'#fff',borderRadius:18,padding:'22px',cursor:'pointer',boxShadow:'0 6px 24px rgba(2,6,23,0.06)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid #eef1f7'}}
+              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(99,102,241,0.18)';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 6px 24px rgba(2,6,23,0.06)';}}>
+              <div style={{width:58,height:58,borderRadius:15,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(99,102,241,0.35)'}}>
+                <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+              </div>
+              <div>
+                <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Generate New Letter</div>
+                <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:3}}>Start a new engagement letter from scratch</div>
+              </div>
             </div>
+            {/* Load */}
             {dbAvailable && (
               <div onClick={()=>{ fetchLetters(); setLetterSearch(''); setShowLetterBrowser(true); }}
-                style={{width:280,background:'#fff',border:'2px solid #1a2540',borderRadius:12,padding:'36px 28px',cursor:'pointer',boxShadow:'0 4px 20px rgba(0,0,0,0.08)',transition:'transform 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}
-                onMouseEnter={e=>e.currentTarget.style.transform='translateY(-3px)'}
-                onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
-                <div style={{fontSize:40,lineHeight:1}}>&#128196;</div>
-                <div style={{color:'#1a2540',fontWeight:700,fontSize:17,textAlign:'center'}}>Load Previous Letter</div>
-                <div style={{color:'#555',fontSize:13,textAlign:'center',lineHeight:1.5}}>Search and reload a saved draft</div>
+                style={{width:330,background:'#fff',borderRadius:18,padding:'22px',cursor:'pointer',boxShadow:'0 6px 24px rgba(2,6,23,0.06)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid #eef1f7'}}
+                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(16,185,129,0.18)';}}
+                onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 6px 24px rgba(2,6,23,0.06)';}}>
+                <div style={{width:58,height:58,borderRadius:15,background:'linear-gradient(135deg,#10b981,#34d399)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(16,185,129,0.35)'}}>
+                  <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                </div>
+                <div>
+                  <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Load Previous Letter</div>
+                  <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:3}}>Search and reload a saved draft</div>
+                </div>
               </div>
             )}
           </div>
 
           {/* Stats + leaderboard */}
           {dbAvailable && dashStats && (
-            <div style={{maxWidth:640,margin:'0 auto',padding:'0 32px 48px',width:'100%'}}>
-              {/* Stats strip */}
-              <div style={{background:'#1a2540',borderRadius:12,padding:'24px 32px',display:'flex',alignItems:'center',justifyContent:'center',gap:48,marginBottom:24}}>
-                <div style={{textAlign:'center'}}>
-                  <div style={{color:'#fff',fontWeight:800,fontSize:36,lineHeight:1}}>{dashStats.total}</div>
-                  <div style={{color:'#9aa3b8',fontSize:12,marginTop:4,textTransform:'uppercase',letterSpacing:0.5}}>Total Letters Generated</div>
+            <div style={{maxWidth:694,margin:'0 auto',padding:'20px 32px 48px',width:'100%'}}>
+              {/* Stat cards */}
+              <div style={{display:'flex',gap:22,marginBottom:22,flexWrap:'wrap'}}>
+                <div style={{flex:1,minWidth:200,background:'linear-gradient(135deg,#4f46e5,#7c3aed)',borderRadius:18,padding:'26px 28px',boxShadow:'0 10px 28px rgba(79,70,229,0.28)'}}>
+                  <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}>{dashStats.total}</div>
+                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12.5,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
+                </div>
+                <div style={{flex:1,minWidth:200,background:'linear-gradient(135deg,#059669,#10b981)',borderRadius:18,padding:'26px 28px',boxShadow:'0 10px 28px rgba(5,150,105,0.28)'}}>
+                  <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}>{dashStats.by_rep?.length || 0}</div>
+                  <div style={{color:'rgba(255,255,255,0.85)',fontSize:12.5,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Active Reps</div>
                 </div>
               </div>
 
               {/* Leaderboard */}
               {dashStats.by_rep?.length > 0 && (
-                <div style={{background:'#fff',borderRadius:12,boxShadow:'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden'}}>
-                  <div style={{background:'#1a2540',padding:'14px 24px'}}>
-                    <span style={{color:'#fff',fontWeight:700,fontSize:14,textTransform:'uppercase',letterSpacing:0.5}}>Rep Leaderboard</span>
+                <div style={{background:'#fff',borderRadius:18,boxShadow:'0 6px 24px rgba(2,6,23,0.06)',overflow:'hidden',border:'1px solid #eef1f7'}}>
+                  <div style={{padding:'18px 26px',borderBottom:'1px solid #f0f2f7',display:'flex',alignItems:'center',gap:9}}>
+                    <span style={{fontSize:19}}>&#127942;</span>
+                    <span style={{color:'#1a2540',fontWeight:700,fontSize:16}}>Rep Leaderboard</span>
                   </div>
                   {dashStats.by_rep.map((row, i) => (
-                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'14px 24px',borderBottom:'1px solid #f0f0f0',gap:12}}>
-                      <div style={{width:28,height:28,borderRadius:'50%',background:rankColors[i]||'#e0e0e0',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,color:'#1a2540',flexShrink:0}}>
+                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'16px 26px',borderBottom:i===dashStats.by_rep.length-1?'none':'1px solid #f4f5f9',gap:14}}>
+                      <div style={{width:32,height:32,borderRadius:'50%',background:rankColors[i]||'#eceef4',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,color:i<3?'#1a2540':'#9aa3b8',flexShrink:0,boxShadow:i<3?'0 2px 8px rgba(0,0,0,0.12)':'none'}}>
                         {i+1}
                       </div>
-                      <div style={{flex:1,fontWeight:600,color:'#1a2540',fontSize:14}}>{row.rep_name}</div>
-                      <div style={{fontWeight:700,color:'#1a2540',fontSize:14}}>{row.count}</div>
-                      <div style={{color:'#888',fontSize:12}}>{row.count === 1 ? 'letter' : 'letters'}</div>
+                      <div style={{flex:1,fontWeight:600,color:'#1a2540',fontSize:16}}>{row.rep_name}</div>
+                      <div style={{fontWeight:800,color:'#4f46e5',fontSize:17}}>{row.count}</div>
+                      <div style={{color:'#9aa3b8',fontSize:13}}>{row.count === 1 ? 'letter' : 'letters'}</div>
                     </div>
                   ))}
                 </div>
@@ -1027,39 +1051,40 @@ export default function App() {
 
       {/* ── SETTINGS ── */}
       {appView === 'settings' && (
-        <div style={{minHeight:'100vh',background:'#f4f5f7',fontFamily:'Inter,sans-serif'}}>
-          <div style={{background:'#1a2540',padding:'18px 32px',display:'flex',alignItems:'center',gap:16}}>
+        <div style={{minHeight:'100vh',background:'#f4f6fb',fontFamily:'Inter,sans-serif'}}>
+          <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
             <button onClick={()=>setAppView('dashboard')}
-              style={{background:'none',border:'none',color:'#9aa3b8',fontSize:13,cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:6}}>
+              style={{background:'#fff',border:'1px solid #e6e9f2',borderRadius:10,padding:'9px 16px',color:'#5b6b8c',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
               &#8592; Dashboard
             </button>
-            <div style={{color:'#fff',fontWeight:700,fontSize:16}}>Settings</div>
+            <div style={{color:'#1a2540',fontWeight:800,fontSize:22}}>Settings</div>
           </div>
-          <div style={{maxWidth:500,margin:'40px auto',padding:'0 24px'}}>
-            <div style={{background:'#fff',borderRadius:12,boxShadow:'0 2px 12px rgba(0,0,0,0.08)',overflow:'hidden'}}>
-              <div style={{background:'#1a2540',padding:'14px 24px'}}>
-                <span style={{color:'#fff',fontWeight:700,fontSize:14}}>Sales Reps</span>
+          <div style={{maxWidth:540,margin:'32px auto',padding:'0 24px'}}>
+            <div style={{background:'#fff',borderRadius:18,boxShadow:'0 6px 24px rgba(2,6,23,0.06)',overflow:'hidden',border:'1px solid #eef1f7'}}>
+              <div style={{padding:'18px 26px',borderBottom:'1px solid #f0f2f7',display:'flex',alignItems:'center',gap:9}}>
+                <span style={{fontSize:18}}>&#128101;</span>
+                <span style={{color:'#1a2540',fontWeight:700,fontSize:16}}>Sales Reps</span>
               </div>
-              <div style={{padding:'20px 24px'}}>
+              <div style={{padding:'22px 26px'}}>
                 {reps.length === 0 && (
-                  <div style={{color:'#888',fontSize:13,marginBottom:16}}>No reps added yet.</div>
+                  <div style={{color:'#9aa3b8',fontSize:14,marginBottom:18}}>No reps added yet. Add your first rep below.</div>
                 )}
                 {reps.map(rep => (
-                  <div key={rep.id} style={{display:'flex',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f0f0f0',gap:8}}>
-                    <div style={{flex:1,fontSize:14,color:'#1a2540',fontWeight:500}}>{rep.name}</div>
+                  <div key={rep.id} style={{display:'flex',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f4f5f9',gap:8}}>
+                    <div style={{flex:1,fontSize:15,color:'#1a2540',fontWeight:600}}>{rep.name}</div>
                     <button onClick={()=>deleteRep(rep.id)}
-                      style={{background:'none',border:'1px solid #e07070',color:'#c0392b',borderRadius:5,padding:'4px 12px',fontSize:12,cursor:'pointer',fontWeight:600}}>
+                      style={{background:'none',border:'1px solid #f0c0c0',color:'#c0392b',borderRadius:8,padding:'6px 14px',fontSize:12.5,cursor:'pointer',fontWeight:600}}>
                       Remove
                     </button>
                   </div>
                 ))}
-                <div style={{display:'flex',gap:8,marginTop:20}}>
+                <div style={{display:'flex',gap:10,marginTop:22}}>
                   <input value={newRepName} onChange={e=>setNewRepName(e.target.value)}
                     onKeyDown={e=>e.key==='Enter'&&addRep()}
                     placeholder="Rep name..."
-                    style={{flex:1,border:'1px solid #ccc',borderRadius:6,padding:'8px 12px',fontSize:13,outline:'none'}}/>
+                    style={{flex:1,border:'1px solid #dde1ea',borderRadius:10,padding:'10px 14px',fontSize:14,outline:'none'}}/>
                   <button onClick={addRep}
-                    style={{background:'#1a2540',color:'#fff',border:'none',borderRadius:6,padding:'8px 18px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                    style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 14px rgba(99,102,241,0.3)'}}>
                     Add Rep
                   </button>
                 </div>
@@ -2539,59 +2564,61 @@ ${form.npsa1Name||"NPSA"}`
 
       {/* ── LETTER BROWSER MODAL ── */}
       {showLetterBrowser && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",flexDirection:"column",zIndex:2000,fontFamily:"Inter,sans-serif"}}>
-          <div style={{background:"#fff",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",display:"flex",flexDirection:"column",zIndex:2000,fontFamily:"Inter,sans-serif"}}>
+          <div style={{background:"#f4f6fb",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
             {/* Header */}
-            <div style={{background:"#1a2540",padding:"18px 28px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
-              <div style={{color:"#fff",fontWeight:700,fontSize:16,flex:1}}>Saved Letters</div>
+            <div style={{padding:"22px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,background:"#fff",borderBottom:"1px solid #eef1f7"}}>
+              <div style={{color:"#1a2540",fontWeight:800,fontSize:20,flex:1}}>Saved Letters</div>
               <input value={letterSearch} onChange={e=>{ setLetterSearch(e.target.value); fetchLetters(e.target.value); }}
                 placeholder="Search by client or rep..."
-                style={{border:"none",borderRadius:6,padding:"8px 14px",fontSize:13,outline:"none",width:260}}/>
+                style={{border:"1px solid #dde1ea",borderRadius:10,padding:"10px 16px",fontSize:14,outline:"none",width:280}}/>
               <button onClick={()=>setShowLetterBrowser(false)}
-                style={{background:"none",border:"none",color:"#9aa3b8",fontSize:22,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>&#10005;</button>
+                style={{background:"#f4f6fb",border:"1px solid #e6e9f2",borderRadius:10,width:40,height:40,color:"#5b6b8c",fontSize:18,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>&#10005;</button>
             </div>
-            {/* Table */}
-            <div style={{flex:1,overflowY:"auto",padding:0}}>
+            {/* Table — centered, compact columns */}
+            <div style={{flex:1,overflowY:"auto",padding:"28px 24px"}}>
               {savedLetters.length === 0 ? (
-                <div style={{padding:40,textAlign:"center",color:"#888",fontSize:14}}>
+                <div style={{padding:60,textAlign:"center",color:"#9aa3b8",fontSize:16}}>
                   {letterSearch ? "No letters match your search." : "No saved letters yet."}
                 </div>
               ) : (
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
-                  <thead>
-                    <tr style={{background:"#f4f5f7",borderBottom:"2px solid #e0e0e0"}}>
-                      {["Client","Rep","Type","Last Updated",""].map(h=>(
-                        <th key={h} style={{padding:"12px 20px",textAlign:"left",fontSize:12,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {savedLetters.map(l=>(
-                      <tr key={l.id} style={{borderBottom:"1px solid #f0f0f0",background:currentLetterId===l.id?"#f0f4ff":"#fff"}}>
-                        <td style={{padding:"14px 20px",fontWeight:600,color:"#1a2540",fontSize:14}}>{l.client_name}</td>
-                        <td style={{padding:"14px 20px",color:"#555",fontSize:13}}>{l.rep_name}</td>
-                        <td style={{padding:"14px 20px"}}>
-                          <span style={{background:"#e8eaf0",color:"#1a2540",borderRadius:4,padding:"3px 8px",fontSize:11,fontWeight:700}}>
-                            {tabBadge[l.doc_tab]||l.doc_tab}
-                          </span>
-                        </td>
-                        <td style={{padding:"14px 20px",color:"#888",fontSize:12}}>{fmtDate(l.updated_at)}</td>
-                        <td style={{padding:"14px 20px"}}>
-                          <div style={{display:"flex",gap:8}}>
-                            <button onClick={()=>loadLetter(l.id)}
-                              style={{background:"#1a2540",color:"#fff",border:"none",borderRadius:5,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-                              Load
-                            </button>
-                            <button onClick={()=>deleteLetter(l.id)}
-                              style={{background:"none",border:"1px solid #e07070",color:"#c0392b",borderRadius:5,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-                              Delete
-                            </button>
-                          </div>
-                        </td>
+                <div style={{maxWidth:880,margin:"0 auto",background:"#fff",borderRadius:18,boxShadow:"0 6px 24px rgba(2,6,23,0.06)",border:"1px solid #eef1f7",overflow:"hidden"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse"}}>
+                    <thead>
+                      <tr style={{borderBottom:"1px solid #eef1f7"}}>
+                        {["Client","Rep","Type","Last Updated",""].map((h,hi)=>(
+                          <th key={h} style={{padding:"16px 14px",textAlign:hi===4?"right":"left",fontSize:12.5,fontWeight:700,color:"#9aa3b8",textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {savedLetters.map((l,li)=>(
+                        <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid #f4f5f9",background:currentLetterId===l.id?"#f5f3ff":"#fff"}}>
+                          <td style={{padding:"16px 14px",fontWeight:700,color:"#1a2540",fontSize:16}}>{l.client_name}</td>
+                          <td style={{padding:"16px 14px",color:"#475569",fontSize:15}}>{l.rep_name}</td>
+                          <td style={{padding:"16px 14px"}}>
+                            <span style={{background:"#eef0fb",color:"#4f46e5",borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:700}}>
+                              {tabBadge[l.doc_tab]||l.doc_tab}
+                            </span>
+                          </td>
+                          <td style={{padding:"16px 14px",color:"#94a3b8",fontSize:14}}>{fmtDate(l.updated_at)}</td>
+                          <td style={{padding:"16px 14px"}}>
+                            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                              <button onClick={()=>loadLetter(l.id)}
+                                style={{background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 3px 10px rgba(99,102,241,0.28)"}}>
+                                Load
+                              </button>
+                              <button onClick={()=>deleteLetter(l.id)}
+                                style={{background:"#fff",border:"1px solid #f0c0c0",color:"#c0392b",borderRadius:8,padding:"8px 14px",fontSize:13.5,fontWeight:600,cursor:"pointer"}}>
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
