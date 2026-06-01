@@ -12,7 +12,7 @@ export default function LOEPage() {
         border: "none",
         display: "block",
       }}
-      title="LOE Generator"
+      title="Sales Toolbox"
     />
   );
 }

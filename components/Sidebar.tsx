@@ -70,7 +70,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Dashboard", Icon: HomeIcon },
   { href: "/church", label: "Church Scraper", Icon: ChurchIcon },
   { href: "/school", label: "School Scraper", Icon: BookIcon },
-  { href: "/loe", label: "LOE Generator", Icon: DocIcon },
+  { href: "/loe", label: "Sales Toolbox", Icon: DocIcon },
 ];
 
 /* ── Component ────────────────────────────────────────────────── */
