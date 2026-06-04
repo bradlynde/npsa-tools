@@ -412,9 +412,8 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
     // Section A
     text = `A. NPSA Pre-Award Consulting Fee\n\n1. CLIENT will pay NPSA ${fmt(fees.upfront)} upon execution of this Engagement Letter. This fee includes the combined costs below.`;
     if (installments) text += buildInstallmentText(installments, fees.upfront);
-    if (isInh) {
-      text += `\n   (a) If CLIENT provides written notice of cancellation within twelve (12) months of executing this Agreement and prior to NPSA delivering a completed grant application ready for submission, the consulting fee will be refunded less the value of any services already performed by NPSA.\n   (b) Once NPSA has delivered one or more completed grant applications ready for submission, the consulting fee shall be deemed fully earned and non-refundable, regardless of whether the CLIENT elects to submit the application or whether the application is approved or funded.`;
-    } else {
+    text += `\n   (a) If CLIENT provides written notice of cancellation after executing this Agreement and prior to NPSA delivering a completed grant application ready for submission, the Agreement will be cancelled but no refunds will be issued.`;
+    if (!isInh) {
       text += `\n\nB. Third-Party Grant Writer\n\n1. CLIENT will pay a third-party grant writer for grant writing services. These costs are not listed in this Engagement Letter because CLIENT must contract directly with the third party grant writer outside of NPSA's direction or control to remain in compliance with NSGP rules.`;
     }
   } else {
@@ -422,6 +421,7 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
     text = `A. NPSA Pre-Award Consulting Fee\n\n1. Upfront Fee. CLIENT will pay NPSA ${fmt(fees.upfront)} upon execution of this Engagement Letter. This fee includes the combined costs below.`;
     if (fees.upfront === 0) text = `A. NPSA Pre-Award Consulting Fee\n\n1. Upfront Fee. No upfront fee is due upon execution of this Engagement Letter under this engagement model.`;
     if (installments && fees.upfront > 0) text += buildInstallmentText(installments, fees.upfront);
+    text += `\n   (a) If CLIENT provides written notice of cancellation after executing this Agreement and prior to NPSA delivering a completed grant application ready for submission, the Agreement will be cancelled but no refunds will be issued.`;
     text += `\n\n2. Contingent Fee. Upon notification of a grant award, CLIENT will pay NPSA an additional ${fmt(fees.contingent)}. This fee is due upon award notification and is not reimbursable by grant funds.`;
     if (!isInh) text += `\n\nB. Third-Party Grant Writer\n\n1. CLIENT will pay a third-party grant writer for grant writing services directly, outside of NPSA's direction or control, to remain in compliance with NSGP rules.`;
   }
