@@ -306,6 +306,7 @@ CLIENT is under no obligation to enter into any new agreement, and this Addendum
 // ─── PROPOSAL TEMPLATE ────────────────────────────────────────────────────────
 const DEFAULT_PROPOSAL = {
   execSummary: `Nonprofit Security Advisors (NPSA) proposes to provide grant consulting, grant writing, and administrative support to assist [CLIENT_NAME] in pursuing funding through the [PROPOSAL_PROGRAM_LIST]. This proposal is intended to provide leadership with a concise overview of services, deliverables, and investment.`,
+  execSummaryFull: `Nonprofit Security Advisors (NPSA) proposes to provide end-to-end grant consulting, grant writing, administrative support, and award implementation services to assist [CLIENT_NAME] in pursuing and executing funding through the [PROPOSAL_PROGRAM_LIST]. This proposal is intended to provide leadership with a concise overview of services, deliverables, and investment across all phases of the grant lifecycle.`,
   phases: [
     { title:"1. PRE-AWARD PERIOD — WHITE-GLOVE GRANT DEVELOPMENT SUPPORT",
       body:"NPSA manages the application process from project planning through submission, including eligibility review, vulnerability assessment coordination, project prioritization, budget development, grant writing, application preparation, and submission management.",
@@ -317,6 +318,9 @@ const DEFAULT_PROPOSAL = {
       body:"Award implementation support is not included in this engagement. Grant program rules prohibit contracting for implementation services until all compliance requirements have been completed. Following State authorization, NPSA is available — at CLIENT's election — to provide implementation planning, procurement coordination, reimbursement readiness, documentation, and grant administration support under a separate written agreement.",
       deliverable:null },
   ],
+  phaseImplementationFull: { title:"3. AWARD IMPLEMENTATION PERIOD — WHITE-GLOVE PROJECT MANAGEMENT & ADMINISTRATION",
+    body:"Following State authorization to proceed, NPSA manages the project through to completion. Services include implementation planning, procurement coordination and bid support, vendor and installation oversight, reimbursement preparation and submission, ongoing grant administration, and project close-out. Because grant program rules prohibit contracting for implementation services until all compliance requirements have been completed, these services are formally engaged following State authorization and are billed as a percentage-based fee upon award, as set forth in the governing Engagement Letter.",
+    deliverable:"Fully implemented security improvements, complete grant administration, and successful project close-out and reimbursement." },
   eligible: "Physical security equipment • Surveillance and monitoring equipment and services • Communications systems • Cybersecurity improvements • Security training and drills • Contracted security personnel",
   note: "This proposal is a summary for leadership review. The complete scope of services, client responsibilities, limitations, compensation provisions, and governing terms are contained in the associated Engagement Letter, which controls in the event of any inconsistency.",
 };
@@ -326,6 +330,7 @@ const defaultForm = {
   programs:[{key:"federal",year:"2026"}],
   contactName:"", contactTitle:"", contactEmail:"", contactPhone:"",
   grantYear:"2026", grantType:"Federal", grantState:"other", engagementModel:"pre-only", pricingTier:"undiscounted",
+  proposalServiceModel:"inhouse",
   customFee:"", customContingencyFee:"",
   installments: false, installmentCount:2,
   installment1Pct:"50", installment1Label:"upon execution",
@@ -1557,6 +1562,16 @@ export default function App() {
         </>}
         {/* Pre-award specific — shared by Proposal (proposal is a view of pre-award data) */}
         {(isPre||isProposal)&&<>
+          {isProposal&&<>
+            <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Proposal Options</div>
+            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Service Model</label>
+            <select value={form.proposalServiceModel||"inhouse"} onChange={e=>setF("proposalServiceModel",e.target.value)}
+              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:6,outline:"none"}}>
+              <option value="inhouse">In-House — Pre-Award &amp; Compliance</option>
+              <option value="full">Full-Service — Pre-Award, Compliance &amp; Implementation</option>
+            </select>
+            <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{form.proposalServiceModel==="full"?"Includes Award Implementation, billed as a percentage-based fee post-award.":"Implementation is presented as optional, under a separate agreement."}</div>
+          </>}
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Programs</div>
           {(form.programs||[]).map((pg,pgIdx)=>{
             const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
@@ -2357,7 +2372,14 @@ ${form.npsa1Name||"NPSA"}`
             const pgYear = proposalProgs[0]?.year || form.grantYear;
             const isDisc = form.pricingTier==="discounted" && fees.discount>0;
             const complianceIncluded = !form.optPostAwardScope || (fees.postAward||0)===0;
+            const isFull = form.proposalServiceModel === "full";
+            const execSummaryText = isFull && proposalTpl.execSummaryFull ? proposalTpl.execSummaryFull : proposalTpl.execSummary;
+            const phasesToShow = [
+              ...(proposalTpl.phases||[]).slice(0,2),
+              isFull ? (proposalTpl.phaseImplementationFull || (proposalTpl.phases||[])[2]) : (proposalTpl.phases||[])[2],
+            ].filter(Boolean);
             const summaryRows = [
+              ["SERVICES", isFull ? "Full-Service — Pre-Award, Compliance & Implementation" : "In-House — Pre-Award & Compliance"],
               ["PROJECT", `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${totalApps} Location${totalApps>1?"s":""})`],
               ["POTENTIAL FUNDING", `Up to ${fmt(proposalMaxFunding)}`],
               ["PROFESSIONAL FEE", fmt(fees.upfront)],
@@ -2404,7 +2426,7 @@ ${form.npsa1Name||"NPSA"}`
               </div>
               {/* Executive Summary */}
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Executive Summary</div>
-              <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20}}>{interpolateProposal(proposalTpl.execSummary)}</p>
+              <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20}}>{interpolateProposal(execSummaryText)}</p>
               {/* Project Locations */}
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Project Locations</div>
               <div style={{marginBottom:20}}>
@@ -2417,7 +2439,7 @@ ${form.npsa1Name||"NPSA"}`
               </div>
               {/* Three Phase Approach */}
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Three Phase Approach</div>
-              {(proposalTpl.phases||[]).map((ph,i)=>(
+              {phasesToShow.map((ph,i)=>(
                 <div key={i} style={{marginBottom:16}}>
                   <div style={{fontSize:12.5,fontWeight:700,fontFamily:"Georgia,serif",color:"#1a1a1a",marginBottom:4}}>{ph.title}</div>
                   <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{interpolateProposal(ph.body)}</p>
@@ -2438,6 +2460,7 @@ ${form.npsa1Name||"NPSA"}`
                 {complianceIncluded
                   ? <div>Compliance support following award notification is included at no additional charge.</div>
                   : <div>A Compliance Period fee of {fmt(fees.postAward)} is due within thirty (30) days of award notification.</div>}
+                {isFull&&<div>Award Implementation services are billed as a percentage-based fee, due upon notification of a grant award and formally engaged following State authorization to proceed, as set forth in the governing Engagement Letter.</div>}
               </div>
               {isDisc&&form.earlySigningDate&&(
                 <div style={{border:"1px solid #1a4a6e",borderRadius:4,background:"#f4f7fb",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:"Georgia,serif",color:"#1a4a6e",fontWeight:700}}>
