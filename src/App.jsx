@@ -324,6 +324,15 @@ const DEFAULT_PROPOSAL = {
   eligible: "Physical security equipment • Surveillance and monitoring equipment and services • Communications systems • Cybersecurity improvements • Security training and drills • Contracted security personnel",
   note: "This proposal is a summary for leadership review. The complete scope of services, client responsibilities, limitations, compensation provisions, and governing terms are contained in the associated Engagement Letter, which controls in the event of any inconsistency.",
 };
+const defaultPreCallForm = {
+  orgName:'', orgType:'church', orgState:'',
+  websiteUrl:'',
+  meetingDate:'', meetingTime:'', meetingTimezone:'CST',
+  zoomUrl:'', zoomId:'', zoomPassword:'',
+  attendees:[{ name:'', email:'', phone:'' }],
+  extraNotes:'',
+};
+
 const defaultForm = {
   clientName:"", clientType:"Church",
   locations:[{name:"",address:"",city:"",state:"",zip:"",programs:["federal"]}],
@@ -531,6 +540,11 @@ export default function App() {
   const [preCallLoading, setPreCallLoading] = useState(false);
   const [preCallError, setPreCallError] = useState('');
   const [preCallCopied, setPreCallCopied] = useState(false);
+  const [preCallForm, setPreCallForm] = useState({...defaultPreCallForm});
+  const [preCallCalendlyText, setPreCallCalendlyText] = useState('');
+  const [preCallParsing, setPreCallParsing] = useState(false);
+  const [showCalendlyImport, setShowCalendlyImport] = useState(false);
+  const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
   const [mgmtApprovalModal, setMgmtApprovalModal] = useState(false); // AI clause approval gate
   const [emailModal, setEmailModal] = useState(false);
@@ -1365,7 +1379,7 @@ export default function App() {
 
             {/* ── Tools ── */}
             <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
-            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setAppView('precall'); }}
+            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setShowCalendlyImport(false); setAppView('precall'); }}
               style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
