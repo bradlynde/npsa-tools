@@ -324,6 +324,15 @@ const DEFAULT_PROPOSAL = {
   eligible: "Physical security equipment • Surveillance and monitoring equipment and services • Communications systems • Cybersecurity improvements • Security training and drills • Contracted security personnel",
   note: "This proposal is a summary for leadership review. The complete scope of services, client responsibilities, limitations, compensation provisions, and governing terms are contained in the associated Engagement Letter, which controls in the event of any inconsistency.",
 };
+const defaultPreCallForm = {
+  orgName:'', orgType:'church', orgState:'',
+  websiteUrl:'',
+  meetingDate:'', meetingTime:'', meetingTimezone:'CST',
+  zoomUrl:'', zoomId:'', zoomPassword:'',
+  attendees:[{ name:'', email:'', phone:'' }],
+  extraNotes:'',
+};
+
 const defaultForm = {
   clientName:"", clientType:"Church",
   locations:[{name:"",address:"",city:"",state:"",zip:"",programs:["federal"]}],
@@ -531,6 +540,11 @@ export default function App() {
   const [preCallLoading, setPreCallLoading] = useState(false);
   const [preCallError, setPreCallError] = useState('');
   const [preCallCopied, setPreCallCopied] = useState(false);
+  const [preCallForm, setPreCallForm] = useState({...defaultPreCallForm});
+  const [preCallCalendlyText, setPreCallCalendlyText] = useState('');
+  const [preCallParsing, setPreCallParsing] = useState(false);
+  const [showCalendlyImport, setShowCalendlyImport] = useState(false);
+  const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
   const [mgmtApprovalModal, setMgmtApprovalModal] = useState(false); // AI clause approval gate
   const [emailModal, setEmailModal] = useState(false);
@@ -1365,7 +1379,7 @@ export default function App() {
 
             {/* ── Tools ── */}
             <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
-            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setAppView('precall'); }}
+            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setShowCalendlyImport(false); setAppView('precall'); }}
               style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -1383,68 +1397,220 @@ export default function App() {
 
       {/* ── PRE-CALL NOTES ── */}
       {appView === 'precall' && (
-        <div style={{minHeight:'100vh',background:'#f4f6fb',fontFamily:'Inter,sans-serif'}}>
-          <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
-            <button onClick={()=>setAppView('dashboard')}
-              style={{background:'#fff',border:'1px solid #e6e9f2',borderRadius:10,padding:'9px 16px',color:'#5b6b8c',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
-              &#8592; Dashboard
-            </button>
-            <div style={{color:'#1a2540',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
-          </div>
-          <div style={{maxWidth:820,margin:'28px auto',padding:'0 24px 60px'}}>
-            <div style={{fontSize:14,color:'#5b6b8c',lineHeight:1.6,marginBottom:18}}>
-              Paste the full Calendly invite email below. The AI will research the organization's website to help verify attendee titles and campus addresses, then generate structured prep notes. Anything that can't be verified is marked <strong>TBD</strong> for you to confirm.
-            </div>
-            <textarea value={preCallInput} onChange={e=>setPreCallInput(e.target.value)}
-              placeholder="Paste the entire Calendly invite email here..."
-              style={{width:'100%',minHeight:250,border:'1px solid #dde1ea',borderRadius:12,padding:'14px 16px',fontSize:14,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'Inter,sans-serif',lineHeight:1.6}}/>
-            {preCallError&&<div style={{color:'#c0392b',background:'#fff5f5',border:'1px solid #f5c6c6',borderRadius:8,padding:'10px 14px',fontSize:13,marginTop:12}}>{preCallError}</div>}
-            <div style={{display:'flex',gap:12,marginTop:14,alignItems:'center'}}>
+  <div style={{minHeight:'100vh',background:'#f4f6fb',fontFamily:'Inter,sans-serif'}}>
+    <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
+      <button onClick={()=>setAppView('dashboard')}
+        style={{background:'#fff',border:'1px solid #e6e9f2',borderRadius:10,padding:'9px 16px',color:'#5b6b8c',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
+        &#8592; Dashboard
+      </button>
+      <div style={{color:'#1a2540',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
+      <span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span>
+    </div>
+
+    <div style={{maxWidth:900,margin:'28px auto',padding:'0 24px 60px',display:'flex',gap:28,alignItems:'flex-start',flexWrap:'wrap'}}>
+
+      {/* ── LEFT: Form ── */}
+      <div style={{flex:'1 1 380px',display:'flex',flexDirection:'column',gap:16}}>
+
+        {/* Import from Calendly */}
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',overflow:'hidden'}}>
+          <button onClick={()=>setShowCalendlyImport(v=>!v)}
+            style={{width:'100%',background:'none',border:'none',padding:'14px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
+            <span style={{fontWeight:700,fontSize:14,color:'#1a2540'}}>&#128248; Import from Calendly Invite</span>
+            <span style={{color:'#9aa3b8',fontSize:13}}>{showCalendlyImport?'▲':'▼'}</span>
+          </button>
+          {showCalendlyImport&&(
+            <div style={{padding:'0 20px 16px'}}>
+              <div style={{fontSize:12,color:'#7a869f',marginBottom:8}}>Paste your Calendly notification email and click Parse — it will fill the form below automatically.</div>
+              <textarea value={preCallCalendlyText} onChange={e=>setPreCallCalendlyText(e.target.value)}
+                placeholder="Paste full Calendly invite email here..."
+                style={{width:'100%',minHeight:140,border:'1px solid #dde1ea',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'Inter,sans-serif',lineHeight:1.5}}/>
               <button onClick={async()=>{
-                if(!preCallInput.trim()){ setPreCallError('Paste the Calendly invite first.'); return; }
-                setPreCallError(''); setPreCallLoading(true); setPreCallOutput(''); setPreCallMeta(null);
+                if(!preCallCalendlyText.trim()) return;
+                setPreCallParsing(true);
                 try {
-                  const r = await fetch('/api/precall', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ calendlyText: preCallInput }) });
-                  if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.error||'Generation failed'); }
+                  const r = await fetch('/api/precall/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({calendlyText:preCallCalendlyText})});
                   const d = await r.json();
-                  setPreCallOutput(d.notes||'');
-                  setPreCallMeta({ website: d.website, websiteFetched: d.websiteFetched });
-                } catch(err){ setPreCallError(err.message||'Generation failed'); }
-                setPreCallLoading(false);
-              }} disabled={preCallLoading}
-                style={{background:preCallLoading?'#9aa3b8':'linear-gradient(135deg,#3a2c6e,#5b4a9e)',color:'#fff',border:'none',borderRadius:10,padding:'11px 26px',fontSize:14,fontWeight:700,cursor:preCallLoading?'default':'pointer',boxShadow:'0 4px 14px rgba(58,44,110,0.3)'}}>
-                {preCallLoading?'Researching & generating…':'Generate Notes'}
+                  if(d.org_name) setPCF('orgName', d.org_name);
+                  if(d.org_type) setPCF('orgType', d.org_type);
+                  if(d.org_state) setPCF('orgState', d.org_state);
+                  if(d.website_url) setPCF('websiteUrl', d.website_url);
+                  if(d.meeting_date) setPCF('meetingDate', d.meeting_date);
+                  if(d.meeting_time) setPCF('meetingTime', d.meeting_time);
+                  if(d.meeting_timezone) setPCF('meetingTimezone', d.meeting_timezone);
+                  if(d.zoom_url) setPCF('zoomUrl', d.zoom_url);
+                  if(d.zoom_id) setPCF('zoomId', d.zoom_id);
+                  if(d.zoom_password) setPCF('zoomPassword', d.zoom_password);
+                  if(d.attendees?.length) setPCF('attendees', d.attendees.filter(a=>a.name).map(a=>({name:a.name||'',email:a.email||'',phone:a.phone||''})));
+                  setShowCalendlyImport(false);
+                } catch(e){ setPreCallError('Could not parse invite: '+e.message); }
+                setPreCallParsing(false);
+              }} disabled={preCallParsing}
+                style={{marginTop:10,background:preCallParsing?'#9aa3b8':'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'9px 20px',fontSize:13,fontWeight:700,cursor:preCallParsing?'default':'pointer'}}>
+                {preCallParsing?'Parsing…':'Parse & Fill Form'}
               </button>
-              {preCallMeta&&preCallMeta.website&&(
-                <span style={{fontSize:12,color:'#7a869f'}}>
-                  {preCallMeta.websiteFetched?`Verified against ${preCallMeta.website}`:`Could not fetch ${preCallMeta.website} — website fields marked TBD`}
-                </span>
-              )}
             </div>
-            {preCallOutput&&(
-              <div style={{marginTop:24}}>
-                <div style={{display:'flex',gap:10,marginBottom:10}}>
-                  <button onClick={()=>{ navigator.clipboard.writeText(preCallOutput); setPreCallCopied(true); setTimeout(()=>setPreCallCopied(false),1800); }}
-                    style={{background:'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
-                    {preCallCopied?'Copied!':'Copy to Clipboard'}
-                  </button>
-                  <button onClick={()=>{
-                    const esc = preCallOutput.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pre-Call Notes</title><style>@page{margin:0.75in;size:letter}body{font-family:Georgia,serif;font-size:11.5pt;line-height:1.6;color:#1a1a1a;white-space:pre-wrap;}</style></head><body>${esc}<script>window.onload=function(){window.print();}<\/script></body></html>`;
-                    const w = window.open('','_blank'); if(w){ w.document.write(html); w.document.close(); }
-                  }}
-                    style={{background:'#fff',color:'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
-                    Print / Save as PDF
-                  </button>
-                </div>
-                <div style={{background:'#fff',border:'1px solid #eef1f7',borderRadius:12,padding:'24px 28px',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',whiteSpace:'pre-wrap',fontFamily:'Georgia,serif',fontSize:14,lineHeight:1.6,color:'#1a1a1a'}}>
-                  {preCallOutput}
-                </div>
-              </div>
-            )}
+          )}
+        </div>
+
+        {/* Organization */}
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:14}}>Organization</div>
+          <div style={{display:'flex',gap:10,marginBottom:10}}>
+            <div style={{flex:2}}>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Organization Name *</label>
+              <input value={preCallForm.orgName} onChange={e=>setPCF('orgName',e.target.value)} placeholder="e.g. iThrive Christian Church"
+                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            </div>
+            <div style={{flex:1}}>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>State</label>
+              <input value={preCallForm.orgState} onChange={e=>setPCF('orgState',e.target.value)} placeholder="GA"
+                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:10,marginBottom:10}}>
+            <div style={{flex:1}}>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Type</label>
+              <select value={preCallForm.orgType} onChange={e=>setPCF('orgType',e.target.value)}
+                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',background:'#fff'}}>
+                <option value="church">Church</option>
+                <option value="school">School</option>
+                <option value="other">Other Nonprofit</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Website URL <span style={{color:'#9aab2e',fontWeight:600}}>(recommended — AI uses this to find titles &amp; addresses)</span></label>
+            <input value={preCallForm.websiteUrl} onChange={e=>setPCF('websiteUrl',e.target.value)} placeholder="https://ithrivecc.org"
+              style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            <div style={{fontSize:11,color:'#9aa3b8',marginTop:4}}>Leave blank and the AI will try to find the site automatically from the org name.</div>
           </div>
         </div>
+
+        {/* Meeting Details */}
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:14}}>Meeting Details</div>
+          <div style={{display:'flex',gap:10,marginBottom:10}}>
+            <div style={{flex:1}}>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Date</label>
+              <input type="date" value={preCallForm.meetingDate} onChange={e=>setPCF('meetingDate',e.target.value)}
+                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            </div>
+            <div style={{flex:1}}>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Time (CST)</label>
+              <input type="time" value={preCallForm.meetingTime} onChange={e=>setPCF('meetingTime',e.target.value)}
+                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            </div>
+          </div>
+          <div style={{marginBottom:10}}>
+            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Zoom URL</label>
+            <input value={preCallForm.zoomUrl} onChange={e=>setPCF('zoomUrl',e.target.value)} placeholder="https://us02web.zoom.us/j/..."
+              style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <div style={{flex:1}}>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Meeting ID</label>
+              <input value={preCallForm.zoomId} onChange={e=>setPCF('zoomId',e.target.value)} placeholder="815-052-42724"
+                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            </div>
+            <div style={{flex:1}}>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Password</label>
+              <input value={preCallForm.zoomPassword} onChange={e=>setPCF('zoomPassword',e.target.value)} placeholder="408098"
+                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            </div>
+          </div>
+        </div>
+
+        {/* Attendees */}
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:4}}>Organization Attendees</div>
+          <div style={{fontSize:12,color:'#7a869f',marginBottom:12}}>The AI will look up their titles from the website.</div>
+          {(preCallForm.attendees||[]).map((att,idx)=>(
+            <div key={idx} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
+              <div style={{flex:2}}>
+                {idx===0&&<label style={{fontSize:10,color:'#9aa3b8',display:'block',marginBottom:2}}>Name</label>}
+                <input value={att.name} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],name:e.target.value};setPCF('attendees',a);}} placeholder="Full Name"
+                  style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+              </div>
+              <div style={{flex:2}}>
+                {idx===0&&<label style={{fontSize:10,color:'#9aa3b8',display:'block',marginBottom:2}}>Email</label>}
+                <input value={att.email} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],email:e.target.value};setPCF('attendees',a);}} placeholder="email@org.org"
+                  style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+              </div>
+              <div style={{flex:2}}>
+                {idx===0&&<label style={{fontSize:10,color:'#9aa3b8',display:'block',marginBottom:2}}>Phone</label>}
+                <input value={att.phone} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],phone:e.target.value};setPCF('attendees',a);}} placeholder="404-555-0000"
+                  style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+              </div>
+              {(preCallForm.attendees||[]).length>1&&(
+                <button onClick={()=>setPCF('attendees',(preCallForm.attendees||[]).filter((_,i)=>i!==idx))}
+                  style={{background:'none',border:'1px solid #f0c0c0',borderRadius:8,color:'#c0392b',cursor:'pointer',padding:'7px 10px',fontSize:12,marginTop:idx===0?16:0}}>✕</button>
+              )}
+            </div>
+          ))}
+          <button onClick={()=>setPCF('attendees',[...(preCallForm.attendees||[]),{name:'',email:'',phone:''}])}
+            style={{background:'none',border:'1px dashed #c0c8d8',borderRadius:8,padding:'7px 16px',fontSize:12,color:'#5b6b8c',cursor:'pointer',marginTop:4}}>+ Add Attendee</button>
+        </div>
+
+        {/* Additional Context */}
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:4}}>Additional Context <span style={{fontWeight:400,color:'#9aa3b8',fontSize:12}}>(optional)</span></div>
+          <div style={{fontSize:12,color:'#7a869f',marginBottom:8}}>Anything the rep already knows about the org or meeting that the AI should factor in.</div>
+          <textarea value={preCallForm.extraNotes} onChange={e=>setPCF('extraNotes',e.target.value)}
+            placeholder="e.g. They were referred by First Baptist Rockford. The pastor mentioned they had a break-in last year..."
+            style={{width:'100%',minHeight:80,border:'1px solid #dde1ea',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'Inter,sans-serif',lineHeight:1.5}}/>
+        </div>
+
+        {/* Generate Button */}
+        {preCallError&&<div style={{color:'#c0392b',background:'#fff5f5',border:'1px solid #f5c6c6',borderRadius:8,padding:'10px 14px',fontSize:13}}>{preCallError}</div>}
+        <button onClick={async()=>{
+          if(!preCallForm.orgName.trim()){ setPreCallError('Enter an organization name.'); return; }
+          setPreCallError(''); setPreCallLoading(true); setPreCallOutput(''); setPreCallMeta(null);
+          try {
+            const r = await fetch('/api/precall',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formData:preCallForm})});
+            if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||'Generation failed'); }
+            const d = await r.json();
+            setPreCallOutput(d.notes||'');
+            setPreCallMeta({website:d.website, websiteFetched:d.websiteFetched});
+          } catch(err){ setPreCallError(err.message||'Generation failed'); }
+          setPreCallLoading(false);
+        }} disabled={preCallLoading}
+          style={{background:preCallLoading?'#9aa3b8':'linear-gradient(135deg,#3a2c6e,#5b4a9e)',color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:700,cursor:preCallLoading?'default':'pointer',boxShadow:'0 4px 14px rgba(58,44,110,0.3)',width:'100%'}}>
+          {preCallLoading?'Researching organization & generating notes…':'Generate Pre-Call Notes'}
+        </button>
+        {preCallMeta&&(
+          <div style={{fontSize:12,color:'#7a869f',textAlign:'center'}}>
+            {preCallMeta.websiteFetched?`✓ Website research completed: ${preCallMeta.website}`:`⚠ Could not fetch ${preCallMeta.website||'website'} — some fields may be TBD`}
+          </div>
+        )}
+      </div>
+
+      {/* ── RIGHT: Output ── */}
+      {preCallOutput&&(
+        <div style={{flex:'1 1 400px'}}>
+          <div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center'}}>
+            <div style={{fontWeight:700,fontSize:15,color:'#1a2540',flex:1}}>Pre-Call Notes</div>
+            <button onClick={()=>{ navigator.clipboard.writeText(preCallOutput); setPreCallCopied(true); setTimeout(()=>setPreCallCopied(false),1800); }}
+              style={{background:'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+              {preCallCopied?'Copied!':'Copy'}
+            </button>
+            <button onClick={()=>{
+              const esc=preCallOutput.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pre-Call Notes</title><style>@page{margin:0.75in;size:letter}body{font-family:Georgia,serif;font-size:11.5pt;line-height:1.7;color:#1a1a1a;white-space:pre-wrap;}</style></head><body>${esc}<script>window.onload=function(){window.print();}<\/script></body></html>`;
+              const w=window.open('','_blank'); if(w){w.document.write(html);w.document.close();}
+            }}
+              style={{background:'#fff',color:'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+              Print / PDF
+            </button>
+          </div>
+          <textarea value={preCallOutput} onChange={e=>setPreCallOutput(e.target.value)}
+            style={{width:'100%',minHeight:700,border:'1px solid #eef1f7',borderRadius:14,padding:'24px 28px',fontSize:13.5,lineHeight:1.7,color:'#1a1a1a',fontFamily:'Georgia,serif',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
+        </div>
       )}
+
+    </div>
+  </div>
+)}
 
       {/* ── SETTINGS ── */}
       {appView === 'settings' && (

@@ -67,31 +67,35 @@ app.post('/api/polish', async (req, res) => {
 });
 
 // ── Pre-Call Notes endpoint ───────────────────────────────────────────────────
-// Fetches a page server-side and returns stripped, length-capped text. Best
-// effort — returns null on any failure (timeout, block, bad URL).
-async function fetchPage(url, ms = 8000) {
+// Fetches a page via Jina AI Reader (handles JS-rendered sites, returns clean text).
+// Best effort — returns null on any failure (timeout, block, bad URL).
+async function fetchViaJina(url, ms = 15000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    const r = await fetch(url, { signal: ctrl.signal, redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NPSA-PreCall/1.0)' } });
+    const r = await fetch(`https://r.jina.ai/${url}`, {
+      signal: ctrl.signal,
+      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'text', 'X-No-Cache': 'true' }
+    });
     if (!r.ok) return null;
-    const html = await r.text();
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&#39;|&rsquo;|&lsquo;/g, "'")
-      .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 5000);
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(t);
-  }
+    return (await r.text()).slice(0, 8000);
+  } catch { return null; }
+  finally { clearTimeout(t); }
+}
+
+async function searchForOrgWebsite(orgName, orgType, orgState, ms = 12000) {
+  const q = encodeURIComponent(`${orgName}${orgState ? ' ' + orgState : ''} ${orgType || ''} official website`);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(`https://s.jina.ai/${q}`, {
+      signal: ctrl.signal,
+      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'text' }
+    });
+    if (!r.ok) return null;
+    return (await r.text()).slice(0, 3000);
+  } catch { return null; }
+  finally { clearTimeout(t); }
 }
 
 function normalizeBaseUrl(raw) {
@@ -178,67 +182,131 @@ Next Steps (Post-Call): Send Follow Up Email to Include:
 Original Calendly Input:
 {paste the full Calendly email verbatim}`;
 
-app.post('/api/precall', async (req, res) => {
+app.post('/api/precall/parse', async (req, res) => {
   const { calendlyText } = req.body || {};
-  if (!calendlyText || !calendlyText.trim()) {
-    return res.status(400).json({ error: 'No Calendly text provided' });
+  if (!calendlyText?.trim()) return res.status(400).json({ error: 'No text provided' });
+  try {
+    const client = getOpenAI();
+    const result = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 600,
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'user',
+        content: `Extract structured data from this Calendly invite. Return ONLY valid JSON with these exact keys (use null for anything not found). Detect org_type from the org name (church, school, or other). For meeting_date use YYYY-MM-DD. For meeting_time use HH:MM in 24-hour format. For org_state detect from context (2-letter abbreviation). Convert timezone to one of: CST, EST, PST, MST — use CST if Central Time.\n\n{"org_name":null,"org_type":"church","org_state":null,"website_url":null,"meeting_date":null,"meeting_time":null,"meeting_timezone":"CST","zoom_url":null,"zoom_id":null,"zoom_password":null,"attendees":[{"name":null,"email":null,"phone":null}]}\n\nCalendly invite:\n${calendlyText.slice(0, 5000)}`
+      }]
+    });
+    const parsed = JSON.parse(result.choices[0]?.message?.content || '{}');
+    res.json(parsed);
+  } catch(e) {
+    console.error('Parse error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/precall', async (req, res) => {
+  const { formData, calendlyText } = req.body || {};
+  if (!formData && !calendlyText?.trim()) {
+    return res.status(400).json({ error: 'No input provided' });
   }
   try {
     const client = getOpenAI();
 
-    // Step 1 — extract the org website (and name) so we can crawl it.
-    let websiteUrl = null, orgName = null;
-    try {
-      const extraction = await client.chat.completions.create({
-        model: 'gpt-4o-mini',
-        max_tokens: 200,
-        messages: [{
-          role: 'user',
-          content: `From this Calendly invite, extract the organization name and its website URL if present. Respond ONLY with compact JSON like {"org_name":"...","website_url":"..."}. Use null for anything not found.\n\n${calendlyText.slice(0, 4000)}`
-        }],
-        response_format: { type: 'json_object' },
-      });
-      const parsed = JSON.parse(extraction.choices[0]?.message?.content || '{}');
-      orgName = parsed.org_name || null;
-      websiteUrl = parsed.website_url || null;
-    } catch { /* extraction is best-effort */ }
+    let orgName, orgType, orgState, websiteUrl, meetingDate, meetingTime, meetingTimezone,
+        zoomUrl, zoomId, zoomPassword, attendees, extraNotes;
 
-    // Step 2 — crawl the org site (homepage + common subpages) server-side.
-    let siteText = '';
-    const base = normalizeBaseUrl(websiteUrl);
-    if (base) {
-      const pages = await Promise.all([
-        fetchPage(base),
-        fetchPage(`${base}/about`),
-        fetchPage(`${base}/contact`),
-        fetchPage(`${base}/locations`),
-        fetchPage(`${base}/campuses`),
-      ]);
-      siteText = pages.filter(Boolean).join('\n\n').slice(0, 15000);
+    if (formData) {
+      ({ orgName, orgType, orgState, websiteUrl, meetingDate, meetingTime, meetingTimezone,
+         zoomUrl, zoomId, zoomPassword, attendees, extraNotes } = formData);
+    } else {
+      // Legacy: parse raw Calendly text
+      try {
+        const ext = await client.chat.completions.create({
+          model: 'gpt-4o-mini', max_tokens: 500,
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'user', content: `Extract from this Calendly invite. JSON: {"org_name":null,"org_type":"church","org_state":null,"website_url":null,"meeting_date":null,"meeting_time":null,"meeting_timezone":"CST","zoom_url":null,"zoom_id":null,"zoom_password":null,"attendees":[{"name":null,"email":null,"phone":null}]}\n\n${calendlyText.slice(0,4000)}` }],
+        });
+        const p = JSON.parse(ext.choices[0]?.message?.content || '{}');
+        orgName = p.org_name; orgType = p.org_type; orgState = p.org_state;
+        websiteUrl = p.website_url; meetingDate = p.meeting_date; meetingTime = p.meeting_time;
+        meetingTimezone = p.meeting_timezone || 'CST'; zoomUrl = p.zoom_url; zoomId = p.zoom_id;
+        zoomPassword = p.zoom_password; attendees = p.attendees;
+      } catch { /* best effort */ }
     }
 
-    // Step 3 — generate the notes with GPT-4o.
+    // Find website via Jina Search if not provided
+    let resolvedWebsite = normalizeBaseUrl(websiteUrl);
+    if (!resolvedWebsite && orgName) {
+      const searchResults = await searchForOrgWebsite(orgName, orgType, orgState);
+      if (searchResults) {
+        try {
+          const urlFind = await client.chat.completions.create({
+            model: 'gpt-4o-mini', max_tokens: 100,
+            response_format: { type: 'json_object' },
+            messages: [{ role: 'user', content: `Find the official website URL for "${orgName}" from these search results. Return JSON: {"url":"https://..."} or {"url":null}\n\n${searchResults}` }]
+          });
+          const found = JSON.parse(urlFind.choices[0]?.message?.content || '{}');
+          resolvedWebsite = normalizeBaseUrl(found.url);
+        } catch { /* best effort */ }
+      }
+    }
+
+    // Fetch site content via Jina Reader across common paths
+    let siteText = '';
+    if (resolvedWebsite) {
+      const paths = ['', '/about', '/about-us', '/staff', '/leadership', '/team', '/our-church', '/locations', '/campuses', '/contact'];
+      const pages = await Promise.allSettled(paths.map(p => fetchViaJina(`${resolvedWebsite}${p}`)));
+      siteText = pages
+        .filter(r => r.status === 'fulfilled' && r.value)
+        .map(r => r.value)
+        .join('\n\n')
+        .slice(0, 20000);
+    }
+
+    // Build structured context block
+    const attendeeLines = (attendees || [])
+      .filter(a => a && a.name)
+      .map(a => `  ${a.name} | ${a.email || ''} | ${a.phone || ''}`)
+      .join('\n');
+
     const context = [
-      `CALENDLY INVITE:\n${calendlyText}`,
-      base ? `\n\nORGANIZATION WEBSITE (${base}):` : `\n\nORGANIZATION WEBSITE: not provided / not found — mark website-dependent fields as TBD.`,
-      siteText ? `\nSCRAPED WEBSITE TEXT (use to verify titles & addresses; do not invent):\n${siteText}` : (base ? '\nWebsite could not be fetched — mark website-dependent fields as TBD.' : ''),
-    ].join('');
+      `MEETING INFORMATION:`,
+      `Organization: ${orgName || 'Unknown'}`,
+      `Type: ${orgType || 'unknown'}`,
+      `State: ${orgState || 'unknown'}`,
+      `Date: ${meetingDate || 'TBD'}`,
+      `Time: ${meetingTime || 'TBD'} ${meetingTimezone || 'CST'}`,
+      `Zoom URL: ${zoomUrl || 'TBD'}`,
+      `Zoom Meeting ID: ${zoomId || 'TBD'}`,
+      `Zoom Password: ${zoomPassword || 'TBD'}`,
+      `Website: ${resolvedWebsite || 'not found'}`,
+      ``,
+      `ATTENDEES:`,
+      attendeeLines || '  (none provided)',
+      extraNotes ? `\nADDITIONAL CONTEXT FROM REP:\n${extraNotes}` : '',
+      ``,
+      resolvedWebsite
+        ? `WEBSITE CONTENT (${resolvedWebsite}) — use to verify attendee titles, campus addresses, mission statement. Do NOT invent facts not found here:`
+        : `WEBSITE CONTENT: unavailable — mark website-dependent fields as TBD`,
+      siteText || '(website could not be fetched)',
+    ].filter(l => l !== null).join('\n');
 
     const completion = await client.chat.completions.create({
       model: 'gpt-4o',
-      max_tokens: 2200,
+      max_tokens: 3500,
       messages: [
         { role: 'system', content: PRECALL_MASTER_PROMPT },
         { role: 'user', content: context },
       ],
     });
+
     res.json({
       notes: completion.choices[0]?.message?.content || '',
-      website: base || null,
+      website: resolvedWebsite || null,
       websiteFetched: !!siteText,
-      orgName,
+      orgName: orgName || null,
     });
-  } catch (err) {
+  } catch(err) {
     console.error('Pre-call error:', err.message);
     res.status(500).json({ error: 'AI service error' });
   }
