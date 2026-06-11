@@ -1622,16 +1622,30 @@ export default function App() {
                 Edit
               </button>
             </div>
-            <button onClick={()=>{ navigator.clipboard.writeText(preCallOutput); setPreCallCopied(true); setTimeout(()=>setPreCallCopied(false),1800); }}
+            <button onClick={async()=>{
+              try {
+                await navigator.clipboard.writeText(preCallOutput);
+              } catch {
+                const ta=document.createElement('textarea');
+                ta.value=preCallOutput; ta.style.position='fixed'; ta.style.opacity='0';
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+              }
+              setPreCallCopied(true); setTimeout(()=>setPreCallCopied(false),1800);
+            }}
               style={{background:'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
-              {preCallCopied?'Copied!':'Copy'}
+              {preCallCopied?'Copied!':'Copy Markdown'}
             </button>
             <button onClick={()=>{
-              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pre-Call Notes</title><style>@page{margin:0.7in;size:letter}*{box-sizing:border-box}body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11pt;color:#26334d;margin:0}h1,h2,h3{page-break-after:avoid}</style></head><body><div style="max-width:7.1in;margin:0 auto">${renderPreCallHtml(preCallOutput)}</div><script>window.onload=function(){window.print();}<\/script></body></html>`;
-              const w=window.open('','_blank'); if(w){w.document.write(html);w.document.close();}
+              const orgName=preCallForm.orgName||'NPSA';
+              const docHtml=`<!DOCTYPE html><html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Pre-Call Notes - ${orgName}</title><style>body{font-family:Calibri,Arial,sans-serif;margin:1in 1in 1in 1in}h1{font-size:18pt;font-weight:bold;color:#1a2540;margin:0 0 4pt}h2{font-size:11pt;font-weight:bold;color:#2c5d8f;border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin:16pt 0 6pt;text-transform:uppercase;letter-spacing:.5pt}h3{font-size:11pt;font-weight:bold;color:#1a2540;margin:10pt 0 4pt}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:#1a2540}a{color:#2c5d8f}ul,ol{margin-left:18pt}hr{border:1pt solid #dce8f4}</style></head><body>${marked(preCallOutput)}</body></html>`;
+              const blob=new Blob(['﻿',docHtml],{type:'application/msword'});
+              const url=URL.createObjectURL(blob);
+              const a=document.createElement('a');
+              a.href=url; a.download=`Pre-Call Notes - ${orgName}.doc`;
+              document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
             }}
               style={{background:'#fff',color:'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
-              Print / PDF
+              Download .doc
             </button>
           </div>
           {preCallViewMode==='preview' ? (
