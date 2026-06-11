@@ -44,6 +44,7 @@ def init_db():
                 ("Josh", "user3"),
                 ("Chad", "user4"),
                 ("Steven", "user5"),
+                ("Jeff", "user6"),
             ]
             for username, password in all_users:
                 cur.execute("SELECT 1 FROM users WHERE username = %s", (username,))
