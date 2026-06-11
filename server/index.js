@@ -110,77 +110,84 @@ function normalizeBaseUrl(raw) {
   }
 }
 
-const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You will be given the full text of a Calendly invite email that a prospective client filled out, plus (when available) text scraped from the organization's website to help you verify attendee titles and campus addresses.
+const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
 
-Produce a polished, structured plain-text pre-call notes document following EXACTLY this layout and these rules.
+Produce a polished, scannable pre-call briefing that a sales rep can read live during the call. OUTPUT FORMAT IS MARKDOWN. Follow the exact structure and rules below.
 
 MUST-FOLLOW RULES:
-1. Always display meeting time in CST (America/Chicago). If another timezone is listed, convert it to CST and show only CST.
+1. Always show meeting time in CST. If another timezone is provided, convert it and show only CST.
 2. Default Meeting Host is always Brad Lynde unless another name is explicitly specified.
-3. Label the organization's website "School Website" for schools, "Church Website" for churches.
-4. Split attendees into: Expected {Organization Name} Attendees, Expected NPSA Attendees, Expected Partner Attendees.
-5. For organization attendees: include all invitees and guests from Calendly with Full Name, Title, Email, Phone. Use the phone number provided in the Calendly form. Confirm titles using the organization's website first. If a title cannot be verified, write "Title TBD". Expand shortened names only if verified.
-6. Verify and list every campus/property/location found on the org's website with complete postal addresses. For schools use "Campus Location(s) (Verified)"; for churches use "Property / Campus Locations (Verified)". If addresses cannot be verified from the provided website text, write "TBD" and do not invent addresses.
-7. Keep these sections present but blank (heading only, no filler): Strategic Insights, Top Three Security Wish List Items, Questions to Ask.
-8. Include the state abbreviation after the organization name in the "Pre-Call Notes" title line.
-9. Include a short Mission & Values section (1-2 sentence paraphrase from the org's site if available; otherwise "TBD").
-10. NEVER fabricate addresses, titles, phone numbers, or facts. Anything you cannot verify from the Calendly input or provided website text must be "TBD".
+3. Label the organization's website "School Website" for schools, "Church Website" for churches, "Website" otherwise.
+4. NEVER fabricate addresses, titles, phone numbers, mission statements, or facts. Anything not verifiable from the provided information or website text must be written as "TBD". Do not guess.
+5. For attendee titles: confirm from the website text first. If a title cannot be verified, write "Title TBD" — never invent one.
+6. List every campus/property/location found on the website with its complete postal address. If none can be verified, write "TBD".
+7. Keep the fillable sections present with their headings even when empty (the rep fills these in live): Strategic Insights, Top Three Security Wish List Items.
+8. Keep the briefing tight and useful — short sentences, no filler, no marketing fluff. Prefer bullets over paragraphs except in the Objective and Overview.
 
-DOCUMENT LAYOUT:
-{ORGANIZATION NAME — bold/caps}
-{Weekday, Month DD, YYYY – HH:MM AM/PM CST}
+OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a bracketed line entirely if it would just say TBD with no value, EXCEPT where a rule says to keep it):
 
-Pre-Call Notes: {Organization Name} — {STATE ABBR}
+# {Organization Name} — {STATE ABBR}
+**{Weekday, Month DD, YYYY · H:MM AM/PM CST}** · NPSA 30-Minute Introduction Call
 
-Meeting Details:
-- Event Type: NPSA 30-Minute Introduction Zoom Call
-- Date & Time (CST): {converted CST time}
-- Meeting Host: Brad Lynde
-- Purpose: Discussion of federal and state nonprofit security grant opportunities
-- Location: Zoom Web Conference
-- Link: {Zoom URL or TBD}
-- Meeting ID: {ID or TBD}
-- Password: {PW or TBD}
-- Organization: {Org Name}
-- {Church/School} Website: {URL or TBD}
-- Contact Phone: {Org main phone or Calendly number or TBD}
+## Meeting Objective
+{2-3 sentences: understand the org's current security posture and priorities, and position both Federal and State NSGP grant funding to support their planned upgrades and drivers. Tailor to anything specific the rep noted.}
 
-Expected {Organization Name} Attendees
-{Full Name | Title | Email | Phone for each}
+## Organization Overview
+{2-4 sentences synthesized from the website: what the organization is, who/how many it serves, its location and size, and why it is a strong NSGP candidate. Weave in a one-line mission/values paraphrase if the site states it. If the website was unavailable, write "TBD — website could not be researched."}
 
-Expected NPSA Attendees
-Brad Lynde | Managing Partner, NPSA | brad@lyndeconsulting.com |
+## Meeting Details
+- **Date & Time:** {converted CST time}
+- **Host:** Brad Lynde
+- **Location:** Zoom Web Conference
+- **Organization:** {Org Name}
+- **{School/Church/}Website:** {URL or TBD}
+- **Contact Phone:** {phone or TBD}
 
-Expected Partner Attendees
-{Full Name | Title | Organization | Email — or "None"}
+## Attendees
+**{Organization Name}**
+{For each org attendee: Full Name | Title (or "Title TBD") | Email | Phone}
+**NPSA**
+Brad Lynde | Managing Partner, NPSA | brad@lyndeconsulting.com
+**Partners**
+{Partner attendees if any, otherwise: None}
 
-Mission & Values:
-{1-2 sentence paraphrase or TBD}
+## Verified Campus / Property Locations
+{For each: **{Site name}** — {full postal address}. If none verified: TBD}
 
-Campus Location(s) (Verified) / Property / Campus Locations (Verified):
-{Site | Address | Notes for each, or TBD}
+## Stated Needs & Drivers
+{Only if the rep's notes or input mention specific needs/drivers. Bullet the needs (e.g. upgrade cameras, access control, doors/gates) and, under a bold "Drivers:" line, bullet what's prompting this (e.g. recent threat, leadership initiative). If nothing was stated, omit this entire section.}
 
-Strategic Insights:
+## Key Talking Points
+- Align the organization's threat narrative with NSGP risk-based scoring
+- Position planned upgrades as highly fundable under Federal and State NSGP
+- Confirm campus layout and building count
+- Identify existing security system gaps
+- Understand the decision-making process and timeline
+{Add 1-2 tailored points if the input supports them.}
 
-Call Notes:
+## Strategic Insights
+{0-2 short bullets ONLY if there is a strong, verifiable signal worth flagging to the rep; otherwise leave this section empty for the rep to complete.}
+
+## Discovery Questions to Ask
 1. Do you expect to expand your facility, remodel, or build within the next few years?
-2. Do you have any close affiliations with other churches or Christian schools you feel might benefit from this?
+2. Do you have any close affiliations with other {churches and Christian schools / schools / organizations} that might benefit from this?
+{Add 1-3 tailored discovery questions based on the org type and any stated needs.}
 
-Top Three Security Wish List Items:
+## Top Three Security Wish List Items
 1.
 2.
 3.
 
-Questions to Ask:
-
-Next Steps (Post-Call): Send Follow Up Email to Include:
+## Next Steps (Post-Call)
+Send a follow-up email including:
 1. Engagement Letter
-2. Brochure Includes Slide Deck Content and References
-3. Scheduling Link – If Second Appt. Has Not Been Scheduled
+2. Brochure (slide deck content and references)
+3. Scheduling link — if a second appointment has not been booked
 
----
-Original Calendly Input:
-{paste the full Calendly email verbatim}`;
+## Zoom Details
+- **Link:** {Zoom URL or TBD}
+- **Meeting ID:** {ID or TBD}
+- **Password:** {Password or TBD}`;
 
 app.post('/api/precall/parse', async (req, res) => {
   const { calendlyText } = req.body || {};
