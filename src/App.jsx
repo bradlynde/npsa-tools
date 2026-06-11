@@ -562,6 +562,7 @@ export default function App() {
   const [preCallForm, setPreCallForm] = useState({...defaultPreCallForm});
   const [preCallCalendlyText, setPreCallCalendlyText] = useState('');
   const [preCallParsing, setPreCallParsing] = useState(false);
+  const [preCallDownloading, setPreCallDownloading] = useState(false);
   const [preCallViewMode, setPreCallViewMode] = useState('preview'); // 'preview' | 'edit'
   const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
@@ -1612,17 +1613,23 @@ export default function App() {
                 Edit
               </button>
             </div>
-            <button onClick={()=>{
+            <button onClick={async()=>{
               const orgName=preCallForm.orgName||'NPSA';
-              const docHtml=`<!DOCTYPE html><html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Pre-Call Notes - ${orgName}</title><style>body{font-family:Calibri,Arial,sans-serif;margin:1in 1in 1in 1in}h1{font-size:18pt;font-weight:bold;color:#1a2540;margin:0 0 4pt}h2{font-size:11pt;font-weight:bold;color:#2c5d8f;border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin:16pt 0 6pt;text-transform:uppercase;letter-spacing:.5pt}h3{font-size:11pt;font-weight:bold;color:#1a2540;margin:10pt 0 4pt}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:#1a2540}a{color:#2c5d8f}ul,ol{margin-left:18pt}hr{border:1pt solid #dce8f4}</style></head><body>${marked(preCallOutput)}</body></html>`;
-              const blob=new Blob(['﻿',docHtml],{type:'application/msword'});
-              const url=URL.createObjectURL(blob);
-              const a=document.createElement('a');
-              a.href=url; a.download=`Pre-Call Notes - ${orgName}.doc`;
-              document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-            }}
-              style={{background:'#fff',color:'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
-              Download .doc
+              const html=`<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif}h1{font-size:18pt;color:#1a2540}h2{font-size:11pt;color:#2c5d8f;border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin-top:16pt;text-transform:uppercase}h3{font-size:11pt;color:#1a2540}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:#1a2540}a{color:#2c5d8f}</style></head><body>${marked(preCallOutput)}</body></html>`;
+              setPreCallDownloading(true);
+              try {
+                const r=await fetch('/api/precall/docx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({html,filename:`Pre-Call Notes - ${orgName}`})});
+                if(!r.ok) throw new Error('Server error');
+                const blob=await r.blob();
+                const url=URL.createObjectURL(blob);
+                const a=document.createElement('a');
+                a.href=url; a.download=`Pre-Call Notes - ${orgName}.docx`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+              } catch(e){ alert('Download failed: '+e.message); }
+              setPreCallDownloading(false);
+            }} disabled={preCallDownloading}
+              style={{background:preCallDownloading?'#9aa3b8':'#fff',color:preCallDownloading?'#fff':'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:preCallDownloading?'default':'pointer'}}>
+              {preCallDownloading?'Generating…':'Download .docx'}
             </button>
           </div>
           {preCallViewMode==='preview' ? (

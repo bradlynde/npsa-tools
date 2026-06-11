@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
 import pg from 'pg';
+import HTMLtoDOCX from 'html-to-docx';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -141,7 +142,7 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 - **Location:** Video Web Conference
 - **Organization:** {Org Name}
 - **{School/Church/}Website:** {URL or TBD}
-- **Contact Phone:** {phone or TBD}
+- **Contact Phone:** {use the attendee's phone number if available; otherwise TBD}
 
 ## Attendees
 **{Organization Name}**
@@ -170,18 +171,22 @@ Brad Lynde | Managing Partner, NPSA | brad@lyndeconsulting.com
 
 ## Discovery Questions to Ask
 1. Do you expect to expand your facility, remodel, or build within the next few years?
+
 2. Do you have any close affiliations with other {churches and Christian schools / schools / organizations} that might benefit from this?
-{Add 1-3 tailored discovery questions based on the org type and any stated needs.}
+
+{Add 1-3 tailored discovery questions based on the org type and any stated needs. Put a blank line after each question so the rep has space for handwritten notes.}
 
 ## Top Three Security Wish List Items
 1.
+
 2.
+
 3.
 
 ## Next Steps (Post-Call)
 Send a follow-up email including:
 1. Engagement Letter
-2. Brochure (slide deck content and references)
+2. Brochure
 3. Scheduling link — if a second appointment has not been booked
 
 ## Video Conference Details
@@ -207,6 +212,25 @@ app.post('/api/precall/parse', async (req, res) => {
     res.json(parsed);
   } catch(e) {
     console.error('Parse error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/precall/docx', async (req, res) => {
+  const { html, filename } = req.body || {};
+  if (!html) return res.status(400).json({ error: 'No HTML provided' });
+  try {
+    const buffer = await HTMLtoDOCX(html, null, {
+      title: filename || 'Pre-Call Notes',
+      margins: { top: 720, right: 1080, bottom: 720, left: 1080 },
+      font: 'Calibri',
+      fontSize: 22,
+    });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${(filename||'Pre-Call Notes').replace(/"/g,"'")}.docx"`);
+    res.send(buffer);
+  } catch(e) {
+    console.error('DOCX error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -255,6 +279,22 @@ app.post('/api/precall', async (req, res) => {
           const found = JSON.parse(urlFind.choices[0]?.message?.content || '{}');
           resolvedWebsite = normalizeBaseUrl(found.url);
         } catch { /* best effort */ }
+      }
+    }
+
+    // Fallback: derive website from attendee email domains
+    // e.g. michael@calumetstreet.org → try https://calumetstreet.org
+    if (!resolvedWebsite && attendees?.length) {
+      const genericDomains = new Set(['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','aol.com','live.com','msn.com','me.com']);
+      for (const att of (attendees || [])) {
+        const domain = att?.email?.split('@')[1]?.toLowerCase();
+        if (domain && !genericDomains.has(domain)) {
+          const candidate = normalizeBaseUrl(`https://${domain}`);
+          if (candidate) {
+            const test = await fetchViaJina(candidate);
+            if (test && test.length > 200) { resolvedWebsite = candidate; break; }
+          }
+        }
       }
     }
 
