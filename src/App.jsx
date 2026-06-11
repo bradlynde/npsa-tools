@@ -333,6 +333,51 @@ const defaultPreCallForm = {
   extraNotes:'',
 };
 
+// ── Lightweight Markdown → styled HTML for Pre-Call Notes ──────────────
+// Renders the subset the master prompt emits (#/## headings, **bold**,
+// - bullets, 1. numbered, --- rules, "A | B | C" attendee rows, links).
+// Inline styles only, so the exact same output is reused for on-screen
+// preview AND the Print / PDF window (which has no shared stylesheet).
+const _pcEsc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function _pcInline(s){
+  return s
+    .replace(/\*\*(.+?)\*\*/g,'<strong style="color:#1a2540;font-weight:700">$1</strong>')
+    .replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" style="color:#2c5d8f;text-decoration:none">$1</a>');
+}
+function preCallMdToHtml(md){
+  const lines = String(md||'').replace(/\r/g,'').split('\n');
+  let html = '', inUl = false, listBuf = [];
+  const flushUl = () => { if(inUl){ html += `<ul style="margin:0 0 14px;padding-left:22px">${listBuf.join('')}</ul>`; listBuf=[]; inUl=false; } };
+  for(const raw of lines){
+    const line = raw.replace(/\s+$/,'');
+    if(!line.trim()){ flushUl(); continue; }
+    const m1 = line.match(/^#\s+(.*)$/);
+    const m2 = line.match(/^##\s+(.*)$/);
+    const m3 = line.match(/^###\s+(.*)$/);
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    const numbered = line.match(/^\d+\.\s*(.*)$/);
+    if(m1){ flushUl(); html += `<h1 style="font-size:23px;font-weight:800;color:#1a2540;margin:0 0 4px;letter-spacing:-0.2px;line-height:1.25">${_pcInline(_pcEsc(m1[1]))}</h1>`; continue; }
+    if(m2){ flushUl(); html += `<h2 style="font-size:14px;font-weight:700;color:#2c5d8f;text-transform:uppercase;letter-spacing:0.6px;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #e6edf5">${_pcInline(_pcEsc(m2[1]))}</h2>`; continue; }
+    if(m3){ flushUl(); html += `<h3 style="font-size:13px;font-weight:700;color:#1a2540;margin:14px 0 6px">${_pcInline(_pcEsc(m3[1]))}</h3>`; continue; }
+    if(/^---+$/.test(line)){ flushUl(); html += `<hr style="border:none;border-top:1px solid #e6edf5;margin:18px 0"/>`; continue; }
+    if(bullet){ inUl = true; listBuf.push(`<li style="margin:0 0 5px;line-height:1.55;color:#26334d">${_pcInline(_pcEsc(bullet[1]))}</li>`); continue; }
+    if(numbered){ flushUl(); html += `<div style="margin:0 0 5px;line-height:1.55;color:#26334d;padding-left:4px"><strong style="color:#2c5d8f">${line.match(/^(\d+)\./)[1]}.</strong> ${_pcInline(_pcEsc(numbered[1]))}</div>`; continue; }
+    // Attendee / pipe rows → name in navy bold, rest in muted, middot separated
+    if(line.includes(' | ')){
+      flushUl();
+      const parts = line.split('|').map(p=>p.trim()).filter(Boolean);
+      const name = _pcInline(_pcEsc(parts.shift()||''));
+      const rest = parts.map(p=>_pcInline(_pcEsc(p))).join('<span style="color:#c0c8d8;margin:0 7px">·</span>');
+      html += `<div style="margin:0 0 6px;padding:7px 12px;background:#f7f9fc;border-radius:7px;line-height:1.5"><strong style="color:#1a2540">${name}</strong>${rest?'<span style="color:#c0c8d8;margin:0 7px">·</span>'+`<span style="color:#5b6b8c;font-size:13px">${rest}</span>`:''}</div>`;
+      continue;
+    }
+    flushUl();
+    html += `<p style="margin:0 0 12px;line-height:1.6;color:#26334d">${_pcInline(_pcEsc(line))}</p>`;
+  }
+  flushUl();
+  return html;
+}
+
 const defaultForm = {
   clientName:"", clientType:"Church",
   locations:[{name:"",address:"",city:"",state:"",zip:"",programs:["federal"]}],
@@ -544,6 +589,7 @@ export default function App() {
   const [preCallCalendlyText, setPreCallCalendlyText] = useState('');
   const [preCallParsing, setPreCallParsing] = useState(false);
   const [showCalendlyImport, setShowCalendlyImport] = useState(false);
+  const [preCallViewMode, setPreCallViewMode] = useState('preview'); // 'preview' | 'edit'
   const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
   const [mgmtApprovalModal, setMgmtApprovalModal] = useState(false); // AI clause approval gate
@@ -1379,7 +1425,7 @@ export default function App() {
 
             {/* ── Tools ── */}
             <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
-            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setShowCalendlyImport(false); setAppView('precall'); }}
+            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setShowCalendlyImport(false); setPreCallViewMode('preview'); setAppView('precall'); }}
               style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -1571,6 +1617,7 @@ export default function App() {
             if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||'Generation failed'); }
             const d = await r.json();
             setPreCallOutput(d.notes||'');
+            setPreCallViewMode('preview');
             setPreCallMeta({website:d.website, websiteFetched:d.websiteFetched});
           } catch(err){ setPreCallError(err.message||'Generation failed'); }
           setPreCallLoading(false);
@@ -1587,24 +1634,43 @@ export default function App() {
 
       {/* ── RIGHT: Output ── */}
       {preCallOutput&&(
-        <div style={{flex:'1 1 400px'}}>
-          <div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center'}}>
+        <div style={{flex:'1 1 420px'}}>
+          <div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
             <div style={{fontWeight:700,fontSize:15,color:'#1a2540',flex:1}}>Pre-Call Notes</div>
+            {/* Preview / Edit toggle */}
+            <div style={{display:'flex',background:'#eef1f7',borderRadius:8,padding:2}}>
+              <button onClick={()=>setPreCallViewMode('preview')}
+                style={{background:preCallViewMode==='preview'?'#fff':'transparent',color:preCallViewMode==='preview'?'#1a2540':'#7a869f',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='preview'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
+                Preview
+              </button>
+              <button onClick={()=>setPreCallViewMode('edit')}
+                style={{background:preCallViewMode==='edit'?'#fff':'transparent',color:preCallViewMode==='edit'?'#1a2540':'#7a869f',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='edit'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
+                Edit
+              </button>
+            </div>
             <button onClick={()=>{ navigator.clipboard.writeText(preCallOutput); setPreCallCopied(true); setTimeout(()=>setPreCallCopied(false),1800); }}
               style={{background:'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
               {preCallCopied?'Copied!':'Copy'}
             </button>
             <button onClick={()=>{
-              const esc=preCallOutput.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pre-Call Notes</title><style>@page{margin:0.75in;size:letter}body{font-family:Georgia,serif;font-size:11.5pt;line-height:1.7;color:#1a1a1a;white-space:pre-wrap;}</style></head><body>${esc}<script>window.onload=function(){window.print();}<\/script></body></html>`;
+              const body=preCallMdToHtml(preCallOutput);
+              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pre-Call Notes</title><style>@page{margin:0.7in;size:letter}*{box-sizing:border-box}body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11pt;color:#26334d;margin:0}h1,h2,h3{page-break-after:avoid}li,p,div{page-break-inside:avoid}</style></head><body><div style="max-width:7.1in;margin:0 auto">${body}</div><script>window.onload=function(){window.print();}<\/script></body></html>`;
               const w=window.open('','_blank'); if(w){w.document.write(html);w.document.close();}
             }}
               style={{background:'#fff',color:'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
               Print / PDF
             </button>
           </div>
-          <textarea value={preCallOutput} onChange={e=>setPreCallOutput(e.target.value)}
-            style={{width:'100%',minHeight:700,border:'1px solid #eef1f7',borderRadius:14,padding:'24px 28px',fontSize:13.5,lineHeight:1.7,color:'#1a1a1a',fontFamily:'Georgia,serif',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
+          {preCallViewMode==='preview' ? (
+            <div style={{background:'#fff',border:'1px solid #eef1f7',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)',fontFamily:'Inter,sans-serif'}}
+              dangerouslySetInnerHTML={{__html: preCallMdToHtml(preCallOutput)}}/>
+          ) : (
+            <>
+              <div style={{fontSize:11.5,color:'#9aa3b8',marginBottom:6}}>Markdown — use <code>##</code> for sections, <code>-</code> for bullets, <code>**bold**</code>. Switch to Preview to see it formatted.</div>
+              <textarea value={preCallOutput} onChange={e=>setPreCallOutput(e.target.value)}
+                style={{width:'100%',minHeight:700,border:'1px solid #eef1f7',borderRadius:14,padding:'22px 26px',fontSize:13,lineHeight:1.65,color:'#1a2540',fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
+            </>
+          )}
         </div>
       )}
 
