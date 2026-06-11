@@ -562,7 +562,7 @@ export default function App() {
   const [preCallForm, setPreCallForm] = useState({...defaultPreCallForm});
   const [preCallCalendlyText, setPreCallCalendlyText] = useState('');
   const [preCallParsing, setPreCallParsing] = useState(false);
-  const [showCalendlyImport, setShowCalendlyImport] = useState(false);
+  const [showCalendlyImport, setShowCalendlyImport] = useState(true);
   const [preCallViewMode, setPreCallViewMode] = useState('preview'); // 'preview' | 'edit'
   const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
@@ -1523,8 +1523,8 @@ export default function App() {
             </div>
           </div>
           <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Zoom URL</label>
-            <input value={preCallForm.zoomUrl} onChange={e=>setPCF('zoomUrl',e.target.value)} placeholder="https://us02web.zoom.us/j/..."
+            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Video Conference Link</label>
+            <input value={preCallForm.zoomUrl} onChange={e=>setPCF('zoomUrl',e.target.value)} placeholder="https://zoom.us/j/... or teams.microsoft.com/..."
               style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
           </div>
           <div style={{display:'flex',gap:10}}>
@@ -1534,7 +1534,7 @@ export default function App() {
                 style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Password</label>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Passcode</label>
               <input value={preCallForm.zoomPassword} onChange={e=>setPCF('zoomPassword',e.target.value)} placeholder="408098"
                 style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
@@ -1622,19 +1622,6 @@ export default function App() {
                 Edit
               </button>
             </div>
-            <button onClick={async()=>{
-              try {
-                await navigator.clipboard.writeText(preCallOutput);
-              } catch {
-                const ta=document.createElement('textarea');
-                ta.value=preCallOutput; ta.style.position='fixed'; ta.style.opacity='0';
-                document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-              }
-              setPreCallCopied(true); setTimeout(()=>setPreCallCopied(false),1800);
-            }}
-              style={{background:'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
-              {preCallCopied?'Copied!':'Copy Markdown'}
-            </button>
             <button onClick={()=>{
               const orgName=preCallForm.orgName||'NPSA';
               const docHtml=`<!DOCTYPE html><html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Pre-Call Notes - ${orgName}</title><style>body{font-family:Calibri,Arial,sans-serif;margin:1in 1in 1in 1in}h1{font-size:18pt;font-weight:bold;color:#1a2540;margin:0 0 4pt}h2{font-size:11pt;font-weight:bold;color:#2c5d8f;border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin:16pt 0 6pt;text-transform:uppercase;letter-spacing:.5pt}h3{font-size:11pt;font-weight:bold;color:#1a2540;margin:10pt 0 4pt}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:#1a2540}a{color:#2c5d8f}ul,ol{margin-left:18pt}hr{border:1pt solid #dce8f4}</style></head><body>${marked(preCallOutput)}</body></html>`;

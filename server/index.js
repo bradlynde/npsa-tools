@@ -138,7 +138,7 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 ## Meeting Details
 - **Date & Time:** {converted CST time}
 - **Host:** Brad Lynde
-- **Location:** Zoom Web Conference
+- **Location:** Video Web Conference
 - **Organization:** {Org Name}
 - **{School/Church/}Website:** {URL or TBD}
 - **Contact Phone:** {phone or TBD}
@@ -184,10 +184,10 @@ Send a follow-up email including:
 2. Brochure (slide deck content and references)
 3. Scheduling link — if a second appointment has not been booked
 
-## Zoom Details
-- **Link:** {Zoom URL or TBD}
+## Video Conference Details
+- **Link:** {Conference link or TBD}
 - **Meeting ID:** {ID or TBD}
-- **Password:** {Password or TBD}`;
+- **Passcode:** {Passcode or TBD}`;
 
 app.post('/api/precall/parse', async (req, res) => {
   const { calendlyText } = req.body || {};
@@ -283,9 +283,9 @@ app.post('/api/precall', async (req, res) => {
       `State: ${orgState || 'unknown'}`,
       `Date: ${meetingDate || 'TBD'}`,
       `Time: ${meetingTime || 'TBD'} ${meetingTimezone || 'CST'}`,
-      `Zoom URL: ${zoomUrl || 'TBD'}`,
-      `Zoom Meeting ID: ${zoomId || 'TBD'}`,
-      `Zoom Password: ${zoomPassword || 'TBD'}`,
+      `Conference Link: ${zoomUrl || 'TBD'}`,
+      `Meeting ID: ${zoomId || 'TBD'}`,
+      `Passcode: ${zoomPassword || 'TBD'}`,
       `Website: ${resolvedWebsite || 'not found'}`,
       ``,
       `ATTENDEES:`,
