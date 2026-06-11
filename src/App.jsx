@@ -562,7 +562,6 @@ export default function App() {
   const [preCallForm, setPreCallForm] = useState({...defaultPreCallForm});
   const [preCallCalendlyText, setPreCallCalendlyText] = useState('');
   const [preCallParsing, setPreCallParsing] = useState(false);
-  const [showCalendlyImport, setShowCalendlyImport] = useState(true);
   const [preCallViewMode, setPreCallViewMode] = useState('preview'); // 'preview' | 'edit'
   const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
@@ -1399,7 +1398,7 @@ export default function App() {
 
             {/* ── Tools ── */}
             <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
-            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setShowCalendlyImport(false); setPreCallViewMode('preview'); setAppView('precall'); }}
+            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setPreCallViewMode('preview'); setAppView('precall'); }}
               style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -1433,44 +1432,35 @@ export default function App() {
       <div style={{flex:'1 1 380px',display:'flex',flexDirection:'column',gap:16}}>
 
         {/* Import from Calendly */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',overflow:'hidden'}}>
-          <button onClick={()=>setShowCalendlyImport(v=>!v)}
-            style={{width:'100%',background:'none',border:'none',padding:'14px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
-            <span style={{fontWeight:700,fontSize:14,color:'#1a2540'}}>&#128248; Import from Calendly Invite</span>
-            <span style={{color:'#9aa3b8',fontSize:13}}>{showCalendlyImport?'▲':'▼'}</span>
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'16px 20px 18px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:8}}>&#128248; Import from Calendly Invite</div>
+          <div style={{fontSize:12,color:'#7a869f',marginBottom:8}}>Paste your Calendly notification email and click Parse — it will fill the form below automatically.</div>
+          <textarea value={preCallCalendlyText} onChange={e=>setPreCallCalendlyText(e.target.value)}
+            placeholder="Paste full Calendly invite email here..."
+            style={{width:'100%',minHeight:140,border:'1px solid #dde1ea',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'Inter,sans-serif',lineHeight:1.5}}/>
+          <button onClick={async()=>{
+            if(!preCallCalendlyText.trim()) return;
+            setPreCallParsing(true);
+            try {
+              const r = await fetch('/api/precall/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({calendlyText:preCallCalendlyText})});
+              const d = await r.json();
+              if(d.org_name) setPCF('orgName', d.org_name);
+              if(d.org_type) setPCF('orgType', d.org_type);
+              if(d.org_state) setPCF('orgState', d.org_state);
+              if(d.website_url) setPCF('websiteUrl', d.website_url);
+              if(d.meeting_date) setPCF('meetingDate', d.meeting_date);
+              if(d.meeting_time) setPCF('meetingTime', d.meeting_time);
+              if(d.meeting_timezone) setPCF('meetingTimezone', d.meeting_timezone);
+              if(d.zoom_url) setPCF('zoomUrl', d.zoom_url);
+              if(d.zoom_id) setPCF('zoomId', d.zoom_id);
+              if(d.zoom_password) setPCF('zoomPassword', d.zoom_password);
+              if(d.attendees?.length) setPCF('attendees', d.attendees.filter(a=>a.name).map(a=>({name:a.name||'',email:a.email||'',phone:a.phone||''})));
+            } catch(e){ setPreCallError('Could not parse invite: '+e.message); }
+            setPreCallParsing(false);
+          }} disabled={preCallParsing}
+            style={{marginTop:10,background:preCallParsing?'#9aa3b8':'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'9px 20px',fontSize:13,fontWeight:700,cursor:preCallParsing?'default':'pointer'}}>
+            {preCallParsing?'Parsing…':'Parse & Fill Form'}
           </button>
-          {showCalendlyImport&&(
-            <div style={{padding:'0 20px 16px'}}>
-              <div style={{fontSize:12,color:'#7a869f',marginBottom:8}}>Paste your Calendly notification email and click Parse — it will fill the form below automatically.</div>
-              <textarea value={preCallCalendlyText} onChange={e=>setPreCallCalendlyText(e.target.value)}
-                placeholder="Paste full Calendly invite email here..."
-                style={{width:'100%',minHeight:140,border:'1px solid #dde1ea',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'Inter,sans-serif',lineHeight:1.5}}/>
-              <button onClick={async()=>{
-                if(!preCallCalendlyText.trim()) return;
-                setPreCallParsing(true);
-                try {
-                  const r = await fetch('/api/precall/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({calendlyText:preCallCalendlyText})});
-                  const d = await r.json();
-                  if(d.org_name) setPCF('orgName', d.org_name);
-                  if(d.org_type) setPCF('orgType', d.org_type);
-                  if(d.org_state) setPCF('orgState', d.org_state);
-                  if(d.website_url) setPCF('websiteUrl', d.website_url);
-                  if(d.meeting_date) setPCF('meetingDate', d.meeting_date);
-                  if(d.meeting_time) setPCF('meetingTime', d.meeting_time);
-                  if(d.meeting_timezone) setPCF('meetingTimezone', d.meeting_timezone);
-                  if(d.zoom_url) setPCF('zoomUrl', d.zoom_url);
-                  if(d.zoom_id) setPCF('zoomId', d.zoom_id);
-                  if(d.zoom_password) setPCF('zoomPassword', d.zoom_password);
-                  if(d.attendees?.length) setPCF('attendees', d.attendees.filter(a=>a.name).map(a=>({name:a.name||'',email:a.email||'',phone:a.phone||''})));
-                  setShowCalendlyImport(false);
-                } catch(e){ setPreCallError('Could not parse invite: '+e.message); }
-                setPreCallParsing(false);
-              }} disabled={preCallParsing}
-                style={{marginTop:10,background:preCallParsing?'#9aa3b8':'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'9px 20px',fontSize:13,fontWeight:700,cursor:preCallParsing?'default':'pointer'}}>
-                {preCallParsing?'Parsing…':'Parse & Fill Form'}
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Organization */}
