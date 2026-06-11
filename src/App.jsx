@@ -1523,8 +1523,8 @@ export default function App() {
             </div>
           </div>
           <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Zoom URL</label>
-            <input value={preCallForm.zoomUrl} onChange={e=>setPCF('zoomUrl',e.target.value)} placeholder="https://us02web.zoom.us/j/..."
+            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Video Conference Link</label>
+            <input value={preCallForm.zoomUrl} onChange={e=>setPCF('zoomUrl',e.target.value)} placeholder="https://zoom.us/j/... or teams.microsoft.com/..."
               style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
           </div>
           <div style={{display:'flex',gap:10}}>
@@ -1534,7 +1534,7 @@ export default function App() {
                 style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Password</label>
+              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Passcode</label>
               <input value={preCallForm.zoomPassword} onChange={e=>setPCF('zoomPassword',e.target.value)} placeholder="408098"
                 style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
