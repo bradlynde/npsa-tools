@@ -564,6 +564,9 @@ export default function App() {
   const [preCallParsing, setPreCallParsing] = useState(false);
   const [preCallDownloading, setPreCallDownloading] = useState(false);
   const [preCallViewMode, setPreCallViewMode] = useState('preview'); // 'preview' | 'edit'
+  const [preCallFollowUpEmail, setPreCallFollowUpEmail] = useState('');
+  const [preCallFollowUpLoading, setPreCallFollowUpLoading] = useState(false);
+  const [preCallFollowUpCopied, setPreCallFollowUpCopied] = useState(false);
   const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
   const [mgmtApprovalModal, setMgmtApprovalModal] = useState(false); // AI clause approval gate
@@ -1600,6 +1603,7 @@ export default function App() {
       {/* ── RIGHT: Output ── */}
       {preCallOutput&&(
         <div style={{flex:'1 1 420px'}}>
+          {/* Toolbar row */}
           <div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
             <div style={{fontWeight:700,fontSize:15,color:'#1a2540',flex:1}}>Pre-Call Notes</div>
             {/* Preview / Edit toggle */}
@@ -1629,9 +1633,11 @@ export default function App() {
               setPreCallDownloading(false);
             }} disabled={preCallDownloading}
               style={{background:preCallDownloading?'#9aa3b8':'#fff',color:preCallDownloading?'#fff':'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:preCallDownloading?'default':'pointer'}}>
-              {preCallDownloading?'Generating…':'Download .docx'}
+              {preCallDownloading?'Generating…':'⬇ Download .docx'}
             </button>
           </div>
+
+          {/* Notes preview / edit */}
           {preCallViewMode==='preview' ? (
             <div style={{background:'#fff',border:'1px solid #eef1f7',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)'}}
               dangerouslySetInnerHTML={{__html: renderPreCallHtml(preCallOutput)}}/>
@@ -1641,6 +1647,73 @@ export default function App() {
               <textarea value={preCallOutput} onChange={e=>setPreCallOutput(e.target.value)}
                 style={{width:'100%',minHeight:700,border:'1px solid #eef1f7',borderRadius:14,padding:'22px 26px',fontSize:13,lineHeight:1.65,color:'#1a2540',fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
             </>
+          )}
+
+          {/* ── Post-Call Action Buttons ── */}
+          <div style={{marginTop:20,display:'flex',gap:12,flexWrap:'wrap'}}>
+            {/* Start Engagement Letter */}
+            <button onClick={()=>{
+              const f=preCallForm;
+              const a0=f.attendees&&f.attendees[0]||{};
+              const clientTypeMap={church:'Church',school:'School',other:'Other'};
+              const today=new Date().toISOString().split('T')[0];
+              setForm(prev=>({
+                ...prev,
+                clientName: f.orgName||'',
+                clientType: clientTypeMap[f.orgType]||'Other',
+                contactName: a0.name||'',
+                contactEmail: a0.email||'',
+                contactPhone: a0.phone||'',
+                npsaSigningDate: today,
+              }));
+              setDocTab('pre');
+              setCurrentLetterId(null);
+              setSavedLetterOverride(null);
+              setAppView('generator');
+            }}
+              style={{flex:1,minWidth:180,background:'linear-gradient(135deg,#1a4a6e,#2c5d8f)',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:'pointer',boxShadow:'0 3px 10px rgba(26,74,110,0.25)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              <span style={{fontSize:16}}>&#128196;</span> Start Engagement Letter
+            </button>
+
+            {/* Draft Follow-up Email */}
+            <button onClick={async()=>{
+              setPreCallFollowUpLoading(true);
+              setPreCallFollowUpEmail('');
+              try {
+                const r=await fetch('/api/precall/followup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formData:preCallForm,notes:preCallOutput})});
+                const d=await r.json();
+                if(d.email) setPreCallFollowUpEmail(d.email);
+                else throw new Error(d.error||'No email returned');
+              } catch(e){ alert('Could not generate email: '+e.message); }
+              setPreCallFollowUpLoading(false);
+            }} disabled={preCallFollowUpLoading}
+              style={{flex:1,minWidth:180,background:preCallFollowUpLoading?'#9aa3b8':'linear-gradient(135deg,#2d7a4f,#3a9e67)',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:preCallFollowUpLoading?'default':'pointer',boxShadow:'0 3px 10px rgba(45,122,79,0.22)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              <span style={{fontSize:16}}>&#9993;</span> {preCallFollowUpLoading?'Drafting…':'Draft Follow-up Email'}
+            </button>
+          </div>
+
+          {/* ── Follow-up Email Panel ── */}
+          {preCallFollowUpEmail&&(
+            <div style={{marginTop:18,background:'#f7fbf9',border:'1px solid #c3e8d2',borderRadius:14,padding:'22px 26px',boxShadow:'0 2px 10px rgba(45,122,79,0.06)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{fontWeight:700,fontSize:14,color:'#1a3d2b',flex:1}}>&#9993; Follow-up Email Draft</div>
+                <button onClick={async()=>{
+                  try {
+                    await navigator.clipboard.writeText(preCallFollowUpEmail);
+                  } catch {
+                    const ta=document.createElement('textarea');
+                    ta.value=preCallFollowUpEmail; ta.style.position='fixed'; ta.style.opacity='0';
+                    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                  }
+                  setPreCallFollowUpCopied(true);
+                  setTimeout(()=>setPreCallFollowUpCopied(false),2500);
+                }}
+                  style={{background:preCallFollowUpCopied?'#2d7a4f':'#fff',color:preCallFollowUpCopied?'#fff':'#2d7a4f',border:'1px solid #2d7a4f',borderRadius:8,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',transition:'all .2s'}}>
+                  {preCallFollowUpCopied?'✓ Copied!':'Copy Email'}
+                </button>
+              </div>
+              <pre style={{margin:0,whiteSpace:'pre-wrap',fontFamily:'Inter,Arial,sans-serif',fontSize:13,lineHeight:1.65,color:'#1a3d2b'}}>{preCallFollowUpEmail}</pre>
+            </div>
           )}
         </div>
       )}

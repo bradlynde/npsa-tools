@@ -169,6 +169,11 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 # {Organization Name} — {STATE ABBR}
 **{Weekday, Month DD, YYYY · H:MM AM/PM CST}** · NPSA 30-Minute Introduction Call
 
+## Before You Dial
+{Scan the full briefing for anything that is TBD or needs live confirmation. List ONLY the items that are actually missing or uncertain — skip this section entirely if nothing is TBD. Format as checkboxes. Examples of things to include: unverified attendee title, missing campus address, unknown campus count, missing contact phone. Keep each item to one line.}
+- [ ] {item 1}
+- [ ] {item 2}
+
 ## Meeting Objective
 {2-3 sentences: understand the org's current security posture and priorities, and position both Federal and State NSGP grant funding to support their planned upgrades and drivers. Tailor to anything specific the rep noted.}
 
@@ -257,6 +262,46 @@ app.post('/api/precall/parse', async (req, res) => {
     res.json(parsed);
   } catch(e) {
     console.error('Parse error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/precall/followup', async (req, res) => {
+  const { formData, notes, preCallNotes, orgName: legacyOrg, contactName: legacyCN, contactEmail: legacyCE } = req.body || {};
+  const notesText = notes || preCallNotes || '';
+  if (!notesText) return res.status(400).json({ error: 'No notes provided' });
+  const org = (formData?.orgName || legacyOrg || '').trim();
+  const attendee0 = formData?.attendees?.[0] || {};
+  const contactName = attendee0.name || legacyCN || '';
+  const contactEmail = attendee0.email || legacyCE || '';
+  const firstName = contactName.split(' ')[0] || 'there';
+  try {
+    const client = getOpenAI();
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o',
+      max_tokens: 800,
+      messages: [{
+        role: 'system',
+        content: `You are drafting a post-call follow-up email on behalf of Brad Lynde, Managing Partner at NPSA (Nonprofit Security Advisors). Brad sends this email after an introductory Zoom call with a nonprofit prospect.
+
+Write a concise, warm, professional email. Rules:
+1. Subject line on the first line, formatted as: Subject: {subject}
+2. Blank line, then the email body.
+3. Address the contact by first name (${firstName}).
+4. Thank them for the call and reference the organization by name (${org || 'their organization'}).
+5. Reference the NSGP grant opportunity — pull the specific dollar amount and state deadline/projection from the pre-call notes if present; make the funding feel concrete and timely.
+6. Tell them the Engagement Letter and Brochure are attached for review.
+7. Invite them to book a follow-up appointment using Brad's scheduling link: https://calendly.com/bradlynde
+8. Close from Brad Lynde, Managing Partner, NPSA | brad@lyndeconsulting.com | (618) 555-0100
+9. Keep it under 200 words. No fluff, no bullet points — flowing prose paragraphs only.`
+      }, {
+        role: 'user',
+        content: `Contact: ${contactName} (${contactEmail})\nOrganization: ${org}\n\nPRE-CALL NOTES FOR CONTEXT:\n${notesText.slice(0, 3000)}`
+      }]
+    });
+    res.json({ email: completion.choices[0]?.message?.content || '' });
+  } catch(e) {
+    console.error('Follow-up email error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
