@@ -111,7 +111,46 @@ function normalizeBaseUrl(raw) {
   }
 }
 
-const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
+// ── NSGP State Administering Agency (SAA) lookup ─────────────────────────────
+const STATE_SAA = {
+  AL:'Alabama Law Enforcement Agency (ALEA)',AK:'Alaska Division of Homeland Security & Emergency Management',
+  AZ:'Arizona Department of Emergency & Military Affairs (DEMA)',AR:'Arkansas Division of Emergency Management',
+  CA:'California Governor\'s Office of Emergency Services (Cal OES)',CO:'Colorado Division of Homeland Security & Emergency Management',
+  CT:'Connecticut Division of Emergency Management & Homeland Security (DEMHS)',DE:'Delaware Emergency Management Agency (DEMA)',
+  FL:'Florida Division of Emergency Management',GA:'Georgia Emergency Management & Homeland Security Agency (GEMA/HS)',
+  HI:'Hawaii Emergency Management Agency (HI-EMA)',ID:'Idaho Office of Emergency Management',
+  IL:'Illinois Emergency Management Agency (IEMA)',IN:'Indiana Department of Homeland Security (IDHS)',
+  IA:'Iowa Homeland Security & Emergency Management (HSEMD)',KS:'Kansas Division of Emergency Management',
+  KY:'Kentucky Emergency Management (KYEM)',LA:'Louisiana Governor\'s Office of Homeland Security & Emergency Preparedness (GOHSEP)',
+  ME:'Maine Emergency Management Agency (MEMA)',MD:'Maryland Emergency Management Agency (MEMA)',
+  MA:'Massachusetts Emergency Management Agency (MEMA)',MI:'Michigan State Police, Emergency Management & Homeland Security Division',
+  MN:'Minnesota Department of Public Safety — Homeland Security & Emergency Management (HSEM)',
+  MS:'Mississippi Emergency Management Agency (MEMA)',MO:'Missouri State Emergency Management Agency (SEMA)',
+  MT:'Montana Disaster & Emergency Services (DES)',NE:'Nebraska Emergency Management Agency (NEMA)',
+  NV:'Nevada Division of Emergency Management (NDEM)',NH:'New Hampshire Division of Homeland Security & Emergency Management (HSEM)',
+  NJ:'New Jersey Office of Homeland Security & Preparedness (OHSP)',NM:'New Mexico Department of Homeland Security & Emergency Management',
+  NY:'New York Division of Homeland Security & Emergency Services (DHSES)',NC:'North Carolina Emergency Management (NCEM)',
+  ND:'North Dakota Department of Emergency Services (DES)',OH:'Ohio Emergency Management Agency (Ohio EMA)',
+  OK:'Oklahoma Department of Emergency Management & Homeland Security',OR:'Oregon Office of Emergency Management (OEM)',
+  PA:'Pennsylvania Emergency Management Agency (PEMA)',RI:'Rhode Island Emergency Management Agency (RIEMA)',
+  SC:'South Carolina Emergency Management Division (SCEMD)',SD:'South Dakota Office of Emergency Management (OEM)',
+  TN:'Tennessee Emergency Management Agency (TEMA)',TX:'Texas Division of Emergency Management (TDEM)',
+  UT:'Utah Division of Emergency Management',VT:'Vermont Emergency Management',
+  VA:'Virginia Department of Emergency Management (VDEM)',WA:'Washington Military Department, Emergency Management Division',
+  WV:'West Virginia Division of Homeland Security & Emergency Management',WI:'Wisconsin Emergency Management (WEM)',
+  WY:'Wyoming Office of Homeland Security',DC:'DC Homeland Security & Emergency Management Agency (HSEMA)',
+};
+
+async function searchNsgpDeadlines(state, ms = 14000) {
+  const year = new Date().getFullYear();
+  const q1 = encodeURIComponent(`NSGP nonprofit security grant program ${state} ${year} sub-applicant deadline application open`);
+  const q2 = encodeURIComponent(`"nonprofit security grant" "${state}" "sub-applicant" deadline 2024 2023 2022`);
+  const [r1, r2] = await Promise.allSettled([
+    fetch(`https://s.jina.ai/${q1}`, { headers:{'Accept':'text/plain'}, signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.text() : null).catch(()=>null),
+    fetch(`https://s.jina.ai/${q2}`, { headers:{'Accept':'text/plain'}, signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.text() : null).catch(()=>null),
+  ]);
+  return [r1.value, r2.value].filter(Boolean).join('\n\n---\n\n').slice(0, 6000) || null;
+} = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
 
 Produce a polished, scannable pre-call briefing that a sales rep can read live during the call. OUTPUT FORMAT IS MARKDOWN. Follow the exact structure and rules below.
 
@@ -132,6 +171,12 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 
 ## Meeting Objective
 {2-3 sentences: understand the org's current security posture and priorities, and position both Federal and State NSGP grant funding to support their planned upgrades and drivers. Tailor to anything specific the rep noted.}
+
+## NSGP Funding Snapshot
+- **Potential Award:** {Count the verified campus/property locations found; multiply by $150,000. Write: "Up to $X (N location(s) × $150,000 federal cap per site)". If campus count is unknown, use 1 as a conservative baseline and note it.}
+- **{State} Sub-Applicant Deadline:** {If the NSGP deadline data contains a specific published date for the current or upcoming cycle, use it and label it "(confirmed)". If only historical dates are available, list the last 2–3 years of confirmed sub-applicant deadlines and project the next window as "~{month range} {year} (projected)". If no data at all, write "TBD — verify with {SAA name}".}
+- **State Program:** {SAA name from the provided data}
+- **Urgency Frame:** {One sharp sentence for the rep to use: position the projected or confirmed deadline relative to today. E.g. "Based on 3 years of history, {State} opens sub-applicant applications in {month} — this call puts {Org} in position to apply before that window."}
 
 ## Organization Overview
 {2-4 sentences synthesized from the website: what the organization is, who/how many it serves, its location and size, and why it is a strong NSGP candidate. Weave in a one-line mission/values paraphrase if the site states it. If the website was unavailable, write "TBD — website could not be researched."}
@@ -298,23 +343,46 @@ app.post('/api/precall', async (req, res) => {
       }
     }
 
-    // Fetch site content via Jina Reader across common paths
+    // Fetch site content + NSGP deadline data in parallel
+    const saaName = STATE_SAA[orgState?.toUpperCase()] || (orgState ? `${orgState} State Administering Agency` : null);
     let siteText = '';
-    if (resolvedWebsite) {
-      const paths = ['', '/about', '/about-us', '/staff', '/leadership', '/team', '/our-church', '/locations', '/campuses', '/contact'];
-      const pages = await Promise.allSettled(paths.map(p => fetchViaJina(`${resolvedWebsite}${p}`)));
-      siteText = pages
-        .filter(r => r.status === 'fulfilled' && r.value)
-        .map(r => r.value)
-        .join('\n\n')
-        .slice(0, 20000);
-    }
+    let nsgpDeadlineResults = null;
+
+    await Promise.all([
+      // Website scraping
+      (async () => {
+        if (!resolvedWebsite) return;
+        const paths = ['', '/about', '/about-us', '/staff', '/leadership', '/team', '/our-church', '/locations', '/campuses', '/contact'];
+        const pages = await Promise.allSettled(paths.map(p => fetchViaJina(`${resolvedWebsite}${p}`)));
+        siteText = pages
+          .filter(r => r.status === 'fulfilled' && r.value)
+          .map(r => r.value)
+          .join('\n\n')
+          .slice(0, 20000);
+      })(),
+      // NSGP deadline search (only if we have a state)
+      (async () => {
+        if (!orgState) return;
+        nsgpDeadlineResults = await searchNsgpDeadlines(orgState);
+      })(),
+    ]);
 
     // Build structured context block
     const attendeeLines = (attendees || [])
       .filter(a => a && a.name)
       .map(a => `  ${a.name} | ${a.email || ''} | ${a.phone || ''}`)
       .join('\n');
+
+    const nsgpBlock = orgState ? [
+      `NSGP GRANT FUNDING DATA:`,
+      `State: ${orgState}`,
+      `State Administering Agency (SAA): ${saaName}`,
+      `Federal award cap: $150,000 per physical site/location`,
+      ``,
+      nsgpDeadlineResults
+        ? `DEADLINE SEARCH RESULTS (use to find published or historical sub-applicant deadlines — extract specific dates if present):\n${nsgpDeadlineResults}`
+        : `DEADLINE SEARCH RESULTS: none returned — use SAA name in the TBD note`,
+    ].join('\n') : null;
 
     const context = [
       `MEETING INFORMATION:`,
@@ -331,6 +399,7 @@ app.post('/api/precall', async (req, res) => {
       `ATTENDEES:`,
       attendeeLines || '  (none provided)',
       extraNotes ? `\nADDITIONAL CONTEXT FROM REP:\n${extraNotes}` : '',
+      nsgpBlock ? `\n${nsgpBlock}` : '',
       ``,
       resolvedWebsite
         ? `WEBSITE CONTENT (${resolvedWebsite}) — use to verify attendee titles, campus addresses, mission statement. Do NOT invent facts not found here:`
@@ -340,7 +409,7 @@ app.post('/api/precall', async (req, res) => {
 
     const completion = await client.chat.completions.create({
       model: 'gpt-4o',
-      max_tokens: 3500,
+      max_tokens: 4500,
       messages: [
         { role: 'system', content: PRECALL_MASTER_PROMPT },
         { role: 'user', content: context },
