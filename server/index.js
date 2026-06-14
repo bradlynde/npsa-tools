@@ -150,7 +150,9 @@ async function searchNsgpDeadlines(state, ms = 14000) {
     fetch(`https://s.jina.ai/${q2}`, { headers:{'Accept':'text/plain'}, signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.text() : null).catch(()=>null),
   ]);
   return [r1.value, r2.value].filter(Boolean).join('\n\n---\n\n').slice(0, 6000) || null;
-} = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
+}
+
+const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
 
 Produce a polished, scannable pre-call briefing that a sales rep can read live during the call. OUTPUT FORMAT IS MARKDOWN. Follow the exact structure and rules below.
 
