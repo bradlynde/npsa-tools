@@ -358,7 +358,7 @@ const defaultForm = {
   programs:[{key:"federal",year:"2026"}],
   contactName:"", contactTitle:"", contactEmail:"", contactPhone:"",
   grantYear:"2026", grantType:"Federal", grantState:"other", engagementModel:"pre-only", pricingTier:"undiscounted",
-  proposalServiceModel:"inhouse",
+  proposalServiceModel:"inhouse", proposalFeeModel:"pre",
   customFee:"", customContingencyFee:"",
   installments: false, installmentCount:2,
   installment1Pct:"50", installment1Label:"upon execution",
@@ -1212,6 +1212,7 @@ export default function App() {
       : docTab === 'gw' ? parseFee(form.gwProfFee)
       : docTab === 'inh' ? (inhFees.total || 0)
       : docTab === 'addendum' ? 0
+      : docTab === 'proposal' ? (form.proposalFeeModel==='inh' ? (inhFees.total||0) : (fees.total||0))
       : (fees.total || 0); // proposal reuses pre-award fees (excluded from stats server-side)
     const payload = {
       client_name: form.clientName || 'Untitled',
@@ -1847,6 +1848,21 @@ export default function App() {
               <option value="full">Full-Service — Pre-Award, Compliance &amp; Implementation</option>
             </select>
             <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{form.proposalServiceModel==="full"?"Includes Award Implementation, billed as a percentage-based fee post-award.":"Implementation is presented as optional, under a separate agreement."}</div>
+            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:4}}>Grant Writing Model</label>
+            <div style={{display:"flex",gap:6,marginBottom:4}}>
+              {[{val:"pre",label:"NPSA as Grant Writer"},{val:"inh",label:"In-House Grant Writing"}].map(opt=>(
+                <button key={opt.val} onClick={()=>setF("proposalFeeModel",opt.val)}
+                  style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid",fontSize:11,fontWeight:700,cursor:"pointer",
+                    background:form.proposalFeeModel===opt.val?"#1a4a6e":"#222e4a",
+                    borderColor:form.proposalFeeModel===opt.val?"#5b9ec9":"#2e3d60",
+                    color:form.proposalFeeModel===opt.val?"#fff":"#8892aa"}}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>
+              {form.proposalFeeModel==="inh"?"Org self-prepares grant applications; NPSA provides advisory &amp; compliance support. (~$11K/location)":"NPSA manages grant writing, application preparation &amp; submission. (~$4K/location)"}
+            </div>
           </>}
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Programs</div>
           {(form.programs||[]).map((pg,pgIdx)=>{
@@ -1881,7 +1897,68 @@ export default function App() {
               </button>
             ))}
           </div>
-          {/* Fee Calculator */}
+          {/* Fee Calculator — switches between regular and in-house model for proposals */}
+          {isProposal&&form.proposalFeeModel==="inh" ? <>
+            <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Fee Calculator (In-House Model)</div>
+            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:10,cursor:"pointer"}}>
+              <input type="checkbox" checked={form.inhEngagementModel==="inh-partial-contingency"} onChange={e=>setF("inhEngagementModel",e.target.checked?"inh-partial-contingency":"inh-pre-only")} style={{accentColor:"#9aab2e"}}/>
+              Partial Contingency
+            </label>
+            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Pricing Tier</label>
+            <select value={form.inhPricingTier} onChange={e=>setF("inhPricingTier",e.target.value)}
+              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:10,outline:"none"}}>
+              {Object.entries(TIER_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+            </select>
+            {form.inhPricingTier==="custom"&&(
+              <div style={{marginBottom:10,marginTop:-4}}>
+                <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
+                <input value={form.inhCustomFee||""} onChange={e=>setF("inhCustomFee",e.target.value)} placeholder="e.g. 11,000"
+                  style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+              </div>
+            )}
+            {form.inhEngagementModel==="inh-partial-contingency"&&(
+              <div style={{marginBottom:10,marginTop:-4}}>
+                <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
+                <input value={form.inhCustomContingencyFee||""} onChange={e=>setF("inhCustomContingencyFee",e.target.value)} placeholder="e.g. 3,500"
+                  style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+              </div>
+            )}
+            <div style={{background:"#0f1a30",border:"1px solid #2e4060",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#5b9ec9",marginBottom:8}}>Fee Summary</div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+                <span>Upfront Fee</span><span style={{color:"#fff",fontWeight:600}}>{form.inhPricingTier==="discounted"&&inhFees.discount>0?<><span style={{textDecoration:"line-through",color:"#666",marginRight:6}}>{fmt(inhFees.baseUpfront)}</span>{fmt(inhFees.upfront)}</>:fmt(inhFees.upfront)}</span>
+              </div>
+              {form.inhPricingTier==="discounted"&&inhFees.discount>0&&(
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8a020",marginBottom:4}}>
+                  <span>Early Signing Discount</span><span style={{fontWeight:600}}>−{fmt(inhFees.discount)}</span>
+                </div>
+              )}
+              {inhFees.contingent!==null&&(
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+                  <span>Contingent Fee (on award)</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.contingent)}</span>
+                </div>
+              )}
+              <div style={{borderTop:"1px solid #2e4060",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
+                <span style={{color:"#9aab2e"}}>Total</span><span style={{color:"#9aab2e"}}>{fmt(inhFees.total)}</span>
+              </div>
+            </div>
+            {form.inhPricingTier==="discounted"&&(
+              <div style={{background:"#201600",border:"1px solid #e8a020",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8a020",marginBottom:10}}>Early Signing Discount</div>
+                <div style={{marginBottom:8}}>
+                  <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Sign-By Date</label>
+                  <input value={form.inhEarlySigningDate} onChange={e=>setF("inhEarlySigningDate",e.target.value)} placeholder="March 15, 2026"
+                    style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                </div>
+                <div>
+                  <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Discount Amount ($)</label>
+                  <input value={form.inhEarlySigningAmount} onChange={e=>setF("inhEarlySigningAmount",e.target.value)} placeholder="1,500"
+                    style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                </div>
+                {inhFees.discount>0&&<div style={{fontSize:11,color:"#e8a020",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(inhFees.upfront)} (saves {fmt(inhFees.discount)})</div>}
+              </div>
+            )}
+          </> : <>
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Fee Calculator</div>
           <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:10,cursor:"pointer"}}>
             <input type="checkbox" checked={form.engagementModel==="partial-contingency"} onChange={e=>setF("engagementModel",e.target.checked?"partial-contingency":"pre-only")} style={{accentColor:"#9aab2e"}}/>
@@ -2022,6 +2099,7 @@ export default function App() {
             <input type="checkbox" checked={form.optShortNotice} onChange={e=>setF("optShortNotice",e.target.checked)} style={{accentColor:"#9aab2e"}}/>
             Short-notice application
           </label>
+          </>}
         </>}
         {/* In-House Pre-Award specific */}
         {isInh&&<>
@@ -2231,7 +2309,7 @@ export default function App() {
           </div>
         </>}
         {/* Post-award fields */}
-        {!isPre&&!isGw&&!isInh&&POST_FIELDS.map((f2,i)=>{
+        {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&POST_FIELDS.map((f2,i)=>{
           if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>{f2.section}</div>;
           return (
             <div key={f2.key} style={{marginBottom:10}}>
@@ -2248,7 +2326,7 @@ export default function App() {
           );
         })}
         {/* Post-award: Reimbursement Option A/B */}
-        {!isPre&&!isGw&&!isInh&&(
+        {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&(
           <>
             <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Reimbursement Expectation</div>
             {!form.postReimbursementOption&&(
@@ -2726,23 +2804,31 @@ ${form.npsa1Name||"NPSA"}`
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:20,marginBottom:10}}>Eligible Project Types</div>
               <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.8,marginBottom:20}}>{proposalTpl.eligible}</p>
               {/* Investment & Payment Terms */}
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Investment &amp; Payment Terms</div>
-              <div style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.8,marginBottom:8}}>
-                <div><strong>Professional Fee:</strong> {fmt(fees.upfront)}</div>
-                {isDisc&&<div>Includes a {fmt(fees.discount)} early-signing discount from the standard {fmt(fees.baseUpfront)} fee.</div>}
-                <div>Invoice issued upon execution of the Engagement Letter.</div>
-                {fees.contingent!==null&&fees.contingent>0&&<div>A contingent fee of {fmt(fees.contingent)} is due upon notification of a grant award.</div>}
-                <div>The fee includes all Pre-Award{form.optPostAwardScope?" and Compliance Period":""} services described herein.</div>
-                {complianceIncluded
-                  ? <div>Compliance support following award notification is included at no additional charge.</div>
-                  : <div>A Compliance Period fee of {fmt(fees.postAward)} is due within thirty (30) days of award notification.</div>}
-                {isFull&&<div>Award Implementation services are billed as a percentage-based fee, due upon notification of a grant award and formally engaged following State authorization to proceed, as set forth in the governing Engagement Letter.</div>}
-              </div>
-              {isDisc&&form.earlySigningDate&&(
-                <div style={{border:"1px solid #1a4a6e",borderRadius:4,background:"#f4f7fb",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:"Georgia,serif",color:"#1a4a6e",fontWeight:700}}>
-                  To lock the discounted fee, execute the Engagement Letter by {form.earlySigningDate}.
-                </div>
-              )}
+              {(()=>{
+                const useInh = form.proposalFeeModel === "inh";
+                const pFees = useInh ? inhFees : fees;
+                const pDisc = useInh ? form.inhPricingTier==="discounted" : form.pricingTier==="discounted";
+                const pDiscDate = useInh ? form.inhEarlySigningDate : form.earlySigningDate;
+                return <>
+                  <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Investment &amp; Payment Terms</div>
+                  <div style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.8,marginBottom:8}}>
+                    <div><strong>Professional Fee:</strong> {fmt(pFees.upfront)}</div>
+                    {pDisc&&pFees.discount>0&&<div>Includes a {fmt(pFees.discount)} early-signing discount from the standard {fmt(pFees.baseUpfront)} fee.</div>}
+                    <div>Invoice issued upon execution of the Engagement Letter.</div>
+                    {pFees.contingent!==null&&pFees.contingent>0&&<div>A contingent fee of {fmt(pFees.contingent)} is due upon notification of a grant award.</div>}
+                    <div>The fee includes all Pre-Award{form.optPostAwardScope?" and Compliance Period":""} services described herein.</div>
+                    {complianceIncluded
+                      ? <div>Compliance support following award notification is included at no additional charge.</div>
+                      : !useInh&&<div>A Compliance Period fee of {fmt(fees.postAward)} is due within thirty (30) days of award notification.</div>}
+                    {isFull&&<div>Award Implementation services are billed as a percentage-based fee, due upon notification of a grant award and formally engaged following State authorization to proceed, as set forth in the governing Engagement Letter.</div>}
+                  </div>
+                  {pDisc&&pDiscDate&&(
+                    <div style={{border:"1px solid #1a4a6e",borderRadius:4,background:"#f4f7fb",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:"Georgia,serif",color:"#1a4a6e",fontWeight:700}}>
+                      To lock the discounted fee, execute the Engagement Letter by {pDiscDate}.
+                    </div>
+                  )}
+                </>;
+              })()}
               {/* Important Note */}
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Important Note</div>
               <p style={{fontSize:12.5,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20,fontStyle:"italic",color:"#333"}}>{proposalTpl.note}</p>
