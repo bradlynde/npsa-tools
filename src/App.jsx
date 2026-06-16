@@ -1848,8 +1848,8 @@ export default function App() {
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Engagement Variant</div>
           <select value={docTab} onChange={e=>setDocTab(e.target.value)}
             style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:6,outline:"none"}}>
-            <option value="pre">Third Party Grant Writing</option>
-            <option value="inh">In-House Grant Writing</option>
+            <option value="pre">In-House Grant Writing</option>
+            <option value="inh">Third Party Grant Writing</option>
           </select>
           <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{isInh?"Org self-prepares grant applications; NPSA provides advisory & compliance support.":"NPSA manages grant writing, application preparation & submission."}</div>
         </>}
