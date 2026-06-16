@@ -85,14 +85,14 @@ Inside the Pre-Award tab, a new **Engagement Variant** dropdown at the top of th
 
 | Option | Description |
 |--------|-------------|
-| **In-House Grant Writing** | NPSA manages grant writing, application preparation, and submission |
+| **In-House Grant Writing** *(default)* | NPSA manages grant writing, application preparation, and submission |
 | **Third Party Grant Writing** | An outside grant writer prepares the applications; NPSA provides advisory & compliance support |
 
-All existing fields, fee calculators, and letter outputs for each variant are fully preserved. The only change is that both variants are accessible from a single tab. Previously saved letters for either variant continue to load correctly.
+In-House Grant Writing is selected by default, since it is the primary offering. All existing fields, fee calculators, and letter outputs for each variant are fully preserved. The only change is that both variants are accessible from a single tab. Previously saved letters for either variant continue to load correctly.
 
 The saved letter history browser labels previously saved documents as:
-- `pre` → Pre-Award (In-House Grant Writing)
-- `inh` → Pre-Award (Third Party Grant Writing)
+- `inh` → Pre-Award (In-House)
+- `pre` → Pre-Award (Third Party)
 
 ---
 
