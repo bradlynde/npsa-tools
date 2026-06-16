@@ -547,7 +547,7 @@ function RollUp({ value, format, playToken, duration = 850 }) {
 }
 
 export default function App() {
-  const [docTab, setDocTab] = useState("pre");
+  const [docTab, setDocTab] = useState("inh");
   const [form, setForm] = useState(defaultForm);
   const [preSections, setPreSections] = useState(DEFAULT_PRE);
   const [postSections, setPostSections] = useState(DEFAULT_POST);
@@ -1279,7 +1279,7 @@ export default function App() {
   };
 
   const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
-  const tabLabel = { pre: 'Pre-Award (In-House)', inh: 'Pre-Award (Third Party)', post: 'Award Implementation', gw: '3rd Party Grant Writer', proposal: 'Proposal', addendum: 'Addendum' };
+  const tabLabel = { pre: 'Pre-Award (Third Party)', inh: 'Pre-Award (In-House)', post: 'Award Implementation', gw: '3rd Party Grant Writer', proposal: 'Proposal', addendum: 'Addendum' };
   const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const fmtFee = (n) => n > 0 ? '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:0,maximumFractionDigits:0}) : '—';
 
@@ -1315,7 +1315,7 @@ export default function App() {
 
             {/* Action cards */}
             <div style={{display:'flex',gap:18,marginBottom:18}}>
-              <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setDocTab('pre'); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
+              <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setDocTab('inh'); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -1673,7 +1673,7 @@ export default function App() {
                 contactPhone: a0.phone||'',
                 npsaSigningDate: today,
               }));
-              setDocTab('pre');
+              setDocTab('inh');
               setCurrentLetterId(null);
               setSavedLetterOverride(null);
               setAppView('generator');
@@ -1843,15 +1843,15 @@ export default function App() {
           + Add Location
         </button>
         </>}
-        {/* Pre-Award (Third Party) variant selector — switches between NPSA-as-writer (pre) and In-House (inh) */}
+        {/* Engagement Variant selector — In-House (inh) = NPSA writes; Third Party (pre) = outside writer */}
         {(isPre||isInh)&&<>
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Engagement Variant</div>
           <select value={docTab} onChange={e=>setDocTab(e.target.value)}
             style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:6,outline:"none"}}>
-            <option value="pre">In-House Grant Writing</option>
-            <option value="inh">Third Party Grant Writing</option>
+            <option value="inh">In-House Grant Writing</option>
+            <option value="pre">Third Party Grant Writing</option>
           </select>
-          <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{isInh?"An outside grant writer prepares the applications; NPSA provides advisory & compliance support.":"NPSA manages grant writing, application preparation & submission."}</div>
+          <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{isInh?"NPSA manages grant writing, application preparation & submission.":"An outside grant writer prepares the applications; NPSA provides advisory & compliance support."}</div>
         </>}
         {/* Pre-award specific — shared by Proposal (proposal is a view of pre-award data) */}
         {(isPre||isProposal)&&<>
@@ -2736,10 +2736,10 @@ ${form.npsa1Name||"NPSA"}`
       <div style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#dde0e6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
         {/* Tabs */}
         <div style={{position:"sticky",top:0,zIndex:10,background:"#dde0e6",paddingTop:28}}><div style={{maxWidth:800,margin:"0 auto",display:"flex",overflowX:"auto"}}>
-          {[{id:"pre",label:"Pre-Award",match:["pre","inh"]},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>{
+          {[{id:"pre",label:"Pre-Award",match:["pre","inh"],defaultTab:"inh"},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>{
             const active = t.match ? t.match.includes(docTab) : docTab===t.id;
             return (
-            <button key={t.id} onClick={()=>setDocTab(active&&t.match?docTab:t.id)}
+            <button key={t.id} onClick={()=>setDocTab(active&&t.match?docTab:(t.defaultTab||t.id))}
               style={{padding:"10px 18px",fontSize:12,fontWeight:700,border:"none",whiteSpace:"nowrap",flexShrink:0,
                 borderRadius:i===0?"8px 0 0 0":i===arr.length-1?"0 8px 0 0":"0",
                 cursor:"pointer",
