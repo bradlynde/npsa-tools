@@ -390,6 +390,7 @@ const defaultForm = {
   gwDate:"",
   npsa1Name:"", npsa1Email:"", npsa1Phone:"", npsa2Selected:[],
   npsaSignerName:"Brad Lynde", npsaSignerTitle:"Managing Partner", npsaSigningDate:new Date().toISOString().split('T')[0],
+  expirationDate:"",
   gwCcContacts:[],
   gwProfFee:"", gwPaymentTerms:"Net 30",
   gwGuar1:true, gwGuar2:false, gwGuar3:true, gwGuar4:false,
@@ -766,6 +767,7 @@ export default function App() {
   },[reviewMode, reviewHtml]);
 
   const today = (()=>{ const d=new Date(); const mm=String(d.getMonth()+1).padStart(2,"0"); const dd=String(d.getDate()).padStart(2,"0"); const yyyy=d.getFullYear(); return `${mm}-${dd}-${yyyy}`; })();
+  const fmtExpiry = (()=>{ const v=form.expirationDate||""; if(!v) return ""; const d=new Date(v+"T12:00:00"); return d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); })();
   const loc0 = (form.locations||[])[0]||{};
   const clientAddr = [loc0.address,loc0.city,loc0.state,loc0.zip].filter(Boolean).join(", ");
   const interpolatePre = (t) => {
@@ -1073,6 +1075,10 @@ export default function App() {
     return s.content?interp(s.content):"";
   };
   const handlePrint = () => {
+    if (!isAddendum && !form.expirationDate) {
+      alert("Please set an Expiration Date before downloading or printing.");
+      return;
+    }
     const docTitle = isGw ? "Grant Writer New Client Form - "
       : isProposal ? "Proposal - "
       : isAddendum ? "Addendum to Engagement Letter - "
@@ -1273,7 +1279,7 @@ export default function App() {
   };
 
   const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
-  const tabLabel = { pre: 'Pre-Award', inh: 'Pre-Award In-House', post: 'Award Implementation', gw: '3rd Party Grant Writer', proposal: 'Proposal', addendum: 'Addendum' };
+  const tabLabel = { pre: 'Pre-Award (Third Party)', inh: 'Pre-Award (In-House)', post: 'Award Implementation', gw: '3rd Party Grant Writer', proposal: 'Proposal', addendum: 'Addendum' };
   const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const fmtFee = (n) => n > 0 ? '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:0,maximumFractionDigits:0}) : '—';
 
@@ -1836,6 +1842,16 @@ export default function App() {
           style={{width:"100%",background:"#222e4a",border:"1px dashed #3a5080",borderRadius:6,padding:"7px 0",fontSize:11,color:"#6c9ecf",cursor:"pointer",marginBottom:14}}>
           + Add Location
         </button>
+        </>}
+        {/* Pre-Award (Third Party) variant selector — switches between NPSA-as-writer (pre) and In-House (inh) */}
+        {(isPre||isInh)&&<>
+          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Engagement Variant</div>
+          <select value={docTab} onChange={e=>setDocTab(e.target.value)}
+            style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:6,outline:"none"}}>
+            <option value="pre">NPSA as Grant Writer</option>
+            <option value="inh">In-House — Client Self-Prepares</option>
+          </select>
+          <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{isInh?"Org self-prepares grant applications; NPSA provides advisory & compliance support.":"NPSA manages grant writing, application preparation & submission."}</div>
         </>}
         {/* Pre-award specific — shared by Proposal (proposal is a view of pre-award data) */}
         {(isPre||isProposal)&&<>
@@ -2600,6 +2616,14 @@ export default function App() {
           <input type="date" value={form.npsaSigningDate||""} onChange={e=>setF("npsaSigningDate",e.target.value)}
             style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
         </div>
+        {!isAddendum&&(
+          <div style={{marginBottom:10}}>
+            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Expiration Date <span style={{color:"#e07070"}}>*</span></label>
+            <input type="date" value={form.expirationDate||""} onChange={e=>setF("expirationDate",e.target.value)}
+              style={{width:"100%",background:"#222e4a",border:`1px solid ${form.expirationDate?"#2e3d60":"#7a3a3a"}`,borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+            {!form.expirationDate&&<div style={{fontSize:10,color:"#e07070",marginTop:3}}>Required to download or print.</div>}
+          </div>
+        )}
         </>}
         {/* Management Approval Modal */}
         {mgmtApprovalModal&&(
@@ -2623,9 +2647,12 @@ export default function App() {
             </div>
           </div>
         )}
-        <button onClick={handlePrint} style={{marginTop:20,width:"100%",background:"#7a8c1e",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+        {(()=>{ const blocked = !isAddendum && !form.expirationDate; return (
+        <button onClick={handlePrint} disabled={blocked} title={blocked?"Set an Expiration Date first":""}
+          style={{marginTop:20,width:"100%",background:blocked?"#4a5340":"#7a8c1e",color:blocked?"#aeb59a":"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:blocked?"not-allowed":"pointer"}}>
           {isGw ? "Print / Save as PDF" : "Download PDF"}
         </button>
+        );})()}
         {!isGw && (
           <button onClick={()=>{
             const bodyHtml = previewRef.current ? previewRef.current.innerHTML : "";
@@ -2709,17 +2736,19 @@ ${form.npsa1Name||"NPSA"}`
       <div style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#dde0e6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
         {/* Tabs */}
         <div style={{position:"sticky",top:0,zIndex:10,background:"#dde0e6",paddingTop:28}}><div style={{maxWidth:800,margin:"0 auto",display:"flex",overflowX:"auto"}}>
-          {[{id:"pre",label:"Pre-Award"},{id:"inh",label:"Pre-Award (In-House)"},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>(
-            <button key={t.id} onClick={()=>setDocTab(t.id)}
+          {[{id:"pre",label:"Pre-Award (Third Party)",match:["pre","inh"]},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>{
+            const active = t.match ? t.match.includes(docTab) : docTab===t.id;
+            return (
+            <button key={t.id} onClick={()=>setDocTab(active&&t.match?docTab:t.id)}
               style={{padding:"10px 18px",fontSize:12,fontWeight:700,border:"none",whiteSpace:"nowrap",flexShrink:0,
                 borderRadius:i===0?"8px 0 0 0":i===arr.length-1?"0 8px 0 0":"0",
                 cursor:"pointer",
-                background:docTab===t.id?"#fff":"#c8cdd8",
-                color:docTab===t.id?"#1a4a6e":"#666",
-                boxShadow:docTab===t.id?"0 -2px 0 #1a4a6e inset":""}}>
+                background:active?"#fff":"#c8cdd8",
+                color:active?"#1a4a6e":"#666",
+                boxShadow:active?"0 -2px 0 #1a4a6e inset":""}}>
               {t.label}
             </button>
-          ))}
+          );})}
         </div></div>
         <div style={{maxWidth:800,margin:"0 auto",background:"#fff",boxShadow:"0 4px 32px rgba(0,0,0,0.13)",padding:"64px 72px"}} ref={previewRef}>
           {savedLetterOverride ? <div dangerouslySetInnerHTML={{__html: savedLetterOverride}} /> : isProposal ? (()=>{
@@ -2732,11 +2761,12 @@ ${form.npsa1Name||"NPSA"}`
               ...(proposalTpl.phases||[]).slice(0,2),
               isFull ? (proposalTpl.phaseImplementationFull || (proposalTpl.phases||[])[2]) : (proposalTpl.phases||[])[2],
             ].filter(Boolean);
+            const summaryFees = form.proposalFeeModel === "inh" ? inhFees : fees;
             const summaryRows = [
-              ["SERVICES", isFull ? "Full-Service — Pre-Award, Compliance & Implementation" : "In-House — Pre-Award & Compliance"],
+              ["SERVICES", isFull ? "Full-Service — Pre-Award, Compliance & Implementation" : "Grant Writing — Pre-Award & Compliance"],
               ["PROJECT", `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${totalApps} Location${totalApps>1?"s":""})`],
               ["POTENTIAL FUNDING", `Up to ${fmt(proposalMaxFunding)}`],
-              ["PROFESSIONAL FEE", fmt(fees.upfront)],
+              ["PROFESSIONAL FEE", fmt(summaryFees.upfront)],
             ];
             return <>
               {/* Logo */}
@@ -2832,6 +2862,7 @@ ${form.npsa1Name||"NPSA"}`
               {/* Important Note */}
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Important Note</div>
               <p style={{fontSize:12.5,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20,fontStyle:"italic",color:"#333"}}>{proposalTpl.note}</p>
+              {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1a4a6e",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
               <div style={{marginTop:30,paddingTop:10,borderTop:"1px solid #ddd",textAlign:"center",fontSize:10,color:"#aaa"}}>
                 Prepared for the leadership of {form.clientName||"[CLIENT NAME]"} &nbsp;&#8226;&nbsp; Nonprofit Security Advisors &nbsp;&#8226;&nbsp; Lynde Consulting LLC
               </div>
@@ -3364,6 +3395,8 @@ ${form.npsa1Name||"NPSA"}`
               </div>
             </>;
           })()}
+          {/* Expiration clause — all letter variants (pre/inh/post/gw) */}
+          {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1a4a6e",marginTop:24,marginBottom:0}}>This offer expires on {fmtExpiry}.</p>}
           {/* Signature — pre/post only */}
           {!isGw&&<>
           <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:30,marginBottom:14}}>Acknowledged and Agreed</div>
