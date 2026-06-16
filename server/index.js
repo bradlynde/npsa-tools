@@ -141,15 +141,28 @@ const STATE_SAA = {
   WY:'Wyoming Office of Homeland Security',DC:'DC Homeland Security & Emergency Management Agency (HSEMA)',
 };
 
+// States that operate their OWN state-funded nonprofit security grant program,
+// stackable on top of the federal NSGP. Per-site caps mirror the app's PROGRAMS.
+const STATE_FUNDED_PROGRAMS = {
+  IL: { acronym:'NSGP-IL',  name:'Illinois Nonprofit Security Grant Program',                 perSite:150000 },
+  CA: { acronym:'CSNSGP',   name:'California State Nonprofit Security Grant Program',          perSite:250000 },
+  NY: { acronym:'NYSCAHC',  name:'New York Securing Communities Against Hate Crimes Program',  perSite:200000 },
+};
+
 async function searchNsgpDeadlines(state, ms = 14000) {
   const year = new Date().getFullYear();
-  const q1 = encodeURIComponent(`NSGP nonprofit security grant program ${state} ${year} sub-applicant deadline application open`);
-  const q2 = encodeURIComponent(`"nonprofit security grant" "${state}" "sub-applicant" deadline 2024 2023 2022`);
-  const [r1, r2] = await Promise.allSettled([
-    fetch(`https://s.jina.ai/${q1}`, { headers:{'Accept':'text/plain'}, signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.text() : null).catch(()=>null),
-    fetch(`https://s.jina.ai/${q2}`, { headers:{'Accept':'text/plain'}, signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.text() : null).catch(()=>null),
-  ]);
-  return [r1.value, r2.value].filter(Boolean).join('\n\n---\n\n').slice(0, 6000) || null;
+  const sp = STATE_FUNDED_PROGRAMS[state?.toUpperCase()];
+  const queries = [
+    // Federal NSGP sub-applicant deadline for this state (administered via the SAA)
+    `federal NSGP nonprofit security grant program ${state} ${year} sub-applicant deadline application open`,
+    `"nonprofit security grant" "${state}" "sub-applicant" deadline ${year-1} ${year-2} ${year-3}`,
+  ];
+  // If the state runs its own program, search for its deadline too
+  if (sp) queries.push(`${sp.name} ${sp.acronym} ${year} application deadline open close`);
+  const results = await Promise.allSettled(
+    queries.map(q => fetch(`https://s.jina.ai/${encodeURIComponent(q)}`, { headers:{'Accept':'text/plain'}, signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.text() : null).catch(()=>null))
+  );
+  return results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean).join('\n\n---\n\n').slice(0, 7000) || null;
 }
 
 const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
@@ -180,10 +193,22 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 {2-3 sentences: understand the org's current security posture and priorities, and position both Federal and State NSGP grant funding to support their planned upgrades and drivers. Tailor to anything specific the rep noted.}
 
 ## NSGP Funding Snapshot
-- **Potential Award:** {Count the verified campus/property locations found; multiply by $150,000. Write: "Up to $X (N location(s) × $150,000 federal cap per site)". If campus count is unknown, use 1 as a conservative baseline and note it.}
-- **{State} Sub-Applicant Deadline:** {If the NSGP deadline data contains a specific published date for the current or upcoming cycle, use it and label it "(confirmed)". If only historical dates are available, list the last 2–3 years of confirmed sub-applicant deadlines and project the next window as "~{month range} {year} (projected)". If no data at all, write "TBD — verify with {SAA name}".}
-- **State Program:** {SAA name from the provided data}
-- **Urgency Frame:** {One sharp sentence for the rep to use: position the projected or confirmed deadline relative to today. E.g. "Based on 3 years of history, {State} opens sub-applicant applications in {month} — this call puts {Org} in position to apply before that window."}
+Present BOTH funding tracks available to this organization using the NSGP GRANT FUNDING DATA provided. The Federal NSGP track ALWAYS applies. If the data lists a PROGRAM 2 (state-funded program), present it as a second, stackable funding source. If the data says the state has no separate program, show only the Federal NSGP track and add a one-line note that {State} has no separate state-funded program.
+
+Let N = the number of verified campus/property locations found (if unknown, use 1 as a conservative baseline and say so).
+
+**Federal NSGP**
+- **Potential Award:** {N × $150,000 = "Up to $X (N location(s) × $150,000 per site)".}
+- **Sub-Applicant Deadline:** {If the deadline data has a specific published date for the current/upcoming federal cycle, use it and label "(confirmed)". Otherwise list the last 2–3 years of confirmed sub-applicant deadlines and project the next window as "~{month range} {year} (projected)". If no data, "TBD — verify with {SAA name}".}
+- **Administered By:** {SAA name from the data}
+
+**{state program acronym, e.g. NSGP-IL} (State-Funded)** — include this entire block ONLY if PROGRAM 2 exists in the data; otherwise omit it
+- **Potential Award:** {N × the state program's per-site cap from the data = "Up to $X (N location(s) × $Y per site)".}
+- **Application Deadline:** {published date "(confirmed)" if found for the state program; else historical + projected window; else "TBD — verify with the state program".}
+- **Program:** {state program full name from the data}
+
+- **Combined Potential:** {If a state program exists, sum both tracks: "Up to $X across both NSGP and {acronym}". If federal only, omit this line.}
+- **Urgency Frame:** {One sharp sentence the rep can use: position the nearest confirmed/projected deadline relative to today, and note that the organization may be able to pursue both federal and state funding where applicable. E.g. "Illinois nonprofits can stack federal NSGP and NSGP-IL — with applications historically opening in {month}, this call positions {Org} to pursue both before the window."}
 
 ## Organization Overview
 {2-4 sentences synthesized from the website: what the organization is, who/how many it serves, its location and size, and why it is a strong NSGP candidate. Weave in a one-line mission/values paraphrase if the site states it. If the website was unavailable, write "TBD — website could not be researched."}
@@ -420,15 +445,27 @@ app.post('/api/precall', async (req, res) => {
       .map(a => `  ${a.name} | ${a.email || ''} | ${a.phone || ''}`)
       .join('\n');
 
+    const stateProgram = STATE_FUNDED_PROGRAMS[orgState?.toUpperCase()];
     const nsgpBlock = orgState ? [
       `NSGP GRANT FUNDING DATA:`,
       `State: ${orgState}`,
-      `State Administering Agency (SAA): ${saaName}`,
-      `Federal award cap: $150,000 per physical site/location`,
+      ``,
+      `PROGRAM 1 — Federal NSGP (always applicable):`,
+      `  Program: Federal Nonprofit Security Grant Program (NSGP)`,
+      `  Award cap: $150,000 per physical site/location`,
+      `  Administered in-state by (SAA): ${saaName}`,
+      stateProgram
+        ? [
+            ``,
+            `PROGRAM 2 — State-Funded Program (${orgState} runs its own program, stackable with federal NSGP):`,
+            `  Program: ${stateProgram.name} (${stateProgram.acronym})`,
+            `  Award cap: $${stateProgram.perSite.toLocaleString()} per physical site/location`,
+          ].join('\n')
+        : `\nPROGRAM 2 — State-Funded Program: ${orgState} does NOT operate a separate state-funded nonprofit security grant program. Federal NSGP is the only track — present only the federal track and note there is no separate state program.`,
       ``,
       nsgpDeadlineResults
-        ? `DEADLINE SEARCH RESULTS (use to find published or historical sub-applicant deadlines — extract specific dates if present):\n${nsgpDeadlineResults}`
-        : `DEADLINE SEARCH RESULTS: none returned — use SAA name in the TBD note`,
+        ? `DEADLINE SEARCH RESULTS (covers federal NSGP and any state program — extract specific published or historical dates if present, and attribute each date to the correct program):\n${nsgpDeadlineResults}`
+        : `DEADLINE SEARCH RESULTS: none returned — use the SAA / program name in the TBD note`,
     ].join('\n') : null;
 
     const context = [

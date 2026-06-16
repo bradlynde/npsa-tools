@@ -1844,7 +1844,7 @@ export default function App() {
             <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Service Model</label>
             <select value={form.proposalServiceModel||"inhouse"} onChange={e=>setF("proposalServiceModel",e.target.value)}
               style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:6,outline:"none"}}>
-              <option value="inhouse">In-House — Pre-Award &amp; Compliance</option>
+              <option value="inhouse">Grant Writing — Pre-Award &amp; Compliance</option>
               <option value="full">Full-Service — Pre-Award, Compliance &amp; Implementation</option>
             </select>
             <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{form.proposalServiceModel==="full"?"Includes Award Implementation, billed as a percentage-based fee post-award.":"Implementation is presented as optional, under a separate agreement."}</div>
