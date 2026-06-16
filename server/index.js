@@ -198,13 +198,13 @@ Present BOTH funding tracks available to this organization using the NSGP GRANT 
 Let N = the number of verified campus/property locations found (if unknown, use 1 as a conservative baseline and say so).
 
 **Federal NSGP**
-- **Potential Award:** {N × $150,000 = "Up to $X (N location(s) × $150,000 per site)".}
-- **Sub-Applicant Deadline:** {If the deadline data has a specific published date for the current/upcoming federal cycle, use it and label "(confirmed)". Otherwise list the last 2–3 years of confirmed sub-applicant deadlines and project the next window as "~{month range} {year} (projected)". If no data, "TBD — verify with {SAA name}".}
+- **Potential Award:** {N × $200,000 = "Up to $X (N location(s) × $200,000 per site)".}
+- **Sub-Applicant Deadline:** {Check the NSGP GRANT FUNDING DATA deadline section. List the last 3 confirmed sub-applicant deadline dates found (label each with its year). Then project the next window as "~{month} {year} (projected based on {N}-year history)" — or label it "(confirmed)" if a current-cycle date is explicitly published. If no dates are found at all, write "TBD — verify with {SAA name}".}
 - **Administered By:** {SAA name from the data}
 
 **{state program acronym, e.g. NSGP-IL} (State-Funded)** — include this entire block ONLY if PROGRAM 2 exists in the data; otherwise omit it
 - **Potential Award:** {N × the state program's per-site cap from the data = "Up to $X (N location(s) × $Y per site)".}
-- **Application Deadline:** {published date "(confirmed)" if found for the state program; else historical + projected window; else "TBD — verify with the state program".}
+- **Application Deadline:** {Same approach: list last 3 confirmed deadline dates for this state program if found, then project next window; or "(confirmed)" if current cycle is published; or "TBD — verify with the state program" if none found.}
 - **Program:** {state program full name from the data}
 
 - **Combined Potential:** {If a state program exists, sum both tracks: "Up to $X across both NSGP and {acronym}". If federal only, omit this line.}
@@ -337,11 +337,15 @@ app.post('/api/precall/docx', async (req, res) => {
   const { html, filename } = req.body || {};
   if (!html) return res.status(400).json({ error: 'No HTML provided' });
   try {
-    const buffer = await HTMLtoDOCX(html, null, {
+    // html-to-docx chokes on certain CSS (border-bottom, text-transform, decimal line-height)
+    // Strip the stylesheet entirely — the library applies its own safe defaults
+    const safeHtml = html.replace(/<style[\s\S]*?<\/style>/gi, '');
+    const buffer = await HTMLtoDOCX(safeHtml, null, {
       title: filename || 'Pre-Call Notes',
       margins: { top: 720, right: 1080, bottom: 720, left: 1080 },
       font: 'Calibri',
       fontSize: 22,
+      lineHeight: 276,
     });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${(filename||'Pre-Call Notes').replace(/"/g,"'")}.docx"`);
@@ -452,7 +456,7 @@ app.post('/api/precall', async (req, res) => {
       ``,
       `PROGRAM 1 — Federal NSGP (always applicable):`,
       `  Program: Federal Nonprofit Security Grant Program (NSGP)`,
-      `  Award cap: $150,000 per physical site/location`,
+      `  Award cap: $200,000 per physical site/location`,
       `  Administered in-state by (SAA): ${saaName}`,
       stateProgram
         ? [
