@@ -308,6 +308,11 @@ CLIENT is under no obligation to enter into any new agreement, and this Addendum
 const DEFAULT_PROPOSAL = {
   execSummary: `Nonprofit Security Advisors (NPSA) proposes to provide grant consulting, grant writing, and administrative support to assist [CLIENT_NAME] in pursuing funding through the [PROPOSAL_PROGRAM_LIST]. This proposal is intended to provide leadership with a concise overview of services, deliverables, and investment.`,
   execSummaryFull: `Nonprofit Security Advisors (NPSA) proposes to provide end-to-end grant consulting, grant writing, administrative support, and award implementation services to assist [CLIENT_NAME] in pursuing and executing funding through the [PROPOSAL_PROGRAM_LIST]. This proposal is intended to provide leadership with a concise overview of services, deliverables, and investment across all phases of the grant lifecycle.`,
+  execSummaryThirdParty: `Nonprofit Security Advisors (NPSA) proposes to provide grant consulting, advisory, and administrative support to assist [CLIENT_NAME] in pursuing funding through the [PROPOSAL_PROGRAM_LIST]. CLIENT will engage an independent grant writer to prepare and submit the application(s), while NPSA provides program guidance, coordination, and compliance support. This proposal is intended to provide leadership with a concise overview of services, deliverables, and investment.`,
+  execSummaryFullThirdParty: `Nonprofit Security Advisors (NPSA) proposes to provide end-to-end grant consulting, advisory, administrative support, and award implementation services to assist [CLIENT_NAME] in pursuing and executing funding through the [PROPOSAL_PROGRAM_LIST]. CLIENT will engage an independent grant writer to prepare and submit the application(s), while NPSA provides program guidance, coordination, compliance, and implementation support. This proposal is intended to provide leadership with a concise overview of services, deliverables, and investment across all phases of the grant lifecycle.`,
+  phaseThirdParty: { title:"1. PRE-AWARD PERIOD — GRANT DEVELOPMENT COORDINATION & ADVISORY",
+      body:"NPSA coordinates the pre-award process and provides advisory support from project planning through submission, including eligibility review, vulnerability assessment coordination, project prioritization, and budget guidance. An independent grant writer, engaged directly by CLIENT, performs the grant writing, application preparation, and submission. NPSA facilitates introductions to qualified grant writers and coordinates throughout to keep the application on track.",
+      deliverable:"Completed [PROPOSAL_PROGRAM_ACRONYMS] application packages submitted for funding consideration." },
   phases: [
     { title:"1. PRE-AWARD PERIOD — WHITE-GLOVE GRANT DEVELOPMENT SUPPORT",
       body:"NPSA manages the application process from project planning through submission, including eligibility review, vulnerability assessment coordination, project prioritization, budget development, grant writing, application preparation, and submission management.",
@@ -358,7 +363,7 @@ const defaultForm = {
   programs:[{key:"federal",year:"2026"}],
   contactName:"", contactTitle:"", contactEmail:"", contactPhone:"",
   grantYear:"2026", grantType:"Federal", grantState:"other", engagementModel:"pre-only", pricingTier:"undiscounted",
-  proposalServiceModel:"inhouse", proposalFeeModel:"pre",
+  proposalServiceModel:"inhouse", proposalFeeModel:"inh",
   customFee:"", customContingencyFee:"",
   installments: false, installmentCount:2,
   installment1Pct:"50", installment1Label:"upon execution",
@@ -1866,7 +1871,7 @@ export default function App() {
             <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{form.proposalServiceModel==="full"?"Includes Award Implementation, billed as a percentage-based fee post-award.":"Implementation is presented as optional, under a separate agreement."}</div>
             <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:4}}>Grant Writing Model</label>
             <div style={{display:"flex",gap:6,marginBottom:4}}>
-              {[{val:"pre",label:"NPSA as Grant Writer"},{val:"inh",label:"In-House Grant Writing"}].map(opt=>(
+              {[{val:"inh",label:"In-House Grant Writer"},{val:"pre",label:"Third-Party Grant Writer"}].map(opt=>(
                 <button key={opt.val} onClick={()=>setF("proposalFeeModel",opt.val)}
                   style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid",fontSize:11,fontWeight:700,cursor:"pointer",
                     background:form.proposalFeeModel===opt.val?"#1a4a6e":"#222e4a",
@@ -1877,7 +1882,7 @@ export default function App() {
               ))}
             </div>
             <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>
-              {form.proposalFeeModel==="inh"?"Org self-prepares grant applications; NPSA provides advisory &amp; compliance support. (~$11K/location)":"NPSA manages grant writing, application preparation &amp; submission. (~$4K/location)"}
+              {form.proposalFeeModel==="inh"?"NPSA manages grant writing, application preparation &amp; submission. (~$11K/location)":"An independent grant writer prepares the applications; NPSA provides advisory &amp; compliance support. (~$4K/location)"}
             </div>
           </>}
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Programs</div>
@@ -2756,14 +2761,19 @@ ${form.npsa1Name||"NPSA"}`
             const isDisc = form.pricingTier==="discounted" && fees.discount>0;
             const complianceIncluded = !form.optPostAwardScope || (fees.postAward||0)===0;
             const isFull = form.proposalServiceModel === "full";
-            const execSummaryText = isFull && proposalTpl.execSummaryFull ? proposalTpl.execSummaryFull : proposalTpl.execSummary;
+            const isThirdParty = form.proposalFeeModel === "pre";
+            const execSummaryText = isFull
+              ? (isThirdParty ? (proposalTpl.execSummaryFullThirdParty || proposalTpl.execSummaryFull) : proposalTpl.execSummaryFull) || proposalTpl.execSummary
+              : (isThirdParty ? (proposalTpl.execSummaryThirdParty || proposalTpl.execSummary) : proposalTpl.execSummary);
+            const phase1 = isThirdParty ? (proposalTpl.phaseThirdParty || (proposalTpl.phases||[])[0]) : (proposalTpl.phases||[])[0];
             const phasesToShow = [
-              ...(proposalTpl.phases||[]).slice(0,2),
+              phase1,
+              (proposalTpl.phases||[])[1],
               isFull ? (proposalTpl.phaseImplementationFull || (proposalTpl.phases||[])[2]) : (proposalTpl.phases||[])[2],
             ].filter(Boolean);
             const summaryFees = form.proposalFeeModel === "inh" ? inhFees : fees;
             const summaryRows = [
-              ["SERVICES", isFull ? "Full-Service — Pre-Award, Compliance & Implementation" : "Grant Writing — Pre-Award & Compliance"],
+              ["SERVICES", isFull ? "Full-Service — Pre-Award, Compliance & Implementation" : (isThirdParty ? "Grant Consulting — Pre-Award & Compliance" : "Grant Writing — Pre-Award & Compliance")],
               ["PROJECT", `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${totalApps} Location${totalApps>1?"s":""})`],
               ["POTENTIAL FUNDING", `Up to ${fmt(proposalMaxFunding)}`],
               ["PROFESSIONAL FEE", fmt(summaryFees.upfront)],
