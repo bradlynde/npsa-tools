@@ -1279,7 +1279,7 @@ export default function App() {
   };
 
   const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
-  const tabLabel = { pre: 'Pre-Award (Third Party)', inh: 'Pre-Award (In-House)', post: 'Award Implementation', gw: '3rd Party Grant Writer', proposal: 'Proposal', addendum: 'Addendum' };
+  const tabLabel = { pre: 'Pre-Award (In-House)', inh: 'Pre-Award (Third Party)', post: 'Award Implementation', gw: '3rd Party Grant Writer', proposal: 'Proposal', addendum: 'Addendum' };
   const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const fmtFee = (n) => n > 0 ? '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:0,maximumFractionDigits:0}) : '—';
 
@@ -1851,7 +1851,7 @@ export default function App() {
             <option value="pre">In-House Grant Writing</option>
             <option value="inh">Third Party Grant Writing</option>
           </select>
-          <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{isInh?"Org self-prepares grant applications; NPSA provides advisory & compliance support.":"NPSA manages grant writing, application preparation & submission."}</div>
+          <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{isInh?"An outside grant writer prepares the applications; NPSA provides advisory & compliance support.":"NPSA manages grant writing, application preparation & submission."}</div>
         </>}
         {/* Pre-award specific — shared by Proposal (proposal is a view of pre-award data) */}
         {(isPre||isProposal)&&<>
@@ -2736,7 +2736,7 @@ ${form.npsa1Name||"NPSA"}`
       <div style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#dde0e6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
         {/* Tabs */}
         <div style={{position:"sticky",top:0,zIndex:10,background:"#dde0e6",paddingTop:28}}><div style={{maxWidth:800,margin:"0 auto",display:"flex",overflowX:"auto"}}>
-          {[{id:"pre",label:"Pre-Award (Third Party)",match:["pre","inh"]},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>{
+          {[{id:"pre",label:"Pre-Award",match:["pre","inh"]},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>{
             const active = t.match ? t.match.includes(docTab) : docTab===t.id;
             return (
             <button key={t.id} onClick={()=>setDocTab(active&&t.match?docTab:t.id)}
