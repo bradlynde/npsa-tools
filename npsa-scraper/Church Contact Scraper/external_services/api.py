@@ -126,6 +126,9 @@ running_threads = {}
 # Single gate for starting runs (HTTP + queue worker) — prevents concurrent "start" races
 _run_start_lock = threading.Lock()
 
+# Throttle clock for the stale county-task reaper (see _church_queue_worker_loop)
+_last_county_reclaim = 0.0
+
 # Run cleanup + queue thread exactly once (avoids duplicate lines if app module loads twice)
 _bootstrap_lock = threading.Lock()
 _bootstrap_done = False
@@ -235,10 +238,22 @@ def _first_finalizing_run_id_for_state(state: str) -> Optional[str]:
 
 
 def _church_queue_worker_loop():
+    global _last_county_reclaim
     while True:
         time.sleep(2.5)
         if not queue_store.is_enabled():
             continue
+        # Recover counties orphaned by a dead replica: reset 'processing' tasks whose
+        # heartbeat is stale (>30 min) back to 'pending'. Throttled to every 5 min.
+        # 30 min >> the 60s worker heartbeat, so slow-but-alive counties are never reclaimed.
+        if time.time() - _last_county_reclaim > 300:
+            _last_county_reclaim = time.time()
+            try:
+                n = queue_store.reclaim_stale_county_tasks(stale_seconds=1800)
+                if n:
+                    log_warn(f"[reaper] reclaimed {n} stale county task(s) -> pending")
+            except Exception as e:
+                log_err(f"[reaper] {e}")
         try:
             with _run_start_lock:
                 if _is_any_run_active():
@@ -420,7 +435,15 @@ def _county_processor_worker_loop(worker_tag: str) -> None:
                 args=(state, county, run_id, idx, total, result_file),
             )
             proc.start()
-            proc.join()
+            # Heartbeat the task every 60s while the county subprocess runs, so the
+            # stale-task reaper can distinguish a slow-but-alive worker from a dead
+            # replica. join(timeout) returns periodically without delaying completion.
+            while proc.is_alive():
+                proc.join(timeout=60)
+                try:
+                    queue_store.heartbeat_county_task(run_id, county)
+                except Exception:
+                    pass
             try:
                 if os.path.exists(result_file):
                     with open(result_file, "r") as f:
