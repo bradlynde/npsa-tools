@@ -2774,7 +2774,13 @@ ${form.npsa1Name||"NPSA"}`
             const summaryFees = form.proposalFeeModel === "inh" ? inhFees : fees;
             const summaryRows = [
               ["SERVICES", isFull ? "Full-Service — Pre-Award, Compliance & Implementation" : (isThirdParty ? "Grant Consulting — Pre-Award & Compliance" : "Grant Writing — Pre-Award & Compliance")],
-              ["PROJECT", `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${totalApps} Location${totalApps>1?"s":""})`],
+              ["PROJECT", (() => {
+                const distinctLocs = (form.locations||[]).length || 1;
+                if (totalApps > distinctLocs) {
+                  return `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${distinctLocs} Location${distinctLocs>1?"s":""}, ${totalApps} Application${totalApps>1?"s":""})`;
+                }
+                return `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${totalApps} Location${totalApps>1?"s":""})`;
+              })()],
               ["POTENTIAL FUNDING", `Up to ${fmt(proposalMaxFunding)}`],
               ["PROFESSIONAL FEE", fmt(summaryFees.upfront)],
             ];
