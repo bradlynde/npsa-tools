@@ -392,6 +392,7 @@ const defaultForm = {
   addendumPrograms:[{key:"illinois",year:String(new Date().getFullYear())}],
   // Grant Writer fields
   gwRecipientName:"", gwRecipientEmail:"", gwOrgName:"",
+  gwProgramKey:"federal", gwGrantYear:"2026",
   gwDate:"",
   npsa1Name:"", npsa1Email:"", npsa1Phone:"", npsa2Selected:[],
   npsaSignerName:"Brad Lynde", npsaSignerTitle:"Managing Partner", npsaSigningDate:new Date().toISOString().split('T')[0],
@@ -2378,6 +2379,20 @@ export default function App() {
                 style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           ))}
+          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Program</div>
+          <div style={{marginBottom:10}}>
+            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Program</label>
+            <select value={form.gwProgramKey||"federal"} onChange={e=>setF("gwProgramKey",e.target.value)}
+              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}>
+              {Object.entries(PROGRAMS).map(([k,cfg])=><option key={k} value={k}>{cfg.label}</option>)}
+            </select>
+            <div style={{fontSize:10,color:"#6c7a9c",marginTop:3}}>Max Award: <span style={{color:"#9aab2e"}}>${(PROGRAMS[form.gwProgramKey||"federal"]||PROGRAMS.federal).maxAward}</span></div>
+          </div>
+          <div style={{marginBottom:10}}>
+            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Grant Year</label>
+            <input value={form.gwGrantYear||""} onChange={e=>setF("gwGrantYear",e.target.value)} placeholder="2026"
+              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+          </div>
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Requesting NPSA Consultant</div>
           <div style={{fontSize:11,color:"#9aa3b8",marginBottom:6}}>Select consultant</div>
           <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
@@ -3356,7 +3371,13 @@ ${form.npsa1Name||"NPSA"}`
                     </div>
                   </>)}
                   <SectionHead num={progNum} title="Grant Program"/>
-                  <F label="Program" value={`${form.grantYear||""} ${form.grantType||""} NSGP`.trim()} placeholder="2026 Federal NSGP"/>
+                  {(()=>{
+                    const gwKey=form.gwProgramKey||"federal";
+                    const gwCfg=PROGRAMS[gwKey]||PROGRAMS.federal;
+                    const gwYr=form.gwGrantYear||form.grantYear||"";
+                    const gwLabel=`${gwYr} ${gwKey==="federal"?"Federal NSGP":gwCfg.acronym}`.trim();
+                    return <F label="Program" value={gwLabel} placeholder="2026 Federal NSGP"/>;
+                  })()}
                   <SectionHead num={termsNum} title={`Requested Contract Terms for ${form.gwOrgName||"Grant Writer"} Preparation`}/>
                   <Row>
                     <Col><F label="Professional Fee" value={form.gwProfFee?`$${form.gwProfFee}`:""} placeholder="$0"/></Col>
