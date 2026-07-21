@@ -126,12 +126,28 @@ def _state_finalizing(state: str) -> bool:
     return queue_store.is_state_finalizing(state, SCRAPER_TYPE)
 
 
+# Throttle clock for the stale county-task reaper (see _school_queue_worker_loop)
+_last_county_reclaim = 0.0
+
+
 def _school_queue_worker_loop():
+    global _last_county_reclaim
     while True:
         time.sleep(2.5)
         try:
             if not queue_store.try_acquire_queue_leader():
                 continue
+            # Recover counties orphaned by a dead replica: reset 'processing' tasks whose
+            # heartbeat is stale (>30 min) back to 'pending'. Leader-only, throttled to 5 min.
+            # 30 min >> the 60s worker heartbeat, so slow-but-alive counties are never reclaimed.
+            if time.time() - _last_county_reclaim > 300:
+                _last_county_reclaim = time.time()
+                try:
+                    n = queue_store.reclaim_stale_county_tasks(stale_seconds=1800)
+                    if n:
+                        log_warn(f"[reaper] reclaimed {n} stale county task(s) -> pending")
+                except Exception as e:
+                    log_err(f"[reaper] {e}")
             active = _unique_running_states_after_stale_cleanup()
             if len(active) >= 1:
                 continue
@@ -332,7 +348,15 @@ def _county_processor_worker_loop(worker_tag: str) -> None:
                 args=(state, county, run_id, idx, total, result_file),
             )
             proc.start()
-            proc.join()
+            # Heartbeat the task every 60s while the county subprocess runs, so the
+            # stale-task reaper can distinguish a slow-but-alive worker from a dead
+            # replica. join(timeout) returns periodically without delaying completion.
+            while proc.is_alive():
+                proc.join(timeout=60)
+                try:
+                    queue_store.heartbeat_county_task(run_id, county)
+                except Exception:
+                    pass
             try:
                 if os.path.exists(result_file):
                     with open(result_file, "r") as f:

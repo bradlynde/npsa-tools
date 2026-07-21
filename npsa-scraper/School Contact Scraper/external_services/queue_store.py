@@ -771,6 +771,30 @@ def mark_county_done(run_id: str, county: str, result: dict[str, Any]) -> None:
                 conn.close()
 
 
+def heartbeat_county_task(run_id: str, county: str) -> None:
+    """Refresh claimed_at on an in-progress task so the stale-task reaper can tell
+    a slow-but-alive worker from a dead replica. Best-effort: never raises."""
+    p = _p()
+    now = datetime.now().isoformat()
+    try:
+        with _lock:
+            conn = _conn()
+            try:
+                conn.execute(
+                    f"""
+                    UPDATE county_tasks
+                    SET claimed_at = {p}
+                    WHERE run_id = {p} AND county = {p} AND status = 'processing'
+                    """,
+                    (now, run_id, county),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+    except Exception:
+        pass
+
+
 def mark_county_failed(run_id: str, county: str, error: str) -> None:
     p = _p()
     for attempt in range(2):
