@@ -392,7 +392,7 @@ const defaultForm = {
   addendumPrograms:[{key:"illinois",year:String(new Date().getFullYear())}],
   // Grant Writer fields
   gwRecipientName:"", gwRecipientEmail:"", gwOrgName:"",
-  gwProgramKey:"federal", gwGrantYear:"2026",
+  gwPrograms:[{key:"federal",year:"2026"}],
   gwDate:"",
   npsa1Name:"", npsa1Email:"", npsa1Phone:"", npsa2Selected:[],
   npsaSignerName:"Brad Lynde", npsaSignerTitle:"Managing Partner", npsaSigningDate:new Date().toISOString().split('T')[0],
@@ -2379,19 +2379,35 @@ export default function App() {
                 style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Program</div>
-          <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Program</label>
-            <select value={form.gwProgramKey||"federal"} onChange={e=>setF("gwProgramKey",e.target.value)}
-              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}>
-              {Object.entries(PROGRAMS).map(([k,cfg])=><option key={k} value={k}>{cfg.label}</option>)}
-            </select>
-            <div style={{fontSize:10,color:"#6c7a9c",marginTop:3}}>Max Award: <span style={{color:"#9aab2e"}}>${(PROGRAMS[form.gwProgramKey||"federal"]||PROGRAMS.federal).maxAward}</span></div>
-          </div>
-          <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Grant Year</label>
-            <input value={form.gwGrantYear||""} onChange={e=>setF("gwGrantYear",e.target.value)} placeholder="2026"
-              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Program(s)</div>
+          {(form.gwPrograms||[]).map((pg,pgIdx)=>{
+            const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
+            return (
+              <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
+                  {(form.gwPrograms||[]).length>1&&<button onClick={()=>setF("gwPrograms",(form.gwPrograms||[]).filter((_,i)=>i!==pgIdx))}
+                    style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
+                </div>
+                <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Grant Year</label>
+                <input value={pg.year||""} onChange={e=>{
+                  const updated=[...(form.gwPrograms||[])];
+                  updated[pgIdx]={...updated[pgIdx],year:e.target.value};
+                  setF("gwPrograms",updated);
+                }} placeholder="2026"
+                  style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
+                <div style={{fontSize:10,color:"#6c7a9c",marginTop:5}}>Max Award: <span style={{color:"#9aab2e"}}>${cfg.maxAward}</span></div>
+              </div>
+            );
+          })}
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
+            {Object.entries(PROGRAMS).filter(([k])=>!(form.gwPrograms||[]).some(p=>p.key===k)).map(([k,cfg])=>(
+              <button key={k} onClick={()=>{
+                setF("gwPrograms",[...(form.gwPrograms||[]),{key:k,year:(form.gwPrograms||[])[0]?.year||"2026"}]);
+              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #3a5080",background:"#222e4a",color:"#6c9ecf",cursor:"pointer"}}>
+                + {cfg.label}
+              </button>
+            ))}
           </div>
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Requesting NPSA Consultant</div>
           <div style={{fontSize:11,color:"#9aa3b8",marginBottom:6}}>Select consultant</div>
@@ -3370,13 +3386,19 @@ ${form.npsa1Name||"NPSA"}`
                       <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#333",whiteSpace:"pre-wrap",lineHeight:1.7}}>{form.gwNotes}</div>
                     </div>
                   </>)}
-                  <SectionHead num={progNum} title="Grant Program"/>
                   {(()=>{
-                    const gwKey=form.gwProgramKey||"federal";
-                    const gwCfg=PROGRAMS[gwKey]||PROGRAMS.federal;
-                    const gwYr=form.gwGrantYear||form.grantYear||"";
-                    const gwLabel=`${gwYr} ${gwKey==="federal"?"Federal NSGP":gwCfg.acronym}`.trim();
-                    return <F label="Program" value={gwLabel} placeholder="2026 Federal NSGP"/>;
+                    const gwProgs=(form.gwPrograms&&form.gwPrograms.length)?form.gwPrograms:[{key:"federal",year:form.grantYear||"2026"}];
+                    const progLabel=(pg)=>{
+                      const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
+                      const yr=pg.year||form.grantYear||"";
+                      return `${yr} ${pg.key==="federal"?"Federal NSGP":cfg.acronym}`.trim();
+                    };
+                    return <>
+                      <SectionHead num={progNum} title={gwProgs.length>1?"Grant Programs":"Grant Program"}/>
+                      {gwProgs.map((pg,i)=>(
+                        <F key={i} label={gwProgs.length>1?`Program ${i+1}`:"Program"} value={progLabel(pg)} placeholder="2026 Federal NSGP"/>
+                      ))}
+                    </>;
                   })()}
                   <SectionHead num={termsNum} title={`Requested Contract Terms for ${form.gwOrgName||"Grant Writer"} Preparation`}/>
                   <Row>
