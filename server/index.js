@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
 import pg from 'pg';
 import HTMLtoDOCX from 'html-to-docx';
+import { registerMarketing } from './marketing.js';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -655,6 +656,8 @@ app.delete('/api/reps/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+registerMarketing(app, pool);
 
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (req, res) => {
