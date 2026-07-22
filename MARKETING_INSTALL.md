@@ -1,0 +1,113 @@
+# Marketing Dashboard — Install Guide
+
+Everything is additive. Nothing here changes the LOE tool, the Sheet, or the live site
+until you deliberately merge the branch. Work on `feature/marketing-dashboard`.
+
+You (or Claude Code) are dropping in **3 new files** and making **3 tiny edits**.
+
+## New files (copy as-is into the repo)
+```
+server/marketing.js
+src/marketing/MarketingDashboard.jsx
+scripts/backfill-bookings.js
+```
+
+## Edit 1 — server/index.js (2 lines)
+Add near the other imports at the top:
+```js
+import { registerMarketing } from './marketing.js';
+```
+Then, **just above** the SPA fallback (`app.get('*', ...)` near the bottom), add:
+```js
+registerMarketing(app, pool);
+```
+That's the entire backend wiring. The `bookings` table auto-creates on boot, exactly like `letters`.
+
+## Edit 2 — src/App.jsx (import + one render line)
+Add with the other imports at the top:
+```js
+import MarketingDashboard from './marketing/MarketingDashboard.jsx';
+```
+Inside the top-level `return ( <> ... </> )` (where the other `appView === '...'` blocks are), add:
+```jsx
+{appView === 'marketing' && <MarketingDashboard onBack={() => setAppView('dashboard')} />}
+```
+
+## Edit 3 — src/App.jsx (let the sidebar deep-link to it)
+Add this near the other `useEffect`s so a link like `/?view=marketing` opens the page:
+```js
+useEffect(() => {
+  if (new URLSearchParams(window.location.search).get('view') === 'marketing') setAppView('marketing');
+}, []);
+```
+The sidebar "Marketing" tab (in whichever repo owns the left nav) just points at `…/?view=marketing`.
+Optional: to reach it from inside this app too, add a card on the Sales Toolbox dashboard with
+`onClick={() => setAppView('marketing')}`.
+
+---
+
+## Environment variables (Railway → Variables)
+```
+ZAPIER_WEBHOOK_SECRET   # any long random string; also used by the Zap + backfill
+INSTANTLY_API_KEY       # optional — enables reverse-match; UTM attribution works without it
+CALENDLY_API_TOKEN      # optional — enables auto "Held" status; manual toggle works without it
+```
+Nothing breaks if the two optional keys are missing — those rows just stay unenriched.
+
+---
+
+## Wire the Zap (adds bookings to Postgres in real time)
+In your existing Calendly → Google Sheets Zap, add ONE action after the trigger:
+- App: **Webhooks by Zapier → POST**
+- URL: `https://<your-railway-domain>/api/marketing/bookings/ingest`
+- Headers: `x-zap-secret: <ZAPIER_WEBHOOK_SECRET>`
+- Data (map from the Calendly trigger — same fields you already send to the Sheet, plus the two URIs):
+  ```
+  calendly_uri  = Invitee URI
+  event_uri     = Scheduled Event URI
+  booked_on     = Invitee Created At
+  meeting_date  = Scheduled Event Start Time
+  name          = Invitee Name
+  email         = Invitee Email
+  organization  = <the Organization question answer>
+  told_us       = <the "How did you hear" answer>
+  utm_source    = Tracking UTM Source
+  utm_medium    = Tracking UTM Medium
+  utm_campaign  = Tracking UTM Campaign
+  host          = Scheduled Event Hosts Email
+  ```
+The Sheet step stays exactly as-is. This just adds a parallel write.
+
+---
+
+## One-time backfill of existing bookings
+Publish the Sheet as CSV (File → Share → Publish to web → CSV), then with the server running:
+```bash
+SHEET_CSV_URL="https://docs.google.com/.../pub?output=csv" \
+ZAPIER_WEBHOOK_SECRET="<same secret>" \
+node scripts/backfill-bookings.js
+```
+
+---
+
+## Verify (quick smoke test)
+1. `npm run build` succeeds.
+2. Start the server. Hit `POST /api/marketing/bookings/ingest` with a test body (curl below) → returns `{ ok, id }`.
+3. Open the app at `/?view=marketing` → KPI cards, funnel, and the bookings table render.
+4. `POST /api/marketing/enrich` → check a UTM-tagged row shows its campaign, and a booking whose org has an engagement letter shows **Became Client** + fee.
+
+```bash
+curl -X POST http://localhost:3001/api/marketing/bookings/ingest \
+  -H "Content-Type: application/json" -H "x-zap-secret: <secret>" \
+  -d '{"name":"Test Person","email":"t@example.com","organization":"Test Church",
+       "meeting_date":"2026-08-01T16:00:00Z","utm_source":"instantly",
+       "utm_campaign":"tx-nsgp-church","told_us":"Email from Nonprofit Security Advisors"}'
+```
+
+---
+
+## What to hand your dev
+The whole `marketing-build/` folder + this guide + the Build Brief. The only thing outside
+this repo is the sidebar nav link (Edit 3's `/?view=marketing`), which is a one-line change in
+the shell that renders the left navigation.
+```
