@@ -99,6 +99,7 @@ export default function MarketingDashboard({ onBack }) {
         {/* KPI cards */}
         {stats && (
           <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+            <StatCard bg={olive} value={stats.bookings_this_week} format={(n) => Math.round(n).toLocaleString()} sub="Bookings this week" />
             <StatCard bg={navy} value={stats.bookings_this_month} format={(n) => Math.round(n).toLocaleString()} sub={`Bookings this month (${mom >= 0 ? '+' : ''}${mom} vs last)`} />
             <StatCard bg={olive} value={stats.held_rate} format={pct} sub="Held rate" />
             <StatCard bg={navy} value={stats.client_rate} format={pct} sub="Became client" />
@@ -164,7 +165,7 @@ export default function MarketingDashboard({ onBack }) {
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120 }}>
               {series.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13 }}>No data yet.</div>}
               {series.map(s => (
-                <div key={s.period} title={`${s.period}: ${s.booked} booked, ${s.clients} clients`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+                <div key={s.period} title={`${s.period}: ${s.booked} booked, ${s.clients} clients`} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
                   <div style={{ width: '70%', height: `${(s.booked / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
                 </div>
               ))}
@@ -194,23 +195,25 @@ export default function MarketingDashboard({ onBack }) {
             <div style={{ flex: 1 }}>Meeting</div><div style={{ width: 70, textAlign: 'center' }}>Held</div><div style={{ width: 70, textAlign: 'center' }}>Won</div>
           </div>
           {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#9aa3b8' }}>No bookings yet.</div>}
-          {rows.map(r => (
-            <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 18px', borderTop: '1px solid #f4f5f9', fontSize: 13.5 }}>
-              <div style={{ flex: 2 }}>
-                <div style={{ fontWeight: 600, color: '#1a2540' }}>{r.organization || '—'}</div>
-                <div style={{ color: '#9aa3b8', fontSize: 12 }}>{r.name}</div>
+          <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+            {rows.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 18px', borderTop: '1px solid #f4f5f9', fontSize: 13.5 }}>
+                <div style={{ flex: 2 }}>
+                  <div style={{ fontWeight: 600, color: '#1a2540' }}>{r.organization || '—'}</div>
+                  <div style={{ color: '#9aa3b8', fontSize: 12 }}>{r.name}</div>
+                </div>
+                <div style={{ flex: 1.4, color: '#5b6b8c', textTransform: 'capitalize' }}>{r.attribution_channel || 'organic'}</div>
+                <div style={{ flex: 1.6, color: '#5b6b8c' }}>{r.instantly_campaign || '—'}</div>
+                <div style={{ flex: 1, color: '#5b6b8c' }}>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString() : '—'}</div>
+                <div style={{ width: 70, textAlign: 'center' }}>
+                  <input type="checkbox" checked={!!r.held} onChange={e => toggle(r.id, 'held', e.target.checked)} />
+                </div>
+                <div style={{ width: 70, textAlign: 'center' }}>
+                  <input type="checkbox" checked={!!r.became_client} onChange={e => toggle(r.id, 'became_client', e.target.checked)} />
+                </div>
               </div>
-              <div style={{ flex: 1.4, color: '#5b6b8c', textTransform: 'capitalize' }}>{r.attribution_channel || 'organic'}</div>
-              <div style={{ flex: 1.6, color: '#5b6b8c' }}>{r.instantly_campaign || '—'}</div>
-              <div style={{ flex: 1, color: '#5b6b8c' }}>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString() : '—'}</div>
-              <div style={{ width: 70, textAlign: 'center' }}>
-                <input type="checkbox" checked={!!r.held} onChange={e => toggle(r.id, 'held', e.target.checked)} />
-              </div>
-              <div style={{ width: 70, textAlign: 'center' }}>
-                <input type="checkbox" checked={!!r.became_client} onChange={e => toggle(r.id, 'became_client', e.target.checked)} />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
       </div>
