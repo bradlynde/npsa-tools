@@ -110,9 +110,9 @@ export default function MarketingDashboard({ onBack }) {
             <StatCard bg={olive} value={stats.bookings_this_week} format={(n) => Math.round(n).toLocaleString()} sub="Bookings this week" />
             <StatCard bg={navy} value={stats.bookings_this_month} format={(n) => Math.round(n).toLocaleString()} sub={`Bookings this month (${mom >= 0 ? '+' : ''}${mom} vs last)`} />
             <StatCard bg={olive} value={stats.held_rate} format={pct} sub="Held rate" />
-            <StatCard bg={navy} value={stats.client_rate} format={pct} sub="Became client" />
+            <StatCard bg={navy} value={stats.client_rate} format={pct} sub="LOE sent" />
             <StatCard bg={olive} value={stats.instantly_pct} format={pct} sub="From Instantly" />
-            <StatCard bg={navy} value={stats.total_fees_won} format={money} sub="Fees won" />
+            <StatCard bg={navy} value={stats.total_fees_won} format={money} sub="LOE value" />
           </div>
         )}
 
@@ -123,7 +123,7 @@ export default function MarketingDashboard({ onBack }) {
             {[
               { k: 'Booked', v: funnel.booked, base: funnel.booked },
               { k: 'Held', v: funnel.held, base: funnel.booked },
-              { k: 'Became Client', v: funnel.clients, base: funnel.booked, foot: money(funnel.fees) + ' in fees' },
+              { k: 'LOE Sent', v: funnel.clients, base: funnel.booked, foot: money(funnel.fees) + ' in LOE value' },
             ].map((s, i) => (
               <div key={s.k} style={{ ...card, flex: 1, padding: '20px 22px' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.k}</div>
@@ -175,7 +175,7 @@ export default function MarketingDashboard({ onBack }) {
             {byChannel.map(c => (
               <div key={c.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f4f5f9', fontSize: 14 }}>
                 <span style={{ color: '#1a2540', textTransform: 'capitalize' }}>{c.channel}</span>
-                <span style={{ color: '#5b6b8c' }}>{c.booked}{c.clients ? ` · ${c.clients} won` : ''}</span>
+                <span style={{ color: '#5b6b8c' }}>{c.booked}{c.clients ? ` · ${c.clients} LOE` : ''}</span>
               </div>
             ))}
           </div>
@@ -186,7 +186,7 @@ export default function MarketingDashboard({ onBack }) {
         <div style={{ ...card, padding: '8px 0', marginBottom: 24 }}>
           <div style={{ display: 'flex', padding: '10px 22px', fontSize: 11.5, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
             <div style={{ flex: 2 }}>Campaign</div><div style={{ flex: 1, textAlign: 'right' }}>Booked</div>
-            <div style={{ flex: 1, textAlign: 'right' }}>Held</div><div style={{ flex: 1, textAlign: 'right' }}>Clients</div><div style={{ flex: 1, textAlign: 'right' }}>Fees</div>
+            <div style={{ flex: 1, textAlign: 'right' }}>Held</div><div style={{ flex: 1, textAlign: 'right' }}>LOEs</div><div style={{ flex: 1, textAlign: 'right' }}>LOE $</div>
           </div>
           {byCampaign.length === 0 && <div style={{ padding: '14px 22px', color: '#9aa3b8' }}>No data yet.</div>}
           {byCampaign.map((c, i) => (
@@ -214,7 +214,7 @@ export default function MarketingDashboard({ onBack }) {
         <div style={{ ...card, overflow: 'hidden' }}>
           <div style={{ display: 'flex', padding: '11px 18px', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, background: '#fafbfc' }}>
             <div style={{ flex: 2 }}>Org / Name</div><div style={{ flex: 1.4 }}>Channel</div><div style={{ flex: 1.6 }}>Campaign</div>
-            <div style={{ flex: 1 }}>Meeting</div><div style={{ width: 70, textAlign: 'center' }}>Held</div><div style={{ width: 70, textAlign: 'center' }}>Won</div>
+            <div style={{ flex: 1 }}>Meeting</div><div style={{ width: 70, textAlign: 'center' }}>Held</div><div style={{ width: 70, textAlign: 'center' }}>LOE</div>
           </div>
           {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#9aa3b8' }}>No bookings yet.</div>}
           <div style={{ maxHeight: 460, overflowY: 'auto' }}>
