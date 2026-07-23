@@ -38,6 +38,14 @@ const label = { fontSize: 13, fontWeight: 800, color: '#5b6b8c', letterSpacing: 
 const pct = (n) => `${Math.round((n || 0) * 100)}%`;
 const money = (n) => '$' + Math.round(n || 0).toLocaleString('en-US');
 const j = (p) => fetch(p).then(r => (r.ok ? r.json() : null)).catch(() => null);
+// period is 'YYYY-MM-DD' (start of week/month). Weeks -> "7/13", months -> "Jul".
+const fmtPeriod = (period, gran) => {
+  const d = new Date(period + 'T00:00:00'); // local midnight, avoids UTC off-by-one
+  if (isNaN(d)) return period;
+  return gran === 'month'
+    ? d.toLocaleDateString('en-US', { month: 'short' })
+    : d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+};
 
 function StatCard({ bg, value, format, sub, playToken }) {
   const [roll, setRoll] = useState(playToken || 0);
@@ -127,6 +135,52 @@ export default function MarketingDashboard({ onBack }) {
           </div>
         </>)}
 
+        {/* Time series + channel side by side */}
+        <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+          <div style={{ ...card, flex: 2, padding: '18px 22px', minWidth: 320 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15 }}>Bookings over time</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['week', 'month'].map(g => (
+                  <button key={g} onClick={() => setGran(g)} style={{ border: '1px solid #d0d6e0', background: gran === g ? '#1a4a6e' : '#fff', color: gran === g ? '#fff' : '#5b6b8c', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120 }}>
+              {series.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13 }}>No data yet.</div>}
+              {series.map(s => (
+                <div key={s.period} title={`${fmtPeriod(s.period, gran)}: ${s.booked} booked, ${s.clients} clients`} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <div style={{ width: '70%', height: `${(s.booked / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
+                </div>
+              ))}
+            </div>
+            {/* x-axis labels — thinned to ~7 so they don't collide; hover a bar for the rest */}
+            {series.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                {series.map((s, i) => {
+                  const step = Math.ceil(series.length / 7);
+                  const show = i % step === 0 || i === series.length - 1;
+                  return (
+                    <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                      {show ? fmtPeriod(s.period, gran) : ''}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div style={{ ...card, flex: 1, padding: '18px 22px', minWidth: 240 }}>
+            <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15, marginBottom: 12 }}>By channel</div>
+            {byChannel.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13 }}>No data yet.</div>}
+            {byChannel.map(c => (
+              <div key={c.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f4f5f9', fontSize: 14 }}>
+                <span style={{ color: '#1a2540', textTransform: 'capitalize' }}>{c.channel}</span>
+                <span style={{ color: '#5b6b8c' }}>{c.booked}{c.clients ? ` · ${c.clients} won` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* By campaign — the leadership view */}
         <div style={label}>By Instantly Campaign</div>
         <div style={{ ...card, padding: '8px 0', marginBottom: 24 }}>
@@ -149,38 +203,6 @@ export default function MarketingDashboard({ onBack }) {
               <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: '#7a8c1e' }}>{c.fees ? money(c.fees) : '—'}</div>
             </div>
           ))}
-        </div>
-
-        {/* Time series + channel side by side */}
-        <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
-          <div style={{ ...card, flex: 2, padding: '18px 22px', minWidth: 320 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15 }}>Bookings over time</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {['week', 'month'].map(g => (
-                  <button key={g} onClick={() => setGran(g)} style={{ border: '1px solid #d0d6e0', background: gran === g ? '#1a4a6e' : '#fff', color: gran === g ? '#fff' : '#5b6b8c', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120 }}>
-              {series.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13 }}>No data yet.</div>}
-              {series.map(s => (
-                <div key={s.period} title={`${s.period}: ${s.booked} booked, ${s.clients} clients`} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
-                  <div style={{ width: '70%', height: `${(s.booked / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ ...card, flex: 1, padding: '18px 22px', minWidth: 240 }}>
-            <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15, marginBottom: 12 }}>By channel</div>
-            {byChannel.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13 }}>No data yet.</div>}
-            {byChannel.map(c => (
-              <div key={c.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f4f5f9', fontSize: 14 }}>
-                <span style={{ color: '#1a2540', textTransform: 'capitalize' }}>{c.channel}</span>
-                <span style={{ color: '#5b6b8c' }}>{c.booked}{c.clients ? ` · ${c.clients} won` : ''}</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Bookings table */}
