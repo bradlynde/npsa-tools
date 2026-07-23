@@ -299,6 +299,9 @@ export function registerMarketing(app, pool) {
           COUNT(*)::int AS total_bookings,
           COUNT(*) FILTER (WHERE date_trunc('month', booked_on) = date_trunc('month', NOW()))::int AS bookings_this_month,
           COUNT(*) FILTER (WHERE date_trunc('month', booked_on) = date_trunc('month', NOW() - interval '1 month'))::int AS bookings_last_month,
+          -- Sunday 00:00 → Saturday 23:59 (date_trunc('week') is Monday-based, so shift a day to get a Sunday start)
+          COUNT(*) FILTER (WHERE booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
+                             AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS bookings_this_week,
           COUNT(*) FILTER (WHERE became_client)::int AS clients,
           COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS total_fees_won,
           COUNT(*) FILTER (WHERE attribution_channel='instantly')::int AS instantly_count,
@@ -308,6 +311,7 @@ export function registerMarketing(app, pool) {
       const s = rows[0];
       res.json({
         total_bookings: s.total_bookings,
+        bookings_this_week: s.bookings_this_week,
         bookings_this_month: s.bookings_this_month,
         bookings_last_month: s.bookings_last_month,
         client_rate: s.total_bookings ? s.clients / s.total_bookings : 0,
