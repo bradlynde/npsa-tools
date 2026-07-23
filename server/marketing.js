@@ -76,58 +76,92 @@ async function ensureSchema(pool) {
 const INSTANTLY_BASE = 'https://api.instantly.ai/api/v2';
 let _campaignCache = { at: 0, map: {} };
 
+// Call the Instantly v2 API (Bearer auth) with 429 back-off — an enrichment
+// sweep fires ~140 lookups at once. Returns parsed JSON, or null on any non-OK
+// response so reverse-match stays best-effort / fail-safe (never throws).
+async function instantlyApi(path, init = {}, attempt = 0) {
+  const key = process.env.INSTANTLY_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch(`${INSTANTLY_BASE}${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...(init.headers || {}) },
+    });
+    if (r.status === 429 && attempt < 5) {
+      const wait = (Number(r.headers.get('retry-after')) || Math.pow(2, attempt)) * 1000;
+      await new Promise((res) => setTimeout(res, wait));
+      return instantlyApi(path, init, attempt + 1);
+    }
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+// { campaignId -> name } for the whole workspace. Paginated (v2 caps at 100 per
+// page) and cached 1h. GET /api/v2/campaigns returns { items: [{ id, name }], next_starting_after }.
 async function instantlyCampaignMap() {
   const key = process.env.INSTANTLY_API_KEY;
   if (!key) return {};
   if (Date.now() - _campaignCache.at < 60 * 60 * 1000) return _campaignCache.map; // 1h cache
-  try {
-    const r = await fetch(`${INSTANTLY_BASE}/campaigns?limit=100`, {
-      headers: { Authorization: `Bearer ${key}` },
-    });
-    if (!r.ok) return _campaignCache.map;
-    const data = await r.json();
-    const map = {};
-    for (const c of (data.items || data || [])) map[c.id] = c.name;
-    _campaignCache = { at: Date.now(), map };
-    return map;
-  } catch { return _campaignCache.map; }
+  const map = {};
+  let startingAfter = null;
+  do {
+    const qs = new URLSearchParams({ limit: '100' });
+    if (startingAfter) qs.set('starting_after', startingAfter);
+    const data = await instantlyApi(`/campaigns?${qs.toString()}`);
+    if (!data) break;
+    for (const c of (data.items || (Array.isArray(data) ? data : []))) {
+      if (c && c.id) map[c.id] = c.name;
+    }
+    startingAfter = data.next_starting_after || null;
+  } while (startingAfter);
+  if (Object.keys(map).length) _campaignCache = { at: Date.now(), map }; // don't cache an empty/failed pull
+  return Object.keys(map).length ? map : _campaignCache.map;
 }
 
+// All Instantly lead records for an EXACT email, most-recently-created first.
+// POST /api/v2/leads/list { search } is fuzzy (matches name/email substrings) and
+// a person can be a lead in several campaigns — one record each — so we keep only
+// exact-email matches and normalise the campaign id field. Ordering by
+// timestamp_created puts the most recent enrolment first.
+async function instantlyLeadsForEmail(email) {
+  if (!process.env.INSTANTLY_API_KEY || !email) return [];
+  const data = await instantlyApi('/leads/list', {
+    method: 'POST',
+    body: JSON.stringify({ search: email, limit: 100 }),
+  });
+  const items = (data && (data.items || data.leads)) || [];
+  const want = email.trim().toLowerCase();
+  return items
+    .map((l) => ({ ...l, campaign: l.campaign || l.campaign_id || null }))
+    .filter((l) => l.campaign && (l.email || '').trim().toLowerCase() === want)
+    .sort((a, b) => new Date(b.timestamp_created || 0) - new Date(a.timestamp_created || 0));
+}
+
+// Best (most-recent) Instantly lead for an email, or null.
 async function instantlyFindLead(email) {
-  const key = process.env.INSTANTLY_API_KEY;
-  if (!key || !email) return null;
-  try {
-    const r = await fetch(`${INSTANTLY_BASE}/leads/list`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ search: email, limit: 1 }),
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    return (data.items || [])[0] || null;
-  } catch { return null; }
+  return (await instantlyLeadsForEmail(email))[0] || null;
 }
 
 async function instantlyFindLeadByNameOrg(lastName, org) {
-  const key = process.env.INSTANTLY_API_KEY;
-  if (!key || !lastName) return null;
-  try {
-    const r = await fetch(`${INSTANTLY_BASE}/leads/list`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ search: lastName, limit: 20 }),
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const target = norm(org);
-    if (!target) return null;
-    return (data.items || []).find(l => {
-      const c = norm(l.company_name);
-      return c && (c.includes(target) || target.includes(c));
-    }) || null;
-  } catch { return null; }
+  if (!process.env.INSTANTLY_API_KEY || !lastName) return null;
+  const data = await instantlyApi('/leads/list', {
+    method: 'POST',
+    body: JSON.stringify({ search: lastName, limit: 20 }),
+  });
+  const items = (data && (data.items || data.leads)) || [];
+  const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const target = norm(org);
+  if (!target) return null;
+  const hit = items.find((l) => {
+    const c = norm(l.company_name);
+    return c && (c.includes(target) || target.includes(c));
+  });
+  return hit ? { ...hit, campaign: hit.campaign || hit.campaign_id || null } : null;
 }
+
+// Exported for scripts/test-instantly-match.js (kept out of the app's behaviour).
+export { instantlyCampaignMap, instantlyLeadsForEmail, instantlyFindLead };
 
 // ─────────────────────────────────────────────────────────────
 // 4. Calendly held-status (best-effort, fail safe)
