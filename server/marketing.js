@@ -59,12 +59,25 @@ async function ensureSchema(pool) {
       became_client       BOOLEAN DEFAULT FALSE,
       client_letter_id    INTEGER,
       fee                 NUMERIC DEFAULT 0,
+      won                 BOOLEAN DEFAULT FALSE,
+      won_amount          NUMERIC DEFAULT 0,
+      won_at              TIMESTAMPTZ,
+      won_source          TEXT,
+      won_opportunities   JSONB DEFAULT '{}',
       manual_override     JSONB DEFAULT '{}',
       enriched_at         TIMESTAMPTZ,
       created_at          TIMESTAMPTZ DEFAULT NOW(),
       updated_at          TIMESTAMPTZ DEFAULT NOW()
     );
   `).catch(err => console.error('bookings schema error:', err.message));
+  // Wins from Salesforce Closed-Won (added after the table already existed in prod).
+  await pool.query(`
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won               BOOLEAN DEFAULT FALSE;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_amount        NUMERIC DEFAULT 0;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_at            TIMESTAMPTZ;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_source        TEXT;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_opportunities JSONB DEFAULT '{}';
+  `).catch(err => console.error('bookings wins-columns error:', err.message));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -289,6 +302,58 @@ async function upsertBooking(pool, b) {
   return r.rows[0].id;
 }
 
+// bare registrable domain: strip protocol, leading www., and any path.
+const bareDomain = (s) => (s || '').trim().toLowerCase()
+  .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+
+// ─────────────────────────────────────────────────────────────
+// 7b. Wins (Salesforce won opportunities — IsWon = true)
+// Matched to a booking by org DOMAIN or ORG NAME — not the individual, since the
+// contact changes but the org/domain is stable. An org can win several grants
+// (Federal + state, etc.), so each opportunity accumulates into the booking's
+// won_opportunities map ({ opportunityId: amount }); won_amount is the sum, and
+// re-firing the same opportunity just updates its entry (idempotent, no
+// double-count). All of an org's grants land on one booking (the most recent),
+// so an org that booked twice is still one win.
+// ─────────────────────────────────────────────────────────────
+async function recordWin(pool, w) {
+  const opp = (w.opportunity_id || '').toString().trim();
+  if (!opp) return { matched: false, reason: 'missing opportunity_id' };
+  const domain = bareDomain(w.domain);
+  const org = (w.organization || '').trim();
+  const amount = Number(w.amount) || 0;
+  const wonAt = w.close_date || null;
+
+  // 1) booking that already counts this opportunity → update in place (idempotent).
+  let r = await pool.query(`SELECT id, won_opportunities FROM bookings WHERE won_opportunities ? $1 LIMIT 1`, [opp]);
+  let target = r.rows[0];
+  // 2) else best match: domain first (precise), then org-name fuzzy, most recent booking.
+  if (!target && (domain || org)) {
+    r = await pool.query(
+      `SELECT id, won_opportunities FROM bookings
+         WHERE ( ($1 <> '' AND regexp_replace(lower(split_part(email,'@',2)), '^www\\.', '') = $1)
+              OR ($2 <> '' AND organization ILIKE '%'||$2||'%') )
+         ORDER BY ($1 <> '' AND regexp_replace(lower(split_part(email,'@',2)), '^www\\.', '') = $1) DESC,
+                  booked_on DESC NULLS LAST, id DESC
+         LIMIT 1`,
+      [domain, org]
+    );
+    target = r.rows[0];
+  }
+  if (!target) return { matched: false };
+
+  const map = { ...(target.won_opportunities || {}) };
+  map[opp] = amount;
+  const total = Object.values(map).reduce((s, v) => s + (Number(v) || 0), 0);
+  await pool.query(
+    `UPDATE bookings SET won_opportunities=$1, won=TRUE, won_amount=$2,
+        won_at=COALESCE($3::timestamptz, won_at), won_source='salesforce', updated_at=NOW()
+     WHERE id=$4`,
+    [JSON.stringify(map), total, wonAt, target.id]
+  );
+  return { matched: true, id: target.id, opportunities: Object.keys(map).length, won_amount: total };
+}
+
 // ─────────────────────────────────────────────────────────────
 // 8. Routes
 // ─────────────────────────────────────────────────────────────
@@ -307,6 +372,19 @@ export function registerMarketing(app, pool) {
       const id = await upsertBooking(pool, req.body || {});
       enrichBooking(pool, id).catch(e => console.error('enrich error:', e.message)); // async, don't block
       res.json({ ok: true, id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Wins ingest (called by Zapier on a Salesforce Closed-Won opportunity).
+  // Body: { organization, domain, amount, close_date, opportunity_id }. Same shared secret.
+  app.post('/api/marketing/wins/ingest', async (req, res) => {
+    if (!pool) return guard(res);
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+      const result = await recordWin(pool, req.body || {});
+      res.json({ ok: true, ...result });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
@@ -340,7 +418,9 @@ export function registerMarketing(app, pool) {
           COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS total_fees_won,
           COUNT(*) FILTER (WHERE attribution_channel='instantly')::int AS instantly_count,
           COUNT(*) FILTER (WHERE held IS NOT NULL)::int AS resolved_meetings,
-          COUNT(*) FILTER (WHERE held IS TRUE)::int AS held_count
+          COUNT(*) FILTER (WHERE held IS TRUE)::int AS held_count,
+          COUNT(*) FILTER (WHERE won)::int AS won_count,
+          COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_revenue
         FROM bookings`);
       const s = rows[0];
       res.json({
@@ -352,6 +432,9 @@ export function registerMarketing(app, pool) {
         held_rate: s.resolved_meetings ? s.held_count / s.resolved_meetings : 0,
         instantly_pct: s.total_bookings ? s.instantly_count / s.total_bookings : 0,
         total_fees_won: Number(s.total_fees_won),
+        won_count: s.won_count,
+        won_rate: s.total_bookings ? s.won_count / s.total_bookings : 0,
+        won_revenue: Number(s.won_revenue),
       });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -364,9 +447,11 @@ export function registerMarketing(app, pool) {
         SELECT COUNT(*)::int AS booked,
                COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
-               COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees
+               COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees,
+               COUNT(*) FILTER (WHERE won)::int AS won,
+               COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_amount
         FROM bookings`);
-      res.json({ ...rows[0], fees: Number(rows[0].fees) });
+      res.json({ ...rows[0], fees: Number(rows[0].fees), won_amount: Number(rows[0].won_amount) });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
@@ -423,7 +508,8 @@ export function registerMarketing(app, pool) {
       const campaign = req.query.campaign || '';
       const { rows } = await pool.query(
         `SELECT id, booked_on, meeting_date, name, organization, email, told_us,
-                attribution_channel, instantly_campaign, host, held, became_client, fee
+                attribution_channel, instantly_campaign, host, held, became_client, fee,
+                won, won_amount
          FROM bookings
          WHERE ($1='' OR name ILIKE '%'||$1||'%' OR organization ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%')
            AND ($2='' OR attribution_channel=$2)
@@ -431,7 +517,7 @@ export function registerMarketing(app, pool) {
          ORDER BY booked_on DESC NULLS LAST LIMIT 500`,
         [search, channel, campaign]
       );
-      res.json(rows.map(r => ({ ...r, fee: Number(r.fee) })));
+      res.json(rows.map(r => ({ ...r, fee: Number(r.fee), won_amount: Number(r.won_amount) })));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
