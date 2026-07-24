@@ -88,6 +88,7 @@ async function ensureSchema(pool) {
 // ─────────────────────────────────────────────────────────────
 const INSTANTLY_BASE = 'https://api.instantly.ai/api/v2';
 let _campaignCache = { at: 0, map: {} };
+let _enrichRunning = false; // guards the background full-sweep enrichment
 
 // Call the Instantly v2 API (Bearer auth) with 429 back-off — an enrichment
 // sweep fires ~140 lookups at once. Returns parsed JSON, or null on any non-OK
@@ -451,15 +452,29 @@ export function registerMarketing(app, pool) {
   // Re-run enrichment for stale rows (or ?all=1 for everything).
   app.post('/api/marketing/enrich', async (req, res) => {
     if (!pool) return guard(res);
+    const all = req.query.all === '1';
     try {
-      const all = req.query.all === '1';
+      if (all) {
+        // Full sweep re-hits Instantly/Calendly per row, so it can outlast the
+        // platform's request timeout. Respond immediately and process in the
+        // background; one sweep at a time.
+        if (_enrichRunning) return res.json({ ok: true, running: true, message: 'a full sweep is already in progress' });
+        const { rows } = await pool.query('SELECT id FROM bookings');
+        _enrichRunning = true;
+        res.json({ ok: true, started: rows.length });
+        (async () => {
+          for (const r of rows) { try { await enrichBooking(pool, r.id); } catch (e) { console.error('enrich error:', e.message); } }
+          console.log(`[marketing] enrichment sweep complete: ${rows.length} rows`);
+        })().catch(e => console.error('enrich sweep error:', e.message)).finally(() => { _enrichRunning = false; });
+        return;
+      }
+      // Stale-only refresh: a small set, run synchronously so a UI reload sees fresh data.
       const { rows } = await pool.query(
-        all ? 'SELECT id FROM bookings'
-            : `SELECT id FROM bookings WHERE enriched_at IS NULL OR (meeting_date < NOW() AND held IS NULL)`
+        `SELECT id FROM bookings WHERE enriched_at IS NULL OR (meeting_date < NOW() AND held IS NULL)`
       );
-      for (const r of rows) { try { await enrichBooking(pool, r.id); } catch (e) { console.error(e.message); } }
+      for (const r of rows) { try { await enrichBooking(pool, r.id); } catch (e) { console.error('enrich error:', e.message); } }
       res.json({ ok: true, enriched: rows.length });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { if (!res.headersSent) res.status(500).json({ error: err.message }); }
   });
 
   // KPI cards
