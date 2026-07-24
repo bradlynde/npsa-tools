@@ -525,6 +525,50 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // Reconcile sf_wins against the authoritative Salesforce set. Body:
+  // { opportunity_ids: [...] } — the complete current list of won opportunities.
+  // Any sf_wins row NOT in that list is deleted (a win that was reopened, deleted,
+  // re-staged, or was a test ingest), and each affected booking's funnel win-fields
+  // are rebuilt from the surviving sf_wins rows. This keeps the dashboard from
+  // drifting ABOVE Salesforce over time. Guarded by the same shared secret.
+  app.post('/api/marketing/wins/reconcile', async (req, res) => {
+    if (!pool) return guard(res);
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const ids = Array.isArray(req.body?.opportunity_ids) ? req.body.opportunity_ids.map(String) : null;
+    if (!ids || ids.length === 0) {
+      return res.status(400).json({ error: 'opportunity_ids (non-empty array) required' });
+    }
+    try {
+      // Bookings that will need their win-fields rebuilt: any linked to a win we're
+      // about to remove, plus any currently flagged won (belt-and-suspenders).
+      const { rows: stale } = await pool.query(
+        `DELETE FROM sf_wins WHERE NOT (opportunity_id = ANY($1))
+           RETURNING opportunity_id, booking_id`, [ids]);
+
+      // Rebuild every booking's won_* from the surviving sf_wins rows, so the funnel
+      // view always equals the win store. Wins with no surviving opp get reset.
+      await pool.query(`
+        UPDATE bookings b SET
+          won_opportunities = COALESCE(w.map, '{}'::jsonb),
+          won_amount        = COALESCE(w.total, 0),
+          won               = (w.total IS NOT NULL),
+          won_source        = CASE WHEN w.total IS NOT NULL THEN 'salesforce' ELSE NULL END,
+          updated_at        = NOW()
+        FROM (
+          SELECT bk.id,
+                 (SELECT jsonb_object_agg(s.opportunity_id, s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS map,
+                 (SELECT SUM(s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS total
+          FROM bookings bk
+          WHERE bk.won = TRUE OR EXISTS (SELECT 1 FROM sf_wins s WHERE s.booking_id = bk.id)
+        ) w
+        WHERE b.id = w.id`);
+
+      res.json({ ok: true, removed: stale.length, removed_ids: stale.map(r => r.opportunity_id), kept: ids.length });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // Re-run enrichment for stale rows (or ?all=1 for everything).
   app.post('/api/marketing/enrich', async (req, res) => {
     if (!pool) return guard(res);
