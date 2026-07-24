@@ -316,11 +316,22 @@ async function enrichBooking(pool, id) {
   // --- Became client + fee (join to letters, same DB) ---
   let becameClient = false, letterId = null, fee = 0;
   if (row.organization) {
+    // Bidirectional normalized name match (mirrors recordWin): an LOE's client_name
+    // and the booking org often differ in punctuation/length, so match on normalized
+    // alphanumerics in either direction rather than a one-way substring. Exact
+    // normalized names always match; substring only when both are >= 6 alphanumerics.
     const m = await pool.query(
-      `SELECT id, total_fee FROM letters
-       WHERE doc_tab NOT IN ('proposal','addendum')
-         AND client_name ILIKE '%' || $1 || '%'
-       ORDER BY created_at DESC LIMIT 1`,
+      `WITH q AS (SELECT regexp_replace(lower($1), '[^a-z0-9]', '', 'g') AS t)
+       SELECT l.id, l.total_fee
+         FROM letters l, q
+        WHERE l.doc_tab NOT IN ('proposal','addendum')
+          AND q.t <> ''
+          AND ( regexp_replace(lower(l.client_name), '[^a-z0-9]', '', 'g') = q.t
+             OR ( length(q.t) >= 6
+                  AND length(regexp_replace(lower(l.client_name), '[^a-z0-9]', '', 'g')) >= 6
+                  AND ( position(q.t IN regexp_replace(lower(l.client_name), '[^a-z0-9]', '', 'g')) > 0
+                     OR position(regexp_replace(lower(l.client_name), '[^a-z0-9]', '', 'g') IN q.t) > 0 ) ) )
+        ORDER BY l.created_at DESC LIMIT 1`,
       [row.organization]
     );
     if (m.rows[0]) { becameClient = true; letterId = m.rows[0].id; fee = Number(m.rows[0].total_fee) || 0; }
@@ -388,16 +399,36 @@ async function recordWin(pool, w) {
   // 1) booking that already counts this opportunity → update in place (idempotent).
   let r = await pool.query(`SELECT id, won_opportunities FROM bookings WHERE won_opportunities ? $1 LIMIT 1`, [opp]);
   let target = r.rows[0];
-  // 2) else best match: domain first (precise), then org-name fuzzy, most recent booking.
-  if (!target && (domain || org)) {
+  // 2) domain match (precise) — same registrable domain on the booking email.
+  if (!target && domain) {
     r = await pool.query(
       `SELECT id, won_opportunities FROM bookings
-         WHERE ( ($1 <> '' AND regexp_replace(lower(split_part(email,'@',2)), '^www\\.', '') = $1)
-              OR ($2 <> '' AND organization ILIKE '%'||$2||'%') )
-         ORDER BY ($1 <> '' AND regexp_replace(lower(split_part(email,'@',2)), '^www\\.', '') = $1) DESC,
-                  booked_on DESC NULLS LAST, id DESC
+         WHERE regexp_replace(lower(split_part(email,'@',2)), '^www\\.', '') = $1
+         ORDER BY booked_on DESC NULLS LAST, id DESC
          LIMIT 1`,
-      [domain, org]
+      [domain]
+    );
+    target = r.rows[0];
+  }
+  // 3) org-name match — normalized and BIDIRECTIONAL, so a longer, more decorated
+  // Salesforce account name ("Killian Hill Baptist Church - Christian School - GA")
+  // still matches a plainer booking org ("Killian Hill Baptist Church"). Exact
+  // normalized names always match; a substring match only counts when BOTH names are
+  // long enough (>= 6 alphanumerics) to avoid tiny-string false positives.
+  if (!target && org) {
+    r = await pool.query(
+      `WITH q AS (SELECT regexp_replace(lower($1), '[^a-z0-9]', '', 'g') AS t)
+       SELECT b.id, b.won_opportunities
+         FROM bookings b, q
+        WHERE q.t <> ''
+          AND ( regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g') = q.t
+             OR ( length(q.t) >= 6
+                  AND length(regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g')) >= 6
+                  AND ( position(q.t IN regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g')) > 0
+                     OR position(regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g') IN q.t) > 0 ) ) )
+        ORDER BY b.booked_on DESC NULLS LAST, b.id DESC
+        LIMIT 1`,
+      [org]
     );
     target = r.rows[0];
   }
