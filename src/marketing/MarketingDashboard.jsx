@@ -113,6 +113,7 @@ export default function MarketingDashboard({ onBack }) {
             <StatCard bg={navy} value={stats.client_rate} format={pct} sub="LOE sent" />
             <StatCard bg={olive} value={stats.instantly_pct} format={pct} sub="From Instantly" />
             <StatCard bg={navy} value={stats.total_fees_won} format={money} sub="LOE value" />
+            <StatCard bg={olive} value={stats.won_revenue} format={money} sub="Won revenue" />
           </div>
         )}
 
@@ -124,6 +125,7 @@ export default function MarketingDashboard({ onBack }) {
               { k: 'Booked', v: funnel.booked, base: funnel.booked },
               { k: 'Held', v: funnel.held, base: funnel.booked },
               { k: 'LOE Sent', v: funnel.clients, base: funnel.booked, foot: money(funnel.fees) + ' in LOE value' },
+              { k: 'Won', v: funnel.won, base: funnel.booked, foot: money(funnel.won_amount) + ' in revenue' },
             ].map((s, i) => (
               <div key={s.k} style={{ ...card, flex: 1, padding: '20px 22px' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.k}</div>
