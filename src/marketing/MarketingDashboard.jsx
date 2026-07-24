@@ -182,7 +182,7 @@ export default function MarketingDashboard({ onBack }) {
         </div>
 
         {/* By campaign — the leadership view */}
-        <div style={label}>By Instantly Campaign</div>
+        <div style={label}>By Campaign &amp; Source</div>
         <div style={{ ...card, padding: '8px 0', marginBottom: 24 }}>
           <div style={{ display: 'flex', padding: '10px 22px', fontSize: 11.5, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
             <div style={{ flex: 2 }}>Campaign</div><div style={{ flex: 1, textAlign: 'right' }}>Booked</div>

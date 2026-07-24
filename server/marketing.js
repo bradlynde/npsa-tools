@@ -173,6 +173,37 @@ async function instantlyFindLeadByNameOrg(lastName, org) {
   return hit ? { ...hit, campaign: hit.campaign || hit.campaign_id || null } : null;
 }
 
+// Free/consumer email providers — never match an Instantly lead on these domains
+// (everyone shares them), only on real org domains.
+const FREEMAIL = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'ymail.com', 'hotmail.com', 'outlook.com',
+  'live.com', 'msn.com', 'aol.com', 'icloud.com', 'me.com', 'mac.com', 'comcast.net',
+  'att.net', 'verizon.net', 'sbcglobal.net', 'protonmail.com', 'proton.me',
+]);
+
+// Recover an Instantly campaign when the exact email didn't match but the booking
+// shares an org DOMAIN with an Instantly lead (a different person at the same org,
+// or a slightly different address). Skips free/consumer domains.
+async function instantlyFindLeadByDomain(domain) {
+  const d = (domain || '').trim().toLowerCase().replace(/^www\./, '');
+  if (!process.env.INSTANTLY_API_KEY || !d || FREEMAIL.has(d)) return null;
+  const data = await instantlyApi('/leads/list', {
+    method: 'POST',
+    body: JSON.stringify({ search: d, limit: 100 }),
+  });
+  const items = (data && (data.items || data.leads)) || [];
+  const matches = items
+    .map((l) => ({ ...l, campaign: l.campaign || l.campaign_id || null }))
+    .filter((l) => {
+      if (!l.campaign) return false;
+      const emailDom = (l.email || '').split('@')[1]?.toLowerCase().replace(/^www\./, '');
+      const compDom = (l.company_domain || '').toLowerCase().replace(/^www\./, '');
+      return emailDom === d || compDom === d;
+    })
+    .sort((a, b) => new Date(b.timestamp_created || 0) - new Date(a.timestamp_created || 0));
+  return matches[0] || null;
+}
+
 // Exported for scripts/test-instantly-match.js (kept out of the app's behaviour).
 export { instantlyCampaignMap, instantlyLeadsForEmail, instantlyFindLead };
 
@@ -239,6 +270,13 @@ async function enrichBooking(pool, id) {
       if (lead2?.campaign) {
         const map = await instantlyCampaignMap();
         campaign = map[lead2.campaign] || null; source = 'reverse_name_org';
+      }
+    }
+    if (!campaign) {
+      const lead3 = await instantlyFindLeadByDomain((row.email || '').split('@')[1]);
+      if (lead3?.campaign) {
+        const map = await instantlyCampaignMap();
+        campaign = map[lead3.campaign] || null; source = 'reverse_domain';
       }
     }
   }
@@ -459,13 +497,20 @@ export function registerMarketing(app, pool) {
   app.get('/api/marketing/by-campaign', async (req, res) => {
     if (!pool) return guard(res);
     try {
+      // Instantly bookings group by campaign name; everything else is attributed
+      // to its self-reported source instead of piling into one "(untagged)" row.
       const { rows } = await pool.query(`
-        SELECT COALESCE(instantly_campaign,'(untagged)') AS campaign,
+        SELECT CASE
+                 WHEN instantly_campaign IS NOT NULL THEN instantly_campaign
+                 WHEN attribution_channel = 'instantly' THEN 'Instantly – campaign unknown'
+                 ELSE initcap(COALESCE(NULLIF(attribution_channel,''), 'organic'))
+               END AS campaign,
+               (instantly_campaign IS NOT NULL) AS is_campaign,
                COUNT(*)::int AS booked,
                COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees
-        FROM bookings GROUP BY 1 ORDER BY booked DESC`);
+        FROM bookings GROUP BY 1, 2 ORDER BY booked DESC`);
       res.json(rows.map(r => ({ ...r, fees: Number(r.fees) })));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
