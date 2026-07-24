@@ -112,6 +112,9 @@ export default function MarketingDashboard({ onBack }) {
       <div style={{ textAlign: 'center', padding: '18px 32px 16px' }}>
         <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', letterSpacing: -0.5 }}>Marketing Dashboard</div>
         <div style={{ fontSize: 15, color: '#5b6b8c', marginTop: 6 }}>Where bookings come from, and what they turn into.</div>
+        <div style={{ display: 'inline-block', marginTop: 10, padding: '4px 12px', borderRadius: 999, background: '#eef1f6', border: '1px solid #dbe1ea', color: '#5b6b8c', fontSize: 12, fontWeight: 600 }}>
+          Funnel tracked since Feb 2026
+        </div>
       </div>
 
       <div style={{ width: '100%', maxWidth: 920, padding: '0 24px 48px', boxSizing: 'border-box' }}>
@@ -121,8 +124,7 @@ export default function MarketingDashboard({ onBack }) {
           <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
             <StatCard bg={olive} value={stats.bookings_this_week} format={(n) => Math.round(n).toLocaleString()} sub="Bookings this week" />
             <StatCard bg={navy} value={stats.bookings_this_month} format={(n) => Math.round(n).toLocaleString()} sub={`Bookings this month (${mom >= 0 ? '+' : ''}${mom} vs last)`} />
-            <StatCard bg={olive} value={stats.held_rate} format={pct} sub="Held rate" />
-            <StatCard bg={navy} value={stats.client_rate} format={pct} sub="LOE sent" />
+            <StatCard bg={olive} value={stats.client_rate} format={pct} sub="LOE sent" />
             <StatCard bg={olive} value={stats.instantly_pct} format={pct} sub="From Instantly" />
             <StatCard bg={navy} value={stats.total_fees_won} format={money} sub="LOE value" />
             <StatCard bg={olive} value={stats.won_revenue} format={money} sub="Won revenue" />
