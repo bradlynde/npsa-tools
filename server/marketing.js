@@ -78,6 +78,35 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_source        TEXT;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_opportunities JSONB DEFAULT '{}';
   `).catch(err => console.error('bookings wins-columns error:', err.message));
+
+  // Source of truth for EVERY Salesforce win — matched to a booking or not.
+  // booking_id is NULL for untracked / pre-funnel wins (closed before the booking
+  // funnel existed, or a deal that never came through a tracked booking). Totals
+  // and the untracked bucket come from here; the funnel/attribution view keeps
+  // reading the bookings table.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sf_wins (
+      opportunity_id  TEXT PRIMARY KEY,
+      organization    TEXT,
+      domain          TEXT,
+      amount          NUMERIC DEFAULT 0,
+      close_date      TIMESTAMPTZ,
+      booking_id      INTEGER,
+      created_at      TIMESTAMPTZ DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+  `).catch(err => console.error('sf_wins schema error:', err.message));
+
+  // Seed sf_wins from wins already attributed onto bookings, so the Salesforce
+  // band is coherent immediately (before the backfill is re-run to pull in the
+  // untracked ones). Idempotent: existing rows are left alone.
+  await pool.query(`
+    INSERT INTO sf_wins (opportunity_id, organization, amount, booking_id, close_date)
+    SELECT kv.key, b.organization, (kv.value)::numeric, b.id, b.won_at
+      FROM bookings b, jsonb_each_text(b.won_opportunities) kv
+     WHERE b.won_opportunities IS NOT NULL AND b.won_opportunities <> '{}'
+    ON CONFLICT (opportunity_id) DO NOTHING;
+  `).catch(err => console.error('sf_wins seed error:', err.message));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -432,8 +461,24 @@ async function recordWin(pool, w) {
     );
     target = r.rows[0];
   }
+  // Persist the win itself — EVERY win lands in sf_wins whether or not it maps to a
+  // booking (booking_id stays NULL when untracked). Idempotent per opportunity;
+  // re-firing refreshes the fields. Once linked to a booking it stays linked unless
+  // a later firing matches a different one.
+  await pool.query(
+    `INSERT INTO sf_wins (opportunity_id, organization, domain, amount, close_date, booking_id)
+       VALUES ($1, $2, $3, $4, $5::timestamptz, $6)
+     ON CONFLICT (opportunity_id) DO UPDATE
+       SET organization = EXCLUDED.organization, domain = EXCLUDED.domain,
+           amount = EXCLUDED.amount, close_date = EXCLUDED.close_date,
+           booking_id = COALESCE(EXCLUDED.booking_id, sf_wins.booking_id),
+           updated_at = NOW()`,
+    [opp, org || null, domain || null, amount, wonAt, target ? target.id : null]
+  );
+
   if (!target) return { matched: false };
 
+  // Mirror onto the booking for the funnel / attribution view (multi-grant accumulation).
   const map = { ...(target.won_opportunities || {}) };
   map[opp] = amount;
   const total = Object.values(map).reduce((s, v) => s + (Number(v) || 0), 0);
@@ -529,6 +574,21 @@ export function registerMarketing(app, pool) {
           COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_revenue
         FROM bookings`);
       const s = rows[0];
+
+      // Salesforce revenue layer — every win, matched to a booking or not.
+      const { rows: wrows } = await pool.query(`
+        SELECT
+          COUNT(*)::int AS sf_count,
+          COALESCE(SUM(amount),0)::numeric AS sf_revenue,
+          COUNT(*) FILTER (WHERE booking_id IS NOT NULL)::int AS sf_attr_count,
+          COALESCE(SUM(amount) FILTER (WHERE booking_id IS NOT NULL),0)::numeric AS sf_attr_revenue,
+          COUNT(*) FILTER (WHERE booking_id IS NULL)::int AS sf_untracked_count,
+          COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL),0)::numeric AS sf_untracked_revenue
+        FROM sf_wins`);
+      const sw = wrows[0];
+      const hasSf = sw.sf_count > 0;
+      const sfTotalRev = Number(sw.sf_revenue);
+
       res.json({
         total_bookings: s.total_bookings,
         bookings_this_week: s.bookings_this_week,
@@ -541,7 +601,36 @@ export function registerMarketing(app, pool) {
         won_count: s.won_count,
         won_rate: s.total_bookings ? s.won_count / s.total_bookings : 0,
         won_revenue: Number(s.won_revenue),
+        // Salesforce layer. Headline = total SF revenue; falls back to the
+        // funnel-attributed number until sf_wins is populated by the backfill/Zap.
+        won_revenue_total: hasSf ? sfTotalRev : Number(s.won_revenue),
+        won_count_total: sw.sf_count,
+        attributed_revenue: Number(sw.sf_attr_revenue),
+        attributed_count: sw.sf_attr_count,
+        untracked_revenue: Number(sw.sf_untracked_revenue),
+        untracked_count: sw.sf_untracked_count,
+        attribution_coverage: sfTotalRev > 0 ? Number(sw.sf_attr_revenue) / sfTotalRev : 0,
       });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Untracked / pre-funnel wins — Salesforce wins with no matched booking. Powers
+  // the collapsible list in the Salesforce band.
+  app.get('/api/marketing/untracked-wins', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const { rows } = await pool.query(`
+        SELECT opportunity_id, organization, domain, amount::numeric AS amount, close_date
+          FROM sf_wins
+         WHERE booking_id IS NULL
+         ORDER BY close_date DESC NULLS LAST, amount DESC`);
+      res.json(rows.map(r => ({
+        opportunity_id: r.opportunity_id,
+        organization: r.organization,
+        domain: r.domain,
+        amount: Number(r.amount),
+        close_date: r.close_date,
+      })));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
