@@ -71,6 +71,8 @@ export default function MarketingDashboard({ onBack }) {
   const [rows, setRows] = useState([]);
   const [gran, setGran] = useState('week');
   const [search, setSearch] = useState('');
+  const [untracked, setUntracked] = useState([]);
+  const [showUntracked, setShowUntracked] = useState(false);
 
   const loadRows = () => j(`/api/marketing/bookings?search=${encodeURIComponent(search)}`).then(d => d && setRows(d));
   useEffect(() => {
@@ -78,6 +80,7 @@ export default function MarketingDashboard({ onBack }) {
     j('/api/marketing/funnel').then(setFunnel);
     j('/api/marketing/by-campaign').then(d => d && setByCampaign(d));
     j('/api/marketing/by-channel').then(d => d && setByChannel(d));
+    j('/api/marketing/untracked-wins').then(d => d && setUntracked(d));
     loadRows();
   }, []);
   useEffect(() => { j(`/api/marketing/timeseries?granularity=${gran}`).then(d => d && setSeries(d)); }, [gran]);
@@ -127,8 +130,74 @@ export default function MarketingDashboard({ onBack }) {
             <StatCard bg={olive} value={stats.client_rate} format={pct} sub="LOE sent" />
             <StatCard bg={olive} value={stats.instantly_pct} format={pct} sub="From Instantly" />
             <StatCard bg={navy} value={stats.total_fees_won} format={money} sub="LOE value" />
-            <StatCard bg={olive} value={stats.won_revenue} format={money} sub="Won revenue" />
           </div>
+        )}
+
+        {/* Salesforce performance — total revenue vs. what the funnel attributes */}
+        {stats && (
+          <>
+            <div style={label}>Salesforce Performance</div>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+              {/* Total won — the headline */}
+              <div style={{ flex: 1, minWidth: 180, background: olive, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)' }}>
+                <div style={{ color: '#fff', fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
+                  <RollUp value={stats.won_revenue_total} format={money} />
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11.5, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>Total won revenue</div>
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12.5, marginTop: 4 }}>{stats.won_count_total} {stats.won_count_total === 1 ? 'win' : 'wins'} in Salesforce</div>
+              </div>
+              {/* Attributed to funnel */}
+              <div style={{ ...card, flex: 1, minWidth: 180, padding: '20px 22px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Attributed to funnel</div>
+                <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{money(stats.attributed_revenue)}</div>
+                <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>{pct(stats.attribution_coverage)} of won revenue · {stats.attributed_count} {stats.attributed_count === 1 ? 'win' : 'wins'}</div>
+              </div>
+              {/* Untracked / pre-funnel */}
+              <div style={{ ...card, flex: 1, minWidth: 180, padding: '20px 22px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Untracked / pre-funnel</div>
+                <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{money(stats.untracked_revenue)}</div>
+                {stats.untracked_count > 0 ? (
+                  <button onClick={() => setShowUntracked(v => !v)} style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, color: '#1a4a6e', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                    {stats.untracked_count} {stats.untracked_count === 1 ? 'deal' : 'deals'} · {showUntracked ? 'hide' : 'show'} list {showUntracked ? '▾' : '▸'}
+                  </button>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>none</div>
+                )}
+              </div>
+            </div>
+
+            {/* attribution coverage meter */}
+            <div style={{ ...card, padding: '14px 18px', marginBottom: showUntracked ? 12 : 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: '#5b6b8c', marginBottom: 8 }}>
+                <span style={{ fontWeight: 700 }}>Attribution coverage</span>
+                <span>{pct(stats.attribution_coverage)} of won revenue traces to a tracked booking</span>
+              </div>
+              <div style={{ height: 10, borderRadius: 6, background: '#eef1f6', overflow: 'hidden' }}>
+                <div style={{ width: `${Math.round((stats.attribution_coverage || 0) * 100)}%`, height: '100%', background: olive, borderRadius: 6, transition: 'width .6s ease' }} />
+              </div>
+            </div>
+
+            {/* collapsible untracked list */}
+            {showUntracked && (
+              <div style={{ ...card, padding: '8px 6px', marginBottom: 24 }}>
+                <div style={{ display: 'flex', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 16px' }}>
+                  <div style={{ flex: 1 }}>Organization</div>
+                  <div style={{ width: 110, textAlign: 'right' }}>Closed</div>
+                  <div style={{ width: 110, textAlign: 'right' }}>Amount</div>
+                </div>
+                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                  {untracked.length === 0 && <div style={{ padding: '12px 16px', color: '#9aa3b8', fontSize: 13 }}>No untracked wins.</div>}
+                  {untracked.map((u) => (
+                    <div key={u.opportunity_id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid #f0f2f6', fontSize: 13.5 }}>
+                      <div style={{ flex: 1, color: '#1a2540', fontWeight: 600 }}>{u.organization || '—'}</div>
+                      <div style={{ width: 110, textAlign: 'right', color: '#7a869f' }}>{u.close_date ? new Date(u.close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div>
+                      <div style={{ width: 110, textAlign: 'right', fontWeight: 700, color: '#1a2540' }}>{money(u.amount)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Funnel */}
