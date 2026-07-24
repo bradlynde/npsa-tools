@@ -73,6 +73,9 @@ export default function MarketingDashboard({ onBack }) {
   const [search, setSearch] = useState('');
   const [untracked, setUntracked] = useState([]);
   const [showUntracked, setShowUntracked] = useState(false);
+  const [metric, setMetric] = useState('booked');   // booked | held | clients | won_amount
+  const [compare, setCompare] = useState(false);      // dim previous-period ghost bars
+  const [winOffset, setWinOffset] = useState(0);      // periods scrolled back from newest
 
   const loadRows = () => j(`/api/marketing/bookings?search=${encodeURIComponent(search)}`).then(d => d && setRows(d));
   useEffect(() => {
@@ -91,9 +94,32 @@ export default function MarketingDashboard({ onBack }) {
   };
 
   const mom = stats ? stats.bookings_this_month - stats.bookings_last_month : 0;
-  // Week view: last 14 weeks (fewer, wider bars). Month: full history.
-  const shown = gran === 'week' ? series.slice(-14) : series;
-  const maxSeries = Math.max(1, ...shown.map(s => s.booked));
+
+  // What each bar measures (metric toggle).
+  const METRICS = [
+    { key: 'booked', label: 'Bookings', title: 'Bookings', money: false },
+    { key: 'held', label: 'Held', title: 'Held meetings', money: false },
+    { key: 'clients', label: 'LOEs', title: 'LOEs sent', money: false },
+    { key: 'won_amount', label: 'Won $', title: 'Won revenue', money: true },
+  ];
+  const metricCfg = METRICS.find(m => m.key === metric) || METRICS[0];
+  const metricVal = (s) => (s ? Number(s[metricCfg.key]) || 0 : 0);
+  const fmtMetric = (v) => (metricCfg.money ? money(v) : Math.round(v).toLocaleString());
+
+  // Visible window: last N periods, pannable back through history with the stepper.
+  const WINDOW = gran === 'week' ? 14 : 12;
+  const maxOffset = Math.max(0, series.length - WINDOW);
+  const off = Math.min(winOffset, maxOffset);
+  const end = series.length - off;
+  const start = Math.max(0, end - WINDOW);
+  const shown = series.slice(start, end);
+  const ghostOf = (i) => (compare ? metricVal(series[start + i - 1]) : 0); // previous period
+  const maxSeries = Math.max(1, ...shown.map(metricVal), ...shown.map((_, i) => ghostOf(i)));
+  const step = Math.max(1, Math.round(WINDOW / 2));
+  const canOlder = off < maxOffset;
+  const canNewer = off > 0;
+  const rangeLabel = shown.length ? `${fmtPeriod(shown[0].period, gran)} – ${fmtPeriod(shown[shown.length - 1].period, gran)}` : '';
+
   // ~7 evenly-spaced x-axis labels including first & last — no cramped collisions.
   const labelIdx = (() => {
     const n = shown.length, t = Math.min(7, n);
@@ -102,6 +128,8 @@ export default function MarketingDashboard({ onBack }) {
     return set;
   })();
   const barGap = gran === 'week' ? 8 : 6;
+  const barW = gran === 'week' ? '60%' : '54%';
+  const ghostW = gran === 'week' ? '86%' : '78%';
   const maxCamp = Math.max(1, ...byCampaign.map(c => c.booked));
 
   return (
@@ -223,13 +251,20 @@ export default function MarketingDashboard({ onBack }) {
         {/* Time series + channel side by side */}
         <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
           <div style={{ ...card, flex: 2, padding: '18px 22px', minWidth: 320 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15 }}>Bookings over time</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15 }}>{metricCfg.title} over time</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {['week', 'month'].map(g => (
-                  <button key={g} onClick={() => setGran(g)} style={{ border: '1px solid #d0d6e0', background: gran === g ? '#1a4a6e' : '#fff', color: gran === g ? '#fff' : '#5b6b8c', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
+                  <button key={g} onClick={() => { setGran(g); setWinOffset(0); }} style={{ border: '1px solid #d0d6e0', background: gran === g ? '#1a4a6e' : '#fff', color: gran === g ? '#fff' : '#5b6b8c', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
                 ))}
               </div>
+            </div>
+            {/* metric toggle */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+              {METRICS.map(m => (
+                <button key={m.key} onClick={() => setMetric(m.key)}
+                  style={{ border: '1px solid #d0d6e0', background: metric === m.key ? '#eef4f8' : '#fff', color: metric === m.key ? '#1a4a6e' : '#7a869f', fontWeight: metric === m.key ? 700 : 500, borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>{m.label}</button>
+              ))}
             </div>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: barGap, height: 120 }}>
               {/* faint gridlines + baseline */}
@@ -237,11 +272,22 @@ export default function MarketingDashboard({ onBack }) {
               <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #f0f2f6' }} />
               <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid #e6e9f0' }} />
               {shown.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13, position: 'relative' }}>No data yet.</div>}
-              {shown.map(s => (
-                <div key={s.period} title={`${fmtPeriod(s.period, gran)}: ${s.booked} booked, ${s.clients} clients`} style={{ flex: 1, height: '100%', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
-                  <div style={{ width: gran === 'week' ? '78%' : '70%', height: `${(s.booked / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
-                </div>
-              ))}
+              {shown.map((s, i) => {
+                const cur = metricVal(s);
+                const ghost = ghostOf(i);
+                const prev = series[start + i - 1];
+                const delta = compare && prev ? cur - metricVal(prev) : null;
+                const title = `${fmtPeriod(s.period, gran)} — ${metricCfg.title}: ${fmtMetric(cur)}`
+                  + (delta !== null ? ` (${delta >= 0 ? '+' : ''}${fmtMetric(delta)} vs prev)` : '');
+                return (
+                  <div key={s.period} title={title} style={{ flex: 1, height: '100%', position: 'relative', zIndex: 1 }}>
+                    {compare && ghost > 0 && (
+                      <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: ghostW, height: `${(ghost / maxSeries) * 100}%`, background: '#c9d2e0', borderRadius: '4px 4px 0 0', opacity: 0.6 }} />
+                    )}
+                    <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: barW, height: `${(cur / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: cur > 0 ? 2 : 0 }} />
+                  </div>
+                );
+              })}
             </div>
             {/* x-axis labels — evenly spaced, first & last always shown */}
             {shown.length > 0 && (
@@ -253,6 +299,20 @@ export default function MarketingDashboard({ onBack }) {
                 ))}
               </div>
             )}
+            {/* stepper + compare toggle */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => canOlder && setWinOffset(o => Math.min(maxOffset, o + step))} disabled={!canOlder}
+                  style={{ border: '1px solid #d0d6e0', background: '#fff', color: canOlder ? '#1a4a6e' : '#c2cad6', borderRadius: 8, padding: '2px 9px', fontSize: 14, cursor: canOlder ? 'pointer' : 'default', lineHeight: 1.4 }}>&#8249;</button>
+                <span style={{ fontSize: 11.5, color: '#7a869f', minWidth: 88, textAlign: 'center' }}>{rangeLabel}</span>
+                <button onClick={() => canNewer && setWinOffset(o => Math.max(0, o - step))} disabled={!canNewer}
+                  style={{ border: '1px solid #d0d6e0', background: '#fff', color: canNewer ? '#1a4a6e' : '#c2cad6', borderRadius: 8, padding: '2px 9px', fontSize: 14, cursor: canNewer ? 'pointer' : 'default', lineHeight: 1.4 }}>&#8250;</button>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5b6b8c', cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} style={{ cursor: 'pointer' }} />
+                Compare previous period
+              </label>
+            </div>
           </div>
           <div style={{ ...card, flex: 1, padding: '18px 22px', minWidth: 240 }}>
             <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15, marginBottom: 12 }}>By channel</div>

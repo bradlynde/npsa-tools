@@ -702,7 +702,10 @@ export function registerMarketing(app, pool) {
       const { rows } = await pool.query(`
         SELECT to_char(date_trunc('${g}', booked_on), 'YYYY-MM-DD') AS period,
                COUNT(*)::int AS booked,
-               COUNT(*) FILTER (WHERE became_client)::int AS clients
+               COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
+               COUNT(*) FILTER (WHERE became_client)::int AS clients,
+               COUNT(*) FILTER (WHERE won)::int AS won,
+               COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_amount
         FROM bookings WHERE booked_on IS NOT NULL
         GROUP BY 1 ORDER BY 1`);
       res.json(rows);
