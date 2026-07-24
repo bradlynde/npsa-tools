@@ -236,14 +236,36 @@ async function calendlyHeld(eventUri) {
 function deriveChannel(row, instantlyCampaign) {
   if (instantlyCampaign) return 'instantly';
   const t = (row.told_us || '').toLowerCase();
+  const med = (row.utm_medium || '').toLowerCase();
+  const src = (row.utm_source || '').toLowerCase();
+
   if (t.includes('email from nonprofit') || t.includes('email from npsa')) return 'instantly';
-  if (t.includes('google')) return 'google';
+
+  // UTM-tagged traffic — the most reliable signal when present.
+  if (src === 'instantly') return 'instantly';
+  if (row.has_gclid || /(^|[-_ ])(cpc|ppc|paid|paidsearch|ads?)([-_ ]|$)/.test(med)) return 'google_ads';
+  if (med === 'organic') return 'search';
+  if (med === 'email') return 'email';
+  if (med.includes('social') || ['facebook', 'instagram', 'twitter', 'x', 'youtube', 'fb', 'ig'].includes(src)) return 'social';
+  if (src === 'linkedin' || med === 'linkedin') return 'linkedin';
+
+  // Self-report ("How did you hear about us?") for untagged traffic.
   if (t.includes('refer')) return 'referral';
-  if (t.includes('conference') || t.includes('event')) return 'conference';
+  if (t.includes('conference') || t.includes('event') || t.includes('trade show')) return 'conference';
   if (t.includes('linkedin')) return 'linkedin';
-  if (row.has_gclid) return 'google';
-  return 'organic';
+  if (src.includes('google') || src.includes('bing')
+      || t.includes('google') || t.includes('search') || t.includes('online') || t.includes('web')) return 'search';
+
+  return 'direct'; // no signal — direct / other
 }
+
+// channel code -> display label (kept in one place; used by the by-channel and
+// by-campaign endpoints so the UI shows friendly names).
+const CHANNEL_LABELS = {
+  instantly: 'Instantly', google_ads: 'Google Ads', search: 'Organic Search', email: 'Email',
+  social: 'Social', referral: 'Referral', conference: 'Conference', linkedin: 'LinkedIn', direct: 'Direct / Other',
+};
+const channelLabel = (c) => CHANNEL_LABELS[c] || (c ? c[0].toUpperCase() + c.slice(1) : 'Direct / Other');
 
 // ─────────────────────────────────────────────────────────────
 // 6. Enrichment (Instantly campaign + held + became-client/fee)
@@ -502,8 +524,16 @@ export function registerMarketing(app, pool) {
       const { rows } = await pool.query(`
         SELECT CASE
                  WHEN instantly_campaign IS NOT NULL THEN instantly_campaign
-                 WHEN attribution_channel = 'instantly' THEN 'Instantly – campaign unknown'
-                 ELSE initcap(COALESCE(NULLIF(attribution_channel,''), 'organic'))
+                 WHEN attribution_channel = 'instantly'   THEN 'Instantly – campaign unknown'
+                 WHEN attribution_channel = 'google_ads'  THEN 'Google Ads'
+                 WHEN attribution_channel = 'search'      THEN 'Organic Search'
+                 WHEN attribution_channel = 'email'       THEN 'Email'
+                 WHEN attribution_channel = 'social'      THEN 'Social'
+                 WHEN attribution_channel = 'linkedin'    THEN 'LinkedIn'
+                 WHEN attribution_channel = 'referral'    THEN 'Referral'
+                 WHEN attribution_channel = 'conference'  THEN 'Conference'
+                 WHEN COALESCE(NULLIF(attribution_channel,''),'direct') = 'direct' THEN 'Direct / Other'
+                 ELSE initcap(attribution_channel)
                END AS campaign,
                (instantly_campaign IS NOT NULL) AS is_campaign,
                COUNT(*)::int AS booked,
@@ -520,12 +550,12 @@ export function registerMarketing(app, pool) {
     if (!pool) return guard(res);
     try {
       const { rows } = await pool.query(`
-        SELECT COALESCE(attribution_channel,'organic') AS channel,
+        SELECT COALESCE(NULLIF(attribution_channel,''),'direct') AS channel,
                COUNT(*)::int AS booked,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees
         FROM bookings GROUP BY 1 ORDER BY booked DESC`);
-      res.json(rows.map(r => ({ ...r, fees: Number(r.fees) })));
+      res.json(rows.map(r => ({ ...r, channel: channelLabel(r.channel), fees: Number(r.fees) })));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
