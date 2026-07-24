@@ -39,6 +39,8 @@ const pct = (n) => `${Math.round((n || 0) * 100)}%`;
 const money = (n) => '$' + Math.round(n || 0).toLocaleString('en-US');
 const j = (p) => fetch(p).then(r => (r.ok ? r.json() : null)).catch(() => null);
 // period is 'YYYY-MM-DD' (start of week/month). Weeks -> "7/13", months -> "Jul".
+const CH_LABELS = { instantly: 'Instantly', google_ads: 'Google Ads', search: 'Organic Search', email: 'Email', social: 'Social', referral: 'Referral', conference: 'Conference', linkedin: 'LinkedIn', direct: 'Direct / Other', google: 'Google', organic: 'Organic' };
+const chLabel = (c) => CH_LABELS[c] || (c ? c[0].toUpperCase() + c.slice(1) : 'Direct / Other');
 const fmtPeriod = (period, gran) => {
   const d = new Date(period + 'T00:00:00'); // local midnight, avoids UTC off-by-one
   if (isNaN(d)) return period;
@@ -86,7 +88,17 @@ export default function MarketingDashboard({ onBack }) {
   };
 
   const mom = stats ? stats.bookings_this_month - stats.bookings_last_month : 0;
-  const maxSeries = Math.max(1, ...series.map(s => s.booked));
+  // Week view: last 14 weeks (fewer, wider bars). Month: full history.
+  const shown = gran === 'week' ? series.slice(-14) : series;
+  const maxSeries = Math.max(1, ...shown.map(s => s.booked));
+  // ~7 evenly-spaced x-axis labels including first & last — no cramped collisions.
+  const labelIdx = (() => {
+    const n = shown.length, t = Math.min(7, n);
+    const set = new Set();
+    for (let k = 0; k < t; k++) set.add(Math.round((k * (n - 1)) / (t - 1 || 1)));
+    return set;
+  })();
+  const barGap = gran === 'week' ? 8 : 6;
   const maxCamp = Math.max(1, ...byCampaign.map(c => c.booked));
 
   return (
@@ -148,26 +160,26 @@ export default function MarketingDashboard({ onBack }) {
                 ))}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120 }}>
-              {series.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13 }}>No data yet.</div>}
-              {series.map(s => (
-                <div key={s.period} title={`${fmtPeriod(s.period, gran)}: ${s.booked} booked, ${s.clients} clients`} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
-                  <div style={{ width: '70%', height: `${(s.booked / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: barGap, height: 120 }}>
+              {/* faint gridlines + baseline */}
+              <div style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px dashed #f0f2f6' }} />
+              <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #f0f2f6' }} />
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid #e6e9f0' }} />
+              {shown.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13, position: 'relative' }}>No data yet.</div>}
+              {shown.map(s => (
+                <div key={s.period} title={`${fmtPeriod(s.period, gran)}: ${s.booked} booked, ${s.clients} clients`} style={{ flex: 1, height: '100%', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <div style={{ width: gran === 'week' ? '78%' : '70%', height: `${(s.booked / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
                 </div>
               ))}
             </div>
-            {/* x-axis labels — thinned to ~7 so they don't collide; hover a bar for the rest */}
-            {series.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                {series.map((s, i) => {
-                  const step = Math.ceil(series.length / 7);
-                  const show = i % step === 0 || i === series.length - 1;
-                  return (
-                    <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                      {show ? fmtPeriod(s.period, gran) : ''}
-                    </div>
-                  );
-                })}
+            {/* x-axis labels — evenly spaced, first & last always shown */}
+            {shown.length > 0 && (
+              <div style={{ display: 'flex', gap: barGap, marginTop: 6 }}>
+                {shown.map((s, i) => (
+                  <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    {labelIdx.has(i) ? fmtPeriod(s.period, gran) : ''}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -226,7 +238,7 @@ export default function MarketingDashboard({ onBack }) {
                   <div style={{ fontWeight: 600, color: '#1a2540' }}>{r.organization || '—'}</div>
                   <div style={{ color: '#9aa3b8', fontSize: 12 }}>{r.name}</div>
                 </div>
-                <div style={{ flex: 1.4, color: '#5b6b8c', textTransform: 'capitalize' }}>{r.attribution_channel || 'organic'}</div>
+                <div style={{ flex: 1.4, color: '#5b6b8c' }}>{chLabel(r.attribution_channel || 'direct')}</div>
                 <div style={{ flex: 1.6, color: '#5b6b8c' }}>{r.instantly_campaign || '—'}</div>
                 <div style={{ flex: 1, color: '#5b6b8c' }}>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString() : '—'}</div>
                 <div style={{ width: 70, textAlign: 'center' }}>
