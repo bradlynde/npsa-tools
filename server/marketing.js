@@ -107,6 +107,29 @@ async function ensureSchema(pool) {
      WHERE b.won_opportunities IS NOT NULL AND b.won_opportunities <> '{}'
     ON CONFLICT (opportunity_id) DO NOTHING;
   `).catch(err => console.error('sf_wins seed error:', err.message));
+
+  // Salesforce grant Applications (Applications__c). An organization usually has
+  // several — one per grant program/year — so these are tracked separately from
+  // wins (which are the sales-side count of organizations/contracts). status_bucket
+  // is derived on ingest so the dashboard never has to parse SF status strings.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sf_applications (
+      application_id    TEXT PRIMARY KEY,
+      name              TEXT,
+      organization      TEXT,
+      account_id        TEXT,
+      opportunity_id    TEXT,
+      grant_program     TEXT,
+      state             TEXT,
+      status            TEXT,
+      status_bucket     TEXT,
+      amount_requested  NUMERIC DEFAULT 0,
+      amount_awarded    NUMERIC DEFAULT 0,
+      max_award         NUMERIC DEFAULT 0,
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      updated_at        TIMESTAMPTZ DEFAULT NOW()
+    );
+  `).catch(err => console.error('sf_applications schema error:', err.message));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -492,6 +515,53 @@ async function recordWin(pool, w) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 7c. Applications (Salesforce Applications__c — grant applications)
+// An org typically has several (one per grant program/year), so these are counted
+// separately from wins. Salesforce status strings are free-form and get renamed, so
+// they're bucketed once here and the dashboard only ever reads the bucket:
+//   awarded   — decided and accepted; amount_awarded is real money brought in
+//   denied    — decided and rejected
+//   pending   — submitted, awaiting the award notification (money still in play)
+//   preparing — being written; not yet submitted
+// ─────────────────────────────────────────────────────────────
+function applicationBucket(status) {
+  const s = (status || '').toLowerCase();
+  if (!s) return 'preparing';
+  if (s.includes('accept') || s.includes('award')) return 'awarded';
+  if (s.includes('den') || s.includes('reject')) return 'denied';
+  if (s.includes('submit')) return 'pending';
+  if (s.includes('prepar') || s.includes('draft')) return 'preparing';
+  return 'preparing';
+}
+
+async function recordApplication(pool, a) {
+  const id = (a.application_id || '').toString().trim();
+  if (!id) return { ok: false, reason: 'missing application_id' };
+  const status = (a.status || '').trim();
+  const bucket = applicationBucket(status);
+  // Only an awarded application counts as money brought in; anything else is 0 even
+  // if Salesforce carries a stale figure.
+  const awarded = bucket === 'awarded' ? Number(a.amount_awarded) || 0 : 0;
+  await pool.query(
+    `INSERT INTO sf_applications (application_id, name, organization, account_id, opportunity_id,
+        grant_program, state, status, status_bucket, amount_requested, amount_awarded, max_award)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     ON CONFLICT (application_id) DO UPDATE
+       SET name = EXCLUDED.name, organization = EXCLUDED.organization,
+           account_id = EXCLUDED.account_id, opportunity_id = EXCLUDED.opportunity_id,
+           grant_program = EXCLUDED.grant_program, state = EXCLUDED.state,
+           status = EXCLUDED.status, status_bucket = EXCLUDED.status_bucket,
+           amount_requested = EXCLUDED.amount_requested,
+           amount_awarded = EXCLUDED.amount_awarded, max_award = EXCLUDED.max_award,
+           updated_at = NOW()`,
+    [id, a.name || null, a.organization || null, a.account_id || null, a.opportunity_id || null,
+     a.grant_program || null, a.state || null, status || null, bucket,
+     Number(a.amount_requested) || 0, awarded, Number(a.max_award) || 0]
+  );
+  return { ok: true, application_id: id, status_bucket: bucket };
+}
+
+// ─────────────────────────────────────────────────────────────
 // 8. Routes
 // ─────────────────────────────────────────────────────────────
 export function registerMarketing(app, pool) {
@@ -569,6 +639,84 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // Applications ingest (called by the Salesforce Application Zap on create+update).
+  app.post('/api/marketing/applications/ingest', async (req, res) => {
+    if (!pool) return guard(res);
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+      const result = await recordApplication(pool, req.body || {});
+      res.json(result);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Same drift protection as wins: delete any application not in the authoritative set.
+  app.post('/api/marketing/applications/reconcile', async (req, res) => {
+    if (!pool) return guard(res);
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const ids = Array.isArray(req.body?.application_ids) ? req.body.application_ids.map(String) : null;
+    if (!ids || ids.length === 0) {
+      return res.status(400).json({ error: 'application_ids (non-empty array) required' });
+    }
+    try {
+      const { rows } = await pool.query(
+        `DELETE FROM sf_applications WHERE NOT (application_id = ANY($1)) RETURNING application_id`, [ids]);
+      res.json({ ok: true, removed: rows.length, removed_ids: rows.map(r => r.application_id), kept: ids.length });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Applications summary — counts per bucket, money awarded, and money still pending.
+  app.get('/api/marketing/applications/stats', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const { rows } = await pool.query(`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status_bucket='awarded')::int   AS awarded_count,
+          COUNT(*) FILTER (WHERE status_bucket='pending')::int   AS pending_count,
+          COUNT(*) FILTER (WHERE status_bucket='preparing')::int AS preparing_count,
+          COUNT(*) FILTER (WHERE status_bucket='denied')::int    AS denied_count,
+          COALESCE(SUM(amount_awarded)   FILTER (WHERE status_bucket='awarded'),0)::numeric AS awarded_amount,
+          COALESCE(SUM(amount_requested) FILTER (WHERE status_bucket='awarded'),0)::numeric AS awarded_requested,
+          COALESCE(SUM(amount_requested) FILTER (WHERE status_bucket='pending'),0)::numeric AS pending_amount
+        FROM sf_applications`);
+      const s = rows[0];
+      const decided = s.awarded_count + s.denied_count;
+      const { rows: prog } = await pool.query(`
+        SELECT COALESCE(grant_program,'—') AS grant_program,
+               COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE status_bucket='awarded')::int AS awarded_count,
+               COUNT(*) FILTER (WHERE status_bucket='pending')::int AS pending_count,
+               COALESCE(SUM(amount_awarded)   FILTER (WHERE status_bucket='awarded'),0)::numeric AS awarded_amount,
+               COALESCE(SUM(amount_requested) FILTER (WHERE status_bucket='pending'),0)::numeric AS pending_amount
+          FROM sf_applications GROUP BY 1 ORDER BY 2 DESC`);
+      res.json({
+        total: s.total,
+        awarded_count: s.awarded_count,
+        pending_count: s.pending_count,
+        preparing_count: s.preparing_count,
+        denied_count: s.denied_count,
+        awarded_amount: Number(s.awarded_amount),
+        pending_amount: Number(s.pending_amount),
+        // Of decided applications, how many were accepted — the win rate that matters.
+        acceptance_rate: decided ? s.awarded_count / decided : 0,
+        // Of what was asked for on accepted apps, how much actually came through.
+        award_fill_rate: Number(s.awarded_requested) > 0 ? Number(s.awarded_amount) / Number(s.awarded_requested) : 0,
+        by_program: prog.map(p => ({
+          grant_program: p.grant_program,
+          total: p.total,
+          awarded_count: p.awarded_count,
+          pending_count: p.pending_count,
+          awarded_amount: Number(p.awarded_amount),
+          pending_amount: Number(p.pending_amount),
+        })),
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // Re-run enrichment for stale rows (or ?all=1 for everything).
   app.post('/api/marketing/enrich', async (req, res) => {
     if (!pool) return guard(res);
@@ -627,7 +775,10 @@ export function registerMarketing(app, pool) {
           COUNT(*) FILTER (WHERE booking_id IS NOT NULL)::int AS sf_attr_count,
           COALESCE(SUM(amount) FILTER (WHERE booking_id IS NOT NULL),0)::numeric AS sf_attr_revenue,
           COUNT(*) FILTER (WHERE booking_id IS NULL)::int AS sf_untracked_count,
-          COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL),0)::numeric AS sf_untracked_revenue
+          COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL),0)::numeric AS sf_untracked_revenue,
+          -- Organizations won (the sales-team number): an org with several grants is
+          -- still one win. Falls back to the opportunity row when org name is blank.
+          COUNT(DISTINCT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'),''), opportunity_id))::int AS sf_org_count
         FROM sf_wins`);
       const sw = wrows[0];
       const hasSf = sw.sf_count > 0;
@@ -649,6 +800,7 @@ export function registerMarketing(app, pool) {
         // funnel-attributed number until sf_wins is populated by the backfill/Zap.
         won_revenue_total: hasSf ? sfTotalRev : Number(s.won_revenue),
         won_count_total: sw.sf_count,
+        won_org_count: sw.sf_org_count,
         attributed_revenue: Number(sw.sf_attr_revenue),
         attributed_count: sw.sf_attr_count,
         untracked_revenue: Number(sw.sf_untracked_revenue),
