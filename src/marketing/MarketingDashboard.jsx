@@ -49,11 +49,24 @@ const fmtPeriod = (period, gran) => {
     : d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 };
 
+// Big divider between the Sales (Salesforce) and Marketing (funnel) halves.
+function SectionHead({ title, sub }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, margin: '4px 0 14px', flexWrap: 'wrap' }}>
+      <div style={{ fontSize: 20, fontWeight: 800, color: '#1a2540', letterSpacing: -0.3 }}>{title}</div>
+      <div style={{ height: 1, background: '#c6cfdc', flex: 1, minWidth: 20 }} />
+      <div style={{ fontSize: 12, color: '#7a869f', fontWeight: 600 }}>{sub}</div>
+    </div>
+  );
+}
+
+// minWidth 0 so the grid column (not the label text) decides the width — otherwise
+// a long label sets a min-content floor and the whole row overflows its container.
 function StatCard({ bg, value, format, sub, playToken }) {
   const [roll, setRoll] = useState(playToken || 0);
   return (
     <div onMouseEnter={() => setRoll(k => k + 1)}
-      style={{ flex: 1, background: bg, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)', cursor: 'default', minWidth: 150 }}>
+      style={{ background: bg, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)', cursor: 'default', minWidth: 0 }}>
       <div style={{ color: '#fff', fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
         <RollUp value={value} playToken={roll} format={format} />
       </div>
@@ -73,6 +86,8 @@ export default function MarketingDashboard({ onBack }) {
   const [search, setSearch] = useState('');
   const [untracked, setUntracked] = useState([]);
   const [showUntracked, setShowUntracked] = useState(false);
+  const [apps, setApps] = useState(null);
+  const [showPrograms, setShowPrograms] = useState(false);
   const [metric, setMetric] = useState('booked');   // booked | held | clients | won_amount
   const [compare, setCompare] = useState(false);      // dim previous-period ghost bars
   const [winOffset, setWinOffset] = useState(0);      // periods scrolled back from newest
@@ -84,6 +99,7 @@ export default function MarketingDashboard({ onBack }) {
     j('/api/marketing/by-campaign').then(d => d && setByCampaign(d));
     j('/api/marketing/by-channel').then(d => d && setByChannel(d));
     j('/api/marketing/untracked-wins').then(d => d && setUntracked(d));
+    j('/api/marketing/applications/stats').then(d => d && setApps(d));
     loadRows();
   }, []);
   useEffect(() => { j(`/api/marketing/timeseries?granularity=${gran}`).then(d => d && setSeries(d)); }, [gran]);
@@ -141,73 +157,125 @@ export default function MarketingDashboard({ onBack }) {
       </div>
 
       <div style={{ textAlign: 'center', padding: '18px 32px 16px' }}>
-        <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', letterSpacing: -0.5 }}>Marketing Dashboard</div>
-        <div style={{ fontSize: 15, color: '#5b6b8c', marginTop: 6 }}>Where bookings come from, and what they turn into.</div>
-        <div style={{ display: 'inline-block', marginTop: 10, padding: '4px 12px', borderRadius: 999, background: '#eef1f6', border: '1px solid #dbe1ea', color: '#5b6b8c', fontSize: 12, fontWeight: 600 }}>
-          Funnel tracked since Feb 2026
-        </div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', letterSpacing: -0.5 }}>Sales &amp; Marketing Dashboard</div>
+        <div style={{ fontSize: 15, color: '#5b6b8c', marginTop: 6 }}>What we've won, and what's driving it.</div>
       </div>
 
       <div style={{ width: '100%', maxWidth: 920, padding: '0 24px 48px', boxSizing: 'border-box' }}>
 
-        {/* KPI cards */}
-        {stats && (
-          <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
-            <StatCard bg={olive} value={stats.bookings_this_week} format={(n) => Math.round(n).toLocaleString()} sub="Bookings this week" />
-            <StatCard bg={navy} value={stats.bookings_this_month} format={(n) => Math.round(n).toLocaleString()} sub={`Bookings this month (${mom >= 0 ? '+' : ''}${mom} vs last)`} />
-            <StatCard bg={olive} value={stats.client_rate} format={pct} sub="LOE sent" />
-            <StatCard bg={olive} value={stats.instantly_pct} format={pct} sub="From Instantly" />
-            <StatCard bg={navy} value={stats.total_fees_won} format={money} sub="LOE value" />
-          </div>
-        )}
-
-        {/* Salesforce performance — total revenue vs. what the funnel attributes */}
+        {/* ══ SALES — straight from Salesforce ══ */}
         {stats && (
           <>
-            <div style={label}>Salesforce Performance</div>
-            <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
-              {/* Total won — the headline */}
-              <div style={{ flex: 1, minWidth: 180, background: olive, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)' }}>
+            <SectionHead title="Sales" sub="From Salesforce" />
+
+            {/* Organizations won + what they're worth */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>
+              <div style={{ background: olive, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)' }}>
+                <div style={{ color: '#fff', fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
+                  <RollUp value={stats.won_org_count ?? 0} format={(n) => Math.round(n).toLocaleString()} />
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11.5, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>Organizations won</div>
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12.5, marginTop: 4 }}>{stats.won_count_total} {stats.won_count_total === 1 ? 'contract' : 'contracts'} signed</div>
+              </div>
+              <div style={{ background: navy, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)' }}>
                 <div style={{ color: '#fff', fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
                   <RollUp value={stats.won_revenue_total} format={money} />
                 </div>
-                <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11.5, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>Total won revenue</div>
-                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12.5, marginTop: 4 }}>{stats.won_count_total} {stats.won_count_total === 1 ? 'win' : 'wins'} in Salesforce</div>
+                <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11.5, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>Contract value</div>
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12.5, marginTop: 4 }}>NPSA revenue won</div>
               </div>
-              {/* Attributed to funnel */}
-              <div style={{ ...card, flex: 1, minWidth: 180, padding: '20px 22px' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Attributed to funnel</div>
-                <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{money(stats.attributed_revenue)}</div>
-                <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>{pct(stats.attribution_coverage)} of won revenue · {stats.attributed_count} {stats.attributed_count === 1 ? 'win' : 'wins'}</div>
-              </div>
-              {/* Untracked / pre-funnel */}
-              <div style={{ ...card, flex: 1, minWidth: 180, padding: '20px 22px' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Untracked / pre-funnel</div>
-                <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{money(stats.untracked_revenue)}</div>
-                {stats.untracked_count > 0 ? (
-                  <button onClick={() => setShowUntracked(v => !v)} style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, color: '#1a4a6e', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                    {stats.untracked_count} {stats.untracked_count === 1 ? 'deal' : 'deals'} · {showUntracked ? 'hide' : 'show'} list {showUntracked ? '▾' : '▸'}
-                  </button>
-                ) : (
-                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>none</div>
-                )}
-              </div>
+              {apps && (
+                <div style={{ background: navy, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)' }}>
+                  <div style={{ color: '#fff', fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
+                    <RollUp value={apps.total} format={(n) => Math.round(n).toLocaleString()} />
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11.5, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>Grant applications</div>
+                  <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12.5, marginTop: 4 }}>{apps.preparing_count} preparing · {apps.pending_count} submitted</div>
+                </div>
+              )}
             </div>
 
-            {/* attribution coverage meter */}
-            <div style={{ ...card, padding: '14px 18px', marginBottom: showUntracked ? 12 : 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: '#5b6b8c', marginBottom: 8 }}>
-                <span style={{ fontWeight: 700 }}>Attribution coverage</span>
-                <span>{pct(stats.attribution_coverage)} of won revenue traces to a tracked booking</span>
+            {/* Grant dollars: brought in vs still in play */}
+            {apps && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, marginBottom: 16 }}>
+                <div style={{ ...card, padding: '20px 22px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Awarded to clients</div>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: '#7a8c1e', marginTop: 6 }}>{money(apps.awarded_amount)}</div>
+                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>{apps.awarded_count} accepted {apps.awarded_count === 1 ? 'application' : 'applications'}</div>
+                </div>
+                <div style={{ ...card, padding: '20px 22px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Pending award</div>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{money(apps.pending_amount)}</div>
+                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>{apps.pending_count} submitted, awaiting notification</div>
+                </div>
+                <div style={{ ...card, padding: '20px 22px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Acceptance rate</div>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{pct(apps.acceptance_rate)}</div>
+                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>
+                    {apps.awarded_count} of {apps.awarded_count + apps.denied_count} decided
+                    {apps.award_fill_rate > 0 ? ` · ${pct(apps.award_fill_rate)} of ask funded` : ''}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* By grant program (collapsible) */}
+            {apps && apps.by_program?.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <button onClick={() => setShowPrograms(v => !v)}
+                  style={{ background: 'none', border: 'none', padding: 0, color: '#1a4a6e', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', marginBottom: showPrograms ? 10 : 0 }}>
+                  {showPrograms ? 'Hide' : 'Show'} breakdown by grant program {showPrograms ? '▾' : '▸'}
+                </button>
+                {showPrograms && (
+                  <div style={{ ...card, padding: '8px 6px' }}>
+                    <div style={{ display: 'flex', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 16px' }}>
+                      <div style={{ flex: 2 }}>Program</div>
+                      <div style={{ flex: 1, textAlign: 'right' }}>Apps</div>
+                      <div style={{ flex: 1, textAlign: 'right' }}>Awarded</div>
+                      <div style={{ flex: 1, textAlign: 'right' }}>Pending</div>
+                    </div>
+                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                      {apps.by_program.map((p) => (
+                        <div key={p.grant_program} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid #f0f2f6', fontSize: 13.5 }}>
+                          <div style={{ flex: 2, color: '#1a2540', fontWeight: 600 }}>{p.grant_program}</div>
+                          <div style={{ flex: 1, textAlign: 'right', color: '#5b6b8c' }}>{p.total}</div>
+                          <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: p.awarded_amount ? '#7a8c1e' : '#c2cad6' }}>{p.awarded_amount ? money(p.awarded_amount) : '—'}</div>
+                          <div style={{ flex: 1, textAlign: 'right', color: '#5b6b8c' }}>{p.pending_amount ? money(p.pending_amount) : '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══ MARKETING — what feeds the sales above ══ */}
+            <SectionHead title="Marketing" sub="What feeds the pipeline · tracked since Feb 2026" />
+
+            {/* The bridge: how much of won revenue traces back to a tracked booking */}
+            <div style={{ ...card, padding: '16px 20px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontWeight: 700, color: '#1a2540', fontSize: 14 }}>Marketing-attributed revenue</span>
+                <span style={{ fontSize: 12.5, color: '#7a869f' }}>
+                  <strong style={{ color: '#7a8c1e' }}>{money(stats.attributed_revenue)}</strong> of {money(stats.won_revenue_total)} traces to a tracked booking
+                </span>
               </div>
               <div style={{ height: 10, borderRadius: 6, background: '#eef1f6', overflow: 'hidden' }}>
                 <div style={{ width: `${Math.round((stats.attribution_coverage || 0) * 100)}%`, height: '100%', background: olive, borderRadius: 6, transition: 'width .6s ease' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: '#9aa3b8', flexWrap: 'wrap', gap: 8 }}>
+                <span>{pct(stats.attribution_coverage)} attributed · {stats.attributed_count} {stats.attributed_count === 1 ? 'win' : 'wins'}</span>
+                {stats.untracked_count > 0 ? (
+                  <button onClick={() => setShowUntracked(v => !v)} style={{ background: 'none', border: 'none', padding: 0, color: '#1a4a6e', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {money(stats.untracked_revenue)} untracked / pre-funnel · {stats.untracked_count} {stats.untracked_count === 1 ? 'deal' : 'deals'} · {showUntracked ? 'hide' : 'show'} {showUntracked ? '▾' : '▸'}
+                  </button>
+                ) : <span>no untracked wins</span>}
               </div>
             </div>
 
             {/* collapsible untracked list */}
             {showUntracked && (
-              <div style={{ ...card, padding: '8px 6px', marginBottom: 24 }}>
+              <div style={{ ...card, padding: '8px 6px', marginBottom: 16 }}>
                 <div style={{ display: 'flex', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 16px' }}>
                   <div style={{ flex: 1 }}>Organization</div>
                   <div style={{ width: 110, textAlign: 'right' }}>Closed</div>
@@ -225,12 +293,22 @@ export default function MarketingDashboard({ onBack }) {
                 </div>
               </div>
             )}
+
+            {/* Booking KPIs — grid so an odd count wraps evenly instead of one tile
+                stretching across a whole row. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16, marginBottom: 24 }}>
+              <StatCard bg={olive} value={stats.bookings_this_week} format={(n) => Math.round(n).toLocaleString()} sub="Bookings this week" />
+              <StatCard bg={navy} value={stats.bookings_this_month} format={(n) => Math.round(n).toLocaleString()} sub={`Bookings this month (${mom >= 0 ? '+' : ''}${mom} vs last)`} />
+              <StatCard bg={olive} value={stats.client_rate} format={pct} sub="LOE sent" />
+              <StatCard bg={navy} value={stats.instantly_pct} format={pct} sub="From Instantly" />
+              <StatCard bg={olive} value={stats.total_fees_won} format={money} sub="LOE value" />
+            </div>
           </>
         )}
 
         {/* Funnel */}
         {funnel && (<>
-          <div style={label}>Funnel</div>
+          <div style={label}>Booking Funnel</div>
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             {[
               { k: 'Booked', v: funnel.booked, base: funnel.booked },
