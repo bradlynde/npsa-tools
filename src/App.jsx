@@ -372,7 +372,7 @@ const defaultForm = {
   installment3Pct:"", installment3Label:"",
   optNofo:false, optStateSwitch:false, optPostAwardScope:true, optShortNotice:false,
   earlySigningDate:"March 15, 2026", earlySigningAmount:"500",
-  postAwardFee:"0",
+  postAwardFee:"10,000",
   customClause:"", polishedClause:"",
   // In-house pre-award fields
   inhEngagementModel:"inh-pre-only", inhPricingTier:"undiscounted", inhCustomFee:"", inhCustomContingencyFee:"",
@@ -427,12 +427,17 @@ function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee,
     return { upfront: fee, baseUpfront: base, discount, contingent: null, postAward: optPostAwardScope ? postAward : null, total: fee + postAward };
   } else {
     const pricing = PRICING[model] || PRICING["partial-contingency"];
-    const base = lookup(pricing.tiers[effectiveTier]?.upfront || {});
-    const up = Math.max(0, base - discount);
+    // Partial contingency uses the pricing sheet's explicit per-tier schedule rather than a
+    // flat per-location discount: the discount differs between the upfront and contingent
+    // fees, so it cannot be derived by subtracting a single amount from the undiscounted row.
+    const baseTier = pricing.tiers.undiscounted || {};
+    const rateTier = pricing.tiers[tier] || baseTier;
+    const base = lookup(baseTier.upfront || {});
+    const up = lookup(rateTier.upfront || {});
     const con = customContingencyFee
       ? (parseFloat(String(customContingencyFee).replace(/,/g,"")) || 0)
-      : lookup(pricing.tiers[effectiveTier]?.contingent || {});
-    return { upfront: up, baseUpfront: base, discount, contingent: con, postAward: optPostAwardScope ? postAward : null, total: up + con + postAward };
+      : lookup(rateTier.contingent || {});
+    return { upfront: up, baseUpfront: base, discount: Math.max(0, base - up), contingent: con, postAward: optPostAwardScope ? postAward : null, total: up + con + postAward };
   }
 }
 function buildInstallmentText(installments, upfront) {
@@ -2505,6 +2510,16 @@ export default function App() {
               <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>{f2.label}</label>
               <input value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder}
                 style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+              {f2.key==="gwProfFee"&&(
+                <div style={{background:"#111d33",border:"1px solid #2a3550",borderRadius:6,padding:"8px 10px",marginTop:6}}>
+                  <div style={{fontSize:10,color:"#6c7a9c",marginBottom:4}}>Reference — grant writer fee (NPSA pricing sheet):</div>
+                  <div style={{fontSize:10,color:"#b0b8cc",lineHeight:1.6}}>
+                    <div>Undiscounted: 1 loc $7,000 · 2 loc $10,000 · 3 loc $13,000</div>
+                    <div>Discounted: 1 loc $6,000 · 2 loc $8,000 · 3 loc $10,000</div>
+                  </div>
+                  <div style={{fontSize:9,color:"#6c7a9c",marginTop:4,fontStyle:"italic"}}>Final fee is set by the grant writer's independent contract.</div>
+                </div>
+              )}
             </div>
           ))}
           <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Guarantee Structure</div>
