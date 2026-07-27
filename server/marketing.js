@@ -643,12 +643,18 @@ export function registerMarketing(app, pool) {
     if (!ids || ids.length === 0) {
       return res.status(400).json({ error: 'opportunity_ids (non-empty array) required' });
     }
+    // The id list is a point-in-time snapshot, so it cannot speak for wins that
+    // closed after it was exported. Without a bound, reconcile would delete a
+    // legitimately new win the live Zap had already delivered — indistinguishable
+    // from a stale row. covers_through marks how far the snapshot is authoritative;
+    // anything closing later is left alone.
+    const coversThrough = req.body?.covers_through || null;
     try {
-      // Bookings that will need their win-fields rebuilt: any linked to a win we're
-      // about to remove, plus any currently flagged won (belt-and-suspenders).
       const { rows: stale } = await pool.query(
-        `DELETE FROM sf_wins WHERE NOT (opportunity_id = ANY($1))
-           RETURNING opportunity_id, booking_id`, [ids]);
+        `DELETE FROM sf_wins
+           WHERE NOT (opportunity_id = ANY($1))
+             AND ($2::timestamptz IS NULL OR close_date IS NULL OR close_date <= $2::timestamptz)
+           RETURNING opportunity_id, booking_id`, [ids, coversThrough]);
 
       // Rebuild every booking's won_* from the surviving sf_wins rows, so the funnel
       // view always equals the win store. Wins with no surviving opp get reset.
@@ -668,7 +674,8 @@ export function registerMarketing(app, pool) {
         ) w
         WHERE b.id = w.id`);
 
-      res.json({ ok: true, removed: stale.length, removed_ids: stale.map(r => r.opportunity_id), kept: ids.length });
+      res.json({ ok: true, removed: stale.length, removed_ids: stale.map(r => r.opportunity_id),
+        kept: ids.length, covers_through: coversThrough });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
@@ -694,10 +701,18 @@ export function registerMarketing(app, pool) {
     if (!ids || ids.length === 0) {
       return res.status(400).json({ error: 'application_ids (non-empty array) required' });
     }
+    // Same snapshot problem as wins, but applications carry no close date — so the
+    // bound is insert time instead: a row this dashboard first saw after the
+    // snapshot was taken came from the live Zap and must not be treated as stale.
+    const protectAfter = req.body?.protect_created_after || null;
     try {
       const { rows } = await pool.query(
-        `DELETE FROM sf_applications WHERE NOT (application_id = ANY($1)) RETURNING application_id`, [ids]);
-      res.json({ ok: true, removed: rows.length, removed_ids: rows.map(r => r.application_id), kept: ids.length });
+        `DELETE FROM sf_applications
+           WHERE NOT (application_id = ANY($1))
+             AND ($2::timestamptz IS NULL OR created_at <= $2::timestamptz)
+           RETURNING application_id`, [ids, protectAfter]);
+      res.json({ ok: true, removed: rows.length, removed_ids: rows.map(r => r.application_id),
+        kept: ids.length, protect_created_after: protectAfter });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
