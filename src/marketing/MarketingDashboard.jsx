@@ -88,6 +88,10 @@ export default function MarketingDashboard({ onBack }) {
   const [showUntracked, setShowUntracked] = useState(false);
   const [apps, setApps] = useState(null);
   const [showPrograms, setShowPrograms] = useState(false);
+  const [salesSeries, setSalesSeries] = useState([]);
+  const [salesGran, setSalesGran] = useState('month');
+  const [salesMetric, setSalesMetric] = useState('new_orgs');
+  const [salesCumulative, setSalesCumulative] = useState(false);
   const [metric, setMetric] = useState('booked');   // booked | held | clients | won_amount
   const [compare, setCompare] = useState(false);      // dim previous-period ghost bars
   const [winOffset, setWinOffset] = useState(0);      // periods scrolled back from newest
@@ -103,6 +107,7 @@ export default function MarketingDashboard({ onBack }) {
     loadRows();
   }, []);
   useEffect(() => { j(`/api/marketing/timeseries?granularity=${gran}`).then(d => d && setSeries(d)); }, [gran]);
+  useEffect(() => { j(`/api/marketing/sales-timeseries?granularity=${salesGran}`).then(d => d && setSalesSeries(d)); }, [salesGran]);
 
   const toggle = async (id, field, val) => {
     await fetch(`/api/marketing/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) });
@@ -121,6 +126,45 @@ export default function MarketingDashboard({ onBack }) {
   const metricCfg = METRICS.find(m => m.key === metric) || METRICS[0];
   const metricVal = (s) => (s ? Number(s[metricCfg.key]) || 0 : 0);
   const fmtMetric = (v) => (metricCfg.money ? money(v) : Math.round(v).toLocaleString());
+
+  // ── Sales trend (Salesforce wins by close date) ──
+  const SALES_METRICS = [
+    { key: 'new_orgs', label: 'New orgs', title: 'New organizations won', money: false },
+    { key: 'amount', label: 'Contract $', title: 'Contract value', money: true },
+    { key: 'contracts', label: 'Contracts', title: 'Contracts signed', money: false },
+  ];
+  const salesCfg = SALES_METRICS.find(m => m.key === salesMetric) || SALES_METRICS[0];
+  const fmtSalesVal = (v) => (salesCfg.money ? money(v) : Math.round(v).toLocaleString());
+  // Cumulative is a running total. It's only correct for orgs because the API returns
+  // new_orgs (first-ever win) — summing per-period distinct orgs would double-count
+  // an org that wins again later.
+  const salesShown = (() => {
+    const win = salesGran === 'quarter' ? 16 : 24;
+    const slice = salesSeries.slice(-win);
+    if (!salesCumulative) return slice.map(s => ({ ...s, v: Number(s[salesCfg.key]) || 0 }));
+    // Run the total from the very start of history, not just the visible window.
+    const startIdx = salesSeries.length - slice.length;
+    let run = salesSeries.slice(0, startIdx).reduce((t, s) => t + (Number(s[salesCfg.key]) || 0), 0);
+    return slice.map(s => { run += Number(s[salesCfg.key]) || 0; return { ...s, v: run }; });
+  })();
+  const salesMax = Math.max(1, ...salesShown.map(s => s.v));
+  const salesTotal = salesCumulative
+    ? (salesShown.length ? salesShown[salesShown.length - 1].v : 0)
+    : salesShown.reduce((t, s) => t + s.v, 0);
+  const fmtSalesPeriod = (p) => {
+    const d = new Date(p + 'T00:00:00');
+    if (isNaN(d)) return p;
+    const yr = String(d.getFullYear()).slice(2);
+    return salesGran === 'quarter'
+      ? `Q${Math.floor(d.getMonth() / 3) + 1} '${yr}`
+      : `${d.toLocaleDateString('en-US', { month: 'short' })} '${yr}`;
+  };
+  const salesLabelIdx = (() => {
+    const n = salesShown.length, t = Math.min(6, n);
+    const set = new Set();
+    for (let k = 0; k < t; k++) set.add(Math.round((k * (n - 1)) / (t - 1 || 1)));
+    return set;
+  })();
 
   // Visible window: last N periods, pannable back through history with the stepper.
   const WINDOW = gran === 'week' ? 14 : 12;
@@ -246,6 +290,57 @@ export default function MarketingDashboard({ onBack }) {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Sales trend — momentum, not just all-time totals */}
+            {salesSeries.length > 0 && (
+              <div style={{ ...card, padding: '18px 22px', marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15 }}>
+                      {salesCfg.title} over time{salesCumulative ? ' (cumulative)' : ''}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 3 }}>
+                      {salesCumulative ? 'Running total · now at ' : 'Total shown · '}
+                      <strong style={{ color: '#7a8c1e' }}>{fmtSalesVal(salesTotal)}</strong>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {['month', 'quarter'].map(g => (
+                      <button key={g} onClick={() => setSalesGran(g)}
+                        style={{ border: '1px solid #d0d6e0', background: salesGran === g ? '#1a4a6e' : '#fff', color: salesGran === g ? '#fff' : '#5b6b8c', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {SALES_METRICS.map(m => (
+                    <button key={m.key} onClick={() => setSalesMetric(m.key)}
+                      style={{ border: '1px solid #d0d6e0', background: salesMetric === m.key ? '#eef4f8' : '#fff', color: salesMetric === m.key ? '#1a4a6e' : '#7a869f', fontWeight: salesMetric === m.key ? 700 : 500, borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>{m.label}</button>
+                  ))}
+                </div>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 5, height: 130 }}>
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px dashed #f0f2f6' }} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #f0f2f6' }} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid #e6e9f0' }} />
+                  {salesShown.map(s => (
+                    <div key={s.period} title={`${fmtSalesPeriod(s.period)} — ${salesCfg.title}: ${fmtSalesVal(s.v)}`}
+                      style={{ flex: 1, height: '100%', position: 'relative', zIndex: 1 }}>
+                      <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '72%', height: `${(s.v / salesMax) * 100}%`, background: olive, borderRadius: '4px 4px 0 0', minHeight: s.v > 0 ? 2 : 0 }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>
+                  {salesShown.map((s, i) => (
+                    <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                      {salesLabelIdx.has(i) ? fmtSalesPeriod(s.period) : ''}
+                    </div>
+                  ))}
+                </div>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5b6b8c', cursor: 'pointer', userSelect: 'none', marginTop: 12 }}>
+                  <input type="checkbox" checked={salesCumulative} onChange={e => setSalesCumulative(e.target.checked)} style={{ cursor: 'pointer' }} />
+                  Show cumulative growth
+                </label>
               </div>
             )}
 

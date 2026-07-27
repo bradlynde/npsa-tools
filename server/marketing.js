@@ -908,6 +908,53 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // Sales over time, from Salesforce wins (by close date).
+  //   contracts — won opportunities closing in the period
+  //   orgs      — distinct organizations with a win in the period
+  //   new_orgs  — organizations whose FIRST-EVER win closed in the period. Summing
+  //               `orgs` would double-count an org that wins again later, so the
+  //               dashboard's cumulative line runs on new_orgs instead.
+  //   amount    — NPSA contract value closing in the period
+  app.get('/api/marketing/sales-timeseries', async (req, res) => {
+    if (!pool) return guard(res);
+    const g = req.query.granularity === 'quarter' ? 'quarter' : 'month';
+    const stepInterval = g === 'quarter' ? '3 months' : '1 month';
+    try {
+      // Periods with no wins are filled with zeros (generate_series) — a month with
+      // nothing sold has to show as a gap in the trend, not disappear and make the
+      // timeline read as continuous.
+      const { rows } = await pool.query(`
+        WITH w AS (
+          SELECT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'), ''), opportunity_id) AS org_key,
+                 date_trunc('${g}', close_date) AS period,
+                 amount
+            FROM sf_wins
+           WHERE close_date IS NOT NULL
+        ),
+        firsts AS (SELECT org_key, MIN(period) AS first_period FROM w GROUP BY 1),
+        bounds AS (SELECT MIN(period) AS lo, MAX(period) AS hi FROM w),
+        periods AS (
+          SELECT generate_series(lo, hi, INTERVAL '${stepInterval}') AS period FROM bounds
+        )
+        SELECT to_char(p.period, 'YYYY-MM-DD') AS period,
+               COUNT(w.org_key)::int AS contracts,
+               COUNT(DISTINCT w.org_key)::int AS orgs,
+               COALESCE(SUM(w.amount), 0)::numeric AS amount,
+               (SELECT COUNT(*) FROM firsts f WHERE f.first_period = p.period)::int AS new_orgs
+          FROM periods p
+          LEFT JOIN w ON w.period = p.period
+         GROUP BY p.period
+         ORDER BY p.period`);
+      res.json(rows.map(r => ({
+        period: r.period,
+        contracts: r.contracts,
+        orgs: r.orgs,
+        new_orgs: r.new_orgs,
+        amount: Number(r.amount),
+      })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // Raw table (drill-down)
   app.get('/api/marketing/bookings', async (req, res) => {
     if (!pool) return guard(res);
