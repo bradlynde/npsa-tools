@@ -534,6 +534,23 @@ function applicationBucket(status) {
   return 'preparing';
 }
 
+// A Salesforce lookup field (e.g. Account__c) resolves to a record ID, not a name,
+// so a Zap mapped to the lookup instead of Account.Name sends "001TV00000jRoiYAE".
+// Storing that would replace real org names with opaque IDs. SF IDs are exactly 15
+// or 18 alphanumerics with no spaces — real org names effectively never look like
+// that — so treat them as "no name given" and keep whatever we already have.
+// Salesforce IDs are 15-18 unbroken alphanumerics mixing letters and digits
+// ("001TV00000jRoiYAE"). Real organization names in this data either contain a
+// space, are shorter, or carry no digits — so require all three traits before
+// rejecting. A false positive is harmless anyway: the upsert COALESCEs, so the
+// worst case is "leave the existing name alone" rather than losing data.
+const looksLikeSfId = (v) => /^[A-Za-z0-9]{15,18}$/.test(v) && /\d/.test(v) && /[A-Za-z]/.test(v);
+const cleanOrgName = (s) => {
+  const v = (s == null ? '' : String(s)).trim();
+  if (!v || looksLikeSfId(v)) return null;
+  return v;
+};
+
 async function recordApplication(pool, a) {
   const id = (a.application_id || '').toString().trim();
   if (!id) return { ok: false, reason: 'missing application_id' };
@@ -542,19 +559,35 @@ async function recordApplication(pool, a) {
   // Only an awarded application counts as money brought in; anything else is 0 even
   // if Salesforce carries a stale figure.
   const awarded = bucket === 'awarded' ? Number(a.amount_awarded) || 0 : 0;
+  // If the org name came through as a record ID, it's the Account ID — keep it in
+  // the field that actually means that rather than throwing it away.
+  const orgRaw = (a.organization == null ? '' : String(a.organization)).trim();
+  const accountId = a.account_id || (orgRaw && looksLikeSfId(orgRaw) ? orgRaw : null);
   await pool.query(
     `INSERT INTO sf_applications (application_id, name, organization, account_id, opportunity_id,
         grant_program, state, status, status_bucket, amount_requested, amount_awarded, max_award)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
      ON CONFLICT (application_id) DO UPDATE
-       SET name = EXCLUDED.name, organization = EXCLUDED.organization,
-           account_id = EXCLUDED.account_id, opportunity_id = EXCLUDED.opportunity_id,
-           grant_program = EXCLUDED.grant_program, state = EXCLUDED.state,
+       SET name = COALESCE(EXCLUDED.name, sf_applications.name),
+           -- never let a missing/ID-shaped org name wipe a good one
+           organization = COALESCE(EXCLUDED.organization, sf_applications.organization),
+           account_id = COALESCE(EXCLUDED.account_id, sf_applications.account_id),
+           opportunity_id = COALESCE(EXCLUDED.opportunity_id, sf_applications.opportunity_id),
+           grant_program = COALESCE(EXCLUDED.grant_program, sf_applications.grant_program),
+           state = COALESCE(EXCLUDED.state, sf_applications.state),
+           -- status is what the Zap exists to update, so it always applies
            status = EXCLUDED.status, status_bucket = EXCLUDED.status_bucket,
-           amount_requested = EXCLUDED.amount_requested,
-           amount_awarded = EXCLUDED.amount_awarded, max_award = EXCLUDED.max_award,
+           -- amounts: take a real figure; a zero/absent one must not erase a known
+           -- value (partial payload), but a non-awarded app is always forced to 0
+           amount_requested = CASE WHEN EXCLUDED.amount_requested > 0 THEN EXCLUDED.amount_requested
+                                   ELSE sf_applications.amount_requested END,
+           amount_awarded = CASE WHEN EXCLUDED.amount_awarded > 0 THEN EXCLUDED.amount_awarded
+                                 WHEN EXCLUDED.status_bucket <> 'awarded' THEN 0
+                                 ELSE sf_applications.amount_awarded END,
+           max_award = CASE WHEN EXCLUDED.max_award > 0 THEN EXCLUDED.max_award
+                            ELSE sf_applications.max_award END,
            updated_at = NOW()`,
-    [id, a.name || null, a.organization || null, a.account_id || null, a.opportunity_id || null,
+    [id, a.name || null, cleanOrgName(a.organization), accountId, a.opportunity_id || null,
      a.grant_program || null, a.state || null, status || null, bucket,
      Number(a.amount_requested) || 0, awarded, Number(a.max_award) || 0]
   );
