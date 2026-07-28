@@ -5,3 +5,8 @@ dist
 
 .next/
 tsconfig.tsbuildinfo
+
+# Salesforce JWT signing key — never commit
+.secrets/
+npsa-sync.crt
+npsa-sync.key

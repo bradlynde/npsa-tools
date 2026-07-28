@@ -514,6 +514,28 @@ async function recordWin(pool, w) {
   return { matched: true, id: target.id, opportunities: Object.keys(map).length, won_amount: total };
 }
 
+// Rebuild every booking's won_* fields from the surviving sf_wins rows, so the
+// funnel view always equals the win store. A booking whose last opportunity was
+// deleted gets reset rather than left showing a win that no longer exists.
+// Called after anything that removes wins (reconcile, or a scheduled sync).
+async function rebuildBookingWins(pool) {
+  await pool.query(`
+    UPDATE bookings b SET
+      won_opportunities = COALESCE(w.map, '{}'::jsonb),
+      won_amount        = COALESCE(w.total, 0),
+      won               = (w.total IS NOT NULL),
+      won_source        = CASE WHEN w.total IS NOT NULL THEN 'salesforce' ELSE NULL END,
+      updated_at        = NOW()
+    FROM (
+      SELECT bk.id,
+             (SELECT jsonb_object_agg(s.opportunity_id, s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS map,
+             (SELECT SUM(s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS total
+      FROM bookings bk
+      WHERE bk.won = TRUE OR EXISTS (SELECT 1 FROM sf_wins s WHERE s.booking_id = bk.id)
+    ) w
+    WHERE b.id = w.id`);
+}
+
 // ─────────────────────────────────────────────────────────────
 // 7c. Applications (Salesforce Applications__c — grant applications)
 // An org typically has several (one per grant program/year), so these are counted
@@ -594,6 +616,11 @@ async function recordApplication(pool, a) {
   return { ok: true, application_id: id, status_bucket: bucket };
 }
 
+// Shared with the scheduled Salesforce connector, so a pulled record travels the
+// exact same matching, bucketing and guard logic as a pushed one — one code path,
+// one set of rules, regardless of how the record arrived.
+export { recordWin, recordApplication, rebuildBookingWins };
+
 // ─────────────────────────────────────────────────────────────
 // 8. Routes
 // ─────────────────────────────────────────────────────────────
@@ -656,23 +683,7 @@ export function registerMarketing(app, pool) {
              AND ($2::timestamptz IS NULL OR close_date IS NULL OR close_date <= $2::timestamptz)
            RETURNING opportunity_id, booking_id`, [ids, coversThrough]);
 
-      // Rebuild every booking's won_* from the surviving sf_wins rows, so the funnel
-      // view always equals the win store. Wins with no surviving opp get reset.
-      await pool.query(`
-        UPDATE bookings b SET
-          won_opportunities = COALESCE(w.map, '{}'::jsonb),
-          won_amount        = COALESCE(w.total, 0),
-          won               = (w.total IS NOT NULL),
-          won_source        = CASE WHEN w.total IS NOT NULL THEN 'salesforce' ELSE NULL END,
-          updated_at        = NOW()
-        FROM (
-          SELECT bk.id,
-                 (SELECT jsonb_object_agg(s.opportunity_id, s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS map,
-                 (SELECT SUM(s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS total
-          FROM bookings bk
-          WHERE bk.won = TRUE OR EXISTS (SELECT 1 FROM sf_wins s WHERE s.booking_id = bk.id)
-        ) w
-        WHERE b.id = w.id`);
+      await rebuildBookingWins(pool);
 
       res.json({ ok: true, removed: stale.length, removed_ids: stale.map(r => r.opportunity_id),
         kept: ids.length, covers_through: coversThrough });

@@ -60,6 +60,54 @@ function SectionHead({ title, sub }) {
   );
 }
 
+const timeAgo = (iso) => {
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return 'never';
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+};
+
+// Says how current the Salesforce numbers actually are, right where they're read.
+// The dashboard pulls on a schedule, so "is this stale?" is a real question — and a
+// silent failure that leaves yesterday's figures on screen is the one failure mode
+// that would matter most. Better for the dashboard to state its own freshness than
+// for anyone to have to trust it.
+function SyncStrip({ status }) {
+  if (!status) return null;
+  const runs = status.runs || [];
+  const failed = runs.filter(r => r.ok === false);
+  const newest = runs.reduce((max, r) => (r.finished_at && r.finished_at > max ? r.finished_at : max), '');
+  const stale = newest && (Date.now() - new Date(newest).getTime()) > 24 * 3600 * 1000;
+
+  let tone, text;
+  if (!status.configured) {
+    tone = '#7a869f'; text = 'Salesforce sync not configured — figures are from the last manual load';
+  } else if (failed.length) {
+    tone = '#c2410c'; text = `Last Salesforce sync failed — ${failed[0].error || 'unknown error'}`;
+  } else if (!newest) {
+    tone = '#7a869f'; text = 'Salesforce sync has not run yet';
+  } else {
+    const seen = runs.reduce((s, r) => s + (r.rows_seen || 0), 0);
+    tone = stale ? '#b45309' : '#4d7c0f';
+    text = `Synced from Salesforce ${timeAgo(newest)} · ${seen.toLocaleString()} records`;
+  }
+  // A held-back prune is a successful run that chose not to delete — worth surfacing,
+  // since the alternative is silently keeping rows the dashboard believes are gone.
+  const note = runs.map(r => r.note).filter(Boolean)[0];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 16px', fontSize: 12.5, color: tone }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: tone, flexShrink: 0 }} />
+      <span>{text}{note ? ` · ${note}` : ''}</span>
+    </div>
+  );
+}
+
 // minWidth 0 so the grid column (not the label text) decides the width — otherwise
 // a long label sets a min-content floor and the whole row overflows its container.
 //
@@ -101,6 +149,7 @@ export default function MarketingDashboard({ onBack }) {
   const [untracked, setUntracked] = useState([]);
   const [showUntracked, setShowUntracked] = useState(false);
   const [apps, setApps] = useState(null);
+  const [syncStatus, setSyncStatus] = useState(null);
   const [showPrograms, setShowPrograms] = useState(false);
   const [salesSeries, setSalesSeries] = useState([]);
   const [salesGran, setSalesGran] = useState('month');
@@ -117,6 +166,7 @@ export default function MarketingDashboard({ onBack }) {
     j('/api/marketing/by-campaign').then(d => d && setByCampaign(d));
     j('/api/marketing/by-channel').then(d => d && setByChannel(d));
     j('/api/marketing/untracked-wins').then(d => d && setUntracked(d));
+    j('/api/marketing/sync/status').then(setSyncStatus);
     j('/api/marketing/applications/stats').then(d => d && setApps(d));
     loadRows();
   }, []);
@@ -225,6 +275,7 @@ export default function MarketingDashboard({ onBack }) {
         {stats && (
           <>
             <SectionHead title="Sales" sub="From Salesforce" />
+            <SyncStrip status={syncStatus} />
 
             {/* Organizations won + what they're worth */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>

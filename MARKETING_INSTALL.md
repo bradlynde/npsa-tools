@@ -56,6 +56,122 @@ Nothing breaks if the two optional keys are missing — those rows just stay une
 
 ---
 
+## Salesforce connector (keeps the Sales half current on its own)
+
+The dashboard pulls Salesforce itself, on a schedule, from inside this app. Every run asks
+Salesforce for the complete current set of won opportunities and grant applications, upserts
+them, and deletes anything Salesforce no longer has — so the figures can't drift in either
+direction, and nobody has to re-run a backfill by hand.
+
+Without these variables the connector stays idle and everything else works exactly as before.
+
+```
+SF_CLIENT_ID              # External Client App consumer key
+SF_USERNAME               # Salesforce username the sync runs as
+SF_PRIVATE_KEY            # RSA private key, PEM (literal newlines or \n both work)
+SF_LOGIN_URL              # optional — https://test.salesforce.com for a sandbox
+SF_API_VERSION            # optional — default v60.0
+SF_WON_STAGE              # optional — default 'Won - Data Migrated to 2012 Processes'
+SF_WINS_SINCE             # optional — default 2024-10-01
+SF_SYNC_INTERVAL_MINUTES  # optional — default 360 (every 6 hours)
+```
+
+### Why this uses JWT and not a refresh token
+
+Salesforce no longer lets you create a classic Connected App in App Manager, and new
+External Client Apps come with **Enable Refresh Token Rotation** checked and locked
+("to change this required setting, contact Support"). Rotation invalidates the old
+refresh token every time a new access token is issued, so a refresh token parked in an
+env var authenticates once and then fails silently on the next scheduled run — six hours
+later, in a background job nobody is watching.
+
+The JWT bearer flow has no refresh token to rotate. The server signs a short-lived
+assertion with a private key and trades it for an access token whenever it needs one.
+Salesforce holds only the matching public certificate. Nothing expires on a timer,
+so there is no credential to re-mint by hand later.
+
+### 1. Create the External Client App
+
+Salesforce **Setup → External Client App Manager → New External Client App**:
+- Name: `NPSA Dashboard Sync`
+- Contact email: yours
+- Under **API (Enable OAuth Settings)**, check **Enable OAuth**
+- Callback URL: `https://login.salesforce.com/services/oauth2/success`
+  (unused by JWT, but the form requires one)
+- Selected OAuth Scopes: **Manage user data via APIs (api)** and
+  **Perform requests at any time (refresh_token, offline_access)**
+- Under **Flow Enablement**, check **Enable JWT Bearer Flow**
+- Save, then **Consumer Key and Secret** to copy the Consumer Key. The secret is not
+  needed for this flow — JWT never sends one.
+
+Salesforce takes up to ~10 minutes to propagate a new app.
+
+### 2. Generate the key pair and upload the certificate
+
+Run locally. The private key never leaves your machine except to go into Railway;
+Salesforce only ever sees the `.crt`.
+
+```bash
+openssl req -x509 -sha256 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout npsa-sync.key -out npsa-sync.crt \
+  -subj "/CN=NPSA Dashboard Sync"
+```
+
+In the External Client App → **Settings → OAuth Settings → Digital Signatures**, check
+**Use digital signatures** and upload `npsa-sync.crt`. Save.
+
+Keep `npsa-sync.key` somewhere safe and out of git. It is the whole credential.
+
+### 3. Pre-authorize the user
+
+JWT bearer will not mint a token for a user who has not approved the app, and there is
+no interactive approval step in a background job. So authorize it up front:
+
+- External Client App → **Policies → OAuth Policies → Permitted Users** →
+  **Admin approved users are pre-authorized**
+- Then assign the app via a permission set or profile to the user in `SF_USERNAME`
+
+While you are on that screen, set **IP Relaxation** to **Relax IP restrictions**.
+Railway's outbound IPs are dynamic, so enforcing them will fail intermittently and
+look like an auth bug.
+
+### 4. Set the variables in Railway and verify
+
+Paste the full contents of `npsa-sync.key` into `SF_PRIVATE_KEY`, including the
+`-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines.
+
+```bash
+# force a run rather than waiting for the schedule
+curl -X POST https://<your-railway-domain>/api/marketing/sync/salesforce \
+  -H "x-zap-secret: <ZAPIER_WEBHOOK_SECRET>"
+
+# what the dashboard's freshness strip reads
+curl https://<your-railway-domain>/api/marketing/sync/status
+```
+
+The Sales section shows the result as a line under its heading — when it last synced, how many
+records, and any failure. If it went wrong, that strip says so rather than quietly showing
+yesterday's numbers.
+
+**Reading auth failures.** Salesforce's JWT errors are terse and all look alike:
+- `user hasn't approved this consumer` — step 3 was skipped, or the permission set is
+  not assigned to `SF_USERNAME`
+- `invalid_app_access` — the app is not assigned to that user's profile
+- `invalid_grant` with a valid key — usually `aud` vs org mismatch: a sandbox needs
+  `SF_LOGIN_URL=https://test.salesforce.com`
+- `JWT signing failed` in `sync_runs.error` — the connector caught a malformed
+  `SF_PRIVATE_KEY` before ever calling Salesforce, so this one is a paste problem
+
+### Safety rails
+The sync deletes, so it refuses when the pull looks wrong rather than trusting it:
+- a query returning **zero** records is treated as a broken query or permissions change, not as
+  an empty Salesforce — nothing is deleted
+- a pull that would remove **more than half** the stored rows is held back and flagged on the
+  freshness strip; the upserts still land
+- every attempt, successful or not, writes a `sync_runs` row
+
+---
+
 ## Wire the Zap (adds bookings to Postgres in real time)
 In your existing Calendly → Google Sheets Zap, add ONE action after the trigger:
 - App: **Webhooks by Zapier → POST**

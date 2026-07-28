@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import pg from 'pg';
 import HTMLtoDOCX from 'html-to-docx';
 import { registerMarketing } from './marketing.js';
+import { registerSalesforceConnector } from './connectors/salesforce.js';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -658,6 +659,7 @@ app.delete('/api/reps/:id', async (req, res) => {
 });
 
 registerMarketing(app, pool);
+registerSalesforceConnector(app, pool);
 
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (req, res) => {
