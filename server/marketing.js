@@ -679,6 +679,88 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // ── Scheduled full sync ──────────────────────────────────────
+  // Closes a sync pass. A scheduled Zap re-posts every current Salesforce win to
+  // /wins/ingest (each upsert stamps updated_at), then calls this with the time the
+  // pass began. Any row NOT touched during the pass is no longer in Salesforce, so
+  // it goes. This needs no id list, which is what makes it work from a looping Zap.
+  //
+  // Deleting on "absence of evidence" is only safe if the pass actually finished, so
+  // a sync that sent fewer rows than it promised (`expected`) — or none at all — is
+  // refused rather than allowed to empty the table.
+  app.post('/api/marketing/wins/sync/finish', async (req, res) => {
+    if (!pool) return guard(res);
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const since = req.body?.since || null;
+    const expected = Number(req.body?.expected) || null;
+    const coversThrough = req.body?.covers_through || null;
+    if (!since) return res.status(400).json({ error: 'since (ISO timestamp of when the sync pass began) required' });
+    try {
+      const { rows: seenRows } = await pool.query(
+        `SELECT COUNT(*)::int AS seen FROM sf_wins WHERE updated_at >= $1::timestamptz`, [since]);
+      const seen = seenRows[0].seen;
+      if (seen === 0) {
+        return res.status(409).json({ ok: false, seen, removed: 0,
+          error: 'no rows were synced in this pass — refusing to delete' });
+      }
+      if (expected && seen < expected) {
+        return res.status(409).json({ ok: false, seen, expected, removed: 0,
+          error: 'sync pass incomplete (fewer rows synced than expected) — refusing to delete' });
+      }
+      const { rows: gone } = await pool.query(
+        `DELETE FROM sf_wins
+           WHERE updated_at < $1::timestamptz
+             AND ($2::timestamptz IS NULL OR close_date IS NULL OR close_date <= $2::timestamptz)
+           RETURNING opportunity_id`, [since, coversThrough]);
+      // Keep the funnel view equal to the win store after any removal.
+      await pool.query(`
+        UPDATE bookings b SET
+          won_opportunities = COALESCE(w.map, '{}'::jsonb),
+          won_amount        = COALESCE(w.total, 0),
+          won               = (w.total IS NOT NULL),
+          won_source        = CASE WHEN w.total IS NOT NULL THEN 'salesforce' ELSE NULL END,
+          updated_at        = NOW()
+        FROM (
+          SELECT bk.id,
+                 (SELECT jsonb_object_agg(s.opportunity_id, s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS map,
+                 (SELECT SUM(s.amount) FROM sf_wins s WHERE s.booking_id = bk.id) AS total
+          FROM bookings bk
+          WHERE bk.won = TRUE OR EXISTS (SELECT 1 FROM sf_wins s WHERE s.booking_id = bk.id)
+        ) w
+        WHERE b.id = w.id`);
+      res.json({ ok: true, seen, removed: gone.length, removed_ids: gone.map(r => r.opportunity_id) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Same pattern for applications (no close date, so no covers_through).
+  app.post('/api/marketing/applications/sync/finish', async (req, res) => {
+    if (!pool) return guard(res);
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const since = req.body?.since || null;
+    const expected = Number(req.body?.expected) || null;
+    if (!since) return res.status(400).json({ error: 'since (ISO timestamp of when the sync pass began) required' });
+    try {
+      const { rows: seenRows } = await pool.query(
+        `SELECT COUNT(*)::int AS seen FROM sf_applications WHERE updated_at >= $1::timestamptz`, [since]);
+      const seen = seenRows[0].seen;
+      if (seen === 0) {
+        return res.status(409).json({ ok: false, seen, removed: 0,
+          error: 'no rows were synced in this pass — refusing to delete' });
+      }
+      if (expected && seen < expected) {
+        return res.status(409).json({ ok: false, seen, expected, removed: 0,
+          error: 'sync pass incomplete (fewer rows synced than expected) — refusing to delete' });
+      }
+      const { rows: gone } = await pool.query(
+        `DELETE FROM sf_applications WHERE updated_at < $1::timestamptz RETURNING application_id`, [since]);
+      res.json({ ok: true, seen, removed: gone.length, removed_ids: gone.map(r => r.application_id) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // Applications ingest (called by the Salesforce Application Zap on create+update).
   app.post('/api/marketing/applications/ingest', async (req, res) => {
     if (!pool) return guard(res);
