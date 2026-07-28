@@ -19,16 +19,25 @@
 // Disabled and harmless without credentials: the sync simply never runs and the
 // rest of the app is untouched.
 //
+// Auth is the JWT bearer flow, not a refresh token. Salesforce now forces refresh
+// token rotation on new External Client Apps (the setting is checked and locked —
+// "to change this required setting, contact Support"), which invalidates the old
+// token on every refresh. A refresh token parked in an env var therefore works
+// exactly once and then fails silently on the next scheduled run. JWT bearer has
+// no refresh token to rotate: the server signs a short-lived assertion with a
+// private key and trades it for an access token whenever it needs one.
+//
 // Env:
-//   SF_CLIENT_ID              Connected App consumer key
-//   SF_CLIENT_SECRET          Connected App consumer secret
-//   SF_REFRESH_TOKEN          refresh token from the one-time OAuth authorize
+//   SF_CLIENT_ID              External Client App consumer key
+//   SF_USERNAME               Salesforce username the sync runs as
+//   SF_PRIVATE_KEY            RSA private key, PEM. Literal newlines or \n both work.
 //   SF_LOGIN_URL              default https://login.salesforce.com
 //   SF_API_VERSION            default v60.0
 //   SF_WON_STAGE              default 'Won - Data Migrated to 2012 Processes'
 //   SF_WINS_SINCE             default 2024-10-01 (company started on security grants)
 //   SF_SYNC_INTERVAL_MINUTES  default 360 (every 6 hours)
 
+import { createSign } from 'node:crypto';
 import { recordWin, recordApplication, rebuildBookingWins } from '../marketing.js';
 
 const DEFAULT_STAGE = 'Won - Data Migrated to 2012 Processes';
@@ -40,7 +49,7 @@ const DEFAULT_SINCE = '2024-10-01';
 const MAX_PRUNE_FRACTION = 0.5;
 
 export const salesforceConfigured = () =>
-  Boolean(process.env.SF_CLIENT_ID && process.env.SF_CLIENT_SECRET && process.env.SF_REFRESH_TOKEN);
+  Boolean(process.env.SF_CLIENT_ID && process.env.SF_USERNAME && process.env.SF_PRIVATE_KEY);
 
 const loginUrl = () => (process.env.SF_LOGIN_URL || 'https://login.salesforce.com').replace(/\/+$/, '');
 const apiVersion = () => process.env.SF_API_VERSION || 'v60.0';
@@ -53,20 +62,64 @@ const winsSince = () => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Auth — OAuth2 refresh-token flow
-// Salesforce does not return expires_in here, so the token is cached for a fixed
-// window and any 401 clears it and retries once (covers early revocation too).
+// Auth — OAuth2 JWT bearer flow
+// Nothing here is stored between runs. Every token request builds and signs a
+// fresh assertion, so there is no long-lived credential in the database or the
+// environment that Salesforce can rotate out from under us — only the private
+// key, which Salesforce never sees and never changes.
+//
+// Salesforce does not return expires_in on this grant, so the access token is
+// cached for a fixed window and any 401 clears it and retries once (which also
+// covers a session being killed early).
 // ─────────────────────────────────────────────────────────────
 const TOKEN_TTL_MS = 30 * 60 * 1000;
+// Salesforce rejects an assertion whose exp is more than 5 minutes out. Three
+// minutes leaves room for clock skew between Railway and Salesforce in both
+// directions without ever tripping that ceiling.
+const ASSERTION_TTL_S = 180;
+
 let _token = { value: null, instanceUrl: null, at: 0 };
+
+const b64url = input =>
+  Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+// Railway (and most dashboards) round-trip a pasted PEM with escaped newlines.
+// Accept either form so a working key never looks like a broken one.
+const privateKey = () => {
+  const raw = (process.env.SF_PRIVATE_KEY || '').trim();
+  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+};
+
+function buildAssertion() {
+  const claims = {
+    iss: process.env.SF_CLIENT_ID,          // consumer key
+    sub: process.env.SF_USERNAME,           // the user the sync acts as
+    aud: loginUrl(),                        // must match the org it authenticates against
+    exp: Math.floor(Date.now() / 1000) + ASSERTION_TTL_S,
+  };
+  const signingInput =
+    `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify(claims))}`;
+  const signer = createSign('RSA-SHA256');
+  signer.update(signingInput);
+  signer.end();
+  return `${signingInput}.${signer.sign(privateKey(), 'base64url')}`;
+}
 
 async function getToken(force = false) {
   if (!force && _token.value && Date.now() - _token.at < TOKEN_TTL_MS) return _token;
+
+  let assertion;
+  try {
+    assertion = buildAssertion();
+  } catch (err) {
+    // A malformed PEM fails here rather than at the API, where it would surface
+    // as an opaque 400 from Salesforce.
+    throw new Error(`Salesforce JWT signing failed — check SF_PRIVATE_KEY is a full PEM RSA private key: ${err.message}`);
+  }
+
   const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    client_id: process.env.SF_CLIENT_ID,
-    client_secret: process.env.SF_CLIENT_SECRET,
-    refresh_token: process.env.SF_REFRESH_TOKEN,
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion,
   });
   const res = await fetch(`${loginUrl()}/services/oauth2/token`, {
     method: 'POST',
@@ -75,7 +128,12 @@ async function getToken(force = false) {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.access_token) {
-    throw new Error(`Salesforce auth failed (${res.status}): ${json.error_description || json.error || 'no access_token'}`);
+    const detail = json.error_description || json.error || 'no access_token';
+    // The two failures worth naming, because the raw text is famously unhelpful:
+    // 'user hasn't approved this consumer' means the user is not pre-authorized
+    // on the app, and 'invalid_app_access' means the profile/permission set is
+    // not assigned. Neither is a key problem, which is where people look first.
+    throw new Error(`Salesforce auth failed (${res.status}): ${detail}`);
   }
   _token = { value: json.access_token, instanceUrl: (json.instance_url || '').replace(/\/+$/, ''), at: Date.now() };
   return _token;
@@ -293,7 +351,7 @@ export function registerSalesforceConnector(app, pool) {
   });
 
   if (!salesforceConfigured()) {
-    console.log('[sync] Salesforce connector idle — set SF_CLIENT_ID / SF_CLIENT_SECRET / SF_REFRESH_TOKEN to enable');
+    console.log('[sync] Salesforce connector idle — set SF_CLIENT_ID / SF_USERNAME / SF_PRIVATE_KEY to enable');
     return;
   }
 
