@@ -492,7 +492,12 @@ async function recordWin(pool, w) {
     `INSERT INTO sf_wins (opportunity_id, organization, domain, amount, close_date, booking_id)
        VALUES ($1, $2, $3, $4, $5::timestamptz, $6)
      ON CONFLICT (opportunity_id) DO UPDATE
-       SET organization = EXCLUDED.organization, domain = EXCLUDED.domain,
+       -- A missing value must not erase a known one. Account.Website is null on
+       -- plenty of accounts, so a full sync legitimately carries no domain for
+       -- them; overwriting would throw away a domain an earlier load had and
+       -- silently break the booking match that depends on it. Same for the name.
+       SET organization = COALESCE(EXCLUDED.organization, sf_wins.organization),
+           domain = COALESCE(EXCLUDED.domain, sf_wins.domain),
            amount = EXCLUDED.amount, close_date = EXCLUDED.close_date,
            booking_id = COALESCE(EXCLUDED.booking_id, sf_wins.booking_id),
            updated_at = NOW()`,
