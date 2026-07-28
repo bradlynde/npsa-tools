@@ -31,6 +31,10 @@ if (!SECRET) {
   process.exit(1);
 }
 
+// Anything this dashboard first sees after the run begins came from the live Zap,
+// not from this snapshot — the reconcile must not delete it.
+const RUN_STARTED_AT = new Date().toISOString();
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rows = JSON.parse(await readFile(path.join(__dirname, 'applications-backfill-data.json'), 'utf8'));
 
@@ -69,13 +73,14 @@ try {
   const res = await fetch(RECONCILE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-zap-secret': SECRET },
-    body: JSON.stringify({ application_ids: rows.map((r) => r.id) }),
+    body: JSON.stringify({ application_ids: rows.map((r) => r.id), protect_created_after: RUN_STARTED_AT }),
   });
   if (!res.ok) {
     console.error(`Reconcile failed: HTTP ${res.status}. sf_applications may still contain stale rows.`);
   } else {
     const j = await res.json();
     console.log(`Reconcile complete. kept: ${j.kept}, removed: ${j.removed}`);
+    console.log(`Protected anything first seen after ${RUN_STARTED_AT} (arrived via the live Zap).`);
   }
 } catch (e) {
   console.error('Reconcile error:', e.message);

@@ -10,7 +10,9 @@
 // After posting every win, it calls /wins/reconcile with the full authoritative
 // id list, which DELETES any sf_wins row not in this file — clearing wins that were
 // reopened, deleted, re-staged, or ingested during testing, so the dashboard can
-// never drift above Salesforce.
+// never drift above Salesforce. It also sends covers_through (the newest close date
+// in this file) so the reconcile leaves alone any win that closed after this data
+// was exported — those come from the live Zap and are not stale.
 //
 // Needs network egress to the Railway app. Node 18+ (built-in fetch), no npm install.
 //   INGEST_URL="https://loe-generator-production.up.railway.app/api/marketing/wins/ingest" \
@@ -72,18 +74,23 @@ if (misses.length) {
   for (const m of misses) console.log('  - ' + m);
 }
 
-// Reconcile: remove any sf_wins row not in this authoritative set.
+// Reconcile: remove any sf_wins row not in this authoritative set — but only as far
+// forward as this file actually covers. A win that closed after this data was
+// exported (delivered by the live Zap) is NOT stale, and covers_through stops the
+// reconcile from deleting it.
+const coversThrough = rows.reduce((max, r) => (r.CloseDate > max ? r.CloseDate : max), '');
 try {
   const res = await fetch(RECONCILE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-zap-secret': SECRET },
-    body: JSON.stringify({ opportunity_ids: rows.map((r) => r.Id) }),
+    body: JSON.stringify({ opportunity_ids: rows.map((r) => r.Id), covers_through: coversThrough || null }),
   });
   if (!res.ok) {
     console.error(`\nReconcile failed: HTTP ${res.status}. sf_wins may still contain stale rows.`);
   } else {
     const j = await res.json();
     console.log(`\nReconcile complete. kept: ${j.kept}, removed: ${j.removed}${j.removed ? ' (' + (j.removed_ids || []).join(', ') + ')' : ''}`);
+    console.log(`Protected anything closing after ${coversThrough} (arrived via the live Zap).`);
   }
 } catch (e) {
   console.error('\nReconcile error:', e.message);
