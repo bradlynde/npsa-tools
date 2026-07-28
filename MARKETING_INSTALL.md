@@ -56,6 +56,80 @@ Nothing breaks if the two optional keys are missing — those rows just stay une
 
 ---
 
+## Salesforce connector (keeps the Sales half current on its own)
+
+The dashboard pulls Salesforce itself, on a schedule, from inside this app. Every run asks
+Salesforce for the complete current set of won opportunities and grant applications, upserts
+them, and deletes anything Salesforce no longer has — so the figures can't drift in either
+direction, and nobody has to re-run a backfill by hand.
+
+Without these variables the connector stays idle and everything else works exactly as before.
+
+```
+SF_CLIENT_ID              # Connected App consumer key
+SF_CLIENT_SECRET          # Connected App consumer secret
+SF_REFRESH_TOKEN          # from the one-time authorize below
+SF_LOGIN_URL              # optional — https://test.salesforce.com for a sandbox
+SF_API_VERSION            # optional — default v60.0
+SF_WON_STAGE              # optional — default 'Won - Data Migrated to 2012 Processes'
+SF_WINS_SINCE             # optional — default 2024-10-01
+SF_SYNC_INTERVAL_MINUTES  # optional — default 360 (every 6 hours)
+```
+
+### 1. Create the Connected App
+Salesforce **Setup → App Manager → New Connected App**:
+- Name: `NPSA Dashboard Sync`
+- Check **Enable OAuth Settings**
+- Callback URL: `https://login.salesforce.com/services/oauth2/success`
+  (only used for the one-time authorize below — nothing calls back to it afterwards)
+- Selected OAuth Scopes: **Manage user data via APIs (api)** and
+  **Perform requests at any time (refresh_token, offline_access)**
+- Save, then **Manage Consumer Details** to copy the Consumer Key and Secret.
+
+Salesforce takes up to ~10 minutes to propagate a new Connected App — if step 2 rejects the
+client id, that's usually why.
+
+### 2. Mint a refresh token (once)
+Signed into the right Salesforce org, open this in a browser:
+```
+https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=<CONSUMER_KEY>&redirect_uri=https://login.salesforce.com/services/oauth2/success
+```
+Approve. The address bar then ends in `?code=<CODE>`. Copy that code and exchange it:
+```bash
+curl -X POST https://login.salesforce.com/services/oauth2/token \
+  -d grant_type=authorization_code \
+  -d client_id='<CONSUMER_KEY>' \
+  -d client_secret='<CONSUMER_SECRET>' \
+  -d redirect_uri='https://login.salesforce.com/services/oauth2/success' \
+  -d code='<CODE>'
+```
+The response contains `refresh_token` — that's `SF_REFRESH_TOKEN`. It does not expire on its
+own; it stops working only if someone revokes it in Salesforce. The `code` is single-use and
+URL-encoded, so decode any trailing `%3D` back to `=` before sending it.
+
+### 3. Set the variables in Railway and verify
+```bash
+# force a run rather than waiting for the schedule
+curl -X POST https://<your-railway-domain>/api/marketing/sync/salesforce \
+  -H "x-zap-secret: <ZAPIER_WEBHOOK_SECRET>"
+
+# what the dashboard's freshness strip reads
+curl https://<your-railway-domain>/api/marketing/sync/status
+```
+The Sales section shows the result as a line under its heading — when it last synced, how many
+records, and any failure. If it went wrong, that strip says so rather than quietly showing
+yesterday's numbers.
+
+### Safety rails
+The sync deletes, so it refuses when the pull looks wrong rather than trusting it:
+- a query returning **zero** records is treated as a broken query or permissions change, not as
+  an empty Salesforce — nothing is deleted
+- a pull that would remove **more than half** the stored rows is held back and flagged on the
+  freshness strip; the upserts still land
+- every attempt, successful or not, writes a `sync_runs` row
+
+---
+
 ## Wire the Zap (adds bookings to Postgres in real time)
 In your existing Calendly → Google Sheets Zap, add ONE action after the trigger:
 - App: **Webhooks by Zapier → POST**
