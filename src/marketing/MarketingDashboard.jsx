@@ -62,12 +62,26 @@ function SectionHead({ title, sub }) {
 
 // minWidth 0 so the grid column (not the label text) decides the width — otherwise
 // a long label sets a min-content floor and the whole row overflows its container.
+//
+// These tiles sit five-across, leaving roughly 114px of text room each, while a
+// money value like "$411,500" needs ~151px at 34px — so long values used to spill
+// past the tile. Size the number to its own length instead. It is measured from the
+// FINAL value, not the mid-animation one, so the type doesn't jitter as it counts up.
+function statFontSize(text) {
+  const n = String(text).length;
+  if (n <= 4) return 34;
+  if (n <= 6) return 30;
+  if (n <= 8) return 24;
+  return 20;
+}
+
 function StatCard({ bg, value, format, sub, playToken }) {
   const [roll, setRoll] = useState(playToken || 0);
+  const finalText = format ? String(format(value)) : String(Math.round(Number(value) || 0));
   return (
     <div onMouseEnter={() => setRoll(k => k + 1)}
       style={{ background: bg, borderRadius: 18, padding: '22px 24px', boxShadow: '0 10px 28px rgba(26,37,64,0.28)', cursor: 'default', minWidth: 0 }}>
-      <div style={{ color: '#fff', fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
+      <div style={{ color: '#fff', fontWeight: 800, fontSize: statFontSize(finalText), lineHeight: 1.1, whiteSpace: 'nowrap' }}>
         <RollUp value={value} playToken={roll} format={format} />
       </div>
       <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 11.5, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>{sub}</div>
