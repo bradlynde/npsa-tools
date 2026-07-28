@@ -162,6 +162,68 @@ yesterday's numbers.
 - `JWT signing failed` in `sync_runs.error` — the connector caught a malformed
   `SF_PRIVATE_KEY` before ever calling Salesforce, so this one is a paste problem
 
+### If this app cannot reach the Salesforce API (Professional Edition)
+
+Professional Edition sells REST API access as an add-on, so a custom app like this one
+gets `API_DISABLED_FOR_ORG` — while Zapier, a certified partner, reads the same org fine.
+When that is the situation, keep the connector and change only who does the fetching:
+a scheduled Zap queries Salesforce and delivers the complete set to
+
+```
+POST /api/marketing/sync/push
+Header: x-zap-secret: <ZAPIER_WEBHOOK_SECRET>
+Body:   { "source": "salesforce_wins", "records": [ ... ] }
+```
+
+`source` is `salesforce_wins` or `salesforce_applications`. Everything downstream is
+shared with the pull path — the same upserts, the same prune, the same safety rails,
+the same `sync_runs` row behind the freshness strip.
+
+**Send the complete set every time.** Anything absent is treated as deleted, which is
+what keeps the dashboard from drifting above Salesforce. The rails below make a
+truncated delivery safe, but they are a backstop, not a licence to send partial data.
+
+Record shapes (identical to the single-record ingest endpoints):
+
+```jsonc
+// salesforce_wins
+{ "opportunity_id": "006...", "organization": "Alpha Church",
+  "domain": "alpha.org", "amount": 12500, "close_date": "2025-01-15" }
+
+// salesforce_applications
+{ "application_id": "a0X...", "name": "A-1", "organization": "Alpha Church",
+  "account_id": "001...", "grant_program": "NSGP", "state": "GA",
+  "status": "Accepted - Awarded", "amount_requested": 150000,
+  "amount_awarded": 149000, "max_award": 150000 }
+```
+
+### Building the scheduled Zap
+
+Three steps, **three tasks per run** — roughly 90 tasks/month per source. The thing to
+avoid is a looping Zap that POSTs one record at a time: at ~240 records nightly that is
+7,000–14,000 tasks/month, which no ordinary plan covers.
+
+1. **Schedule by Zapier** → Every Day, pick an off-hours time. (Free, not a task.)
+2. **Salesforce → Custom SOQL Query**, Query Type `Custom SOQL Query`:
+   ```sql
+   SELECT Id, Account.Name, Account.Website, EST_TCV__c, CloseDate
+   FROM Opportunity
+   WHERE StageName = 'Won - Data Migrated to 2012 Processes'
+     AND CloseDate >= 2024-10-01
+   ```
+3. **Code by Zapier → Run JavaScript**, which reshapes the rows and POSTs them itself
+   (so no fourth step is needed). Set `URL` and `SECRET` in the code, and map the
+   query results into `inputData`.
+
+The applications Zap is the same with the Applications SOQL from step 2 above and
+`source: 'salesforce_applications'`.
+
+**Note:** Zapier flattens repeated fields into comma-joined strings when mapping into a
+Code step, so the snippet handles both an array and a joined string. The first run is
+the one to watch — if the record count in the response looks wrong, log `inputData` and
+adjust the mapping. A miscount cannot damage anything: the endpoint refuses an empty
+delivery outright and holds back any prune that would remove more than half the table.
+
 ### Safety rails
 The sync deletes, so it refuses when the pull looks wrong rather than trusting it:
 - a query returning **zero** records is treated as a broken query or permissions change, not as

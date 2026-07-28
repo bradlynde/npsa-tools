@@ -37,6 +37,7 @@
 //   SF_WINS_SINCE             default 2024-10-01 (company started on security grants)
 //   SF_SYNC_INTERVAL_MINUTES  default 360 (every 6 hours)
 
+import express from 'express';
 import { createSign } from 'node:crypto';
 import { recordWin, recordApplication, rebuildBookingWins } from '../marketing.js';
 
@@ -212,7 +213,47 @@ async function pruneToSet(pool, table, idColumn, ids) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Sources
+// Appliers — everything that happens once we hold the complete current set.
+//
+// Deliberately separate from how the set was obtained. This app pulls when it
+// has API access, and is delivered the same set by a scheduled Zap when it does
+// not (Salesforce Professional Edition sells REST API access as an add-on, but
+// grants it to certified partners like Zapier, so the Zap can read an org our
+// own app is refused by). Both routes converge here, which means the upserts,
+// the prune, the safety rails and the run record are identical either way —
+// there is no second implementation to drift.
+// ─────────────────────────────────────────────────────────────
+
+// Zero records is not a real state for this business, so it means a broken query,
+// a renamed stage, or a permissions change. Never let it empty the table.
+const refuseIfEmpty = (records, what) => {
+  if (!Array.isArray(records) || !records.length) {
+    throw new Error(`received 0 ${what} — refusing to sync`);
+  }
+};
+
+export async function applyWins(pool, records) {
+  refuseIfEmpty(records, 'won opportunities');
+  for (const w of records) await recordWin(pool, w);
+  const prune = await pruneToSet(pool, 'sf_wins', 'opportunity_id',
+    records.map(w => String(w.opportunity_id)));
+  // Keep the funnel view equal to the win store after any removal.
+  await rebuildBookingWins(pool);
+  return { rows_seen: records.length, ...prune };
+}
+
+export async function applyApplications(pool, records) {
+  refuseIfEmpty(records, 'applications');
+  for (const a of records) await recordApplication(pool, a);
+  const prune = await pruneToSet(pool, 'sf_applications', 'application_id',
+    records.map(a => String(a.application_id)));
+  return { rows_seen: records.length, ...prune };
+}
+
+export const APPLIERS = { salesforce_wins: applyWins, salesforce_applications: applyApplications };
+
+// ─────────────────────────────────────────────────────────────
+// Pull sources — used only when this app has its own API access.
 // ─────────────────────────────────────────────────────────────
 async function syncWins(pool) {
   const stage = process.env.SF_WON_STAGE || DEFAULT_STAGE;
@@ -222,23 +263,13 @@ async function syncWins(pool) {
       WHERE StageName = '${stage.replace(/'/g, "\\'")}'
         AND CloseDate >= ${winsSince()}`
   );
-  // Zero won opportunities is not a real state for this business, so it means the
-  // query, the stage name, or permissions are wrong. Never let that empty the table.
-  if (!records.length) throw new Error('Salesforce returned 0 won opportunities — refusing to sync');
-
-  for (const r of records) {
-    await recordWin(pool, {
-      opportunity_id: r.Id,
-      organization: r.Account?.Name || null,
-      domain: r.Account?.Website || null,
-      amount: r.EST_TCV__c ?? 0,
-      close_date: r.CloseDate || null,
-    });
-  }
-  const prune = await pruneToSet(pool, 'sf_wins', 'opportunity_id', records.map(r => r.Id));
-  // Keep the funnel view equal to the win store after any removal.
-  await rebuildBookingWins(pool);
-  return { rows_seen: records.length, ...prune };
+  return applyWins(pool, records.map(r => ({
+    opportunity_id: r.Id,
+    organization: r.Account?.Name || null,
+    domain: r.Account?.Website || null,
+    amount: r.EST_TCV__c ?? 0,
+    close_date: r.CloseDate || null,
+  })));
 }
 
 async function syncApplications(pool) {
@@ -249,24 +280,18 @@ async function syncApplications(pool) {
             Actual_Amount_Awarded__c, Maximum_Award_Amount__c
        FROM Applications__c`
   );
-  if (!records.length) throw new Error('Salesforce returned 0 applications — refusing to sync');
-
-  for (const r of records) {
-    await recordApplication(pool, {
-      application_id: r.Id,
-      name: r.Name || null,
-      organization: r.Account__r?.Name || null,
-      account_id: r.Account__c || null,
-      grant_program: r.Grant_Program__c || null,
-      state: r.State__c || null,
-      status: r.Applicaiton_Status__c || null,
-      amount_requested: r.Total_Amount_Requested__c ?? 0,
-      amount_awarded: r.Actual_Amount_Awarded__c ?? 0,
-      max_award: r.Maximum_Award_Amount__c ?? 0,
-    });
-  }
-  const prune = await pruneToSet(pool, 'sf_applications', 'application_id', records.map(r => r.Id));
-  return { rows_seen: records.length, ...prune };
+  return applyApplications(pool, records.map(r => ({
+    application_id: r.Id,
+    name: r.Name || null,
+    organization: r.Account__r?.Name || null,
+    account_id: r.Account__c || null,
+    grant_program: r.Grant_Program__c || null,
+    state: r.State__c || null,
+    status: r.Applicaiton_Status__c || null,
+    amount_requested: r.Total_Amount_Requested__c ?? 0,
+    amount_awarded: r.Actual_Amount_Awarded__c ?? 0,
+    max_award: r.Maximum_Award_Amount__c ?? 0,
+  })));
 }
 
 const SOURCES = {
@@ -278,11 +303,11 @@ const SOURCES = {
 // Runner — one sync_runs row per source per attempt, always written, so a
 // failure is as visible on the dashboard as a success.
 // ─────────────────────────────────────────────────────────────
-async function runSource(pool, source) {
+export async function runSource(pool, source, task) {
   const { rows: [run] } = await pool.query(
     `INSERT INTO sync_runs (source) VALUES ($1) RETURNING id, started_at`, [source]);
   try {
-    const result = await SOURCES[source](pool);
+    const result = await task();
     await pool.query(
       `UPDATE sync_runs SET finished_at = NOW(), ok = TRUE, rows_seen = $2, rows_removed = $3, note = $4
          WHERE id = $1`,
@@ -314,7 +339,9 @@ export async function runSalesforceSync(pool) {
   _running = true;
   try {
     const results = [];
-    for (const source of Object.keys(SOURCES)) results.push(await runSource(pool, source));
+    for (const source of Object.keys(SOURCES)) {
+      results.push(await runSource(pool, source, () => SOURCES[source](pool)));
+    }
     return { ok: results.every(r => r.ok), results };
   } finally {
     _running = false;
@@ -336,8 +363,46 @@ export function registerSalesforceConnector(app, pool) {
         SELECT DISTINCT ON (source) source, started_at, finished_at, ok, rows_seen, rows_removed, note, error
           FROM sync_runs
          ORDER BY source, started_at DESC`);
-      res.json({ configured: salesforceConfigured(), runs: rows });
+      // pull_configured says only whether THIS app can query Salesforce itself.
+      // It is not the same question as "is the dashboard current" — a scheduled Zap
+      // delivering to /sync/push keeps everything fresh with pull_configured false.
+      res.json({ configured: salesforceConfigured(), pull_configured: salesforceConfigured(), runs: rows });
     } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Delivered full sync — a scheduled Zap queries Salesforce and POSTs the whole
+  // current set in ONE request:
+  //   { source: 'salesforce_wins' | 'salesforce_applications', records: [...] }
+  //
+  // One request, not one per record. That distinction is the whole point: looping
+  // ~240 records nightly through Zapier costs thousands of tasks a month, while
+  // this costs three (query, format, POST). The trade is that Zapier must send the
+  // COMPLETE set each time, because anything absent is treated as deleted — same
+  // contract the pull has, and the same safety rails apply to both.
+  //
+  // This payload outgrows express's 100kb default as the record count rises, so the
+  // host app raises the limit for this path (see server/index.js — it must be done
+  // there, ahead of the general parser, for the limit to take effect). The parser
+  // here is a no-op when that has already run, and the correct limit when this
+  // connector is mounted somewhere that has not.
+  app.post('/api/marketing/sync/push', express.json({ limit: '10mb' }), async (req, res) => {
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const source = req.body?.source;
+    const records = req.body?.records;
+    if (!APPLIERS[source]) {
+      return res.status(400).json({ error: `source must be one of: ${Object.keys(APPLIERS).join(', ')}` });
+    }
+    if (!Array.isArray(records)) {
+      return res.status(400).json({ error: 'records must be an array (the complete current set for this source)' });
+    }
+    _schemaReady = _schemaReady || ensureSyncSchema(pool);
+    await _schemaReady;
+    // Recorded as a sync_runs row exactly like a pull, so the freshness strip and
+    // the failure history work identically no matter which transport delivered it.
+    const result = await runSource(pool, source, () => APPLIERS[source](pool, records));
+    res.status(result.ok ? 200 : 409).json(result);
   });
 
   // Manual kick — same shared secret as the ingest endpoints.
