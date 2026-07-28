@@ -84,13 +84,20 @@ function SyncStrip({ status }) {
   const newest = runs.reduce((max, r) => (r.finished_at && r.finished_at > max ? r.finished_at : max), '');
   const stale = newest && (Date.now() - new Date(newest).getTime()) > 24 * 3600 * 1000;
 
+  // Whether a sync has actually landed matters more than how it is plumbed: the
+  // data arrives either by this app querying Salesforce or by a scheduled Zap
+  // delivering the same set, and a run is a run. Only claim "not configured" when
+  // nothing has ever arrived by either route.
   let tone, text;
-  if (!status.configured) {
-    tone = '#7a869f'; text = 'Salesforce sync not configured — figures are from the last manual load';
+  if (!runs.length) {
+    tone = '#7a869f';
+    text = status.pull_configured
+      ? 'Salesforce sync has not run yet'
+      : 'Salesforce sync not configured — figures are from the last manual load';
   } else if (failed.length) {
     tone = '#c2410c'; text = `Last Salesforce sync failed — ${failed[0].error || 'unknown error'}`;
   } else if (!newest) {
-    tone = '#7a869f'; text = 'Salesforce sync has not run yet';
+    tone = '#7a869f'; text = 'Salesforce sync started but has not finished';
   } else {
     const seen = runs.reduce((s, r) => s + (r.rows_seen || 0), 0);
     tone = stale ? '#b45309' : '#4d7c0f';

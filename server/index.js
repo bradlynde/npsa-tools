@@ -46,6 +46,13 @@ if (process.env.DATABASE_URL) {
   `).catch(err => console.error('DB init error:', err.message));
 }
 
+// The scheduled Salesforce sync delivers its whole record set in one request, which
+// outgrows the 100kb default as the business does. This has to be registered BEFORE
+// the general parser: middleware runs in registration order, so whichever json()
+// sees the request first is the one whose limit applies — a limit set down on the
+// route itself would never get a look in. body-parser marks the request as read, so
+// the general parser below simply skips what this one already handled.
+app.use('/api/marketing/sync/push', express.json({ limit: '10mb' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
