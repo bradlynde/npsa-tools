@@ -79,6 +79,19 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_opportunities JSONB DEFAULT '{}';
   `).catch(err => console.error('bookings wins-columns error:', err.message));
 
+  // Two ways a booking stops representing real pipeline:
+  //   unqualified — a human decided it was never a prospect (a consultant or
+  //                 competitor booking a slot, a mis-targeted lead)
+  //   cancelled   — Calendly says the meeting was called off
+  // Both are excluded from every count but stay on the list: removed from the
+  // maths, not from the record. unqualified is driven by manual_override, so a
+  // re-sync from Calendly or Instantly can never undo a human's judgement.
+  await pool.query(`
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS unqualified  BOOLEAN DEFAULT FALSE;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled    BOOLEAN DEFAULT FALSE;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+  `).catch(err => console.error('bookings disposition-columns error:', err.message));
+
   // Source of truth for EVERY Salesforce win — matched to a booking or not.
   // booking_id is NULL for untracked / pre-funnel wins (closed before the booking
   // funnel existed, or a deal that never came through a tracked booking). Totals
@@ -263,24 +276,45 @@ export { instantlyCampaignMap, instantlyLeadsForEmail, instantlyFindLead };
 // ─────────────────────────────────────────────────────────────
 // 4. Calendly held-status (best-effort, fail safe)
 // ─────────────────────────────────────────────────────────────
-async function calendlyHeld(eventUri) {
+// Asks Calendly two separate questions about one event:
+//   cancelled — was the meeting called off? Answerable at any time, and the answer
+//               that matters most is about a meeting still in the future.
+//   held      — did the invitee actually turn up? Only meaningful once it has passed.
+//
+// These used to be conflated: a cancellation was recorded as "not held", and the
+// check only ran for meetings already in the past. So a meeting cancelled today for
+// next month stayed on the dashboard as an upcoming appointment until its date came
+// round — which is exactly the case this is being asked to fix.
+//
+// checkAttendance skips the second API call for events that have not happened yet.
+// Returns null for anything it cannot determine, so a missing token or a Calendly
+// outage leaves existing values untouched rather than overwriting them.
+async function calendlyStatus(eventUri, checkAttendance) {
   const key = process.env.CALENDLY_API_TOKEN;
-  if (!key || !eventUri) return { held: null, source: null };
+  if (!key || !eventUri) return { cancelled: null, held: null, source: null };
   try {
     const ev = await fetch(eventUri, { headers: { Authorization: `Bearer ${key}` } });
-    if (ev.ok) {
-      const evData = await ev.json();
-      if (evData.resource?.status === 'canceled') return { held: false, source: 'calendly' };
-    }
+    if (!ev.ok) return { cancelled: null, held: null, source: null };
+    const status = (await ev.json())?.resource?.status;
+    // A cancellation says nothing about attendance, so it deliberately leaves held
+    // alone. Writing held=false here was the original conflation, and it stuck: an
+    // event cancelled and then reinstated kept "not held" forever, because a future
+    // meeting has no attendance to re-read. Cancelled rows are excluded from the
+    // counts anyway, so there is nothing to gain by answering a question nobody asked.
+    if (status === 'canceled') return { cancelled: true, held: null, source: null };
+    if (status !== 'active') return { cancelled: null, held: null, source: null };
+    // Still on the calendar. Attendance is the only open question, and only in the past.
+    if (!checkAttendance) return { cancelled: false, held: null, source: null };
     const inv = await fetch(`${eventUri}/invitees`, { headers: { Authorization: `Bearer ${key}` } });
     if (inv.ok) {
-      const invData = await inv.json();
-      const first = (invData.collection || [])[0];
-      if (first?.no_show) return { held: false, source: 'calendly' };
-      if (first) return { held: true, source: 'calendly' };
+      const first = ((await inv.json()).collection || [])[0];
+      if (first?.no_show) return { cancelled: false, held: false, source: 'calendly' };
+      if (first) return { cancelled: false, held: true, source: 'calendly' };
     }
-  } catch { /* fall through */ }
-  return { held: null, source: null };
+    return { cancelled: false, held: null, source: null };
+  } catch {
+    return { cancelled: null, held: null, source: null };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -357,13 +391,24 @@ async function enrichBooking(pool, id) {
   }
   const channel = deriveChannel(row, campaign);
 
-  // --- Held ---
+  // --- Cancelled + held (one Calendly lookup answers both) ---
+  // Attendance is only worth asking about once the meeting has passed; cancellation
+  // is asked every time, because a future meeting being called off is the whole point.
+  const past = row.meeting_date && new Date(row.meeting_date) < new Date();
+  const st = await calendlyStatus(row.event_uri, Boolean(past));
+
+  let cancelled = row.cancelled === true;
+  let cancelledAt = row.cancelled_at;
+  if (st.cancelled === true && !cancelled) { cancelled = true; cancelledAt = new Date(); }
+  else if (st.cancelled === false) { cancelled = false; cancelledAt = null; } // rebooked/reinstated
+  // st.cancelled === null means Calendly could not answer — leave what we have.
+
   let held = row.held, heldSource = row.held_source;
   if (typeof override.held === 'boolean') { held = override.held; heldSource = 'manual'; }
-  else if (row.meeting_date && new Date(row.meeting_date) < new Date()) {
-    const h = await calendlyHeld(row.event_uri);
-    if (h.held !== null) { held = h.held; heldSource = h.source; }
-  }
+  else if (st.held !== null) { held = st.held; heldSource = st.source; }
+
+  // --- Unqualified (human judgement only, never inferred) ---
+  const unqualified = override.unqualified === true;
 
   // --- Became client + fee (join to letters, same DB) ---
   let becameClient = false, letterId = null, fee = 0;
@@ -394,9 +439,11 @@ async function enrichBooking(pool, id) {
     `UPDATE bookings SET
        instantly_campaign=$1, attribution_channel=$2, attribution_source=$3,
        held=$4, held_source=$5, became_client=$6, client_letter_id=$7, fee=$8,
+       unqualified=$9, cancelled=$10, cancelled_at=$11,
        enriched_at=NOW(), updated_at=NOW()
-     WHERE id=$9`,
-    [campaign, channel, source, held, heldSource, becameClient, letterId, fee, id]
+     WHERE id=$12`,
+    [campaign, channel, source, held, heldSource, becameClient, letterId, fee,
+     unqualified, cancelled, cancelledAt, id]
   );
 }
 
@@ -629,6 +676,12 @@ export { recordWin, recordApplication, rebuildBookingWins };
 // ─────────────────────────────────────────────────────────────
 // 8. Routes
 // ─────────────────────────────────────────────────────────────
+// Every dashboard count uses this one predicate, so "how many bookings" has exactly
+// one answer no matter which tile is asking. An unqualified or cancelled booking is
+// still a row in the table and still appears in the list — it is removed from the
+// arithmetic, not from the record.
+const COUNTABLE = `NOT COALESCE(unqualified, FALSE) AND NOT COALESCE(cancelled, FALSE)`;
+
 export function registerMarketing(app, pool) {
   if (!pool) { console.warn('[marketing] no DB pool — marketing endpoints disabled'); return; }
   ensureSchema(pool);
@@ -828,8 +881,23 @@ export function registerMarketing(app, pool) {
           COUNT(*) FILTER (WHERE held IS TRUE)::int AS held_count,
           COUNT(*) FILTER (WHERE won)::int AS won_count,
           COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_revenue
-        FROM bookings`);
+        FROM bookings WHERE ${COUNTABLE}`);
       const s = rows[0];
+
+      // What was left out, so the exclusions are visible rather than silent. The
+      // weekly figures matter most — that is the number reviewed each week.
+      const { rows: exrows } = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE unqualified)::int AS unqualified_count,
+          COUNT(*) FILTER (WHERE cancelled)::int   AS cancelled_count,
+          COUNT(*) FILTER (WHERE unqualified
+            AND booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
+            AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS unqualified_this_week,
+          COUNT(*) FILTER (WHERE cancelled
+            AND booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
+            AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS cancelled_this_week
+        FROM bookings`);
+      const ex = exrows[0];
 
       // Salesforce revenue layer — every win, matched to a booking or not.
       const { rows: wrows } = await pool.query(`
@@ -870,6 +938,11 @@ export function registerMarketing(app, pool) {
         untracked_revenue: Number(sw.sf_untracked_revenue),
         untracked_count: sw.sf_untracked_count,
         attribution_coverage: sfTotalRev > 0 ? Number(sw.sf_attr_revenue) / sfTotalRev : 0,
+        // Excluded from every figure above.
+        unqualified_count: ex.unqualified_count,
+        cancelled_count: ex.cancelled_count,
+        unqualified_this_week: ex.unqualified_this_week,
+        cancelled_this_week: ex.cancelled_this_week,
       });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -905,7 +978,7 @@ export function registerMarketing(app, pool) {
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees,
                COUNT(*) FILTER (WHERE won)::int AS won,
                COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_amount
-        FROM bookings`);
+        FROM bookings WHERE ${COUNTABLE}`);
       res.json({ ...rows[0], fees: Number(rows[0].fees), won_amount: Number(rows[0].won_amount) });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -935,7 +1008,7 @@ export function registerMarketing(app, pool) {
                COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees
-        FROM bookings GROUP BY 1, 2 ORDER BY booked DESC`);
+        FROM bookings WHERE ${COUNTABLE} GROUP BY 1, 2 ORDER BY booked DESC`);
       res.json(rows.map(r => ({ ...r, fees: Number(r.fees) })));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -949,7 +1022,7 @@ export function registerMarketing(app, pool) {
                COUNT(*)::int AS booked,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees
-        FROM bookings GROUP BY 1 ORDER BY booked DESC`);
+        FROM bookings WHERE ${COUNTABLE} GROUP BY 1 ORDER BY booked DESC`);
       res.json(rows.map(r => ({ ...r, channel: channelLabel(r.channel), fees: Number(r.fees) })));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -966,7 +1039,7 @@ export function registerMarketing(app, pool) {
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COUNT(*) FILTER (WHERE won)::int AS won,
                COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_amount
-        FROM bookings WHERE booked_on IS NOT NULL
+        FROM bookings WHERE booked_on IS NOT NULL AND ${COUNTABLE}
         GROUP BY 1 ORDER BY 1`);
       res.json(rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1027,9 +1100,11 @@ export function registerMarketing(app, pool) {
       const channel = req.query.channel || '';
       const campaign = req.query.campaign || '';
       const { rows } = await pool.query(
+        // Deliberately unfiltered: excluded bookings still belong on the list, which
+        // is the whole point of marking rather than deleting them.
         `SELECT id, booked_on, meeting_date, name, organization, email, told_us,
                 attribution_channel, instantly_campaign, host, held, became_client, fee,
-                won, won_amount
+                won, won_amount, unqualified, cancelled, cancelled_at
          FROM bookings
          WHERE ($1='' OR name ILIKE '%'||$1||'%' OR organization ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%')
            AND ($2='' OR attribution_channel=$2)
@@ -1041,20 +1116,49 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // Manual override toggles (Held / Won)
+  // Manual override toggles (Held / Won / Unqualified).
+  // These live in manual_override, which nothing outside this tool reads or writes:
+  // marking a booking here never touches Calendly, Instantly or Salesforce, and a
+  // re-sync from any of them cannot undo it.
   app.patch('/api/marketing/bookings/:id', async (req, res) => {
     if (!pool) return guard(res);
     try {
-      const { held, became_client } = req.body || {};
+      const { held, became_client, unqualified } = req.body || {};
       const cur = await pool.query('SELECT manual_override FROM bookings WHERE id=$1', [req.params.id]);
       if (!cur.rows[0]) return res.status(404).json({ error: 'not found' });
       const ov = { ...(cur.rows[0].manual_override || {}) };
       if (typeof held === 'boolean') ov.held = held;
       if (typeof became_client === 'boolean') ov.became_client = became_client;
+      if (typeof unqualified === 'boolean') ov.unqualified = unqualified;
       await pool.query('UPDATE bookings SET manual_override=$1, updated_at=NOW() WHERE id=$2',
         [JSON.stringify(ov), req.params.id]);
       await enrichBooking(pool, req.params.id);
       res.json({ ok: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
+
+  // Scheduled refresh. A cancellation is something that happens to a booking after
+  // it was created, so nothing about the booking itself prompts a re-check — without
+  // a schedule, a cancelled meeting sits on the dashboard until somebody happens to
+  // press the enrich button. Upcoming meetings are what matter here, so those are
+  // swept rather than the whole table.
+  const sweepMinutes = Number(process.env.BOOKING_SWEEP_MINUTES) || 360;
+  const sweepUpcoming = async () => {
+    if (_enrichRunning) return;
+    _enrichRunning = true;
+    try {
+      const { rows } = await pool.query(
+        `SELECT id FROM bookings
+          WHERE event_uri IS NOT NULL
+            AND (meeting_date IS NULL OR meeting_date > NOW() - interval '7 days')`);
+      for (const r of rows) {
+        try { await enrichBooking(pool, r.id); } catch (e) { console.error('sweep enrich error:', e.message); }
+      }
+      if (rows.length) console.log(`[marketing] booking sweep complete: ${rows.length} rows`);
+    } finally { _enrichRunning = false; }
+  };
+  // Off the boot path, so a Calendly outage can never delay the app starting.
+  setTimeout(() => { sweepUpcoming().catch(e => console.error('[marketing] startup sweep failed:', e.message)); }, 60_000);
+  setInterval(() => { sweepUpcoming().catch(e => console.error('[marketing] sweep failed:', e.message)); }, sweepMinutes * 60_000);
+  console.log(`[marketing] booking sweep active — every ${sweepMinutes} minutes`);
 }
