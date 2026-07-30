@@ -154,6 +154,24 @@ async function ensureSchema(pool) {
       updated_at        TIMESTAMPTZ DEFAULT NOW()
     );
   `).catch(err => console.error('sf_applications schema error:', err.message));
+
+  // One row per sync attempt, whatever did the syncing. Declared here as well as in
+  // the Salesforce connector because both write to it, and this module cannot import
+  // that one — the connector already imports from here, so the dependency only goes
+  // one way. CREATE IF NOT EXISTS makes whichever runs first the one that matters.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sync_runs (
+      id           SERIAL PRIMARY KEY,
+      source       TEXT NOT NULL,
+      started_at   TIMESTAMPTZ DEFAULT NOW(),
+      finished_at  TIMESTAMPTZ,
+      ok           BOOLEAN,
+      rows_seen    INTEGER DEFAULT 0,
+      rows_removed INTEGER DEFAULT 0,
+      note         TEXT,
+      error        TEXT
+    );
+  `).catch(err => console.error('sync_runs schema error:', err.message));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -337,6 +355,90 @@ async function calendlyStatus(eventUri, checkAttendance) {
   } catch {
     return { cancelled: null, held: null, source: null };
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4b. Calendly backfill — import bookings that were never captured
+//
+// A Calendly link only starts feeding the dashboard the day someone wires a Zap to
+// it, and everything booked before that is invisible. Rather than exporting a file
+// and posting it back, this asks Calendly for the history directly: the token is
+// already here, the answer is authoritative, and there is no snapshot to go stale.
+//
+// Questions are matched by NAME, not position. The Zap has to map them positionally
+// (1_answer, 3_answer), which silently breaks whenever a form's question order
+// differs — reordering a Calendly form is a two-second drag with no warning that it
+// has repointed an integration. Matching on the question text cannot be reordered
+// out of correctness.
+// ─────────────────────────────────────────────────────────────
+const CAL_API = 'https://api.calendly.com';
+
+async function calendlyGet(path) {
+  const key = process.env.CALENDLY_API_TOKEN;
+  if (!key) throw new Error('CALENDLY_API_TOKEN is not set');
+  const url = path.startsWith('http') ? path : `${CAL_API}${path}`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
+  if (!r.ok) throw new Error(`Calendly ${r.status} on ${url.replace(CAL_API, '')}: ${(await r.text()).slice(0, 200)}`);
+  return r.json();
+}
+
+// Finds an answer by what the question asks rather than where it sits.
+const answerMatching = (qs, re) => {
+  const hit = (qs || []).find(q => re.test(String(q.question || '')));
+  const a = hit?.answer;
+  return (Array.isArray(a) ? a.join(', ') : (a || '')).trim() || null;
+};
+
+async function backfillCalendly(pool, { eventType, since, dryRun }) {
+  const me = await calendlyGet('/users/me');
+  const org = me.resource.current_organization;
+
+  const events = [];
+  let next = `${CAL_API}/scheduled_events?organization=${encodeURIComponent(org)}`
+    + `&event_type=${encodeURIComponent(eventType)}`
+    + (since ? `&min_start_time=${encodeURIComponent(new Date(since).toISOString())}` : '')
+    + '&count=100&sort=start_time:asc';
+  while (next) {
+    const page = await calendlyGet(next);
+    events.push(...(page.collection || []));
+    next = page.pagination?.next_page || null;
+  }
+
+  const result = { scanned: events.length, ingested: 0, skipped: 0, failed: 0, sample: [] };
+  for (const ev of events) {
+    try {
+      const invitees = (await calendlyGet(`${ev.uri}/invitees`)).collection || [];
+      const inv = invitees[0];
+      if (!inv) { result.skipped++; continue; }
+      const qs = inv.questions_and_responses;
+      const booking = {
+        calendly_uri: inv.uri,
+        event_uri: ev.uri,
+        booked_on: inv.created_at || null,
+        meeting_date: ev.start_time || null,
+        name: inv.name || null,
+        email: inv.email || null,
+        organization: answerMatching(qs, /organi[sz]ation|company/i),
+        told_us: answerMatching(qs, /hear about/i),
+        utm_source: inv.tracking?.utm_source || null,
+        utm_medium: inv.tracking?.utm_medium || null,
+        utm_campaign: inv.tracking?.utm_campaign || null,
+        host: (ev.event_memberships || [])[0]?.user_email || null,
+      };
+      if (result.sample.length < 5) {
+        result.sample.push({ organization: booking.organization, name: booking.name,
+          meeting_date: booking.meeting_date, told_us: booking.told_us, status: ev.status });
+      }
+      if (dryRun) { result.ingested++; continue; }
+      const id = await upsertBooking(pool, booking);
+      await enrichBooking(pool, id);   // sets channel, held, and cancelled from Calendly
+      result.ingested++;
+    } catch (e) {
+      result.failed++;
+      console.error('[calendly-backfill]', ev.uri, e.message);
+    }
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1151,6 +1253,47 @@ export function registerMarketing(app, pool) {
       );
       res.json(rows.map(r => ({ ...r, fee: Number(r.fee), won_amount: Number(r.won_amount) })));
     } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Import a Calendly event type's history. Runs in the background because ~100
+  // meetings means ~200 Calendly calls, well past any sensible request timeout, and
+  // records the outcome in sync_runs so the result survives the request that started
+  // it. dry_run=1 reads Calendly and reports what it found without writing anything —
+  // worth using first, since the last hand-run backfill on this project put a
+  // cancelled deal back on the dashboard.
+  app.post('/api/marketing/bookings/backfill-calendly', async (req, res) => {
+    if (!pool) return guard(res);
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const eventType = req.body?.event_type;
+    const since = req.body?.since || null;
+    const dryRun = req.body?.dry_run === true || req.query.dry_run === '1';
+    if (!eventType) return res.status(400).json({ error: 'event_type (Calendly event type URI or UUID) required' });
+    const uri = eventType.startsWith('http') ? eventType : `${CAL_API}/event_types/${eventType}`;
+
+    // A dry run is quick enough to answer inline, and answering inline is the point.
+    if (dryRun) {
+      try {
+        return res.json({ ok: true, dry_run: true, ...(await backfillCalendly(pool, { eventType: uri, since, dryRun: true })) });
+      } catch (err) { return res.status(500).json({ error: err.message }); }
+    }
+
+    res.json({ ok: true, started: true, message: 'running in the background — check /api/marketing/sync/status' });
+    (async () => {
+      const { rows: [run] } = await pool.query(
+        `INSERT INTO sync_runs (source) VALUES ('calendly_backfill') RETURNING id`);
+      try {
+        const r = await backfillCalendly(pool, { eventType: uri, since, dryRun: false });
+        await pool.query(
+          `UPDATE sync_runs SET finished_at=NOW(), ok=TRUE, rows_seen=$2, note=$3 WHERE id=$1`,
+          [run.id, r.ingested, `scanned ${r.scanned}, skipped ${r.skipped}, failed ${r.failed}`]);
+        console.log(`[calendly-backfill] done — ${r.ingested} of ${r.scanned} ingested`);
+      } catch (err) {
+        await pool.query(`UPDATE sync_runs SET finished_at=NOW(), ok=FALSE, error=$2 WHERE id=$1`, [run.id, err.message]);
+        console.error('[calendly-backfill] failed:', err.message);
+      }
+    })().catch(e => console.error('[calendly-backfill] unhandled:', e.message));
   });
 
   // Manual override toggles (Held / Won / Unqualified).
