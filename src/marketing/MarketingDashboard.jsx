@@ -183,6 +183,7 @@ export default function MarketingDashboard({ onBack }) {
   const [showUntracked, setShowUntracked] = useState(false);
   const [apps, setApps] = useState(null);
   const [syncStatus, setSyncStatus] = useState(null);
+  const [hoverRow, setHoverRow] = useState(null);   // reveals the row action on hover only
   const [showPrograms, setShowPrograms] = useState(false);
   const [salesSeries, setSalesSeries] = useState([]);
   const [salesGran, setSalesGran] = useState('month');
@@ -598,6 +599,72 @@ export default function MarketingDashboard({ onBack }) {
           </div>
         </div>
 
+        {/* Bookings — the working list, so it sits above the roll-ups */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ ...label, margin: 0 }}>Bookings</div>
+          <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadRows()} placeholder="Search name / org / email"
+            style={{ border: '1px solid #d0d6e0', borderRadius: 8, padding: '7px 12px', fontSize: 13, width: 240 }} />
+        </div>
+        <div style={{ ...card, overflow: 'hidden', marginBottom: 24 }}>
+          <div style={{ display: 'flex', padding: '11px 18px', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, background: '#fafbfc' }}>
+            <div style={{ flex: 2.2 }}>Org / Name</div><div style={{ flex: 1.3 }}>Channel</div><div style={{ flex: 1.7 }}>Campaign</div>
+            <div style={{ width: 86 }}>Meeting</div><div style={{ width: 60, textAlign: 'center' }}>Held</div><div style={{ width: 60, textAlign: 'center' }}>LOE</div>
+            <div style={{ width: 118, textAlign: 'right' }}>Status</div>
+          </div>
+          {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#9aa3b8' }}>No bookings yet.</div>}
+          <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+            {rows.map(r => {
+              // Excluded rows stay on the list but read as set aside rather than active.
+              const excluded = r.unqualified || r.cancelled;
+              const hover = hoverRow === r.id;
+              return (
+              <div key={r.id}
+                onMouseEnter={() => setHoverRow(r.id)} onMouseLeave={() => setHoverRow(null)}
+                style={{ display: 'flex', alignItems: 'center', padding: '10px 18px', borderTop: '1px solid #f4f5f9', fontSize: 13.5,
+                  background: excluded ? '#fbfbfd' : (hover ? '#fafbfc' : undefined), color: excluded ? '#98a1b3' : undefined }}>
+                <div style={{ flex: 2.2, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: excluded ? '#98a1b3' : '#1a2540', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    title={r.organization || ''}>{r.organization || '—'}</div>
+                  <div style={{ color: '#9aa3b8', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+                </div>
+                <div style={{ flex: 1.3, color: excluded ? '#a8b0bf' : '#5b6b8c' }}>{chLabel(r.attribution_channel || 'direct')}</div>
+                {/* One line, ellipsed — a wrapping campaign name was making every row
+                    twice as tall and pushing the list off the screen. */}
+                <div style={{ flex: 1.7, color: excluded ? '#a8b0bf' : '#5b6b8c', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 10 }}
+                  title={r.instantly_campaign || ''}>{r.instantly_campaign || '—'}</div>
+                <div style={{ width: 86, color: excluded ? '#a8b0bf' : '#5b6b8c' }}>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</div>
+                <div style={{ width: 60, textAlign: 'center' }}>
+                  <input type="checkbox" checked={!!r.held} onChange={e => toggle(r.id, 'held', e.target.checked)} />
+                </div>
+                <div style={{ width: 60, textAlign: 'center' }}>
+                  <input type="checkbox" checked={!!r.became_client} onChange={e => toggle(r.id, 'became_client', e.target.checked)} />
+                </div>
+                {/* Status carries a badge only when there is something to say. A control on
+                    every row read as a wall of identical buttons that drew more attention
+                    than the organisation names, for an action taken a few times a month —
+                    so the normal case shows nothing and the action appears on hover.
+                    Cancelled comes from Calendly and is stated, not offered as a choice. */}
+                <div style={{ width: 118, textAlign: 'right' }}>
+                  {r.cancelled ? (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', background: '#fdeee7', border: '1px solid #f3d3c4', borderRadius: 999, padding: '3px 9px' }}>Cancelled</span>
+                  ) : r.unqualified ? (
+                    <button onClick={() => toggle(r.id, 'unqualified', false)} title="Put this booking back into the totals"
+                      style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fdf4e7', border: '1px solid #f0dcbc', borderRadius: 999, padding: '3px 9px', cursor: 'pointer' }}>
+                      {hover ? 'Undo' : 'Unqualified'}
+                    </button>
+                  ) : hover ? (
+                    <button onClick={() => toggle(r.id, 'unqualified', true)} title="Not a real prospect — removes it from every total, but keeps it on this list"
+                      style={{ fontSize: 11.5, color: '#7a869f', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+                      Mark unqualified
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* By campaign — the leadership view */}
         <div style={label}>By Campaign &amp; Source</div>
         <div style={{ ...card, padding: '8px 0', marginBottom: 24 }}>
@@ -620,61 +687,6 @@ export default function MarketingDashboard({ onBack }) {
               <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: '#7a8c1e' }}>{c.fees ? money(c.fees) : '—'}</div>
             </div>
           ))}
-        </div>
-
-        {/* Bookings table */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ ...label, margin: 0 }}>Bookings</div>
-          <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadRows()} placeholder="Search name / org / email"
-            style={{ border: '1px solid #d0d6e0', borderRadius: 8, padding: '7px 12px', fontSize: 13, width: 240 }} />
-        </div>
-        <div style={{ ...card, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', padding: '11px 18px', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, background: '#fafbfc' }}>
-            <div style={{ flex: 2 }}>Org / Name</div><div style={{ flex: 1.4 }}>Channel</div><div style={{ flex: 1.6 }}>Campaign</div>
-            <div style={{ flex: 1 }}>Meeting</div><div style={{ width: 70, textAlign: 'center' }}>Held</div><div style={{ width: 70, textAlign: 'center' }}>LOE</div>
-            <div style={{ width: 90, textAlign: 'center' }}>Counted</div>
-          </div>
-          {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#9aa3b8' }}>No bookings yet.</div>}
-          <div style={{ maxHeight: 460, overflowY: 'auto' }}>
-            {rows.map(r => {
-              // Excluded rows stay on the list but read as set aside rather than active.
-              const excluded = r.unqualified || r.cancelled;
-              return (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 18px', borderTop: '1px solid #f4f5f9', fontSize: 13.5, background: excluded ? '#fbfbfd' : undefined, opacity: excluded ? 0.62 : 1 }}>
-                <div style={{ flex: 2, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: '#1a2540', textDecoration: r.cancelled ? 'line-through' : 'none' }}>{r.organization || '—'}</div>
-                  <div style={{ color: '#9aa3b8', fontSize: 12 }}>
-                    {r.name}
-                    {r.cancelled && <span style={{ marginLeft: 6, color: '#c2410c', fontWeight: 600 }}>· Cancelled</span>}
-                    {r.unqualified && !r.cancelled && <span style={{ marginLeft: 6, color: '#b45309', fontWeight: 600 }}>· Unqualified</span>}
-                  </div>
-                </div>
-                <div style={{ flex: 1.4, color: '#5b6b8c' }}>{chLabel(r.attribution_channel || 'direct')}</div>
-                <div style={{ flex: 1.6, color: '#5b6b8c' }}>{r.instantly_campaign || '—'}</div>
-                <div style={{ flex: 1, color: '#5b6b8c' }}>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString() : '—'}</div>
-                <div style={{ width: 70, textAlign: 'center' }}>
-                  <input type="checkbox" checked={!!r.held} onChange={e => toggle(r.id, 'held', e.target.checked)} />
-                </div>
-                <div style={{ width: 70, textAlign: 'center' }}>
-                  <input type="checkbox" checked={!!r.became_client} onChange={e => toggle(r.id, 'became_client', e.target.checked)} />
-                </div>
-                {/* Cancelled comes from Calendly, so it is shown rather than offered as a
-                    choice — only the human judgement is editable here. */}
-                <div style={{ width: 90, textAlign: 'center' }}>
-                  {r.cancelled
-                    ? <span style={{ fontSize: 11.5, color: '#9aa3b8' }}>cancelled</span>
-                    : <button
-                        onClick={() => toggle(r.id, 'unqualified', !r.unqualified)}
-                        title={r.unqualified ? 'Counted as unqualified — click to include in totals' : 'Exclude from all totals as unqualified'}
-                        style={{ border: '1px solid ' + (r.unqualified ? '#e6bf8a' : '#d0d6e0'), background: r.unqualified ? '#fdf4e7' : '#fff',
-                          color: r.unqualified ? '#b45309' : '#5b6b8c', borderRadius: 7, padding: '3px 9px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
-                        {r.unqualified ? 'Excluded' : 'Counted'}
-                      </button>}
-                </div>
-              </div>
-              );
-            })}
-          </div>
         </div>
 
       </div>
