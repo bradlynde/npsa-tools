@@ -383,8 +383,13 @@ async function calendlyGet(path) {
 }
 
 // Finds an answer by what the question asks rather than where it sits.
+// Takes the array, not the invitee, so a caller cannot pass the wrong property and
+// get silence: the field is questions_and_ANSWERS, and an earlier version read
+// questions_and_responses. That property does not exist, so every lookup returned
+// null — a wrong field name wearing the disguise of a form that asks nothing.
 const answerMatching = (qs, re) => {
-  const hit = (qs || []).find(q => re.test(String(q.question || '')));
+  if (!Array.isArray(qs)) throw new Error('expected an array of questions and answers');
+  const hit = qs.find(q => re.test(String(q.question || '')));
   const a = hit?.answer;
   return (Array.isArray(a) ? a.join(', ') : (a || '')).trim() || null;
 };
@@ -415,7 +420,13 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
   const result = {
     scanned: events.length,
     of_all_event_types: all.length,   // so a filter that matched nothing is obvious
-    ingested: 0, skipped: 0, failed: 0, sample: [],
+    ingested: 0, skipped: 0, failed: 0,
+    // How many records actually yielded an organization. Every one coming back
+    // empty is the signature of reading the wrong field or the wrong events, and
+    // it is worth stating as a number rather than leaving to be noticed in a
+    // sample — both times this endpoint was wrong, that was the visible symptom.
+    with_organization: 0,
+    sample: [],
   };
   if (!events.length) {
     result.note = `no events matched ${eventType} — check the event type id`;
@@ -430,7 +441,7 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
       const invitees = (await calendlyGet(`${ev.uri}/invitees`)).collection || [];
       const inv = invitees[0];
       if (!inv) { result.skipped++; continue; }
-      const qs = inv.questions_and_responses;
+      const qs = inv.questions_and_answers || [];
       const booking = {
         calendly_uri: inv.uri,
         event_uri: ev.uri,
@@ -445,6 +456,7 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
         utm_campaign: inv.tracking?.utm_campaign || null,
         host: (ev.event_memberships || [])[0]?.user_email || null,
       };
+      if (booking.organization) result.with_organization++;
       if (result.sample.length < 5) {
         result.sample.push({ organization: booking.organization, name: booking.name,
           meeting_date: booking.meeting_date, told_us: booking.told_us, status: ev.status });
