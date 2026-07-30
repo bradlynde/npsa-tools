@@ -598,6 +598,11 @@ export default function App() {
   const [letterSearch, setLetterSearch] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [selectedRep, setSelectedRep] = useState('');
+  // Reps were printing letters without ever saving them, so the letters never reached
+  // the dashboard. Printing now routes through a save first; these track whether the
+  // document on screen still matches what was last written to the database.
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState(null);
+  const [pendingPrintAfterSave, setPendingPrintAfterSave] = useState(false);
   const [reps, setReps] = useState([]);
   const [currentLetterId, setCurrentLetterId] = useState(null);
   const [newRepName, setNewRepName] = useState('');
@@ -1090,11 +1095,24 @@ export default function App() {
     if(subId&&s.subsections){ const sub=s.subsections.find(x=>x.id===subId); return sub?interp(sub.content):""; }
     return s.content?interp(s.content):"";
   };
+  // Serialized view of everything saveLetter persists, so an edit made after saving
+  // still counts as unsaved. Called at click time to avoid referencing state declared
+  // further down this component.
+  const docSnapshot = () => JSON.stringify({ form, savedLetterOverride: savedLetterOverride || null, docTab });
+  const needsSaveBeforePrint = () => lastSavedSnapshot === null || docSnapshot() !== lastSavedSnapshot;
   const handlePrint = () => {
     if (!isAddendum && !form.expirationDate) {
       alert("Please set an Expiration Date before downloading or printing.");
       return;
     }
+    if (needsSaveBeforePrint()) {
+      setPendingPrintAfterSave(true);
+      setShowSaveModal(true);
+      return;
+    }
+    runPrint();
+  };
+  const runPrint = () => {
     const docTitle = isGw ? "Grant Writer New Client Form - "
       : isProposal ? "Proposal - "
       : isAddendum ? "Addendum to Engagement Letter - "
@@ -1116,6 +1134,10 @@ export default function App() {
       <\/script></body></html>`;
       const win = window.open("", "_blank");
       if(win){ win.document.write(printHtml); win.document.close(); }
+      // A popup opened right after the save request can trip the pop-up blocker, which
+      // would otherwise fail silently. The document is already saved at this point, so
+      // clicking Download again prints straight through.
+      else { alert("Your browser blocked the download window. Allow pop-ups for this site, then click Download again — your document has been saved."); }
     } else {
       // Engagement letter tabs: native browser print for perfect page breaks + margins
       const bodyHtml = previewRef.current.innerHTML;
@@ -1131,6 +1153,10 @@ export default function App() {
       <\/script></body></html>`;
       const win = window.open("", "_blank");
       if(win){ win.document.write(printHtml); win.document.close(); }
+      // A popup opened right after the save request can trip the pop-up blocker, which
+      // would otherwise fail silently. The document is already saved at this point, so
+      // clicking Download again prints straight through.
+      else { alert("Your browser blocked the download window. Allow pop-ups for this site, then click Download again — your document has been saved."); }
     }
   };
     // ── DOCUMENT MODE ──────────────────────────────────────────────────────────
@@ -1254,17 +1280,24 @@ export default function App() {
       }).then(r => r.json());
       setCurrentLetterId(data.id);
     }
+    setLastSavedSnapshot(docSnapshot());
     setShowSaveModal(false);
     fetch('/api/letters/stats').then(r => r.json()).then(setDashStats);
+    if (pendingPrintAfterSave) {
+      setPendingPrintAfterSave(false);
+      runPrint();
+    }
   };
 
   const loadLetter = async (id) => {
     const letter = await fetch(`/api/letters/${id}`).then(r => r.json());
     // Always stamp today's date so a re-opened draft never goes out with a stale signing date
-    setForm({...letter.form_data, npsaSigningDate: new Date().toISOString().split('T')[0]});
+    const stamped = {...letter.form_data, npsaSigningDate: new Date().toISOString().split('T')[0]};
+    setForm(stamped);
     setDocTab(letter.doc_tab);
     setSavedLetterOverride(letter.saved_html || null);
     setCurrentLetterId(id);
+    setLastSavedSnapshot(JSON.stringify({ form: stamped, savedLetterOverride: letter.saved_html || null, docTab: letter.doc_tab }));
     setShowLetterBrowser(false);
     setAppView('generator');
   };
@@ -3593,7 +3626,14 @@ ${form.npsa1Name||"NPSA"}`
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}}>
           <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:420,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
             <div style={{fontWeight:700,fontSize:16,color:"#1a2540",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
-            <div style={{fontSize:12,color:"#777",marginBottom:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
+            <div style={{fontSize:12,color:"#777",marginBottom:pendingPrintAfterSave?12:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
+            {pendingPrintAfterSave && (
+              <div style={{background:"#eef4fb",border:"1px solid #b8cde4",borderRadius:6,padding:"10px 12px",fontSize:12,color:"#1a4a6e",marginBottom:20,lineHeight:1.5}}>
+                {currentLetterId
+                  ? "This letter has unsaved changes. Save the update and the download will start automatically."
+                  : "Letters must be saved before they can be downloaded. Pick the rep and the download will start automatically."}
+              </div>
+            )}
             <div style={{marginBottom:20}}>
               <label style={{fontSize:12,fontWeight:600,color:"#444",display:"block",marginBottom:6}}>Sales Rep</label>
               {reps.length === 0 ? (
@@ -3609,13 +3649,13 @@ ${form.npsa1Name||"NPSA"}`
               )}
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setShowSaveModal(false)}
+              <button onClick={()=>{ setShowSaveModal(false); setPendingPrintAfterSave(false); }}
                 style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #ccc",background:"#f5f5f5",color:"#555",fontSize:13,fontWeight:600,cursor:"pointer"}}>
                 Cancel
               </button>
               <button onClick={saveLetter} disabled={!selectedRep}
                 style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:selectedRep?"#1a2540":"#ccc",color:"#fff",fontSize:13,fontWeight:700,cursor:selectedRep?"pointer":"not-allowed"}}>
-                {currentLetterId ? "Update" : "Save"}
+                {pendingPrintAfterSave ? (currentLetterId ? "Update & Download" : "Save & Download") : (currentLetterId ? "Update" : "Save")}
               </button>
             </div>
           </div>
