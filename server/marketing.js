@@ -411,7 +411,17 @@ async function enrichBooking(pool, id) {
       }
     }
   }
-  const channel = deriveChannel(row, campaign);
+  // A person can overrule the derived channel, and that is the only way to correct a
+  // booking the reverse-match got wrong — someone who happens to sit in an Instantly
+  // campaign but actually reached out directly looks identical to a campaign win from
+  // here. It is also how a manually added booking keeps the channel it was entered
+  // with, since there is no Calendly or UTM data to derive one from.
+  let channel = deriveChannel(row, campaign);
+  if (override.channel) {
+    channel = override.channel;
+    source = 'manual';
+    if (override.channel !== 'instantly') campaign = null;
+  }
 
   // --- Cancelled + held (one Calendly lookup answers both) ---
   // Attendance is only worth asking about once the meeting has passed; cancellation
@@ -1143,6 +1153,46 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // Add a booking by hand. Not every meeting arrives through the tracked Calendly
+  // link — someone books through a different link, emails a partner directly, or
+  // meets them at a conference. Those are real appointments that belong in the
+  // numbers, and without this the only way to record one was to pretend it came
+  // from somewhere it did not.
+  //
+  // The channel is stored as an override rather than derived, so enrichment cannot
+  // later decide a hand-entered referral was really an Instantly campaign.
+  app.post('/api/marketing/bookings', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const b = req.body || {};
+      const org = (b.organization || '').trim();
+      const name = (b.name || '').trim();
+      if (!org && !name) return res.status(400).json({ error: 'organization or name required' });
+
+      // A synthetic key so a hand-entered booking cannot collide with a Calendly one
+      // and cannot be silently overwritten by the ingest Zap.
+      const key = `manual:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+      const override = {};
+      if (b.channel) override.channel = b.channel;
+      if (typeof b.held === 'boolean') override.held = b.held;
+
+      const { rows } = await pool.query(
+        `INSERT INTO bookings (calendly_uri, booked_on, meeting_date, name, email, organization,
+                               told_us, host, attribution_channel, attribution_source, manual_override)
+         VALUES ($1, COALESCE($2::timestamptz, NOW()), $3::timestamptz, $4, $5, $6, $7, $8, $9, 'manual', $10)
+         RETURNING id`,
+        [key, b.booked_on || null, b.meeting_date || null, name || null, (b.email || '').trim() || null,
+         org || null, (b.notes || '').trim() || null, (b.host || '').trim() || null,
+         b.channel || 'direct', JSON.stringify(override)]
+      );
+      const id = rows[0].id;
+      // Enrich in the background: it still matches the org to an engagement letter and
+      // to a Salesforce win, which is most of the value. The channel it was given stands.
+      enrichBooking(pool, id).catch(e => console.error('manual enrich error:', e.message));
+      res.json({ ok: true, id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // Manual override toggles (Held / Won / Unqualified).
   // These live in manual_override, which nothing outside this tool reads or writes:
   // marking a booking here never touches Calendly, Instantly or Salesforce, and a
@@ -1150,7 +1200,7 @@ export function registerMarketing(app, pool) {
   app.patch('/api/marketing/bookings/:id', async (req, res) => {
     if (!pool) return guard(res);
     try {
-      const { held, became_client, exclusion } = req.body || {};
+      const { held, became_client, exclusion, channel } = req.body || {};
       // '' clears the reason and puts the booking back in the totals; anything not on
       // the list is ignored rather than stored, so a typo cannot invent a new reason.
       if (exclusion !== undefined && exclusion !== '' && !EXCLUSION_REASONS.includes(exclusion)) {
@@ -1159,6 +1209,9 @@ export function registerMarketing(app, pool) {
       const cur = await pool.query('SELECT manual_override FROM bookings WHERE id=$1', [req.params.id]);
       if (!cur.rows[0]) return res.status(404).json({ error: 'not found' });
       const ov = { ...(cur.rows[0].manual_override || {}) };
+      if (typeof channel === 'string') {
+        if (channel === '') delete ov.channel; else ov.channel = channel;
+      }
       if (typeof held === 'boolean') ov.held = held;
       if (typeof became_client === 'boolean') ov.became_client = became_client;
       if (exclusion !== undefined) {
