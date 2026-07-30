@@ -210,7 +210,16 @@ avoid is a looping Zap that POSTs one record at a time: at ~240 records nightly 
    FROM Opportunity
    WHERE StageName = 'Won - Data Migrated to 2012 Processes'
      AND CloseDate >= 2024-10-01
+     AND Check_if_NOT_Security_Opportunity__c != true
    ```
+
+   The last condition keeps non-security work out, so the dashboard agrees with the
+   **All Sec. Financials Only** report leadership works from. Written as `!= true`
+   rather than `= false` so a record whose box was never touched still counts.
+
+   **The real-time "Record Closed-Won" Zap must carry the same condition.** If the two
+   disagree, that Zap adds a non-security win during the day and this sync deletes it
+   overnight, every day, for as long as both are running.
 3. **Code by Zapier → Run JavaScript**, which reshapes the rows and POSTs them itself
    (so no fourth step is needed). Set `URL` and `SECRET` in the code, and map the
    query results into `inputData`.

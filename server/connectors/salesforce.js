@@ -258,10 +258,18 @@ export const APPLIERS = { salesforce_wins: applyWins, salesforce_applications: a
 async function syncWins(pool) {
   const stage = process.env.SF_WON_STAGE || DEFAULT_STAGE;
   const records = await soql(
+    // Check_if_NOT_Security_Opportunity__c excludes work that is not part of the
+    // security grant business. Twelve won opportunities carried it when this filter
+    // was added — real revenue, but a different line of business, and counting it
+    // here made the dashboard disagree with the "All Sec. Financials Only" report
+    // leadership works from. Matching that report is the point of the filter.
+    // Written as != true rather than = false so a record with the box never touched
+    // (null) still counts as security work.
     `SELECT Id, Account.Name, Account.Website, EST_TCV__c, CloseDate
        FROM Opportunity
       WHERE StageName = '${stage.replace(/'/g, "\\'")}'
-        AND CloseDate >= ${winsSince()}`
+        AND CloseDate >= ${winsSince()}
+        AND Check_if_NOT_Security_Opportunity__c != true`
   );
   return applyWins(pool, records.map(r => ({
     opportunity_id: r.Id,

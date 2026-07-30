@@ -24,6 +24,14 @@
 //   SELECT Id, Account.Name AccountName, Account.Website AccountWebsite, EST_TCV__c, CloseDate
 //   FROM Opportunity
 //   WHERE StageName = 'Won - Data Migrated to 2012 Processes' AND CloseDate >= 2024-10-01
+//     AND Check_if_NOT_Security_Opportunity__c != true
+//
+// SUPERSEDED — the nightly sync now owns this data and re-runs itself. This script
+// only exists as a fallback, and the data file beside it is a point-in-time export
+// that goes stale. Running it against an out-of-date file will push removed or
+// re-staged opportunities back into the dashboard, which is exactly what happened
+// once already. Refresh the file from the query above before running it, or leave
+// it alone and let the sync do the work.
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
