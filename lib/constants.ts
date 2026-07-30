@@ -1,39 +1,56 @@
+/**
+ * COLORS points at the CSS custom properties defined in app/globals.css.
+ * Because every value is a `var(--x)`, any component using inline styles
+ * follows the light/dark theme automatically — no per-component branching.
+ * The raw hex values live in globals.css and nowhere else.
+ */
 export const COLORS = {
-  // Sidebar — white
-  sidebarBg: '#ffffff',
-  sidebarText: '#111827',
-  sidebarMuted: '#6b7280',
-  sidebarActive: '#1e3a5f',
-  sidebarBorder: '#e5e7eb',
-  sidebarHover: '#f3f4f6',
+  // Surfaces
+  sidebarBg: 'var(--card)',
+  sidebarText: 'var(--ink)',
+  sidebarMuted: 'var(--sec)',
+  sidebarActive: 'var(--navy)',
+  sidebarBorder: 'var(--hair)',
+  sidebarHover: 'var(--hover)',
 
-  // Brand
-  accent: '#1e3a5f',
-  accentLight: '#2c5282',
-  green: '#6b8e23',
-  greenLight: '#7da32a',
+  // Brand — navy and olive are the only two hues
+  accent: 'var(--navy)',
+  accentLight: 'var(--navy)',
+  green: 'var(--olive)',
+  greenLight: 'var(--olive)',
+  onAccent: 'var(--on-accent)',
 
   // Page
-  pageBg: '#f7f8fa',
-  cardBg: '#ffffff',
-  cardBorder: '#e5e7eb',
-  cardShadow: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06)',
-  cardShadowHover: '0 4px 12px rgba(0,0,0,0.08)',
+  pageBg: 'var(--bg)',
+  cardBg: 'var(--card)',
+  cardBorder: 'var(--bd)',
+  cardShadow: 'var(--shadow-card)',
+  cardShadowHover: 'var(--shadow-card-hover)',
 
   // Text
-  textPrimary: '#111827',
-  textSecondary: '#4b5563',
-  textMuted: '#9ca3af',
+  textPrimary: 'var(--ink)',
+  textSecondary: 'var(--sec)',
+  textMuted: 'var(--mute)',
+  textFaint: 'var(--faint)',
+
+  // Lines & fills
+  hairline: 'var(--hair)',
+  hairlineSoft: 'var(--hair2)',
+  track: 'var(--track)',
+  inputBorder: 'var(--bd2)',
+  hover: 'var(--hover)',
 
   // Status
-  success: '#059669',
-  successBg: '#ecfdf5',
-  warning: '#d97706',
-  warningBg: '#fffbeb',
-  error: '#dc2626',
-  errorBg: '#fef2f2',
-  running: '#1e3a5f',
-  runningBg: '#eff6ff',
+  success: 'var(--ok-fg)',
+  successBg: 'var(--ok-bg)',
+  warning: 'var(--warn-fg)',
+  warningBg: 'var(--warn-bg)',
+  error: 'var(--err-fg)',
+  errorBg: 'var(--err-bg)',
+  running: 'var(--run-fg)',
+  runningBg: 'var(--run-bg)',
+  queued: 'var(--q-fg)',
+  queuedBg: 'var(--q-bg)',
 };
 
 function ensureProtocol(url: string): string {
@@ -105,3 +122,37 @@ export const SCRAPER_LABELS = {
   church: { singular: 'Church', plural: 'Churches', title: 'Church Scraper' },
   school: { singular: 'School', plural: 'Schools', title: 'School Scraper' },
 };
+
+/** County counts per state, from assets/data/state_counties/*.txt in the scraper backends. */
+export const STATE_COUNTY_COUNTS: Record<string, number> = {
+  alabama: 67, alaska: 29, arizona: 15, arkansas: 75, california: 58,
+  colorado: 64, connecticut: 8, delaware: 3, florida: 67, georgia: 159,
+  hawaii: 5, idaho: 44, illinois: 102, indiana: 92, iowa: 99,
+  kansas: 105, kentucky: 120, louisiana: 64, maine: 16, maryland: 24,
+  massachusetts: 14, michigan: 83, minnesota: 87, mississippi: 82, missouri: 115,
+  montana: 56, nebraska: 93, nevada: 16, new_hampshire: 10, new_jersey: 21,
+  new_mexico: 33, new_york: 62, north_carolina: 100, north_dakota: 53, ohio: 88,
+  oklahoma: 77, oregon: 36, pennsylvania: 67, rhode_island: 5, south_carolina: 46,
+  south_dakota: 66, tennessee: 95, texas: 254, utah: 29, vermont: 14,
+  virginia: 95, washington: 39, west_virginia: 55, wisconsin: 72, wyoming: 23,
+};
+
+/**
+ * Wall-clock minutes per county, used only for the "est." hint on the New Scrape
+ * panel. Schools measured at ~14.5 min/county; churches run slower (~37.6).
+ */
+export const MINUTES_PER_COUNTY: Record<ScraperTypeKey, number> = {
+  school: 14.7,
+  church: 37.6,
+};
+
+type ScraperTypeKey = 'school' | 'church';
+
+/** "254 counties · est. ~2d 14h" */
+export function estimateRunTime(stateValue: string, type: ScraperTypeKey): string {
+  const counties = STATE_COUNTY_COUNTS[stateValue] || 0;
+  if (!counties) return 'select a state';
+  const hrs = Math.round((counties * MINUTES_PER_COUNTY[type]) / 60);
+  const dur = hrs >= 24 ? `${Math.floor(hrs / 24)}d ${hrs % 24}h` : `${hrs}h`;
+  return `${counties} counties · est. ~${dur}`;
+}
