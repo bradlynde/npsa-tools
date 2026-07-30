@@ -60,6 +60,15 @@ function SectionHead({ title, sub }) {
   );
 }
 
+// Calendly sends the host as an email address. "jeff@..." is the useful part on a
+// crowded row, and the full address is on the tooltip if anyone needs it.
+const hostName = (host) => {
+  const h = (host || '').trim();
+  if (!h) return '—';
+  const local = h.includes('@') ? h.split('@')[0] : h;
+  return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+};
+
 const timeAgo = (iso) => {
   const then = new Date(iso).getTime();
   if (isNaN(then)) return 'never';
@@ -603,7 +612,7 @@ export default function MarketingDashboard({ onBack }) {
         <div style={{ ...card, overflow: 'hidden', marginBottom: 24 }}>
           <div style={{ display: 'flex', padding: '11px 18px', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, background: '#fafbfc' }}>
             <div style={{ flex: 2.2 }}>Org / Name</div><div style={{ flex: 1.3 }}>Channel</div><div style={{ flex: 1.7 }}>Campaign</div>
-            <div style={{ width: 86 }}>Meeting</div><div style={{ width: 60, textAlign: 'center' }}>Held</div><div style={{ width: 60, textAlign: 'center' }}>LOE</div>
+            <div style={{ width: 112 }}>Meeting / With</div><div style={{ width: 60, textAlign: 'center' }}>Held</div><div style={{ width: 60, textAlign: 'center' }}>LOE</div>
             <div style={{ width: 118, textAlign: 'right' }}>Status</div>
           </div>
           {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#9aa3b8' }}>No bookings yet.</div>}
@@ -627,7 +636,13 @@ export default function MarketingDashboard({ onBack }) {
                     twice as tall and pushing the list off the screen. */}
                 <div style={{ flex: 1.7, color: excluded ? '#a8b0bf' : '#5b6b8c', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 10 }}
                   title={r.instantly_campaign || ''}>{r.instantly_campaign || '—'}</div>
-                <div style={{ width: 86, color: excluded ? '#a8b0bf' : '#5b6b8c' }}>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</div>
+                {/* Who took the meeting sits under its date rather than in a column of
+                    its own — the answer is wanted often enough to show, not often enough
+                    to spend a column on. */}
+                <div style={{ width: 112, color: excluded ? '#a8b0bf' : '#5b6b8c', minWidth: 0, paddingRight: 8 }}>
+                  <div>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</div>
+                  <div style={{ fontSize: 11.5, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.host || ''}>{hostName(r.host)}</div>
+                </div>
                 <div style={{ width: 60, textAlign: 'center' }}>
                   <input type="checkbox" checked={!!r.held} onChange={e => toggle(r.id, 'held', e.target.checked)} />
                 </div>

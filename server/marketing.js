@@ -411,7 +411,17 @@ async function enrichBooking(pool, id) {
       }
     }
   }
-  const channel = deriveChannel(row, campaign);
+  // A person can overrule the derived channel, and that is the only way to correct a
+  // booking the reverse-match got wrong — someone who happens to sit in an Instantly
+  // campaign but actually reached out directly looks identical to a campaign win from
+  // here. It is also how a manually added booking keeps the channel it was entered
+  // with, since there is no Calendly or UTM data to derive one from.
+  let channel = deriveChannel(row, campaign);
+  if (override.channel) {
+    channel = override.channel;
+    source = 'manual';
+    if (override.channel !== 'instantly') campaign = null;
+  }
 
   // --- Cancelled + held (one Calendly lookup answers both) ---
   // Attendance is only worth asking about once the meeting has passed; cancellation
@@ -1150,7 +1160,7 @@ export function registerMarketing(app, pool) {
   app.patch('/api/marketing/bookings/:id', async (req, res) => {
     if (!pool) return guard(res);
     try {
-      const { held, became_client, exclusion } = req.body || {};
+      const { held, became_client, exclusion, channel } = req.body || {};
       // '' clears the reason and puts the booking back in the totals; anything not on
       // the list is ignored rather than stored, so a typo cannot invent a new reason.
       if (exclusion !== undefined && exclusion !== '' && !EXCLUSION_REASONS.includes(exclusion)) {
@@ -1159,6 +1169,9 @@ export function registerMarketing(app, pool) {
       const cur = await pool.query('SELECT manual_override FROM bookings WHERE id=$1', [req.params.id]);
       if (!cur.rows[0]) return res.status(404).json({ error: 'not found' });
       const ov = { ...(cur.rows[0].manual_override || {}) };
+      if (typeof channel === 'string') {
+        if (channel === '') delete ov.channel; else ov.channel = channel;
+      }
       if (typeof held === 'boolean') ov.held = held;
       if (typeof became_client === 'boolean') ov.became_client = became_client;
       if (exclusion !== undefined) {
