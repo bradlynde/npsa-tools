@@ -1153,46 +1153,6 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // Add a booking by hand. Not every meeting arrives through the tracked Calendly
-  // link — someone books through a different link, emails a partner directly, or
-  // meets them at a conference. Those are real appointments that belong in the
-  // numbers, and without this the only way to record one was to pretend it came
-  // from somewhere it did not.
-  //
-  // The channel is stored as an override rather than derived, so enrichment cannot
-  // later decide a hand-entered referral was really an Instantly campaign.
-  app.post('/api/marketing/bookings', async (req, res) => {
-    if (!pool) return guard(res);
-    try {
-      const b = req.body || {};
-      const org = (b.organization || '').trim();
-      const name = (b.name || '').trim();
-      if (!org && !name) return res.status(400).json({ error: 'organization or name required' });
-
-      // A synthetic key so a hand-entered booking cannot collide with a Calendly one
-      // and cannot be silently overwritten by the ingest Zap.
-      const key = `manual:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-      const override = {};
-      if (b.channel) override.channel = b.channel;
-      if (typeof b.held === 'boolean') override.held = b.held;
-
-      const { rows } = await pool.query(
-        `INSERT INTO bookings (calendly_uri, booked_on, meeting_date, name, email, organization,
-                               told_us, host, attribution_channel, attribution_source, manual_override)
-         VALUES ($1, COALESCE($2::timestamptz, NOW()), $3::timestamptz, $4, $5, $6, $7, $8, $9, 'manual', $10)
-         RETURNING id`,
-        [key, b.booked_on || null, b.meeting_date || null, name || null, (b.email || '').trim() || null,
-         org || null, (b.notes || '').trim() || null, (b.host || '').trim() || null,
-         b.channel || 'direct', JSON.stringify(override)]
-      );
-      const id = rows[0].id;
-      // Enrich in the background: it still matches the org to an engagement letter and
-      // to a Salesforce win, which is most of the value. The channel it was given stands.
-      enrichBooking(pool, id).catch(e => console.error('manual enrich error:', e.message));
-      res.json({ ok: true, id });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-  });
-
   // Manual override toggles (Held / Won / Unqualified).
   // These live in manual_override, which nothing outside this tool reads or writes:
   // marking a booking here never touches Calendly, Instantly or Salesforce, and a
