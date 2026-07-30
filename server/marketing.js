@@ -393,19 +393,39 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
   const me = await calendlyGet('/users/me');
   const org = me.resource.current_organization;
 
-  const events = [];
+  // Calendly's list-events endpoint takes organization, user, status and a date
+  // range — and no event type. Passing one is accepted and silently ignored, so a
+  // request that looks filtered comes back with every event type in the org. The
+  // first version of this did exactly that: it reported 360 events for a link with
+  // 103, and the extras were other event types whose forms ask different questions,
+  // which read as a mapping failure rather than the wrong query. So filter here,
+  // and before fetching invitees — that is one API call per event, and fetching
+  // them for events we are about to discard is most of the runtime.
+  const all = [];
   let next = `${CAL_API}/scheduled_events?organization=${encodeURIComponent(org)}`
-    + `&event_type=${encodeURIComponent(eventType)}`
     + (since ? `&min_start_time=${encodeURIComponent(new Date(since).toISOString())}` : '')
     + '&count=100&sort=start_time:asc';
   while (next) {
     const page = await calendlyGet(next);
-    events.push(...(page.collection || []));
+    all.push(...(page.collection || []));
     next = page.pagination?.next_page || null;
   }
+  const events = all.filter(e => e.event_type === eventType);
 
-  const result = { scanned: events.length, ingested: 0, skipped: 0, failed: 0, sample: [] };
-  for (const ev of events) {
+  const result = {
+    scanned: events.length,
+    of_all_event_types: all.length,   // so a filter that matched nothing is obvious
+    ingested: 0, skipped: 0, failed: 0, sample: [],
+  };
+  if (!events.length) {
+    result.note = `no events matched ${eventType} — check the event type id`;
+    return result;
+  }
+  // A dry run only has to prove the mapping reads the right answers, and that is
+  // visible from a handful of records. Fetching invitees for all of them turns a
+  // preview into a two-minute wait, which is how the first attempt hit a timeout.
+  const toRead = dryRun ? events.slice(0, 5) : events;
+  for (const ev of toRead) {
     try {
       const invitees = (await calendlyGet(`${ev.uri}/invitees`)).collection || [];
       const inv = invitees[0];
@@ -429,7 +449,7 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
         result.sample.push({ organization: booking.organization, name: booking.name,
           meeting_date: booking.meeting_date, told_us: booking.told_us, status: ev.status });
       }
-      if (dryRun) { result.ingested++; continue; }
+      if (dryRun) continue;   // ingested counts writes, and a dry run makes none
       const id = await upsertBooking(pool, booking);
       await enrichBooking(pool, id);   // sets channel, held, and cancelled from Calendly
       result.ingested++;
