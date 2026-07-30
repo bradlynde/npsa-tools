@@ -90,7 +90,18 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS unqualified  BOOLEAN DEFAULT FALSE;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled    BOOLEAN DEFAULT FALSE;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS exclusion_reason TEXT;
   `).catch(err => console.error('bookings disposition-columns error:', err.message));
+
+  // exclusion_reason supersedes the unqualified flag: one booking can be set aside
+  // for more than one reason, and "which reason" is worth knowing — a run of double
+  // bookings is a scheduling problem, a run of unqualified is a targeting problem.
+  // The old boolean is left in place rather than dropped, so a rollback still reads
+  // a coherent table; nothing writes to it any more.
+  await pool.query(`
+    UPDATE bookings SET exclusion_reason = 'unqualified'
+     WHERE unqualified = TRUE AND exclusion_reason IS NULL;
+  `).catch(err => console.error('bookings exclusion-migration error:', err.message));
 
   // Source of truth for EVERY Salesforce win — matched to a booking or not.
   // booking_id is NULL for untracked / pre-funnel wins (closed before the booking
@@ -276,6 +287,17 @@ export { instantlyCampaignMap, instantlyLeadsForEmail, instantlyFindLead };
 // ─────────────────────────────────────────────────────────────
 // 4. Calendly held-status (best-effort, fail safe)
 // ─────────────────────────────────────────────────────────────
+// Why a booking is set aside. One booking, one reason — but which reason matters:
+// a run of double bookings is a scheduling problem, a run of unqualified is a
+// targeting problem, and they want telling apart.
+const EXCLUSION_REASONS = ['unqualified', 'double_booking', 'cancelled'];
+const EXCLUSION_LABELS = {
+  unqualified: 'Unqualified',
+  double_booking: 'Double booking',
+  cancelled: 'Cancelled',
+};
+export { EXCLUSION_REASONS, EXCLUSION_LABELS };
+
 // Asks Calendly two separate questions about one event:
 //   cancelled — was the meeting called off? Answerable at any time, and the answer
 //               that matters most is about a meeting still in the future.
@@ -407,8 +429,12 @@ async function enrichBooking(pool, id) {
   if (typeof override.held === 'boolean') { held = override.held; heldSource = 'manual'; }
   else if (st.held !== null) { held = st.held; heldSource = st.source; }
 
-  // --- Unqualified (human judgement only, never inferred) ---
-  const unqualified = override.unqualified === true;
+  // --- Why this booking is set aside, if it is ---
+  // A person's choice wins over Calendly, since someone marking a double booking
+  // knows something the calendar does not. Calendly's cancellation is the fallback,
+  // so a cancelled meeting is excluded even when nobody has touched it.
+  const chosen = EXCLUSION_REASONS.includes(override.exclusion) ? override.exclusion : null;
+  const exclusionReason = chosen || (cancelled ? 'cancelled' : null);
 
   // --- Became client + fee (join to letters, same DB) ---
   let becameClient = false, letterId = null, fee = 0;
@@ -439,11 +465,11 @@ async function enrichBooking(pool, id) {
     `UPDATE bookings SET
        instantly_campaign=$1, attribution_channel=$2, attribution_source=$3,
        held=$4, held_source=$5, became_client=$6, client_letter_id=$7, fee=$8,
-       unqualified=$9, cancelled=$10, cancelled_at=$11,
+       exclusion_reason=$9, cancelled=$10, cancelled_at=$11,
        enriched_at=NOW(), updated_at=NOW()
      WHERE id=$12`,
     [campaign, channel, source, held, heldSource, becameClient, letterId, fee,
-     unqualified, cancelled, cancelledAt, id]
+     exclusionReason, cancelled, cancelledAt, id]
   );
 }
 
@@ -680,7 +706,7 @@ export { recordWin, recordApplication, rebuildBookingWins };
 // one answer no matter which tile is asking. An unqualified or cancelled booking is
 // still a row in the table and still appears in the list — it is removed from the
 // arithmetic, not from the record.
-const COUNTABLE = `NOT COALESCE(unqualified, FALSE) AND NOT COALESCE(cancelled, FALSE)`;
+const COUNTABLE = `exclusion_reason IS NULL`;
 
 export function registerMarketing(app, pool) {
   if (!pool) { console.warn('[marketing] no DB pool — marketing endpoints disabled'); return; }
@@ -887,17 +913,13 @@ export function registerMarketing(app, pool) {
       // What was left out, so the exclusions are visible rather than silent. The
       // weekly figures matter most — that is the number reviewed each week.
       const { rows: exrows } = await pool.query(`
-        SELECT
-          COUNT(*) FILTER (WHERE unqualified)::int AS unqualified_count,
-          COUNT(*) FILTER (WHERE cancelled)::int   AS cancelled_count,
-          COUNT(*) FILTER (WHERE unqualified
-            AND booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
-            AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS unqualified_this_week,
-          COUNT(*) FILTER (WHERE cancelled
-            AND booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
-            AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS cancelled_this_week
-        FROM bookings`);
-      const ex = exrows[0];
+        SELECT exclusion_reason AS reason,
+               COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE
+                 booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
+             AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS this_week
+          FROM bookings WHERE exclusion_reason IS NOT NULL
+         GROUP BY 1 ORDER BY 2 DESC`);
 
       // Salesforce revenue layer — every win, matched to a booking or not.
       const { rows: wrows } = await pool.query(`
@@ -938,11 +960,16 @@ export function registerMarketing(app, pool) {
         untracked_revenue: Number(sw.sf_untracked_revenue),
         untracked_count: sw.sf_untracked_count,
         attribution_coverage: sfTotalRev > 0 ? Number(sw.sf_attr_revenue) / sfTotalRev : 0,
-        // Excluded from every figure above.
-        unqualified_count: ex.unqualified_count,
-        cancelled_count: ex.cancelled_count,
-        unqualified_this_week: ex.unqualified_this_week,
-        cancelled_this_week: ex.cancelled_this_week,
+        // Excluded from every figure above, broken out by reason so the dashboard can
+        // say what it left out and why.
+        excluded: exrows.map(r => ({
+          reason: r.reason,
+          label: EXCLUSION_LABELS[r.reason] || r.reason,
+          total: r.total,
+          this_week: r.this_week,
+        })),
+        excluded_total: exrows.reduce((a, r) => a + r.total, 0),
+        excluded_this_week: exrows.reduce((a, r) => a + r.this_week, 0),
       });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -1104,7 +1131,7 @@ export function registerMarketing(app, pool) {
         // is the whole point of marking rather than deleting them.
         `SELECT id, booked_on, meeting_date, name, organization, email, told_us,
                 attribution_channel, instantly_campaign, host, held, became_client, fee,
-                won, won_amount, unqualified, cancelled, cancelled_at
+                won, won_amount, exclusion_reason, cancelled, cancelled_at
          FROM bookings
          WHERE ($1='' OR name ILIKE '%'||$1||'%' OR organization ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%')
            AND ($2='' OR attribution_channel=$2)
@@ -1123,13 +1150,20 @@ export function registerMarketing(app, pool) {
   app.patch('/api/marketing/bookings/:id', async (req, res) => {
     if (!pool) return guard(res);
     try {
-      const { held, became_client, unqualified } = req.body || {};
+      const { held, became_client, exclusion } = req.body || {};
+      // '' clears the reason and puts the booking back in the totals; anything not on
+      // the list is ignored rather than stored, so a typo cannot invent a new reason.
+      if (exclusion !== undefined && exclusion !== '' && !EXCLUSION_REASONS.includes(exclusion)) {
+        return res.status(400).json({ error: `exclusion must be one of: ${EXCLUSION_REASONS.join(', ')}` });
+      }
       const cur = await pool.query('SELECT manual_override FROM bookings WHERE id=$1', [req.params.id]);
       if (!cur.rows[0]) return res.status(404).json({ error: 'not found' });
       const ov = { ...(cur.rows[0].manual_override || {}) };
       if (typeof held === 'boolean') ov.held = held;
       if (typeof became_client === 'boolean') ov.became_client = became_client;
-      if (typeof unqualified === 'boolean') ov.unqualified = unqualified;
+      if (exclusion !== undefined) {
+        if (exclusion === '') delete ov.exclusion; else ov.exclusion = exclusion;
+      }
       await pool.query('UPDATE bookings SET manual_override=$1, updated_at=NOW() WHERE id=$2',
         [JSON.stringify(ov), req.params.id]);
       await enrichBooking(pool, req.params.id);

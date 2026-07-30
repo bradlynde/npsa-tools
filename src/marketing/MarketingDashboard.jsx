@@ -120,15 +120,10 @@ function SyncStrip({ status }) {
 // that gets questioned later and cannot be defended in the moment.
 function ExcludedNote({ stats }) {
   if (!stats) return null;
-  const u = stats.unqualified_count || 0;
-  const c = stats.cancelled_count || 0;
-  if (!u && !c) return null;
-  const uw = stats.unqualified_this_week || 0;
-  const cw = stats.cancelled_this_week || 0;
-  const parts = [];
-  if (u) parts.push(`${u} unqualified`);
-  if (c) parts.push(`${c} cancelled`);
-  const week = uw + cw;
+  const rows = stats.excluded || [];
+  if (!rows.length) return null;
+  const parts = rows.map(r => `${r.total} ${r.label.toLowerCase()}`);
+  const week = stats.excluded_this_week || 0;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 16px', fontSize: 12.5, color: '#7a869f' }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c9d0dc', flexShrink: 0 }} />
@@ -615,7 +610,7 @@ export default function MarketingDashboard({ onBack }) {
           <div style={{ maxHeight: 460, overflowY: 'auto' }}>
             {rows.map(r => {
               // Excluded rows stay on the list but read as set aside rather than active.
-              const excluded = r.unqualified || r.cancelled;
+              const excluded = Boolean(r.exclusion_reason);
               const hover = hoverRow === r.id;
               return (
               <div key={r.id}
@@ -639,25 +634,33 @@ export default function MarketingDashboard({ onBack }) {
                 <div style={{ width: 60, textAlign: 'center' }}>
                   <input type="checkbox" checked={!!r.became_client} onChange={e => toggle(r.id, 'became_client', e.target.checked)} />
                 </div>
-                {/* Status carries a badge only when there is something to say. A control on
-                    every row read as a wall of identical buttons that drew more attention
-                    than the organisation names, for an action taken a few times a month —
-                    so the normal case shows nothing and the action appears on hover.
-                    Cancelled comes from Calendly and is stated, not offered as a choice. */}
-                <div style={{ width: 118, textAlign: 'right' }}>
+                {/* A dropdown rather than a button: there is more than one reason a booking
+                    stops counting, and which one it was is worth recording. Always present
+                    so it can be found, but styled down to a line of text until it is used
+                    or hovered — a bordered control on every row was louder than the data.
+                    A cancellation detected in Calendly is stated, not offered as a choice. */}
+                <div style={{ width: 132, textAlign: 'right' }}>
                   {r.cancelled ? (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', background: '#fdeee7', border: '1px solid #f3d3c4', borderRadius: 999, padding: '3px 9px' }}>Cancelled</span>
-                  ) : r.unqualified ? (
-                    <button onClick={() => toggle(r.id, 'unqualified', false)} title="Put this booking back into the totals"
-                      style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fdf4e7', border: '1px solid #f0dcbc', borderRadius: 999, padding: '3px 9px', cursor: 'pointer' }}>
-                      {hover ? 'Undo' : 'Unqualified'}
-                    </button>
-                  ) : hover ? (
-                    <button onClick={() => toggle(r.id, 'unqualified', true)} title="Not a real prospect — removes it from every total, but keeps it on this list"
-                      style={{ fontSize: 11.5, color: '#7a869f', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
-                      Mark unqualified
-                    </button>
-                  ) : null}
+                    <span title="Cancelled in Calendly" style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', background: '#fdeee7', border: '1px solid #f3d3c4', borderRadius: 999, padding: '3px 9px' }}>Cancelled</span>
+                  ) : (
+                    <select
+                      value={r.exclusion_reason || ''}
+                      onChange={e => toggle(r.id, 'exclusion', e.target.value)}
+                      title={r.exclusion_reason ? 'Excluded from all totals — change or clear it here' : 'Exclude this booking from all totals, keeping it on the list'}
+                      style={{
+                        fontSize: 11.5, fontWeight: r.exclusion_reason ? 700 : 500,
+                        color: r.exclusion_reason ? '#b45309' : (hover ? '#5b6b8c' : '#c2c8d4'),
+                        background: r.exclusion_reason ? '#fdf4e7' : 'transparent',
+                        border: '1px solid ' + (r.exclusion_reason ? '#f0dcbc' : (hover ? '#d8dee8' : 'transparent')),
+                        borderRadius: 999, padding: '3px 6px', cursor: 'pointer', maxWidth: 130,
+                        appearance: 'auto', textAlign: 'right',
+                      }}>
+                      <option value="">{r.exclusion_reason ? 'Counts again' : '—'}</option>
+                      <option value="unqualified">Unqualified</option>
+                      <option value="double_booking">Double booking</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  )}
                 </div>
               </div>
               );
