@@ -115,6 +115,32 @@ function SyncStrip({ status }) {
   );
 }
 
+// Unqualified and cancelled bookings are left out of every figure below, so say so
+// where the figures are. A count that quietly excludes things is the kind of number
+// that gets questioned later and cannot be defended in the moment.
+function ExcludedNote({ stats }) {
+  if (!stats) return null;
+  const u = stats.unqualified_count || 0;
+  const c = stats.cancelled_count || 0;
+  if (!u && !c) return null;
+  const uw = stats.unqualified_this_week || 0;
+  const cw = stats.cancelled_this_week || 0;
+  const parts = [];
+  if (u) parts.push(`${u} unqualified`);
+  if (c) parts.push(`${c} cancelled`);
+  const week = uw + cw;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 16px', fontSize: 12.5, color: '#7a869f' }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c9d0dc', flexShrink: 0 }} />
+      <span>
+        Excluded from these figures: {parts.join(' · ')}
+        {week > 0 && <strong style={{ color: '#5b6b8c', fontWeight: 600 }}> ({week} this week)</strong>}
+        <span style={{ color: '#9aa3b8' }}> — still listed below</span>
+      </span>
+    </div>
+  );
+}
+
 // minWidth 0 so the grid column (not the label text) decides the width — otherwise
 // a long label sets a min-content floor and the whole row overflows its container.
 //
@@ -418,6 +444,7 @@ export default function MarketingDashboard({ onBack }) {
 
             {/* ══ MARKETING — what feeds the sales above ══ */}
             <SectionHead title="Marketing" sub="What feeds the pipeline · tracked since Feb 2026" />
+            <ExcludedNote stats={stats} />
 
             {/* The bridge: how much of won revenue traces back to a tracked booking */}
             <div style={{ ...card, padding: '16px 20px', marginBottom: 16 }}>
@@ -605,14 +632,22 @@ export default function MarketingDashboard({ onBack }) {
           <div style={{ display: 'flex', padding: '11px 18px', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, background: '#fafbfc' }}>
             <div style={{ flex: 2 }}>Org / Name</div><div style={{ flex: 1.4 }}>Channel</div><div style={{ flex: 1.6 }}>Campaign</div>
             <div style={{ flex: 1 }}>Meeting</div><div style={{ width: 70, textAlign: 'center' }}>Held</div><div style={{ width: 70, textAlign: 'center' }}>LOE</div>
+            <div style={{ width: 90, textAlign: 'center' }}>Counted</div>
           </div>
           {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#9aa3b8' }}>No bookings yet.</div>}
           <div style={{ maxHeight: 460, overflowY: 'auto' }}>
-            {rows.map(r => (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 18px', borderTop: '1px solid #f4f5f9', fontSize: 13.5 }}>
-                <div style={{ flex: 2 }}>
-                  <div style={{ fontWeight: 600, color: '#1a2540' }}>{r.organization || '—'}</div>
-                  <div style={{ color: '#9aa3b8', fontSize: 12 }}>{r.name}</div>
+            {rows.map(r => {
+              // Excluded rows stay on the list but read as set aside rather than active.
+              const excluded = r.unqualified || r.cancelled;
+              return (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 18px', borderTop: '1px solid #f4f5f9', fontSize: 13.5, background: excluded ? '#fbfbfd' : undefined, opacity: excluded ? 0.62 : 1 }}>
+                <div style={{ flex: 2, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: '#1a2540', textDecoration: r.cancelled ? 'line-through' : 'none' }}>{r.organization || '—'}</div>
+                  <div style={{ color: '#9aa3b8', fontSize: 12 }}>
+                    {r.name}
+                    {r.cancelled && <span style={{ marginLeft: 6, color: '#c2410c', fontWeight: 600 }}>· Cancelled</span>}
+                    {r.unqualified && !r.cancelled && <span style={{ marginLeft: 6, color: '#b45309', fontWeight: 600 }}>· Unqualified</span>}
+                  </div>
                 </div>
                 <div style={{ flex: 1.4, color: '#5b6b8c' }}>{chLabel(r.attribution_channel || 'direct')}</div>
                 <div style={{ flex: 1.6, color: '#5b6b8c' }}>{r.instantly_campaign || '—'}</div>
@@ -623,8 +658,22 @@ export default function MarketingDashboard({ onBack }) {
                 <div style={{ width: 70, textAlign: 'center' }}>
                   <input type="checkbox" checked={!!r.became_client} onChange={e => toggle(r.id, 'became_client', e.target.checked)} />
                 </div>
+                {/* Cancelled comes from Calendly, so it is shown rather than offered as a
+                    choice — only the human judgement is editable here. */}
+                <div style={{ width: 90, textAlign: 'center' }}>
+                  {r.cancelled
+                    ? <span style={{ fontSize: 11.5, color: '#9aa3b8' }}>cancelled</span>
+                    : <button
+                        onClick={() => toggle(r.id, 'unqualified', !r.unqualified)}
+                        title={r.unqualified ? 'Counted as unqualified — click to include in totals' : 'Exclude from all totals as unqualified'}
+                        style={{ border: '1px solid ' + (r.unqualified ? '#e6bf8a' : '#d0d6e0'), background: r.unqualified ? '#fdf4e7' : '#fff',
+                          color: r.unqualified ? '#b45309' : '#5b6b8c', borderRadius: 7, padding: '3px 9px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
+                        {r.unqualified ? 'Excluded' : 'Counted'}
+                      </button>}
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
