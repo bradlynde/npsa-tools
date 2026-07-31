@@ -156,6 +156,19 @@ const PROGRAMS = {
   newyork:    { label:"New York (NYSCAHC)", acronym:"NYSCAHC", maxAward:"200,000", fullName:(yr)=>`${yr} New York Securing Communities Against Hate Crimes ("NYSCAHC")` },
 };
 /**
+ * Applications in an engagement: one per location, per program it applies
+ * under. Fees scale on this rather than on the location count — a single site
+ * applying to two programs is two applications and is priced as two.
+ */
+function applicationCount(programs, locations) {
+  const list = programs && programs.length ? programs : [{ key: "federal" }];
+  return list.reduce(
+    (sum, pg) => sum + (locations || []).filter((l) => (l.programs || ["federal"]).includes(pg.key)).length,
+    0,
+  ) || 1;
+}
+
+/**
  * Total maximum award across an engagement: each program's own cap times the
  * number of locations applying under it. Caps are not uniform — Illinois is
  * $150,000 and California $250,000 against the federal $200,000 — so this
@@ -185,5 +198,5 @@ export {
   calcFees, buildInstallmentText, buildCompBlock,
   SHARED_FIELDS, POST_FIELDS,
   PROGRAMS, NPSA_SIGNATURES,
-  totalMaxAward,
+  totalMaxAward, applicationCount,
 };

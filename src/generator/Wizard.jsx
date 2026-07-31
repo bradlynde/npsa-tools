@@ -11,7 +11,7 @@
  */
 
 import { useEffect } from "react";
-import { fmt, calcFees, totalMaxAward } from "./engine.js";
+import { fmt, calcFees, totalMaxAward, applicationCount } from "./engine.js";
 import { RadioCards, Chips, Field } from "./ui.jsx";
 import { stepsFor } from "./steps.jsx";
 
@@ -130,12 +130,19 @@ export default function Wizard({
   onStep,
   onBack,
   onDownload,
+  downloadLabel = "Download PDF",
+  downloadDisabled,
+  downloadHint,
+  onReview,
+  onEmail,
   onSave,
   saveLabel = "Save Letter",
   savedNote,
 }) {
 
-  const numLocs = Math.max((form.locations || []).length, 1);
+  // Fees scale on applications, not sites: one location applying under two
+  // programs is two applications. App.jsx prices the letter the same way.
+  const numLocs = applicationCount(form.programs, form.locations);
   const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope,
     form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee);
   const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope,
@@ -207,7 +214,23 @@ export default function Wizard({
           <h2 className="wz-h">{current.title}</h2>
           {current.id === "doc" && <DocTypeStep docTab={docTab} onDocTab={changeDocTab} />}
           {current.id === "review" && (
-            <ReviewStep form={form} docTab={docTab} fees={summary} numLocs={numLocs} />
+            <>
+              <ReviewStep form={form} docTab={docTab} fees={summary} numLocs={numLocs} />
+              {(onReview || onEmail) && (
+                <div className="wz-chips">
+                  {onReview && (
+                    <button type="button" className="wz-btn" onClick={onReview}>
+                      Review &amp; Edit Letter
+                    </button>
+                  )}
+                  {onEmail && (
+                    <button type="button" className="wz-btn" onClick={onEmail}>
+                      Email to Grant Writer
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           )}
           {current.render && current.render(ctx)}
         </div>
@@ -240,8 +263,14 @@ export default function Wizard({
                   {saveLabel}
                 </button>
               )}
-              <button type="button" className="wz-btn wz-btn-primary" onClick={onDownload}>
-                Download PDF
+              <button
+                type="button"
+                className="wz-btn wz-btn-primary"
+                onClick={onDownload}
+                disabled={downloadDisabled}
+                title={downloadDisabled ? downloadHint : ""}
+              >
+                {downloadLabel}
               </button>
             </>
           ) : (

@@ -3,9 +3,7 @@ import html2pdf from "html2pdf.js";
 import { marked } from "marked";
 import { LOGO_SRC } from "./generator/logo.js";
 import {
-  PRICING, TIER_LABELS, fmt,
-  calcFees, buildInstallmentText, buildCompBlock,
-  SHARED_FIELDS, POST_FIELDS,
+  fmt, calcFees, buildCompBlock, applicationCount,
   PROGRAMS, NPSA_SIGNATURES,
 } from "./generator/engine.js";
 import {
@@ -64,12 +62,10 @@ export default function App() {
   const [inhSections, setInhSections] = useState(DEFAULT_INH);
   const [addendumTpl, setAddendumTpl] = useState(DEFAULT_ADDENDUM);
   const [proposalTpl, setProposalTpl] = useState(DEFAULT_PROPOSAL);
-  const [preCallInput, setPreCallInput] = useState('');
   const [preCallOutput, setPreCallOutput] = useState('');
   const [preCallMeta, setPreCallMeta] = useState(null);
   const [preCallLoading, setPreCallLoading] = useState(false);
   const [preCallError, setPreCallError] = useState('');
-  const [preCallCopied, setPreCallCopied] = useState(false);
   const [preCallForm, setPreCallForm] = useState({...defaultPreCallForm});
   const [preCallCalendlyText, setPreCallCalendlyText] = useState('');
   const [preCallParsing, setPreCallParsing] = useState(false);
@@ -80,7 +76,6 @@ export default function App() {
   const [preCallFollowUpCopied, setPreCallFollowUpCopied] = useState(false);
   const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
-  const [mgmtApprovalModal, setMgmtApprovalModal] = useState(false); // AI clause approval gate
   const [emailModal, setEmailModal] = useState(false);
   const [emailFields, setEmailFields] = useState({to:"", subject:"", message:""});
   const [reviewMode, setReviewMode] = useState(false);
@@ -136,6 +131,7 @@ export default function App() {
   // so the rep still checks the letter before saving.
   const wizIsReview = wizStep >= stepsOf(docTab).length - 1;
 
+
   /**
    * Switching document type forks to a new letter rather than editing the one
    * on screen. A post-award letter is a second contract for the same client,
@@ -156,7 +152,7 @@ export default function App() {
     ...pg,
     appCount: (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length || 0
   }));
-  const totalApps = programApps.reduce((s,p)=>s+p.appCount,0) || 1;
+  const totalApps = applicationCount(form.programs, form.locations);
   const numLocs = totalApps; // fees scale on total applications
   const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee);
   const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee);
@@ -197,7 +193,7 @@ export default function App() {
       case 'proposal':   newDocument('proposal'); break;
       case 'addendum':   newDocument('addendum'); break;
       case 'precall':
-        setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError('');
+        setPreCallOutput(''); setPreCallMeta(null); setPreCallError('');
         setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText('');
         setPreCallViewMode('preview'); setAppView('precall');
         break;
@@ -748,6 +744,9 @@ export default function App() {
   const isInh = docTab==="inh";
   const isProposal = docTab==="proposal";
   const isAddendum = docTab==="addendum";
+  // An engagement letter without an expiration date is not sendable, so the
+  // download stays disabled until one is set. Addenda inherit the original's.
+  const downloadBlocked = !isAddendum && !form.expirationDate;
   const sections = isPre?preSections:isInh?inhSections:postSections;
   const interp = isPre?interpolatePre:isInh?interpolateInh:interpolatePost;
   const gc = (id,subId) => getContent(sections,id,subId,interp);
@@ -1049,7 +1048,7 @@ export default function App() {
 
             {/* ── Tools ── */}
             <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
-            <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setPreCallViewMode('preview'); setAppView('precall'); }}
+            <div onClick={()=>{ setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setPreCallViewMode('preview'); setAppView('precall'); }}
               style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -1429,7 +1428,23 @@ export default function App() {
         onStep={setWizStep}
         onBack={goBack}
         onDownload={handlePrint}
-        onSave={()=>setShowSaveModal(true)}
+        downloadLabel={isGw ? "Print / Save as PDF" : "Download PDF"}
+        downloadDisabled={downloadBlocked}
+        downloadHint="Set an Expiration Date first"
+        onReview={isGw ? null : () => {
+          setReviewHtml(previewRef.current ? previewRef.current.innerHTML : "");
+          setSavedLetterOverride(null);
+          setReviewMode(true);
+        }}
+        onEmail={!isGw ? null : () => {
+          setEmailFields({
+            to: form.gwRecipientEmail||"",
+            subject: `NPSA New Client: ${form.clientName||"Client"}`,
+            message: `Hi ${form.gwRecipientName||"there"},\nPlease find attached the new client information for ${form.clientName||"our client"}. Let us know if you have any questions.\nThank you,\n${form.npsa1Name||"NPSA"}`,
+          });
+          setEmailModal(true);
+        }}
+        onSave={dbAvailable ? ()=>setShowSaveModal(true) : null}
         saveLabel={currentLetterId ? "Update Letter" : "Save Letter"}
         savedNote={currentLetterId ? `Saved as: ${form.clientName||"Untitled"}` : null}
       />
