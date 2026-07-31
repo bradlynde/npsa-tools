@@ -343,18 +343,18 @@ const defaultPreCallForm = {
 // Shared NPSA branding stylesheet injected into both the on-screen preview
 // and the Print/PDF window (same string used in both places).
 const PC_NOTES_CSS = `
-  .pc h1{font-size:22px;font-weight:800;color:#1a2540;margin:0 0 3px;letter-spacing:-0.2px;line-height:1.2}
-  .pc h2{font-size:12.5px;font-weight:700;color:#2c5d8f;text-transform:uppercase;letter-spacing:0.7px;margin:22px 0 9px;padding-bottom:6px;border-bottom:2px solid #dce8f4}
-  .pc h3{font-size:13px;font-weight:700;color:#1a2540;margin:14px 0 5px}
+  .pc h1{font-size:22px;font-weight:800;color:#182230;margin:0 0 3px;letter-spacing:-0.2px;line-height:1.2}
+  .pc h2{font-size:12.5px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.7px;margin:22px 0 9px;padding-bottom:6px;border-bottom:2px solid #dce8f4}
+  .pc h3{font-size:13px;font-weight:700;color:#182230;margin:14px 0 5px}
   .pc p{margin:0 0 10px;line-height:1.62;color:#26334d;font-size:14px}
   .pc ul{margin:0 0 12px;padding-left:20px}
   .pc li{margin:0 0 4px;line-height:1.55;color:#26334d;font-size:14px}
   .pc ol{margin:0 0 12px;padding-left:20px}
   .pc ol li{margin:0 0 4px;line-height:1.55;color:#26334d;font-size:14px}
-  .pc strong{color:#1a2540;font-weight:700}
-  .pc a{color:#2c5d8f;text-decoration:none}
+  .pc strong{color:#182230;font-weight:700}
+  .pc a{color:#1e3a5f;text-decoration:none}
   .pc hr{border:none;border-top:1px solid #e2ecf5;margin:18px 0}
-  .pc blockquote{border-left:3px solid #dce8f4;margin:0 0 12px;padding:8px 14px;background:#f7fafd;color:#5b6b8c;font-size:13px}
+  .pc blockquote{border-left:3px solid #dce8f4;margin:0 0 12px;padding:8px 14px;background:#f7fafd;color:#4a5462;font-size:13px}
 `;
 function renderPreCallHtml(md){ return `<style>${PC_NOTES_CSS}</style><div class="pc">${marked(String(md||''))}</div>`; }
 
@@ -530,11 +530,11 @@ const PROGRAMS = {
 };
 // ─── NPSA SIGNATURE STYLES ────────────────────────────────────────────────────
 const NPSA_SIGNATURES = {
-  "Brad Lynde":     { font:"'Ms Madi', cursive", size:"38px", color:"#1a2a4a" },
-  "Chad Burgess":   { font:"'Ms Madi', cursive", size:"38px", color:"#1a2a4a" },
-  "Josh Ullrich":   { font:"'Ms Madi', cursive", size:"38px", color:"#1a2a4a" },
-  "Steven Timlick": { font:"'Ms Madi', cursive", size:"38px", color:"#1a2a4a" },
-  "Stuart Reese":   { font:"'Ms Madi', cursive", size:"38px", color:"#1a2a4a" },
+  "Brad Lynde":     { font:"'Ms Madi', cursive", size:"38px", color:"#182230" },
+  "Chad Burgess":   { font:"'Ms Madi', cursive", size:"38px", color:"#182230" },
+  "Josh Ullrich":   { font:"'Ms Madi', cursive", size:"38px", color:"#182230" },
+  "Steven Timlick": { font:"'Ms Madi', cursive", size:"38px", color:"#182230" },
+  "Stuart Reese":   { font:"'Ms Madi', cursive", size:"38px", color:"#182230" },
 };
 
 // Slot-machine count-up: animates 0 → value whenever `playToken` changes (mount + each hover)
@@ -1231,7 +1231,7 @@ export default function App() {
     });
   };
   const SH = ({id}) => { const s=sections.find(x=>x.id===id); if(!s||!s.roman) return null;
-    return <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{s.roman} {s.title}</div>; };
+    return <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{s.roman} {s.title}</div>; };
   const SubH = ({label}) => <div style={{fontSize:13,fontWeight:700,fontStyle:"italic",marginTop:14,marginBottom:6,color:"#333",pageBreakAfter:"avoid",breakAfter:"avoid"}}>{label}</div>;
   const Body = ({id,subId}) => {
     const raw = gc(id,subId);
@@ -1242,8 +1242,8 @@ export default function App() {
     const parts = raw.split(full);
     return <>
       <div style={{marginBottom:8}}>{renderLines(parts[0].trimEnd())}</div>
-      <div style={{border:"1px solid #c0cfe8",borderRadius:4,background:"#f7f9fd",padding:"12px 16px",margin:"10px 0 8px",fontFamily:"Georgia,serif",fontSize:12,lineHeight:1.7,color:"#222"}}>
-        <span style={{fontWeight:700,color:"#1a4a6e",fontSize:11,textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:5}}>Early Signing Discount</span>
+      <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"12px 16px",margin:"10px 0 8px",fontFamily:"Georgia,serif",fontSize:12,lineHeight:1.7,color:"#222"}}>
+        <span style={{fontWeight:700,color:"#1e3a5f",fontSize:11,textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:5}}>Early Signing Discount</span>
         {`A ${discAmt} early signing discount has been applied to the standard ${baseFee} consulting fee. To retain this discount, this Agreement must be executed on or before ${date}.`}
       </div>
       {parts[1]&&<div style={{marginBottom:8}}>{renderLines(parts[1].trimStart())}</div>}
@@ -1336,15 +1336,15 @@ export default function App() {
     <>
       {/* ── DASHBOARD ── */}
       {appView === 'dashboard' && (
-        <div style={{minHeight:'100vh',background:'#d8dfe8',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)',display:'flex',flexDirection:'column',alignItems:'center'}}>
           {/* Gear — top right */}
           {dbAvailable && (
             <div style={{width:'100%',maxWidth:720,padding:'20px 24px 0',boxSizing:'border-box',display:'flex',justifyContent:'flex-end'}}>
               <button onClick={()=>setAppView('settings')}
-                style={{background:'#fff',border:'1px solid #d0d6e0',borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',color:'#5b6b8c',cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.08)',transition:'color 0.2s, transform 0.3s'}}
+                style={{background:'#fff',border:'1px solid #d9d5cc',borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',color:'#4a5462',cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.08)',transition:'color 0.2s, transform 0.3s'}}
                 title="Settings"
-                onMouseEnter={e=>{e.currentTarget.style.color='#1a2540';e.currentTarget.style.transform='rotate(60deg)';}}
-                onMouseLeave={e=>{e.currentTarget.style.color='#5b6b8c';e.currentTarget.style.transform='rotate(0deg)';}}>
+                onMouseEnter={e=>{e.currentTarget.style.color='#182230';e.currentTarget.style.transform='rotate(60deg)';}}
+                onMouseLeave={e=>{e.currentTarget.style.color='#4a5462';e.currentTarget.style.transform='rotate(0deg)';}}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
             </div>
@@ -1352,15 +1352,15 @@ export default function App() {
 
           {/* Welcome heading */}
           <div style={{textAlign:'center',padding:'20px 32px 16px'}}>
-            <div style={{fontSize:30,fontWeight:800,color:'#1a2540',letterSpacing:-0.5}}>Sales Toolbox</div>
-            <div style={{fontSize:15,color:'#5b6b8c',marginTop:6}}>Generate engagement documents and prep for calls — all in one place.</div>
+            <div style={{fontSize:30,fontWeight:800,color:'#182230',letterSpacing:-0.5}}>Sales Toolbox</div>
+            <div style={{fontSize:15,color:'#4a5462',marginTop:6}}>Generate engagement documents and prep for calls — all in one place.</div>
           </div>
 
           {/* All cards in one aligned container */}
           <div style={{width:'100%',maxWidth:720,padding:'0 24px 48px',boxSizing:'border-box'}}>
 
             {/* ── Engagement Letters ── */}
-            <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginBottom:14}}>Engagement Letters</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginBottom:14}}>Engagement Letters</div>
 
             {/* Action cards */}
             <div style={{display:'flex',gap:18,marginBottom:18}}>
@@ -1368,12 +1368,12 @@ export default function App() {
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#1a2540,#1a4a6e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </div>
                 <div>
-                  <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Generate New Letter</div>
-                  <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>Start a new engagement letter from scratch</div>
+                  <div style={{color:'#182230',fontWeight:700,fontSize:17}}>Generate New Letter</div>
+                  <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Start a new engagement letter from scratch</div>
                 </div>
               </div>
               {dbAvailable && (
@@ -1381,12 +1381,12 @@ export default function App() {
                   style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                   onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(122,140,30,0.25)';}}
                   onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                  <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#7a8c1e,#9aab2e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
+                  <div style={{width:56,height:56,borderRadius:15,background:'#6b8e23',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                   </div>
                   <div>
-                    <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>Load Previous Letter</div>
-                    <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>Search and reload a saved draft</div>
+                    <div style={{color:'#182230',fontWeight:700,fontSize:17}}>Load Previous Letter</div>
+                    <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Search and reload a saved draft</div>
                   </div>
                 </div>
               )}
@@ -1396,12 +1396,12 @@ export default function App() {
             {dbAvailable && dashStats && (<>
               <div style={{display:'flex',gap:18,marginBottom:18}}>
                 <div onMouseEnter={()=>setLetterRoll(k=>k+1)}
-                  style={{flex:1,background:'linear-gradient(135deg,#1a2540,#1a4a6e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(26,37,64,0.3)',cursor:'default'}}>
+                  style={{flex:1,background:'#1e3a5f',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(26,37,64,0.3)',cursor:'default'}}>
                   <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}><RollUp value={dashStats.total} playToken={letterRoll} format={(n)=>Math.round(n).toLocaleString('en-US')} /></div>
                   <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
                 </div>
                 <div onMouseEnter={()=>setFeeRoll(k=>k+1)}
-                  style={{flex:1,background:'linear-gradient(135deg,#7a8c1e,#9aab2e)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(122,140,30,0.3)',cursor:'default'}}>
+                  style={{flex:1,background:'#6b8e23',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(122,140,30,0.3)',cursor:'default'}}>
                   <div style={{color:'#fff',fontWeight:800,fontSize:dashStats.total_fees>0?36:42,lineHeight:1}}><RollUp value={dashStats.total_fees} playToken={feeRoll} format={(n)=> dashStats.total_fees>0 ? '$'+Math.round(n).toLocaleString('en-US') : '—'} /></div>
                   <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Fees Generated</div>
                 </div>
@@ -1409,18 +1409,18 @@ export default function App() {
 
               {dashStats.by_rep?.length > 0 && (
                 <div style={{background:'#fff',borderRadius:18,boxShadow:'0 4px 16px rgba(2,6,23,0.07)',overflow:'hidden',border:'1px solid rgba(255,255,255,0.8)'}}>
-                  <div style={{padding:'16px 24px',borderBottom:'1px solid #f0f2f7',display:'flex',alignItems:'center',gap:9}}>
+                  <div style={{padding:'16px 24px',borderBottom:'1px solid #f0ede5',display:'flex',alignItems:'center',gap:9}}>
                     <span style={{fontSize:19}}>&#127942;</span>
-                    <span style={{color:'#1a2540',fontWeight:700,fontSize:16}}>Rep Leaderboard</span>
+                    <span style={{color:'#182230',fontWeight:700,fontSize:16}}>Rep Leaderboard</span>
                   </div>
                   {dashStats.by_rep.map((row, i) => (
-                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'15px 24px',borderBottom:i===dashStats.by_rep.length-1?'none':'1px solid #f4f5f9',gap:14}}>
-                      <div style={{width:32,height:32,borderRadius:'50%',background:rankColors[i]||'#eceef4',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,color:i<3?'#1a2540':'#9aa3b8',flexShrink:0,boxShadow:i<3?'0 2px 8px rgba(0,0,0,0.12)':'none'}}>
+                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'15px 24px',borderBottom:i===dashStats.by_rep.length-1?'none':'1px solid #f0ede5',gap:14}}>
+                      <div style={{width:32,height:32,borderRadius:'50%',background:rankColors[i]||'#efece4',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,color:i<3?'#1a2540':'#a09a8c',flexShrink:0,boxShadow:i<3?'0 2px 8px rgba(0,0,0,0.12)':'none'}}>
                         {i+1}
                       </div>
-                      <div style={{flex:1,fontWeight:600,color:'#1a2540',fontSize:16}}>{row.rep_name}</div>
-                      <div style={{fontWeight:800,color:'#7a8c1e',fontSize:17}}>{row.count}</div>
-                      <div style={{color:'#9aa3b8',fontSize:13}}>{row.count === 1 ? 'letter' : 'letters'}</div>
+                      <div style={{flex:1,fontWeight:600,color:'#182230',fontSize:16}}>{row.rep_name}</div>
+                      <div style={{fontWeight:800,color:'#6b8e23',fontSize:17}}>{row.count}</div>
+                      <div style={{color:'#a09a8c',fontSize:13}}>{row.count === 1 ? 'letter' : 'letters'}</div>
                     </div>
                   ))}
                 </div>
@@ -1428,46 +1428,46 @@ export default function App() {
             </>)}
 
             {/* ── Proposals & Addendums ── */}
-            <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginTop:34,marginBottom:14}}>Proposals &amp; Addendums</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginTop:34,marginBottom:14}}>Proposals &amp; Addendums</div>
             <div style={{display:'flex',gap:18,marginBottom:18}}>
               <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setDocTab('proposal'); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#1a2540,#1a4a6e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m12 18-1.5-3-3-1.5 3-1.5L12 9l1.5 3 3 1.5-3 1.5z"/></svg>
                 </div>
                 <div>
-                  <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>New Proposal</div>
-                  <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>One-page leadership summary of scope &amp; price</div>
+                  <div style={{color:'#182230',fontWeight:700,fontSize:17}}>New Proposal</div>
+                  <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>One-page leadership summary of scope &amp; price</div>
                 </div>
               </div>
               <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setDocTab('addendum'); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(122,140,30,0.25)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#7a8c1e,#9aab2e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'#6b8e23',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10.5 13.5a2.121 2.121 0 0 1 3 3L11 19l-2 .5.5-2Z"/></svg>
                 </div>
                 <div>
-                  <div style={{color:'#1a2540',fontWeight:700,fontSize:17}}>New Addendum</div>
-                  <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>Remove Implementation Period services from a signed letter</div>
+                  <div style={{color:'#182230',fontWeight:700,fontSize:17}}>New Addendum</div>
+                  <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Remove Implementation Period services from a signed letter</div>
                 </div>
               </div>
             </div>
 
             {/* ── Tools ── */}
-            <div style={{fontSize:13,fontWeight:800,color:'#5b6b8c',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
             <div onClick={()=>{ setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setPreCallViewMode('preview'); setAppView('precall'); }}
               style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-              <div style={{width:56,height:56,borderRadius:15,background:'linear-gradient(135deg,#3a2c6e,#5b4a9e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(58,44,110,0.4)'}}>
+              <div style={{width:56,height:56,borderRadius:15,background:'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(58,44,110,0.4)'}}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.7 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0 1 22 16.92z"/></svg>
               </div>
               <div>
-                <div style={{color:'#1a2540',fontWeight:700,fontSize:17,display:'flex',alignItems:'center',gap:8}}>Pre-Call Notes Generator<span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span></div>
-                <div style={{color:'#7a869f',fontSize:13,lineHeight:1.5,marginTop:2}}>Paste a Calendly invite and generate AI-powered prep notes</div>
+                <div style={{color:'#182230',fontWeight:700,fontSize:17,display:'flex',alignItems:'center',gap:8}}>Pre-Call Notes Generator<span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span></div>
+                <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Paste a Calendly invite and generate AI-powered prep notes</div>
               </div>
             </div>
           </div>
@@ -1476,13 +1476,13 @@ export default function App() {
 
       {/* ── PRE-CALL NOTES ── */}
       {appView === 'precall' && (
-  <div style={{minHeight:'100vh',background:'#f4f6fb',fontFamily:'Inter,sans-serif'}}>
+  <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)'}}>
     <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
       <button onClick={()=>setAppView('dashboard')}
-        style={{background:'#fff',border:'1px solid #e6e9f2',borderRadius:10,padding:'9px 16px',color:'#5b6b8c',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
+        style={{background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
         &#8592; Dashboard
       </button>
-      <div style={{color:'#1a2540',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
+      <div style={{color:'#182230',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
       <span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span>
     </div>
 
@@ -1492,12 +1492,12 @@ export default function App() {
       <div style={{flex:'1 1 380px',display:'flex',flexDirection:'column',gap:16}}>
 
         {/* Import from Calendly */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'16px 20px 18px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:8}}>&#128248; Import from Calendly Invite</div>
-          <div style={{fontSize:12,color:'#7a869f',marginBottom:8}}>Paste your Calendly notification email and click Parse — it will fill the form below automatically.</div>
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'16px 20px 18px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:8}}>&#128248; Import from Calendly Invite</div>
+          <div style={{fontSize:12,color:'#8a8577',marginBottom:8}}>Paste your Calendly notification email and click Parse — it will fill the form below automatically.</div>
           <textarea value={preCallCalendlyText} onChange={e=>setPreCallCalendlyText(e.target.value)}
             placeholder="Paste full Calendly invite email here..."
-            style={{width:'100%',minHeight:140,border:'1px solid #dde1ea',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'Inter,sans-serif',lineHeight:1.5}}/>
+            style={{width:'100%',minHeight:140,border:'1px solid #d9d5cc',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'var(--font-sans)',lineHeight:1.5}}/>
           <button onClick={async()=>{
             if(!preCallCalendlyText.trim()) return;
             setPreCallParsing(true);
@@ -1518,31 +1518,31 @@ export default function App() {
             } catch(e){ setPreCallError('Could not parse invite: '+e.message); }
             setPreCallParsing(false);
           }} disabled={preCallParsing}
-            style={{marginTop:10,background:preCallParsing?'#9aa3b8':'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'9px 20px',fontSize:13,fontWeight:700,cursor:preCallParsing?'default':'pointer'}}>
+            style={{marginTop:10,background:preCallParsing?'#a09a8c':'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'9px 20px',fontSize:13,fontWeight:700,cursor:preCallParsing?'default':'pointer'}}>
             {preCallParsing?'Parsing…':'Parse & Fill Form'}
           </button>
         </div>
 
         {/* Organization */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:14}}>Organization</div>
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:14}}>Organization</div>
           <div style={{display:'flex',gap:10,marginBottom:10}}>
             <div style={{flex:2}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Organization Name *</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Organization Name *</label>
               <input value={preCallForm.orgName} onChange={e=>setPCF('orgName',e.target.value)} placeholder="e.g. iThrive Christian Church"
-                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>State</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>State</label>
               <input value={preCallForm.orgState} onChange={e=>setPCF('orgState',e.target.value)} placeholder="GA"
-                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
           </div>
           <div style={{display:'flex',gap:10,marginBottom:10}}>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Type</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Type</label>
               <select value={preCallForm.orgType} onChange={e=>setPCF('orgType',e.target.value)}
-                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',background:'#fff'}}>
+                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',background:'#fff'}}>
                 <option value="church">Church</option>
                 <option value="school">School</option>
                 <option value="other">Other Nonprofit</option>
@@ -1550,89 +1550,89 @@ export default function App() {
             </div>
           </div>
           <div>
-            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Website URL <span style={{color:'#9aab2e',fontWeight:600}}>(recommended — AI uses this to find titles &amp; addresses)</span></label>
+            <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Website URL <span style={{color:'#6b8e23',fontWeight:600}}>(recommended — AI uses this to find titles &amp; addresses)</span></label>
             <input value={preCallForm.websiteUrl} onChange={e=>setPCF('websiteUrl',e.target.value)} placeholder="https://ithrivecc.org"
-              style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
-            <div style={{fontSize:11,color:'#9aa3b8',marginTop:4}}>Leave blank and the AI will try to find the site automatically from the org name.</div>
+              style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            <div style={{fontSize:11,color:'#a09a8c',marginTop:4}}>Leave blank and the AI will try to find the site automatically from the org name.</div>
           </div>
         </div>
 
         {/* Meeting Details */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:14}}>Meeting Details</div>
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:14}}>Meeting Details</div>
           <div style={{display:'flex',gap:10,marginBottom:10}}>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Date</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Date</label>
               <input type="date" value={preCallForm.meetingDate} onChange={e=>setPCF('meetingDate',e.target.value)}
-                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Time (CST)</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Time (CST)</label>
               <input type="time" value={preCallForm.meetingTime} onChange={e=>setPCF('meetingTime',e.target.value)}
-                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
           </div>
           <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Video Conference Link</label>
+            <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Video Conference Link</label>
             <input value={preCallForm.zoomUrl} onChange={e=>setPCF('zoomUrl',e.target.value)} placeholder="https://zoom.us/j/... or teams.microsoft.com/..."
-              style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+              style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
           </div>
           <div style={{display:'flex',gap:10}}>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Meeting ID</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Meeting ID</label>
               <input value={preCallForm.zoomId} onChange={e=>setPCF('zoomId',e.target.value)} placeholder="815-052-42724"
-                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#7a869f',display:'block',marginBottom:3}}>Passcode</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Passcode</label>
               <input value={preCallForm.zoomPassword} onChange={e=>setPCF('zoomPassword',e.target.value)} placeholder="408098"
-                style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
           </div>
         </div>
 
         {/* Attendees */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:4}}>Organization Attendees</div>
-          <div style={{fontSize:12,color:'#7a869f',marginBottom:12}}>The AI will look up their titles from the website.</div>
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:4}}>Organization Attendees</div>
+          <div style={{fontSize:12,color:'#8a8577',marginBottom:12}}>The AI will look up their titles from the website.</div>
           {(preCallForm.attendees||[]).map((att,idx)=>(
             <div key={idx} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
               <div style={{flex:2}}>
-                {idx===0&&<label style={{fontSize:10,color:'#9aa3b8',display:'block',marginBottom:2}}>Name</label>}
+                {idx===0&&<label style={{fontSize:10,color:'#a09a8c',display:'block',marginBottom:2}}>Name</label>}
                 <input value={att.name} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],name:e.target.value};setPCF('attendees',a);}} placeholder="Full Name"
-                  style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                  style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
               </div>
               <div style={{flex:2}}>
-                {idx===0&&<label style={{fontSize:10,color:'#9aa3b8',display:'block',marginBottom:2}}>Email</label>}
+                {idx===0&&<label style={{fontSize:10,color:'#a09a8c',display:'block',marginBottom:2}}>Email</label>}
                 <input value={att.email} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],email:e.target.value};setPCF('attendees',a);}} placeholder="email@org.org"
-                  style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                  style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
               </div>
               <div style={{flex:2}}>
-                {idx===0&&<label style={{fontSize:10,color:'#9aa3b8',display:'block',marginBottom:2}}>Phone</label>}
+                {idx===0&&<label style={{fontSize:10,color:'#a09a8c',display:'block',marginBottom:2}}>Phone</label>}
                 <input value={att.phone} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],phone:e.target.value};setPCF('attendees',a);}} placeholder="404-555-0000"
-                  style={{width:'100%',border:'1px solid #dde1ea',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                  style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
               </div>
               {(preCallForm.attendees||[]).length>1&&(
                 <button onClick={()=>setPCF('attendees',(preCallForm.attendees||[]).filter((_,i)=>i!==idx))}
-                  style={{background:'none',border:'1px solid #f0c0c0',borderRadius:8,color:'#c0392b',cursor:'pointer',padding:'7px 10px',fontSize:12,marginTop:idx===0?16:0}}>✕</button>
+                  style={{background:'none',border:'1px solid #d9a99c',borderRadius:8,color:'#a3341f',cursor:'pointer',padding:'7px 10px',fontSize:12,marginTop:idx===0?16:0}}>✕</button>
               )}
             </div>
           ))}
           <button onClick={()=>setPCF('attendees',[...(preCallForm.attendees||[]),{name:'',email:'',phone:''}])}
-            style={{background:'none',border:'1px dashed #c0c8d8',borderRadius:8,padding:'7px 16px',fontSize:12,color:'#5b6b8c',cursor:'pointer',marginTop:4}}>+ Add Attendee</button>
+            style={{background:'none',border:'1px dashed #8796aa',borderRadius:8,padding:'7px 16px',fontSize:12,color:'#4a5462',cursor:'pointer',marginTop:4}}>+ Add Attendee</button>
         </div>
 
         {/* Additional Context */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #eef1f7',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#1a2540',marginBottom:4}}>Additional Context <span style={{fontWeight:400,color:'#9aa3b8',fontSize:12}}>(optional)</span></div>
-          <div style={{fontSize:12,color:'#7a869f',marginBottom:8}}>Anything the rep already knows about the org or meeting that the AI should factor in.</div>
+        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:4}}>Additional Context <span style={{fontWeight:400,color:'#a09a8c',fontSize:12}}>(optional)</span></div>
+          <div style={{fontSize:12,color:'#8a8577',marginBottom:8}}>Anything the rep already knows about the org or meeting that the AI should factor in.</div>
           <textarea value={preCallForm.extraNotes} onChange={e=>setPCF('extraNotes',e.target.value)}
             placeholder="e.g. They were referred by First Baptist Rockford. The pastor mentioned they had a break-in last year..."
-            style={{width:'100%',minHeight:80,border:'1px solid #dde1ea',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'Inter,sans-serif',lineHeight:1.5}}/>
+            style={{width:'100%',minHeight:80,border:'1px solid #d9d5cc',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'var(--font-sans)',lineHeight:1.5}}/>
         </div>
 
         {/* Generate Button */}
-        {preCallError&&<div style={{color:'#c0392b',background:'#fff5f5',border:'1px solid #f5c6c6',borderRadius:8,padding:'10px 14px',fontSize:13}}>{preCallError}</div>}
+        {preCallError&&<div style={{color:'#a3341f',background:'#fff5f5',border:'1px solid #f5c6c6',borderRadius:8,padding:'10px 14px',fontSize:13}}>{preCallError}</div>}
         <button onClick={async()=>{
           if(!preCallForm.orgName.trim()){ setPreCallError('Enter an organization name.'); return; }
           setPreCallError(''); setPreCallLoading(true); setPreCallOutput(''); setPreCallMeta(null);
@@ -1646,11 +1646,11 @@ export default function App() {
           } catch(err){ setPreCallError(err.message||'Generation failed'); }
           setPreCallLoading(false);
         }} disabled={preCallLoading}
-          style={{background:preCallLoading?'#9aa3b8':'linear-gradient(135deg,#3a2c6e,#5b4a9e)',color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:700,cursor:preCallLoading?'default':'pointer',boxShadow:'0 4px 14px rgba(58,44,110,0.3)',width:'100%'}}>
+          style={{background:preCallLoading?'#a09a8c':'#1e3a5f',color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:700,cursor:preCallLoading?'default':'pointer',boxShadow:'0 4px 14px rgba(58,44,110,0.3)',width:'100%'}}>
           {preCallLoading?'Researching organization & generating notes…':'Generate Pre-Call Notes'}
         </button>
         {preCallMeta&&(
-          <div style={{fontSize:12,color:'#7a869f',textAlign:'center'}}>
+          <div style={{fontSize:12,color:'#8a8577',textAlign:'center'}}>
             {preCallMeta.websiteFetched?`✓ Website research completed: ${preCallMeta.website}`:`⚠ Could not fetch ${preCallMeta.website||'website'} — some fields may be TBD`}
           </div>
         )}
@@ -1661,21 +1661,21 @@ export default function App() {
         <div style={{flex:'1 1 420px'}}>
           {/* Toolbar row */}
           <div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#1a2540',flex:1}}>Pre-Call Notes</div>
+            <div style={{fontWeight:700,fontSize:15,color:'#182230',flex:1}}>Pre-Call Notes</div>
             {/* Preview / Edit toggle */}
-            <div style={{display:'flex',background:'#eef1f7',borderRadius:8,padding:2}}>
+            <div style={{display:'flex',background:'#f0ede5',borderRadius:8,padding:2}}>
               <button onClick={()=>setPreCallViewMode('preview')}
-                style={{background:preCallViewMode==='preview'?'#fff':'transparent',color:preCallViewMode==='preview'?'#1a2540':'#7a869f',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='preview'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
+                style={{background:preCallViewMode==='preview'?'#fff':'transparent',color:preCallViewMode==='preview'?'#1a2540':'#8a8577',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='preview'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
                 Preview
               </button>
               <button onClick={()=>setPreCallViewMode('edit')}
-                style={{background:preCallViewMode==='edit'?'#fff':'transparent',color:preCallViewMode==='edit'?'#1a2540':'#7a869f',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='edit'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
+                style={{background:preCallViewMode==='edit'?'#fff':'transparent',color:preCallViewMode==='edit'?'#1a2540':'#8a8577',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='edit'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
                 Edit
               </button>
             </div>
             <button onClick={async()=>{
               const orgName=preCallForm.orgName||'NPSA';
-              const html=`<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif}h1{font-size:18pt;color:#1a2540}h2{font-size:11pt;color:#2c5d8f;border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin-top:16pt;text-transform:uppercase}h3{font-size:11pt;color:#1a2540}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:#1a2540}a{color:#2c5d8f}</style></head><body>${marked(preCallOutput)}</body></html>`;
+              const html=`<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif}h1{font-size:18pt;color:#182230}h2{font-size:11pt;color:#1e3a5f;border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin-top:16pt;text-transform:uppercase}h3{font-size:11pt;color:#182230}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:#182230}a{color:#1e3a5f}</style></head><body>${marked(preCallOutput)}</body></html>`;
               setPreCallDownloading(true);
               try {
                 const r=await fetch('/api/precall/docx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({html,filename:`Pre-Call Notes - ${orgName}`})});
@@ -1688,20 +1688,20 @@ export default function App() {
               } catch(e){ alert('Download failed: '+e.message); }
               setPreCallDownloading(false);
             }} disabled={preCallDownloading}
-              style={{background:preCallDownloading?'#9aa3b8':'#fff',color:preCallDownloading?'#fff':'#1a4a6e',border:'1px solid #1a4a6e',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:preCallDownloading?'default':'pointer'}}>
+              style={{background:preCallDownloading?'#a09a8c':'#fff',color:preCallDownloading?'#fff':'#1e3a5f',border:'1px solid #1e3a5f',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:preCallDownloading?'default':'pointer'}}>
               {preCallDownloading?'Generating…':'⬇ Download .docx'}
             </button>
           </div>
 
           {/* Notes preview / edit */}
           {preCallViewMode==='preview' ? (
-            <div style={{background:'#fff',border:'1px solid #eef1f7',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)'}}
+            <div style={{background:'#fff',border:'1px solid #f0ede5',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)'}}
               dangerouslySetInnerHTML={{__html: renderPreCallHtml(preCallOutput)}}/>
           ) : (
             <>
-              <div style={{fontSize:11.5,color:'#9aa3b8',marginBottom:6}}>Markdown — use <code>##</code> for sections, <code>-</code> for bullets, <code>**bold**</code>. Switch to Preview to see it formatted.</div>
+              <div style={{fontSize:11.5,color:'#a09a8c',marginBottom:6}}>Markdown — use <code>##</code> for sections, <code>-</code> for bullets, <code>**bold**</code>. Switch to Preview to see it formatted.</div>
               <textarea value={preCallOutput} onChange={e=>setPreCallOutput(e.target.value)}
-                style={{width:'100%',minHeight:700,border:'1px solid #eef1f7',borderRadius:14,padding:'22px 26px',fontSize:13,lineHeight:1.65,color:'#1a2540',fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
+                style={{width:'100%',minHeight:700,border:'1px solid #f0ede5',borderRadius:14,padding:'22px 26px',fontSize:13,lineHeight:1.65,color:'#182230',fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
             </>
           )}
 
@@ -1727,7 +1727,7 @@ export default function App() {
               setSavedLetterOverride(null);
               setAppView('generator');
             }}
-              style={{flex:1,minWidth:180,background:'linear-gradient(135deg,#1a4a6e,#2c5d8f)',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:'pointer',boxShadow:'0 3px 10px rgba(26,74,110,0.25)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              style={{flex:1,minWidth:180,background:'#1e3a5f',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:'pointer',boxShadow:'0 3px 10px rgba(26,74,110,0.25)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
               <span style={{fontSize:16}}>&#128196;</span> Start Engagement Letter
             </button>
 
@@ -1743,7 +1743,7 @@ export default function App() {
               } catch(e){ alert('Could not generate email: '+e.message); }
               setPreCallFollowUpLoading(false);
             }} disabled={preCallFollowUpLoading}
-              style={{flex:1,minWidth:180,background:preCallFollowUpLoading?'#9aa3b8':'linear-gradient(135deg,#2d7a4f,#3a9e67)',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:preCallFollowUpLoading?'default':'pointer',boxShadow:'0 3px 10px rgba(45,122,79,0.22)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              style={{flex:1,minWidth:180,background:preCallFollowUpLoading?'#a09a8c':'#6b8e23',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:preCallFollowUpLoading?'default':'pointer',boxShadow:'0 3px 10px rgba(45,122,79,0.22)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
               <span style={{fontSize:16}}>&#9993;</span> {preCallFollowUpLoading?'Drafting…':'Draft Follow-up Email'}
             </button>
           </div>
@@ -1764,11 +1764,11 @@ export default function App() {
                   setPreCallFollowUpCopied(true);
                   setTimeout(()=>setPreCallFollowUpCopied(false),2500);
                 }}
-                  style={{background:preCallFollowUpCopied?'#2d7a4f':'#fff',color:preCallFollowUpCopied?'#fff':'#2d7a4f',border:'1px solid #2d7a4f',borderRadius:8,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',transition:'all .2s'}}>
+                  style={{background:preCallFollowUpCopied?'#6b8e23':'#fff',color:preCallFollowUpCopied?'#fff':'#6b8e23',border:'1px solid #6b8e23',borderRadius:8,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',transition:'all .2s'}}>
                   {preCallFollowUpCopied?'✓ Copied!':'Copy Email'}
                 </button>
               </div>
-              <pre style={{margin:0,whiteSpace:'pre-wrap',fontFamily:'Inter,Arial,sans-serif',fontSize:13,lineHeight:1.65,color:'#1a3d2b'}}>{preCallFollowUpEmail}</pre>
+              <pre style={{margin:0,whiteSpace:'pre-wrap',fontFamily:'var(--font-sans)',fontSize:13,lineHeight:1.65,color:'#1a3d2b'}}>{preCallFollowUpEmail}</pre>
             </div>
           )}
         </div>
@@ -1780,29 +1780,29 @@ export default function App() {
 
       {/* ── SETTINGS ── */}
       {appView === 'settings' && (
-        <div style={{minHeight:'100vh',background:'#f4f6fb',fontFamily:'Inter,sans-serif'}}>
+        <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)'}}>
           <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
             <button onClick={()=>setAppView('dashboard')}
-              style={{background:'#fff',border:'1px solid #e6e9f2',borderRadius:10,padding:'9px 16px',color:'#5b6b8c',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
+              style={{background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
               &#8592; Dashboard
             </button>
-            <div style={{color:'#1a2540',fontWeight:800,fontSize:22}}>Settings</div>
+            <div style={{color:'#182230',fontWeight:800,fontSize:22}}>Settings</div>
           </div>
           <div style={{maxWidth:540,margin:'32px auto',padding:'0 24px'}}>
-            <div style={{background:'#fff',borderRadius:18,boxShadow:'0 6px 24px rgba(2,6,23,0.06)',overflow:'hidden',border:'1px solid #eef1f7'}}>
-              <div style={{padding:'18px 26px',borderBottom:'1px solid #f0f2f7',display:'flex',alignItems:'center',gap:9}}>
+            <div style={{background:'#fff',borderRadius:18,boxShadow:'0 6px 24px rgba(2,6,23,0.06)',overflow:'hidden',border:'1px solid #f0ede5'}}>
+              <div style={{padding:'18px 26px',borderBottom:'1px solid #f0ede5',display:'flex',alignItems:'center',gap:9}}>
                 <span style={{fontSize:18}}>&#128101;</span>
-                <span style={{color:'#1a2540',fontWeight:700,fontSize:16}}>Sales Reps</span>
+                <span style={{color:'#182230',fontWeight:700,fontSize:16}}>Sales Reps</span>
               </div>
               <div style={{padding:'22px 26px'}}>
                 {reps.length === 0 && (
-                  <div style={{color:'#9aa3b8',fontSize:14,marginBottom:18}}>No reps added yet. Add your first rep below.</div>
+                  <div style={{color:'#a09a8c',fontSize:14,marginBottom:18}}>No reps added yet. Add your first rep below.</div>
                 )}
                 {reps.map(rep => (
-                  <div key={rep.id} style={{display:'flex',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f4f5f9',gap:8}}>
-                    <div style={{flex:1,fontSize:15,color:'#1a2540',fontWeight:600}}>{rep.name}</div>
+                  <div key={rep.id} style={{display:'flex',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f0ede5',gap:8}}>
+                    <div style={{flex:1,fontSize:15,color:'#182230',fontWeight:600}}>{rep.name}</div>
                     <button onClick={()=>deleteRep(rep.id)}
-                      style={{background:'none',border:'1px solid #f0c0c0',color:'#c0392b',borderRadius:8,padding:'6px 14px',fontSize:12.5,cursor:'pointer',fontWeight:600}}>
+                      style={{background:'none',border:'1px solid #d9a99c',color:'#a3341f',borderRadius:8,padding:'6px 14px',fontSize:12.5,cursor:'pointer',fontWeight:600}}>
                       Remove
                     </button>
                   </div>
@@ -1811,9 +1811,9 @@ export default function App() {
                   <input value={newRepName} onChange={e=>setNewRepName(e.target.value)}
                     onKeyDown={e=>e.key==='Enter'&&addRep()}
                     placeholder="Rep name..."
-                    style={{flex:1,border:'1px solid #dde1ea',borderRadius:10,padding:'10px 14px',fontSize:14,outline:'none'}}/>
+                    style={{flex:1,border:'1px solid #d9d5cc',borderRadius:10,padding:'10px 14px',fontSize:14,outline:'none'}}/>
                   <button onClick={addRep}
-                    style={{background:'linear-gradient(135deg,#1a2540,#1a4a6e)',color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 14px rgba(26,37,64,0.3)'}}>
+                    style={{background:'#1e3a5f',color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 14px rgba(26,37,64,0.3)'}}>
                     Add Rep
                   </button>
                 </div>
@@ -1825,32 +1825,32 @@ export default function App() {
 
       {/* ── GENERATOR ── */}
       {appView === 'generator' && (
-    <div style={{display:"flex",height:"100vh",fontFamily:"Inter,sans-serif",background:"#f4f5f7"}}>
+    <div style={{display:"flex",height:"100vh",fontFamily:'var(--font-sans)',background:"#fbfaf8"}}>
       {/* ── SIDEBAR ── */}
-      <div style={{width:320,background:"#1a2540",color:"#e8eaf0",overflowY:"auto",padding:"20px 16px",flexShrink:0}}>
+      <div style={{width:320,background:"#16202e",color:"#e8edf4",overflowY:"auto",padding:"20px 16px",flexShrink:0}}>
         <button onClick={()=>setAppView('dashboard')}
-          style={{background:'none',border:'none',color:'#6c7a9c',fontSize:12,cursor:'pointer',padding:'0 0 14px',display:'flex',alignItems:'center',gap:5,fontFamily:'Inter,sans-serif'}}>
+          style={{background:'none',border:'none',color:'#8796aa',fontSize:12,cursor:'pointer',padding:'0 0 14px',display:'flex',alignItems:'center',gap:5,fontFamily:'var(--font-sans)'}}>
           &#8592; Dashboard
         </button>
         {SHARED_FIELDS.map((f2,i)=>{
-          if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>{f2.section}</div>;
+          if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>{f2.section}</div>;
           return (
             <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>{f2.label}</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
               <input value={form[f2.key]||""} onChange={e=>setF(f2.key, f2.formatFn ? f2.formatFn(e.target.value) : e.target.value)} placeholder={f2.placeholder||""}
-                style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           );
         })}
         {/* Locations — shared across letter/proposal tabs (not GW or addendum) */}
         {(!isGw&&!isAddendum)&&<>
-        <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Locations</div>
+        <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Locations</div>
         {(form.locations||[]).map((loc,idx)=>(
-          <div key={idx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 6px",marginBottom:8}}>
+          <div key={idx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 6px",marginBottom:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <span style={{fontSize:11,color:"#6c7a9c",fontWeight:700}}>Location {idx+1}{idx===0?" (Primary)":""}</span>
+              <span style={{fontSize:11,color:"#8796aa",fontWeight:700}}>Location {idx+1}{idx===0?" (Primary)":""}</span>
               {idx>0&&<button onClick={()=>setF("locations",(form.locations||[]).filter((_,i)=>i!==idx))}
-                style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
+                style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
             </div>
             {[{k:"name",ph:"Location / Site Name (optional)"},{k:"address",ph:"Street Address"},{k:"city",ph:"City"},{k:"state",ph:"State"},{k:"zip",ph:"ZIP"}].map(f2=>(
               <div key={f2.k} style={{marginBottom:6}}>
@@ -1860,11 +1860,11 @@ export default function App() {
                     updated[idx]={...updated[idx],[f2.k]:e.target.value};
                     setF("locations",updated);
                   }}
-                  style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
               </div>
             ))}
             {(isPre||isInh||isProposal)&&(form.programs||[]).length>0&&<>
-              <div style={{fontSize:10,color:"#6c7a9c",marginTop:6,marginBottom:4}}>Applies to:</div>
+              <div style={{fontSize:10,color:"#8796aa",marginTop:6,marginBottom:4}}>Applies to:</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:4}}>
                 {(form.programs||[]).map(pg=>{
                   const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
@@ -1876,9 +1876,9 @@ export default function App() {
                       updated[idx]={...updated[idx],programs:checked?cur.filter(k=>k!==pg.key):[...cur,pg.key]};
                       setF("locations",updated);
                     }} style={{fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid",cursor:"pointer",
-                      background:checked?"#1a4a6e":"#222e4a",
-                      borderColor:checked?"#5b9ec9":"#2e3d60",
-                      color:checked?"#fff":"#8892aa"}}>
+                      background:checked?"#1e3a5f":"#1f2a3a",
+                      borderColor:checked?"#4a8bc4":"#2b3a4d",
+                      color:checked?"#fff":"#8796aa"}}>
                       {cfg.label}
                     </button>
                   );
@@ -1888,68 +1888,68 @@ export default function App() {
           </div>
         ))}
         <button onClick={()=>setF("locations",[...(form.locations||[]),{name:"",address:"",city:"",state:"",zip:"",programs:(form.programs||[]).map(p=>p.key)}])}
-          style={{width:"100%",background:"#222e4a",border:"1px dashed #3a5080",borderRadius:6,padding:"7px 0",fontSize:11,color:"#6c9ecf",cursor:"pointer",marginBottom:14}}>
+          style={{width:"100%",background:"#1f2a3a",border:"1px dashed #33415a",borderRadius:6,padding:"7px 0",fontSize:11,color:"#4a8bc4",cursor:"pointer",marginBottom:14}}>
           + Add Location
         </button>
         </>}
         {/* Engagement Variant selector — In-House (inh) = NPSA writes; Third Party (pre) = outside writer */}
         {(isPre||isInh)&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Engagement Variant</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Engagement Variant</div>
           <select value={docTab} onChange={e=>setDocTab(e.target.value)}
-            style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:6,outline:"none"}}>
+            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:6,outline:"none"}}>
             <option value="inh">In-House Grant Writing</option>
             <option value="pre">Third Party Grant Writing</option>
           </select>
-          <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{isInh?"NPSA manages grant writing, application preparation & submission.":"An outside grant writer prepares the applications; NPSA provides advisory & compliance support."}</div>
+          <div style={{fontSize:10,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>{isInh?"NPSA manages grant writing, application preparation & submission.":"An outside grant writer prepares the applications; NPSA provides advisory & compliance support."}</div>
         </>}
         {/* Pre-award specific — shared by Proposal (proposal is a view of pre-award data) */}
         {(isPre||isProposal)&&<>
           {isProposal&&<>
-            <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Proposal Options</div>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Service Model</label>
+            <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Proposal Options</div>
+            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Service Model</label>
             <select value={form.proposalServiceModel||"inhouse"} onChange={e=>setF("proposalServiceModel",e.target.value)}
-              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:6,outline:"none"}}>
+              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:6,outline:"none"}}>
               <option value="inhouse">Grant Writing — Pre-Award &amp; Compliance</option>
               <option value="full">Full-Service — Pre-Award, Compliance &amp; Implementation</option>
             </select>
-            <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>{form.proposalServiceModel==="full"?"Includes Award Implementation, billed as a percentage-based fee post-award.":"Implementation is presented as optional, under a separate agreement."}</div>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:4}}>Grant Writing Model</label>
+            <div style={{fontSize:10,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>{form.proposalServiceModel==="full"?"Includes Award Implementation, billed as a percentage-based fee post-award.":"Implementation is presented as optional, under a separate agreement."}</div>
+            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:4}}>Grant Writing Model</label>
             <div style={{display:"flex",gap:6,marginBottom:4}}>
               {[{val:"inh",label:"In-House Grant Writer"},{val:"pre",label:"Third-Party Grant Writer"}].map(opt=>(
                 <button key={opt.val} onClick={()=>setF("proposalFeeModel",opt.val)}
                   style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid",fontSize:11,fontWeight:700,cursor:"pointer",
-                    background:form.proposalFeeModel===opt.val?"#1a4a6e":"#222e4a",
-                    borderColor:form.proposalFeeModel===opt.val?"#5b9ec9":"#2e3d60",
-                    color:form.proposalFeeModel===opt.val?"#fff":"#8892aa"}}>
+                    background:form.proposalFeeModel===opt.val?"#1e3a5f":"#1f2a3a",
+                    borderColor:form.proposalFeeModel===opt.val?"#4a8bc4":"#2b3a4d",
+                    color:form.proposalFeeModel===opt.val?"#fff":"#8796aa"}}>
                   {opt.label}
                 </button>
               ))}
             </div>
-            <div style={{fontSize:10,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>
+            <div style={{fontSize:10,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>
               {form.proposalFeeModel==="inh"?"NPSA manages grant writing, application preparation &amp; submission. (~$11K/location)":"An independent grant writer prepares the applications; NPSA provides advisory &amp; compliance support. (~$4K/location)"}
             </div>
           </>}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Programs</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Programs</div>
           {(form.programs||[]).map((pg,pgIdx)=>{
             const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
             return (
-              <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
+              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
+                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
                   {(form.programs||[]).length>1&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
+                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
                 </div>
                 <div style={{marginBottom:6}}>
-                  <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Grant Year</label>
+                  <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
                   <input value={pg.year||"2026"} onChange={e=>{
                     const updated=[...(form.programs||[])];
                     updated[pgIdx]={...updated[pgIdx],year:e.target.value};
                     setF("programs",updated);
                   }} placeholder="2026"
-                    style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
+                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
                 </div>
-                <div style={{fontSize:10,color:"#6c7a9c",marginBottom:3}}>Max Award: <span style={{color:"#9aab2e"}}>${cfg.maxAward}</span></div>
-                <div style={{fontSize:10,color:"#6c7a9c"}}>Applications: <span style={{color:"#fff",fontWeight:700}}>{(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length}</span></div>
+                <div style={{fontSize:10,color:"#8796aa",marginBottom:3}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
+                <div style={{fontSize:10,color:"#8796aa"}}>Applications: <span style={{color:"#fff",fontWeight:700}}>{(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length}</span></div>
               </div>
             );
           })}
@@ -1957,164 +1957,164 @@ export default function App() {
             {Object.entries(PROGRAMS).filter(([k])=>!(form.programs||[]).some(p=>p.key===k)).map(([k,cfg])=>(
               <button key={k} onClick={()=>{
                 setF("programs",[...(form.programs||[]),{key:k,year:form.grantYear||"2026"}]);
-              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #3a5080",background:"#222e4a",color:"#6c9ecf",cursor:"pointer"}}>
+              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
                 + {cfg.label}
               </button>
             ))}
           </div>
           {/* Fee Calculator — switches between regular and in-house model for proposals */}
           {isProposal&&form.proposalFeeModel==="inh" ? <>
-            <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Fee Calculator (In-House Model)</div>
-            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:10,cursor:"pointer"}}>
-              <input type="checkbox" checked={form.inhEngagementModel==="inh-partial-contingency"} onChange={e=>setF("inhEngagementModel",e.target.checked?"inh-partial-contingency":"inh-pre-only")} style={{accentColor:"#9aab2e"}}/>
+            <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Fee Calculator (In-House Model)</div>
+            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:10,cursor:"pointer"}}>
+              <input type="checkbox" checked={form.inhEngagementModel==="inh-partial-contingency"} onChange={e=>setF("inhEngagementModel",e.target.checked?"inh-partial-contingency":"inh-pre-only")} style={{accentColor:"#6b8e23"}}/>
               Partial Contingency
             </label>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Pricing Tier</label>
+            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Pricing Tier</label>
             <select value={form.inhPricingTier} onChange={e=>setF("inhPricingTier",e.target.value)}
-              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:10,outline:"none"}}>
+              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:10,outline:"none"}}>
               {Object.entries(TIER_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
             </select>
             {form.inhPricingTier==="custom"&&(
               <div style={{marginBottom:10,marginTop:-4}}>
-                <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
+                <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
                 <input value={form.inhCustomFee||""} onChange={e=>setF("inhCustomFee",e.target.value)} placeholder="e.g. 11,000"
-                  style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
               </div>
             )}
             {form.inhEngagementModel==="inh-partial-contingency"&&(
               <div style={{marginBottom:10,marginTop:-4}}>
-                <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
+                <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
                 <input value={form.inhCustomContingencyFee||""} onChange={e=>setF("inhCustomContingencyFee",e.target.value)} placeholder="e.g. 3,500"
-                  style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
               </div>
             )}
-            <div style={{background:"#0f1a30",border:"1px solid #2e4060",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#5b9ec9",marginBottom:8}}>Fee Summary</div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+            <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#4a8bc4",marginBottom:8}}>Fee Summary</div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
                 <span>Upfront Fee</span><span style={{color:"#fff",fontWeight:600}}>{form.inhPricingTier==="discounted"&&inhFees.discount>0?<><span style={{textDecoration:"line-through",color:"#666",marginRight:6}}>{fmt(inhFees.baseUpfront)}</span>{fmt(inhFees.upfront)}</>:fmt(inhFees.upfront)}</span>
               </div>
               {form.inhPricingTier==="discounted"&&inhFees.discount>0&&(
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8a020",marginBottom:4}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8bd6d",marginBottom:4}}>
                   <span>Early Signing Discount</span><span style={{fontWeight:600}}>−{fmt(inhFees.discount)}</span>
                 </div>
               )}
               {inhFees.contingent!==null&&(
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
                   <span>Contingent Fee (on award)</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.contingent)}</span>
                 </div>
               )}
-              <div style={{borderTop:"1px solid #2e4060",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
-                <span style={{color:"#9aab2e"}}>Total</span><span style={{color:"#9aab2e"}}>{fmt(inhFees.total)}</span>
+              <div style={{borderTop:"1px solid #2b3a4d",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
+                <span style={{color:"#6b8e23"}}>Total</span><span style={{color:"#6b8e23"}}>{fmt(inhFees.total)}</span>
               </div>
             </div>
             {form.inhPricingTier==="discounted"&&(
-              <div style={{background:"#201600",border:"1px solid #e8a020",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8a020",marginBottom:10}}>Early Signing Discount</div>
+              <div style={{background:"#33260a",border:"1px solid #e8bd6d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8bd6d",marginBottom:10}}>Early Signing Discount</div>
                 <div style={{marginBottom:8}}>
-                  <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Sign-By Date</label>
+                  <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Sign-By Date</label>
                   <input value={form.inhEarlySigningDate} onChange={e=>setF("inhEarlySigningDate",e.target.value)} placeholder="March 15, 2026"
-                    style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                    style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
                 </div>
                 <div>
-                  <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Discount Amount ($)</label>
+                  <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Discount Amount ($)</label>
                   <input value={form.inhEarlySigningAmount} onChange={e=>setF("inhEarlySigningAmount",e.target.value)} placeholder="1,500"
-                    style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                    style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
                 </div>
-                {inhFees.discount>0&&<div style={{fontSize:11,color:"#e8a020",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(inhFees.upfront)} (saves {fmt(inhFees.discount)})</div>}
+                {inhFees.discount>0&&<div style={{fontSize:11,color:"#e8bd6d",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(inhFees.upfront)} (saves {fmt(inhFees.discount)})</div>}
               </div>
             )}
           </> : <>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Fee Calculator</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.engagementModel==="partial-contingency"} onChange={e=>setF("engagementModel",e.target.checked?"partial-contingency":"pre-only")} style={{accentColor:"#9aab2e"}}/>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Fee Calculator</div>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:10,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.engagementModel==="partial-contingency"} onChange={e=>setF("engagementModel",e.target.checked?"partial-contingency":"pre-only")} style={{accentColor:"#6b8e23"}}/>
             Partial Contingency
           </label>
-          <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Pricing Tier</label>
+          <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Pricing Tier</label>
           <select value={form.pricingTier} onChange={e=>setF("pricingTier",e.target.value)}
-            style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:10,outline:"none"}}>
+            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:10,outline:"none"}}>
             {Object.entries(TIER_LABELS).filter(([k])=>k!=="max").map(([k,v])=><option key={k} value={k}>{v}</option>)}
           </select>
           {form.pricingTier==="custom"&&(
             <div style={{marginBottom:10,marginTop:-4,paddingLeft:0}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
               <input value={form.customFee||""} onChange={e=>setF("customFee",e.target.value)} placeholder="e.g. 5,000"
-                style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
           {form.engagementModel==="partial-contingency"&&(
             <div style={{marginBottom:10,marginTop:-4}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
               <input value={form.customContingencyFee||""} onChange={e=>setF("customContingencyFee",e.target.value)} placeholder="e.g. 3,500"
-                style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
           {/* Fee summary card */}
-          <div style={{background:"#0f1a30",border:"1px solid #2e4060",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#5b9ec9",marginBottom:8}}>Fee Summary</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+          <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#4a8bc4",marginBottom:8}}>Fee Summary</div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
               <span>Upfront Fee</span><span style={{color:"#fff",fontWeight:600}}>{form.pricingTier==="discounted"&&fees.discount>0?<><span style={{textDecoration:"line-through",color:"#666",marginRight:6}}>{fmt(fees.baseUpfront)}</span>{fmt(fees.upfront)}</>:fmt(fees.upfront)}</span>
             </div>
             {form.pricingTier==="discounted"&&fees.discount>0&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8a020",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8bd6d",marginBottom:4}}>
                 <span>Early Signing Discount</span><span style={{fontWeight:600}}>−{fmt(fees.discount)}</span>
               </div>
             )}
             {fees.contingent!==null&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
                 <span>Contingent Fee (on award)</span><span style={{color:"#fff",fontWeight:600}}>{fmt(fees.contingent)}</span>
               </div>
             )}
             {form.optPostAwardScope&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
                 <span>Compliance Consulting Fee{numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(fees.postAward)}</span>
               </div>
             )}
-            <div style={{borderTop:"1px solid #2e4060",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
-              <span style={{color:"#9aab2e"}}>Total</span><span style={{color:"#9aab2e"}}>{fmt(fees.total)}</span>
+            <div style={{borderTop:"1px solid #2b3a4d",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
+              <span style={{color:"#6b8e23"}}>Total</span><span style={{color:"#6b8e23"}}>{fmt(fees.total)}</span>
             </div>
           </div>
           {form.pricingTier==="discounted"&&(
-            <div style={{background:"#201600",border:"1px solid #e8a020",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8a020",marginBottom:10}}>Early Signing Discount</div>
+            <div style={{background:"#33260a",border:"1px solid #e8bd6d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8bd6d",marginBottom:10}}>Early Signing Discount</div>
               <div style={{marginBottom:8}}>
-                <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Sign-By Date</label>
+                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Sign-By Date</label>
                 <input value={form.earlySigningDate} onChange={e=>setF("earlySigningDate",e.target.value)} placeholder="March 15, 2026"
-                  style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
               </div>
               <div>
-                <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Discount Amount ($)</label>
+                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Discount Amount ($)</label>
                 <input value={form.earlySigningAmount} onChange={e=>setF("earlySigningAmount",e.target.value)} placeholder="500"
-                  style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
               </div>
-              {fees.discount>0&&<div style={{fontSize:11,color:"#e8a020",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(fees.upfront)} (saves {fmt(fees.discount)})</div>}
+              {fees.discount>0&&<div style={{fontSize:11,color:"#e8bd6d",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(fees.upfront)} (saves {fmt(fees.discount)})</div>}
             </div>
           )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:form.optPostAwardScope?4:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.optPostAwardScope} onChange={e=>setF("optPostAwardScope",e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.optPostAwardScope?4:10,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.optPostAwardScope} onChange={e=>setF("optPostAwardScope",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
             Compliance Consulting
           </label>
           {form.optPostAwardScope&&(
             <div style={{marginBottom:10,marginTop:0,paddingLeft:22}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Compliance Consulting Fee ($)</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Compliance Consulting Fee ($)</label>
               <input value={form.postAwardFee||""} onChange={e=>setF("postAwardFee",e.target.value)} placeholder="0"
-                style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:form.installments?10:14,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.installments} onChange={e=>setF("installments",e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.installments?10:14,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.installments} onChange={e=>setF("installments",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
             Allow installment payments
           </label>
           {form.installments&&(
-            <div style={{background:"#0f1a30",border:"1px solid #2e4060",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#9aab2e",marginBottom:10}}>Installment Schedule</div>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:4}}>Number of Payments</label>
+            <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#6b8e23",marginBottom:10}}>Installment Schedule</div>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:4}}>Number of Payments</label>
               <div style={{display:"flex",gap:6,marginBottom:12}}>
                 {[2,3].map(n=>(
                   <button key={n} onClick={()=>setF("installmentCount",n)}
                     style={{flex:1,padding:"7px 0",borderRadius:6,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
-                      background:form.installmentCount===n?"#1a4a6e":"#222e4a",
-                      borderColor:form.installmentCount===n?"#5b9ec9":"#2e3d60",
-                      color:form.installmentCount===n?"#fff":"#8892aa"}}>
+                      background:form.installmentCount===n?"#1e3a5f":"#1f2a3a",
+                      borderColor:form.installmentCount===n?"#4a8bc4":"#2b3a4d",
+                      color:form.installmentCount===n?"#fff":"#8796aa"}}>
                     {n} Payments
                   </button>
                 ))}
@@ -2128,170 +2128,170 @@ export default function App() {
                 const amt = Math.round(fees.upfront * pct / 100);
                 return (
                   <div key={row.num} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e3050"}}>
-                    <div style={{fontSize:10,color:"#5b9ec9",fontWeight:700,marginBottom:5}}>Payment {row.num}</div>
+                    <div style={{fontSize:10,color:"#4a8bc4",fontWeight:700,marginBottom:5}}>Payment {row.num}</div>
                     <div style={{display:"flex",gap:6,marginBottom:5}}>
                       <div style={{flex:"0 0 70px"}}>
-                        <label style={{fontSize:10,color:"#9aa3b8",display:"block",marginBottom:2}}>%</label>
+                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>%</label>
                         <input value={form[row.pctKey]} onChange={e=>setF(row.pctKey,e.target.value)} placeholder="50"
-                          style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
                       </div>
                       <div style={{flex:1}}>
-                        <label style={{fontSize:10,color:"#9aa3b8",display:"block",marginBottom:2}}>Due When</label>
+                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>Due When</label>
                         <input value={form[row.labelKey]} onChange={e=>setF(row.labelKey,e.target.value)} placeholder="upon execution"
-                          style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
                       </div>
                     </div>
-                    {fees.upfront>0&&pct>0&&<div style={{fontSize:10,color:"#7edca8"}}>= {fmt(amt)}</div>}
+                    {fees.upfront>0&&pct>0&&<div style={{fontSize:10,color:"#a8c860"}}>= {fmt(amt)}</div>}
                   </div>
                 );
               })}
               {fees.upfront>0&&(()=>{
                 const total = [form.installment1Pct,form.installment2Pct,form.installmentCount>=3?form.installment3Pct:"0"].slice(0,form.installmentCount).reduce((s,v)=>s+(parseFloat(v)||0),0);
                 const ok = Math.abs(total-100)<0.01;
-                return <div style={{fontSize:11,fontWeight:700,color:ok?"#7edca8":"#e07070",marginTop:4}}>{ok?"Percentages total 100%":`Total: ${total}% (must equal 100%)`}</div>;
+                return <div style={{fontSize:11,fontWeight:700,color:ok?"#a8c860":"#f0a08c",marginTop:4}}>{ok?"Percentages total 100%":`Total: ${total}% (must equal 100%)`}</div>;
               })()}
             </div>
           )}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Optional Guarantees</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Guarantees</div>
           {[{key:"optNofo",label:"No NOFO"},{key:"optStateSwitch",label:"State NSGP Switch Option"}].map(o=>(
-            <label key={o.key} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:9,cursor:"pointer"}}>
-              <input type="checkbox" checked={form[o.key]} onChange={e=>setF(o.key,e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+            <label key={o.key} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
+              <input type="checkbox" checked={form[o.key]} onChange={e=>setF(o.key,e.target.checked)} style={{accentColor:"#6b8e23"}}/>
               {o.label}
             </label>
           ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Optional Clauses</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:9,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.optShortNotice} onChange={e=>setF("optShortNotice",e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Clauses</div>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.optShortNotice} onChange={e=>setF("optShortNotice",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
             Short-notice application
           </label>
           </>}
         </>}
         {/* In-House Pre-Award specific */}
         {isInh&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Programs</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Programs</div>
           {(form.programs||[]).map((pg,pgIdx)=>{
             const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
             return (
-              <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
+              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
+                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
                   {(form.programs||[]).length>1&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
+                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
                 </div>
                 <div style={{marginBottom:6}}>
-                  <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Grant Year</label>
+                  <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
                   <input value={pg.year||"2026"} onChange={e=>{
                     const updated=[...(form.programs||[])];
                     updated[pgIdx]={...updated[pgIdx],year:e.target.value};
                     setF("programs",updated);
                   }} placeholder="2026"
-                    style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
+                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
                 </div>
-                <div style={{fontSize:10,color:"#6c7a9c",marginBottom:3}}>Max Award: <span style={{color:"#9aab2e"}}>${cfg.maxAward}</span></div>
-                <div style={{fontSize:10,color:"#6c7a9c"}}>Applications: <span style={{color:"#fff",fontWeight:700}}>{(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length}</span></div>
+                <div style={{fontSize:10,color:"#8796aa",marginBottom:3}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
+                <div style={{fontSize:10,color:"#8796aa"}}>Applications: <span style={{color:"#fff",fontWeight:700}}>{(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length}</span></div>
               </div>
             );
           })}
           <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
             {Object.entries(PROGRAMS).filter(([k])=>!(form.programs||[]).some(p=>p.key===k)).map(([k,cfg])=>(
               <button key={k} onClick={()=>setF("programs",[...(form.programs||[]),{key:k,year:form.grantYear||"2026"}])}
-                style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #3a5080",background:"#222e4a",color:"#6c9ecf",cursor:"pointer"}}>
+                style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
                 + {cfg.label}
               </button>
             ))}
           </div>
           {/* In-House Fee Calculator */}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Fee Calculator</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhEngagementModel==="inh-partial-contingency"} onChange={e=>setF("inhEngagementModel",e.target.checked?"inh-partial-contingency":"inh-pre-only")} style={{accentColor:"#9aab2e"}}/>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Fee Calculator</div>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:10,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.inhEngagementModel==="inh-partial-contingency"} onChange={e=>setF("inhEngagementModel",e.target.checked?"inh-partial-contingency":"inh-pre-only")} style={{accentColor:"#6b8e23"}}/>
             Partial Contingency
           </label>
-          <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Pricing Tier</label>
+          <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Pricing Tier</label>
           <select value={form.inhPricingTier} onChange={e=>setF("inhPricingTier",e.target.value)}
-            style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,marginBottom:10,outline:"none"}}>
+            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:10,outline:"none"}}>
             {Object.entries(TIER_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
           </select>
           {form.inhPricingTier==="custom"&&(
             <div style={{marginBottom:10,marginTop:-4}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
               <input value={form.inhCustomFee||""} onChange={e=>setF("inhCustomFee",e.target.value)} placeholder="e.g. 5,000"
-                style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
           {form.inhEngagementModel==="inh-partial-contingency"&&(
             <div style={{marginBottom:10,marginTop:-4}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
               <input value={form.inhCustomContingencyFee||""} onChange={e=>setF("inhCustomContingencyFee",e.target.value)} placeholder="e.g. 3,500"
-                style={{width:"100%",background:"#222e4a",border:"1px solid #5b9ec9",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
           {/* In-House Fee summary card */}
-          <div style={{background:"#0f1a30",border:"1px solid #2e4060",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#5b9ec9",marginBottom:8}}>Fee Summary</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+          <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#4a8bc4",marginBottom:8}}>Fee Summary</div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
               <span>Upfront Fee</span><span style={{color:"#fff",fontWeight:600}}>{form.inhPricingTier==="discounted"&&inhFees.discount>0?<><span style={{textDecoration:"line-through",color:"#666",marginRight:6}}>{fmt(inhFees.baseUpfront)}</span>{fmt(inhFees.upfront)}</>:fmt(inhFees.upfront)}</span>
             </div>
             {form.inhPricingTier==="discounted"&&inhFees.discount>0&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8a020",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8bd6d",marginBottom:4}}>
                 <span>Early Signing Discount</span><span style={{fontWeight:600}}>−{fmt(inhFees.discount)}</span>
               </div>
             )}
             {inhFees.contingent!==null&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
                 <span>Contingent Fee (on award)</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.contingent)}</span>
               </div>
             )}
             {form.inhOptPostAwardScope&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#b0b8cc",marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
                 <span>Compliance Consulting Fee{numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.postAward)}</span>
               </div>
             )}
-            <div style={{borderTop:"1px solid #2e4060",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
-              <span style={{color:"#9aab2e"}}>Total</span><span style={{color:"#9aab2e"}}>{fmt(inhFees.total)}</span>
+            <div style={{borderTop:"1px solid #2b3a4d",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
+              <span style={{color:"#6b8e23"}}>Total</span><span style={{color:"#6b8e23"}}>{fmt(inhFees.total)}</span>
             </div>
           </div>
           {form.inhPricingTier==="discounted"&&(
-            <div style={{background:"#201600",border:"1px solid #e8a020",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8a020",marginBottom:10}}>Early Signing Discount</div>
+            <div style={{background:"#33260a",border:"1px solid #e8bd6d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8bd6d",marginBottom:10}}>Early Signing Discount</div>
               <div style={{marginBottom:8}}>
-                <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Sign-By Date</label>
+                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Sign-By Date</label>
                 <input value={form.inhEarlySigningDate} onChange={e=>setF("inhEarlySigningDate",e.target.value)} placeholder="March 15, 2026"
-                  style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
               </div>
               <div>
-                <label style={{fontSize:11,color:"#c8a060",display:"block",marginBottom:2}}>Discount Amount ($)</label>
+                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Discount Amount ($)</label>
                 <input value={form.inhEarlySigningAmount} onChange={e=>setF("inhEarlySigningAmount",e.target.value)} placeholder="1,500"
-                  style={{width:"100%",background:"#2a1e00",border:"1px solid #e8a020",borderRadius:6,padding:"6px 10px",color:"#ffe8b0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
               </div>
-              {inhFees.discount>0&&<div style={{fontSize:11,color:"#e8a020",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(inhFees.upfront)} (saves {fmt(inhFees.discount)})</div>}
+              {inhFees.discount>0&&<div style={{fontSize:11,color:"#e8bd6d",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(inhFees.upfront)} (saves {fmt(inhFees.discount)})</div>}
             </div>
           )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:form.inhOptPostAwardScope?4:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhOptPostAwardScope} onChange={e=>setF("inhOptPostAwardScope",e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.inhOptPostAwardScope?4:10,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.inhOptPostAwardScope} onChange={e=>setF("inhOptPostAwardScope",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
             Compliance Consulting
           </label>
           {form.inhOptPostAwardScope&&(
             <div style={{marginBottom:10,marginTop:0,paddingLeft:22}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Compliance Consulting Fee ($)</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Compliance Consulting Fee ($)</label>
               <input value={form.inhPostAwardFee||""} onChange={e=>setF("inhPostAwardFee",e.target.value)} placeholder="0"
-                style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:form.inhInstallments?10:14,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhInstallments} onChange={e=>setF("inhInstallments",e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.inhInstallments?10:14,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.inhInstallments} onChange={e=>setF("inhInstallments",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
             Allow installment payments
           </label>
           {form.inhInstallments&&(
-            <div style={{background:"#0f1a30",border:"1px solid #2e4060",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#9aab2e",marginBottom:10}}>Installment Schedule</div>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:4}}>Number of Payments</label>
+            <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#6b8e23",marginBottom:10}}>Installment Schedule</div>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:4}}>Number of Payments</label>
               <div style={{display:"flex",gap:6,marginBottom:12}}>
                 {[2,3].map(n=>(
                   <button key={n} onClick={()=>setF("inhInstallmentCount",n)}
                     style={{flex:1,padding:"7px 0",borderRadius:6,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
-                      background:form.inhInstallmentCount===n?"#1a4a6e":"#222e4a",
-                      borderColor:form.inhInstallmentCount===n?"#5b9ec9":"#2e3d60",
-                      color:form.inhInstallmentCount===n?"#fff":"#8892aa"}}>
+                      background:form.inhInstallmentCount===n?"#1e3a5f":"#1f2a3a",
+                      borderColor:form.inhInstallmentCount===n?"#4a8bc4":"#2b3a4d",
+                      color:form.inhInstallmentCount===n?"#fff":"#8796aa"}}>
                     {n} Payments
                   </button>
                 ))}
@@ -2305,69 +2305,69 @@ export default function App() {
                 const amt = Math.round(inhFees.upfront * pct / 100);
                 return (
                   <div key={row.num} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e3050"}}>
-                    <div style={{fontSize:10,color:"#5b9ec9",fontWeight:700,marginBottom:5}}>Payment {row.num}</div>
+                    <div style={{fontSize:10,color:"#4a8bc4",fontWeight:700,marginBottom:5}}>Payment {row.num}</div>
                     <div style={{display:"flex",gap:6,marginBottom:5}}>
                       <div style={{flex:"0 0 70px"}}>
-                        <label style={{fontSize:10,color:"#9aa3b8",display:"block",marginBottom:2}}>%</label>
+                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>%</label>
                         <input value={form[row.pctKey]} onChange={e=>setF(row.pctKey,e.target.value)} placeholder="50"
-                          style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
                       </div>
                       <div style={{flex:1}}>
-                        <label style={{fontSize:10,color:"#9aa3b8",display:"block",marginBottom:2}}>Due When</label>
+                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>Due When</label>
                         <input value={form[row.labelKey]} onChange={e=>setF(row.labelKey,e.target.value)} placeholder="upon execution"
-                          style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
                       </div>
                     </div>
-                    {inhFees.upfront>0&&pct>0&&<div style={{fontSize:10,color:"#7edca8"}}>= {fmt(amt)}</div>}
+                    {inhFees.upfront>0&&pct>0&&<div style={{fontSize:10,color:"#a8c860"}}>= {fmt(amt)}</div>}
                   </div>
                 );
               })}
               {inhFees.upfront>0&&(()=>{
                 const total = [form.inhInstallment1Pct,form.inhInstallment2Pct,form.inhInstallmentCount>=3?form.inhInstallment3Pct:"0"].slice(0,form.inhInstallmentCount).reduce((s,v)=>s+(parseFloat(v)||0),0);
                 const ok = Math.abs(total-100)<0.01;
-                return <div style={{fontSize:11,fontWeight:700,color:ok?"#7edca8":"#e07070",marginTop:4}}>{ok?"Percentages total 100%":`Total: ${total}% (must equal 100%)`}</div>;
+                return <div style={{fontSize:11,fontWeight:700,color:ok?"#a8c860":"#f0a08c",marginTop:4}}>{ok?"Percentages total 100%":`Total: ${total}% (must equal 100%)`}</div>;
               })()}
             </div>
           )}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Optional Guarantees</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Guarantees</div>
           {[{key:"inhOptNofo",label:"No NOFO"},{key:"inhOptStateSwitch",label:"State NSGP Switch Option"}].map(o=>(
-            <label key={o.key} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:9,cursor:"pointer"}}>
-              <input type="checkbox" checked={form[o.key]} onChange={e=>setF(o.key,e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+            <label key={o.key} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
+              <input type="checkbox" checked={form[o.key]} onChange={e=>setF(o.key,e.target.checked)} style={{accentColor:"#6b8e23"}}/>
               {o.label}
             </label>
           ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Optional Clauses</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#b0b8cc",marginBottom:9,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhOptShortNotice} onChange={e=>setF("inhOptShortNotice",e.target.checked)} style={{accentColor:"#9aab2e"}}/>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Clauses</div>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.inhOptShortNotice} onChange={e=>setF("inhOptShortNotice",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
             Short-notice application
           </label>
         </>}
         {/* Post-award grant program selector */}
         {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Programs</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Programs</div>
           {postPrograms.map((pg,pgIdx)=>{
             const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
             return (
-              <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 12px",marginBottom:8}}>
+              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 12px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
+                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
                   {postPrograms.length>1&&<button onClick={()=>setF("postPrograms",postPrograms.filter((_,i)=>i!==pgIdx))}
                     style={{background:"none",border:"none",color:"#e05050",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>×</button>}
                 </div>
-                <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Award Year</label>
+                <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Award Year</label>
                 <input value={pg.year||String(new Date().getFullYear())} onChange={e=>{
                   const updated=[...postPrograms];
                   updated[pgIdx]={...updated[pgIdx],year:e.target.value};
                   setF("postPrograms",updated);
-                }} style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:4,padding:"5px 8px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                <div style={{fontSize:10,color:"#6c7a9c",marginTop:4}}>Max Award: <span style={{color:"#9aab2e"}}>${cfg.maxAward}</span></div>
+                }} style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:4,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                <div style={{fontSize:10,color:"#8796aa",marginTop:4}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
               </div>
             );
           })}
           <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
             {Object.entries(PROGRAMS).filter(([k])=>!postPrograms.some(p=>p.key===k)).map(([k,cfg])=>(
               <button key={k} onClick={()=>setF("postPrograms",[...postPrograms,{key:k,year:postPrograms[0]?.year||String(new Date().getFullYear())}])}
-                style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #3a5080",background:"#222e4a",color:"#6c9ecf",cursor:"pointer"}}>
+                style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
                 + {cfg.label}
               </button>
             ))}
@@ -2375,17 +2375,17 @@ export default function App() {
         </>}
         {/* Post-award fields */}
         {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&POST_FIELDS.map((f2,i)=>{
-          if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>{f2.section}</div>;
+          if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>{f2.section}</div>;
           return (
             <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>{f2.label}</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
               {f2.type==="select"
                 ? <select value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)}
-                    style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}>
+                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}>
                     {f2.options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 : <input type={f2.type||"text"} value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder||""}
-                    style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none",colorScheme:"dark"}}/>
+                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none",colorScheme:"dark"}}/>
               }
             </div>
           );
@@ -2393,20 +2393,20 @@ export default function App() {
         {/* Post-award: Reimbursement Option A/B */}
         {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&(
           <>
-            <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Reimbursement Expectation</div>
+            <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Reimbursement Expectation</div>
             {!form.postReimbursementOption&&(
-              <div style={{fontSize:11,color:"#e07070",marginBottom:8}}>⚠ Rep must select Option A or Option B</div>
+              <div style={{fontSize:11,color:"#f0a08c",marginBottom:8}}>⚠ Rep must select Option A or Option B</div>
             )}
             {[
               {val:"optionA", label:"Option A — Reimbursement Expected", desc:"M&A fees may be reimbursed through grant funds (timing may differ)"},
               {val:"optionB", label:"Option B — No Grant Reimbursement", desc:"M&A fees are not reimbursable through grant proceeds"},
             ].map(opt=>(
               <label key={opt.val} onClick={()=>setF("postReimbursementOption",opt.val)}
-                style={{display:"flex",alignItems:"flex-start",gap:10,fontSize:12,color:form.postReimbursementOption===opt.val?"#fff":"#b0b8cc",marginBottom:8,cursor:"pointer",background:form.postReimbursementOption===opt.val?"#1a4a6e":"#1a2540",border:`1px solid ${form.postReimbursementOption===opt.val?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"8px 10px"}}>
-                <input type="radio" name="postReimbursementOption" value={opt.val} checked={form.postReimbursementOption===opt.val} onChange={()=>setF("postReimbursementOption",opt.val)} style={{accentColor:"#5b9ec9",marginTop:3,flexShrink:0}}/>
+                style={{display:"flex",alignItems:"flex-start",gap:10,fontSize:12,color:form.postReimbursementOption===opt.val?"#fff":"#a7b4c6",marginBottom:8,cursor:"pointer",background:form.postReimbursementOption===opt.val?"#1e3a5f":"#1a2540",border:`1px solid ${form.postReimbursementOption===opt.val?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"8px 10px"}}>
+                <input type="radio" name="postReimbursementOption" value={opt.val} checked={form.postReimbursementOption===opt.val} onChange={()=>setF("postReimbursementOption",opt.val)} style={{accentColor:"#4a8bc4",marginTop:3,flexShrink:0}}/>
                 <div>
                   <div style={{fontWeight:700}}>{opt.label}</div>
-                  <div style={{fontSize:10,color:"#6c7a9c",marginTop:2}}>{opt.desc}</div>
+                  <div style={{fontSize:10,color:"#8796aa",marginTop:2}}>{opt.desc}</div>
                 </div>
               </label>
             ))}
@@ -2414,32 +2414,32 @@ export default function App() {
         )}
         {/* Grant Writer sidebar fields */}
         {isGw&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:4,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Writer</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:4,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Writer</div>
           {[{key:"gwRecipientName",label:"Grant Writer Name",placeholder:"Name"},{key:"gwRecipientEmail",label:"Grant Writer Email",placeholder:"email@example.com"},{key:"gwOrgName",label:"Organization",placeholder:"Organization"}].map(f2=>(
             <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>{f2.label}</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
               <input value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder}
-                style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Grant Program(s)</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Program(s)</div>
           {(form.gwPrograms||[]).map((pg,pgIdx)=>{
             const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
             return (
-              <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
+              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
+                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
                   {(form.gwPrograms||[]).length>1&&<button onClick={()=>setF("gwPrograms",(form.gwPrograms||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
+                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
                 </div>
-                <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Grant Year</label>
+                <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
                 <input value={pg.year||""} onChange={e=>{
                   const updated=[...(form.gwPrograms||[])];
                   updated[pgIdx]={...updated[pgIdx],year:e.target.value};
                   setF("gwPrograms",updated);
                 }} placeholder="2026"
-                  style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
-                <div style={{fontSize:10,color:"#6c7a9c",marginTop:5}}>Max Award: <span style={{color:"#9aab2e"}}>${cfg.maxAward}</span></div>
+                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
+                <div style={{fontSize:10,color:"#8796aa",marginTop:5}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
               </div>
             );
           })}
@@ -2447,13 +2447,13 @@ export default function App() {
             {Object.entries(PROGRAMS).filter(([k])=>!(form.gwPrograms||[]).some(p=>p.key===k)).map(([k,cfg])=>(
               <button key={k} onClick={()=>{
                 setF("gwPrograms",[...(form.gwPrograms||[]),{key:k,year:(form.gwPrograms||[])[0]?.year||"2026"}]);
-              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #3a5080",background:"#222e4a",color:"#6c9ecf",cursor:"pointer"}}>
+              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
                 + {cfg.label}
               </button>
             ))}
           </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Requesting NPSA Consultant</div>
-          <div style={{fontSize:11,color:"#9aa3b8",marginBottom:6}}>Select consultant</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Requesting NPSA Consultant</div>
+          <div style={{fontSize:11,color:"#a09a8c",marginBottom:6}}>Select consultant</div>
           <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
             {[
               {name:"Brad Lynde",     email:"brad@lyndeconsulting.com",           phone:"815-255-9556"},
@@ -2469,19 +2469,19 @@ export default function App() {
                   setF("npsa1Email", rep.email);
                   setF("npsa1Phone", rep.phone);
                 }}
-                  style={{textAlign:"left",background:active?"#1a4a6e":"#222e4a",border:`1px solid ${active?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#b0b8cc",fontSize:12,cursor:"pointer"}}>
+                  style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
                   <span style={{fontWeight:active?700:400}}>{rep.name}</span>
                 </button>
               );
             })}
           </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>CC Contacts</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>CC Contacts</div>
           {(form.gwCcContacts||[]).map((cc,idx)=>(
-            <div key={idx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 6px",marginBottom:8}}>
+            <div key={idx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 6px",marginBottom:8}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={{fontSize:11,color:"#6c7a9c",fontWeight:700}}>Contact {idx+1}</span>
+                <span style={{fontSize:11,color:"#8796aa",fontWeight:700}}>Contact {idx+1}</span>
                 <button onClick={()=>setF("gwCcContacts",(form.gwCcContacts||[]).filter((_,i)=>i!==idx))}
-                  style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>
+                  style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>
               </div>
               {[{k:"name",ph:"Name"},{k:"title",ph:"Title"},{k:"phone",ph:"Phone"},{k:"email",ph:"Email"}].map(f2=>(
                 <div key={f2.k} style={{marginBottom:6}}>
@@ -2491,17 +2491,17 @@ export default function App() {
                       updated[idx]={...updated[idx],[f2.k]:e.target.value};
                       setF("gwCcContacts",updated);
                     }}
-                    style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
+                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
                 </div>
               ))}
             </div>
           ))}
           <button onClick={()=>setF("gwCcContacts",[...(form.gwCcContacts||[]),{name:"",title:"",phone:"",email:""}])}
-            style={{width:"100%",background:"#222e4a",border:"1px dashed #3a5080",borderRadius:6,padding:"7px 0",fontSize:11,color:"#6c9ecf",cursor:"pointer",marginBottom:14}}>
+            style={{width:"100%",background:"#1f2a3a",border:"1px dashed #33415a",borderRadius:6,padding:"7px 0",fontSize:11,color:"#4a8bc4",cursor:"pointer",marginBottom:14}}>
             + Add CC Contact
           </button>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Additional Meeting Attendees</div>
-          <div style={{fontSize:11,color:"#6c7a9c",marginBottom:8,lineHeight:1.5}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Additional Meeting Attendees</div>
+          <div style={{fontSize:11,color:"#8796aa",marginBottom:8,lineHeight:1.5}}>
             Organization contacts are auto-populated from above (primary contact + all CC contacts).
           </div>
           {(()=>{
@@ -2509,14 +2509,14 @@ export default function App() {
               form.contactName ? {name:form.contactName, email:form.contactEmail} : null,
               ...(form.gwCcContacts||[]).filter(c=>c.name).map(c=>({name:c.name,email:c.email})),
             ].filter(Boolean);
-            if(!orgAttendees.length) return <div style={{fontSize:11,color:"#6c7a9c",fontStyle:"italic",marginBottom:10}}>Fill in client info above to see attendees here.</div>;
+            if(!orgAttendees.length) return <div style={{fontSize:11,color:"#8796aa",fontStyle:"italic",marginBottom:10}}>Fill in client info above to see attendees here.</div>;
             return <div style={{background:"#111d33",borderRadius:6,padding:"8px 10px",marginBottom:10}}>
               {orgAttendees.map((a,i)=>(
-                <div key={i} style={{fontSize:11,color:"#b0b8cc",marginBottom:3}}>• {a.name}{a.email?` — ${a.email}`:""}</div>
+                <div key={i} style={{fontSize:11,color:"#a7b4c6",marginBottom:3}}>• {a.name}{a.email?` — ${a.email}`:""}</div>
               ))}
             </div>;
           })()}
-          <div style={{fontSize:11,color:"#9aa3b8",marginBottom:6}}>Add Steven and/or Stuart to the meeting</div>
+          <div style={{fontSize:11,color:"#a09a8c",marginBottom:6}}>Add Steven and/or Stuart to the meeting</div>
           <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
             {[
               {name:"Steven Timlick", email:"steven@nonprofitsecurityadvisors.com", phone:"815-255-9141"},
@@ -2531,95 +2531,95 @@ export default function App() {
                   if(selected){ setF("npsa2Selected", cur.filter(r=>r.name!==rep.name)); }
                   else { setF("npsa2Selected", [...cur, {name:rep.name,email:rep.email,phone:rep.phone}]); }
                 }}
-                  style={{textAlign:"left",background:selected?"#1a4a6e":"#222e4a",border:`1px solid ${selected?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"7px 10px",color:selected?"#fff":"#b0b8cc",fontSize:12,cursor:"pointer"}}>
+                  style={{textAlign:"left",background:selected?"#1e3a5f":"#1f2a3a",border:`1px solid ${selected?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:selected?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
                   <span style={{fontWeight:selected?700:400}}>{selected?"[x] ":""}{rep.name}</span>
                 </button>
               );
             })}
           </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Contract Terms</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Contract Terms</div>
           {[{key:"gwProfFee",label:"Professional Fee ($)",placeholder:"$$$"},{key:"gwPaymentTerms",label:"Payment Terms",placeholder:"Net 30"}].map(f2=>(
             <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>{f2.label}</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
               <input value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder}
-                style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
               {f2.key==="gwProfFee"&&(
-                <div style={{background:"#111d33",border:"1px solid #2a3550",borderRadius:6,padding:"8px 10px",marginTop:6}}>
-                  <div style={{fontSize:10,color:"#6c7a9c",marginBottom:4}}>Reference — grant writer fee (NPSA pricing sheet):</div>
-                  <div style={{fontSize:10,color:"#b0b8cc",lineHeight:1.6}}>
+                <div style={{background:"#111d33",border:"1px solid #26313f",borderRadius:6,padding:"8px 10px",marginTop:6}}>
+                  <div style={{fontSize:10,color:"#8796aa",marginBottom:4}}>Reference — grant writer fee (NPSA pricing sheet):</div>
+                  <div style={{fontSize:10,color:"#a7b4c6",lineHeight:1.6}}>
                     <div>Undiscounted: 1 loc $7,000 · 2 loc $10,000 · 3 loc $13,000</div>
                     <div>Discounted: 1 loc $6,000 · 2 loc $8,000 · 3 loc $10,000</div>
                   </div>
-                  <div style={{fontSize:9,color:"#6c7a9c",marginTop:4,fontStyle:"italic"}}>Final fee is set by the grant writer's independent contract.</div>
+                  <div style={{fontSize:9,color:"#8796aa",marginTop:4,fontStyle:"italic"}}>Final fee is set by the grant writer's independent contract.</div>
                 </div>
               )}
             </div>
           ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Guarantee Structure</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Guarantee Structure</div>
           {[
             {key:"gwGuar1", label:"1. One additional application at no additional fee if not awarded", locked:false, note:null},
             {key:"gwGuar2", label:"2. If no NOFO: apply work or refund within 10 business days",      locked:false, note:form.optNofo?"Auto-selected: No NOFO is on":null},
             {key:"gwGuar3", label:"3. If no NOFO: apply work to next available opportunity",           locked:false, note:form.optNofo?"Deselected: No NOFO is on":null},
             {key:"gwGuar4", label:"4. Commercially reasonable efforts to meet deadline",               locked:false, note:form.optShortNotice?"Auto-selected: Short-notice is on":null},
           ].map(o=>(
-            <label key={o.key} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:12,color:o.locked?"#6c9ecf":"#b0b8cc",marginBottom:8,cursor:o.locked?"default":"pointer",lineHeight:1.4,opacity:o.locked?0.8:1}}>
-              <input type="checkbox" checked={form[o.key]} onChange={e=>!o.locked&&setF(o.key,e.target.checked)} disabled={o.locked} style={{accentColor:"#9aab2e",marginTop:2,flexShrink:0}}/>
+            <label key={o.key} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:12,color:o.locked?"#4a8bc4":"#a7b4c6",marginBottom:8,cursor:o.locked?"default":"pointer",lineHeight:1.4,opacity:o.locked?0.8:1}}>
+              <input type="checkbox" checked={form[o.key]} onChange={e=>!o.locked&&setF(o.key,e.target.checked)} disabled={o.locked} style={{accentColor:"#6b8e23",marginTop:2,flexShrink:0}}/>
               <span>
                 {o.label}
-                {o.locked&&<span style={{fontSize:10,color:"#5b9ec9",marginLeft:6,fontStyle:"italic"}}>(always on)</span>}
-                {o.note&&<span style={{fontSize:10,color:"#e8a020",display:"block",marginTop:1}}>{o.note}</span>}
+                {o.locked&&<span style={{fontSize:10,color:"#4a8bc4",marginLeft:6,fontStyle:"italic"}}>(always on)</span>}
+                {o.note&&<span style={{fontSize:10,color:"#e8bd6d",display:"block",marginTop:1}}>{o.note}</span>}
               </span>
             </label>
           ))}
           {form.gwGuar4&&(
             <div style={{marginBottom:10,marginTop:-4,paddingLeft:20}}>
-              <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Deadline</label>
+              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Deadline</label>
               <input value={form.gwGuar4Deadline||""} onChange={e=>setF("gwGuar4Deadline",e.target.value)} placeholder="e.g. March 15, 2026"
-                style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
             </div>
           )}
-          <div style={{fontSize:10,color:"#6c7a9c",fontStyle:"italic",marginTop:2,marginBottom:10,lineHeight:1.5}}>Note: Options 2 and 3 are mutually exclusive. Option 4 cannot be selected with 2 or 3.</div>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Additional Notes for Grant Writer</div>
+          <div style={{fontSize:10,color:"#8796aa",fontStyle:"italic",marginTop:2,marginBottom:10,lineHeight:1.5}}>Note: Options 2 and 3 are mutually exclusive. Option 4 cannot be selected with 2 or 3.</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Additional Notes for Grant Writer</div>
           <textarea value={form.gwNotes||""} onChange={e=>setF("gwNotes",e.target.value)}
             placeholder="e.g. Background, site details, upsell notes, context from sales rep..."
             rows={5}
-            style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"7px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",resize:"vertical",outline:"none",lineHeight:1.6}}/>
+            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"7px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",resize:"vertical",outline:"none",lineHeight:1.6}}/>
         </>}
         {/* Addendum sidebar */}
         {isAddendum&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Addendum Details</div>
-          <div style={{fontSize:11,color:"#6c7a9c",marginBottom:10,lineHeight:1.5}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Addendum Details</div>
+          <div style={{fontSize:11,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>
             Removes premature Implementation Period (post-award M&amp;A) services from a previously signed engagement letter.
           </div>
           <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Client Name (on original agreement)</label>
+            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Client Name (on original agreement)</label>
             <input value={form.addendumClientName||""} onChange={e=>setF("addendumClientName",e.target.value)} placeholder={form.clientName||"e.g. Cornerstone Family Church"}
-              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            <div style={{fontSize:10,color:"#6c7a9c",marginTop:3}}>Leave blank to use the Organization Name above.</div>
+              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+            <div style={{fontSize:10,color:"#8796aa",marginTop:3}}>Leave blank to use the Organization Name above.</div>
           </div>
           <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Original Agreement Date</label>
+            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Original Agreement Date</label>
             <input type="date" value={form.addendumOriginalDate||""} onChange={e=>setF("addendumOriginalDate",e.target.value)}
-              style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
           </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>Programs Affected</div>
-          <div style={{fontSize:11,color:"#6c7a9c",marginBottom:8,lineHeight:1.5}}>Which program(s) does this removal apply to?</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Programs Affected</div>
+          <div style={{fontSize:11,color:"#8796aa",marginBottom:8,lineHeight:1.5}}>Which program(s) does this removal apply to?</div>
           {(form.addendumPrograms||[]).map((pg,pgIdx)=>{
             const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
             return (
-              <div key={pgIdx} style={{background:"#1a2540",border:"1px solid #2e3d60",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
+              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#5b9ec9",fontWeight:700}}>{cfg.label}</span>
+                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
                   {(form.addendumPrograms||[]).length>1&&<button onClick={()=>setF("addendumPrograms",(form.addendumPrograms||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#e07070",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
+                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
                 </div>
-                <label style={{fontSize:10,color:"#6c7a9c",display:"block",marginBottom:2}}>Grant Year</label>
+                <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
                 <input value={pg.year||""} onChange={e=>{
                   const updated=[...(form.addendumPrograms||[])];
                   updated[pgIdx]={...updated[pgIdx],year:e.target.value};
                   setF("addendumPrograms",updated);
                 }} placeholder={String(new Date().getFullYear())}
-                  style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"5px 8px",color:"#e8eaf0",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
               </div>
             );
           })}
@@ -2627,7 +2627,7 @@ export default function App() {
             {Object.entries(PROGRAMS).filter(([k])=>!(form.addendumPrograms||[]).some(p=>p.key===k)).map(([k,cfg])=>(
               <button key={k} onClick={()=>{
                 setF("addendumPrograms",[...(form.addendumPrograms||[]),{key:k,year:String(new Date().getFullYear())}]);
-              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #3a5080",background:"#222e4a",color:"#6c9ecf",cursor:"pointer"}}>
+              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
                 + {cfg.label}
               </button>
             ))}
@@ -2637,95 +2637,95 @@ export default function App() {
         {!isGw&&!isProposal&&<>
         {/* AI Custom Clause — letters only (not addendum) */}
         {!isAddendum&&<>
-        <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>AI Custom Clause</div>
+        <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>AI Custom Clause</div>
         <textarea value={isPre?form.customClause:form.postCustomClause} onChange={e=>setF(isPre?"customClause":"postCustomClause",e.target.value)}
           placeholder="Describe a clause in plain language..." rows={3}
-          style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"7px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
+          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"7px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
         <button onClick={()=>polish(isPre?form.customClause:form.postCustomClause,r=>setF(isPre?"polishedClause":"postPolishedClause",r))}
           disabled={loading||(isPre?!form.customClause.trim():!form.postCustomClause.trim())}
-          style={{marginTop:7,width:"100%",background:loading?"#2e3d60":"#1a4a6e",color:"#fff",border:"none",borderRadius:6,padding:"7px 0",fontSize:12,fontWeight:600,cursor:loading?"default":"pointer"}}>
+          style={{marginTop:7,width:"100%",background:loading?"#2b3a4d":"#1e3a5f",color:"#fff",border:"none",borderRadius:6,padding:"7px 0",fontSize:12,fontWeight:600,cursor:loading?"default":"pointer"}}>
           {loading?"Polishing...":"Polish with AI"}
         </button>
         {(isPre?form.polishedClause:form.postPolishedClause)&&(
-          <div style={{marginTop:9,background:"#1e3a2f",border:"1px solid #2d5c42",borderRadius:6,padding:10,fontSize:11,color:"#7edca8",lineHeight:1.6}}>
+          <div style={{marginTop:9,background:"#1e3a2f",border:"1px solid #2d5c42",borderRadius:6,padding:10,fontSize:11,color:"#a8c860",lineHeight:1.6}}>
             <div style={{fontSize:10,color:"#4caf7d",marginBottom:3,fontWeight:700}}>POLISHED CLAUSE — PENDING APPROVAL</div>
             {isPre?form.polishedClause:form.postPolishedClause}
             <button onClick={()=>setMgmtApprovalModal(true)}
-              style={{marginTop:10,width:"100%",background:"#1a4a2e",color:"#7edca8",border:"1px solid #2d5c42",borderRadius:6,padding:"7px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              style={{marginTop:10,width:"100%",background:"#1a4a2e",color:"#a8c860",border:"1px solid #2d5c42",borderRadius:6,padding:"7px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
               Insert into Document
             </button>
           </div>
         )}
         </>}
-        <div style={{fontSize:10,fontWeight:700,color:"#6c7a9c",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #2a3550",paddingBottom:5}}>NPSA Authorized Signer</div>
+        <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>NPSA Authorized Signer</div>
         <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
           {(()=>{
             const active = form.npsaSignerName==="Brad Lynde";
             return <button key="Brad Lynde" onClick={()=>{setF("npsaSignerName","Brad Lynde");setF("npsaSignerTitle","Managing Partner");}}
-              style={{textAlign:"left",background:active?"#1a4a6e":"#222e4a",border:`1px solid ${active?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#b0b8cc",fontSize:12,cursor:"pointer"}}>
+              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
               <span style={{fontWeight:active?700:400}}>Brad Lynde</span>
-              <span style={{fontSize:10,color:active?"#9ab8d8":"#6c7a9c",marginLeft:6}}>Managing Partner</span>
+              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Managing Partner</span>
             </button>;
           })()}
           {(()=>{
             const active = form.npsaSignerName==="Chad Burgess";
             return <button key="Chad Burgess" onClick={()=>setSignerApprovalModal({name:"Chad Burgess",title:"Associate | Business Development & Consulting"})}
-              style={{textAlign:"left",background:active?"#1a4a6e":"#222e4a",border:`1px solid ${active?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#b0b8cc",fontSize:12,cursor:"pointer"}}>
+              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
               <span style={{fontWeight:active?700:400}}>Chad Burgess</span>
-              <span style={{fontSize:10,color:active?"#9ab8d8":"#6c7a9c",marginLeft:6}}>Associate | Business Development & Consulting</span>
+              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Associate | Business Development & Consulting</span>
             </button>;
           })()}
           {(()=>{
             const active = form.npsaSignerName==="Josh Ullrich";
             return <button key="Josh Ullrich" onClick={()=>setSignerApprovalModal({name:"Josh Ullrich",title:"Business Development Partner"})}
-              style={{textAlign:"left",background:active?"#1a4a6e":"#222e4a",border:`1px solid ${active?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#b0b8cc",fontSize:12,cursor:"pointer"}}>
+              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
               <span style={{fontWeight:active?700:400}}>Josh Ullrich</span>
-              <span style={{fontSize:10,color:active?"#9ab8d8":"#6c7a9c",marginLeft:6}}>Business Development Partner</span>
+              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Business Development Partner</span>
             </button>;
           })()}
           {(()=>{
             const active = form.npsaSignerName==="Steven Timlick";
             return <button key="Steven Timlick" onClick={()=>setSignerApprovalModal({name:"Steven Timlick",title:"Associate | Project Mgmt. & Operations"})}
-              style={{textAlign:"left",background:active?"#1a4a6e":"#222e4a",border:`1px solid ${active?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#b0b8cc",fontSize:12,cursor:"pointer"}}>
+              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
               <span style={{fontWeight:active?700:400}}>Steven Timlick</span>
-              <span style={{fontSize:10,color:active?"#9ab8d8":"#6c7a9c",marginLeft:6}}>Associate | Project Mgmt. & Operations</span>
+              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Associate | Project Mgmt. & Operations</span>
             </button>;
           })()}
           {(()=>{
             const active = form.npsaSignerName==="Stuart Reese";
             return <button key="Stuart Reese" onClick={()=>setSignerApprovalModal({name:"Stuart Reese",title:"Director of Grants | Co-Director of Operations"})}
-              style={{textAlign:"left",background:active?"#1a4a6e":"#222e4a",border:`1px solid ${active?"#5b9ec9":"#2e3d60"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#b0b8cc",fontSize:12,cursor:"pointer"}}>
+              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
               <span style={{fontWeight:active?700:400}}>Stuart Reese</span>
-              <span style={{fontSize:10,color:active?"#9ab8d8":"#6c7a9c",marginLeft:6}}>Director of Grants | Co-Director of Operations</span>
+              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Director of Grants | Co-Director of Operations</span>
             </button>;
           })()}
         </div>
         <div style={{marginBottom:10}}>
-          <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Signing Date</label>
+          <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Signing Date</label>
           <input type="date" value={form.npsaSigningDate||""} onChange={e=>setF("npsaSigningDate",e.target.value)}
-            style={{width:"100%",background:"#222e4a",border:"1px solid #2e3d60",borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
         </div>
         {!isAddendum&&(
           <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#9aa3b8",display:"block",marginBottom:2}}>Expiration Date <span style={{color:"#e07070"}}>*</span></label>
+            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Expiration Date <span style={{color:"#f0a08c"}}>*</span></label>
             <input type="date" value={form.expirationDate||""} onChange={e=>setF("expirationDate",e.target.value)}
-              style={{width:"100%",background:"#222e4a",border:`1px solid ${form.expirationDate?"#2e3d60":"#7a3a3a"}`,borderRadius:6,padding:"6px 10px",color:"#e8eaf0",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            {!form.expirationDate&&<div style={{fontSize:10,color:"#e07070",marginTop:3}}>Required to download or print.</div>}
+              style={{width:"100%",background:"#1f2a3a",border:`1px solid ${form.expirationDate?"#2b3a4d":"#7a3a3a"}`,borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
+            {!form.expirationDate&&<div style={{fontSize:10,color:"#f0a08c",marginTop:3}}>Required to download or print.</div>}
           </div>
         )}
         </>}
         {/* Management Approval Modal */}
         {mgmtApprovalModal&&(
           <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-            <div style={{background:"#1a2540",border:"1px solid #e07070",borderRadius:12,padding:"28px 32px",maxWidth:380,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.6)"}}>
+            <div style={{background:"#16202e",border:"1px solid #f0a08c",borderRadius:12,padding:"28px 32px",maxWidth:380,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.6)"}}>
               <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:8,textAlign:"center"}}>Management Approval Required</div>
-              <div style={{fontSize:13,color:"#b0b8cc",marginBottom:24,textAlign:"center",lineHeight:1.6}}>Has this AI-generated clause been reviewed and confirmed by management before inserting it into the contract?</div>
+              <div style={{fontSize:13,color:"#a7b4c6",marginBottom:24,textAlign:"center",lineHeight:1.6}}>Has this AI-generated clause been reviewed and confirmed by management before inserting it into the contract?</div>
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>{
                   setMgmtApprovalModal(false);
                   setF(isPre?"polishedClause":"postPolishedClause","");
                   setF(isPre?"customClause":"postCustomClause","");
-                }} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #555",background:"#2a3550",color:"#9aa3b8",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                }} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #555",background:"#26313f",color:"#a09a8c",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                   No — Discard
                 </button>
                 <button onClick={()=>setMgmtApprovalModal(false)}
@@ -2738,7 +2738,7 @@ export default function App() {
         )}
         {(()=>{ const blocked = !isAddendum && !form.expirationDate; return (
         <button onClick={handlePrint} disabled={blocked} title={blocked?"Set an Expiration Date first":""}
-          style={{marginTop:20,width:"100%",background:blocked?"#4a5340":"#7a8c1e",color:blocked?"#aeb59a":"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:blocked?"not-allowed":"pointer"}}>
+          style={{marginTop:20,width:"100%",background:blocked?"#4a5340":"#6b8e23",color:blocked?"#aeb59a":"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:blocked?"not-allowed":"pointer"}}>
           {isGw ? "Print / Save as PDF" : "Download PDF"}
         </button>
         );})()}
@@ -2748,7 +2748,7 @@ export default function App() {
             setReviewHtml(bodyHtml);
             setSavedLetterOverride(null);
             setReviewMode(true);
-          }} style={{marginTop:8,width:"100%",background:"#1a4a6e",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          }} style={{marginTop:8,width:"100%",background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
             Review &amp; Edit Letter
           </button>
         )}
@@ -2763,18 +2763,18 @@ Thank you,
 ${form.npsa1Name||"NPSA"}`
             });
             setEmailModal(true);
-          }} style={{marginTop:8,width:"100%",background:"#1a4a6e",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          }} style={{marginTop:8,width:"100%",background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
             Email to Grant Writer
           </button>
         )}
         {dbAvailable && (
-          <div style={{marginTop:16,borderTop:"1px solid #2a3550",paddingTop:14}}>
+          <div style={{marginTop:16,borderTop:"1px solid #26313f",paddingTop:14}}>
             <button onClick={()=>setShowSaveModal(true)}
-              style={{width:"100%",background:"#2e3d60",color:"#e8eaf0",border:"1px solid #3d5080",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+              style={{width:"100%",background:"#2b3a4d",color:"#e8edf4",border:"1px solid #3d5080",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
               {currentLetterId ? "Update Letter" : "Save Letter"}
             </button>
             {currentLetterId && (
-              <div style={{fontSize:11,color:"#6c7a9c",marginTop:6,textAlign:"center"}}>
+              <div style={{fontSize:11,color:"#8796aa",marginTop:6,textAlign:"center"}}>
                 Saved as: {form.clientName||"Untitled"}
               </div>
             )}
@@ -2783,9 +2783,9 @@ ${form.npsa1Name||"NPSA"}`
       </div>
       {/* ── REVIEW & EDIT MODE ── */}
       {reviewMode && (
-        <div style={{flex:1,display:"flex",flexDirection:"column",background:"#dde0e6"}}>
+        <div style={{flex:1,display:"flex",flexDirection:"column",background:"#e7e2d6"}}>
           {/* Toolbar */}
-          <div style={{background:"#1a4a6e",color:"#fff",padding:"12px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
+          <div style={{background:"#1e3a5f",color:"#fff",padding:"12px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
             <span style={{fontWeight:700,fontSize:14}}>Review &amp; Edit Mode</span>
             <span style={{opacity:0.75,fontSize:12}}>Click anywhere in the document to edit. Click "Save to Letter" to apply your changes.</span>
             <div style={{marginLeft:"auto",display:"flex",gap:10}}>
@@ -2809,9 +2809,9 @@ ${form.npsa1Name||"NPSA"}`
             </div>
           </div>
           {/* Editable iframe */}
-          <iframe ref={reviewIframeRef} style={{flex:1,border:"none",background:"#dde0e6"}}
+          <iframe ref={reviewIframeRef} style={{flex:1,border:"none",background:"#e7e2d6"}}
             srcDoc={`<!DOCTYPE html><html><head><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Ms+Madi&display=swap" rel="stylesheet"><style>
-              body{margin:0;padding:40px;background:#dde0e6;font-family:Georgia,serif;}
+              body{margin:0;padding:40px;background:#e7e2d6;font-family:Georgia,serif;}
               #editable-body{max-width:800px;margin:0 auto;background:#fff;padding:64px 72px;box-shadow:0 4px 32px rgba(0,0,0,0.13);outline:none;font-size:13px;line-height:1.75;color:#1a1a1a;}
               #editable-body:focus{outline:none;}
               @media print{body{margin:0;padding:0;background:#fff;}#editable-body{box-shadow:none;padding:72pt;max-width:100%;}}
@@ -2822,9 +2822,9 @@ ${form.npsa1Name||"NPSA"}`
         </div>
       )}
       {/* ── PREVIEW ── */}
-      <div style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#dde0e6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
+      <div style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#e7e2d6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
         {/* Tabs */}
-        <div style={{position:"sticky",top:0,zIndex:10,background:"#dde0e6",paddingTop:28}}><div style={{maxWidth:800,margin:"0 auto",display:"flex",overflowX:"auto"}}>
+        <div style={{position:"sticky",top:0,zIndex:10,background:"#e7e2d6",paddingTop:28}}><div style={{maxWidth:800,margin:"0 auto",display:"flex",overflowX:"auto"}}>
           {[{id:"pre",label:"Pre-Award",match:["pre","inh"],defaultTab:"inh"},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>{
             const active = t.match ? t.match.includes(docTab) : docTab===t.id;
             return (
@@ -2833,8 +2833,8 @@ ${form.npsa1Name||"NPSA"}`
                 borderRadius:i===0?"8px 0 0 0":i===arr.length-1?"0 8px 0 0":"0",
                 cursor:"pointer",
                 background:active?"#fff":"#c8cdd8",
-                color:active?"#1a4a6e":"#666",
-                boxShadow:active?"0 -2px 0 #1a4a6e inset":""}}>
+                color:active?"#1e3a5f":"#666",
+                boxShadow:active?"0 -2px 0 #1e3a5f inset":""}}>
               {t.label}
             </button>
           );})}
@@ -2870,7 +2870,7 @@ ${form.npsa1Name||"NPSA"}`
             ];
             return <>
               {/* Logo */}
-              <div style={{textAlign:"center",borderBottom:"2.5px solid #1a4a6e",paddingBottom:10,marginBottom:12}}>
+              <div style={{textAlign:"center",borderBottom:"2.5px solid #1e3a5f",paddingBottom:10,marginBottom:12}}>
                 <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
                 <div style={{fontSize:10,color:"#888",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
               </div>
@@ -2881,7 +2881,7 @@ ${form.npsa1Name||"NPSA"}`
                 <div style={{fontSize:11,color:"#666",marginTop:5}}>{today}</div>
               </div>
               {/* Parties */}
-              <div style={{border:"1px solid #c0c8d8",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f8f9fc",display:"flex",gap:40}}>
+              <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Client</div>
                   <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.clientName||"[CLIENT NAME]"}</div>
@@ -2891,7 +2891,7 @@ ${form.npsa1Name||"NPSA"}`
                   {form.contactEmail&&<div style={{fontSize:11,color:"#666"}}>{form.contactEmail}</div>}
                   {form.contactPhone&&<div style={{fontSize:11,color:"#666"}}>{form.contactPhone}</div>}
                 </div>
-                <div style={{width:1,background:"#c0c8d8"}}/>
+                <div style={{width:1,background:"#8796aa"}}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Consultant</div>
                   <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
@@ -2900,19 +2900,19 @@ ${form.npsa1Name||"NPSA"}`
                 </div>
               </div>
               {/* Summary box */}
-              <div style={{border:"1px solid #1a4a6e",borderRadius:4,overflow:"hidden",marginBottom:24}}>
+              <div style={{border:"1px solid #1e3a5f",borderRadius:4,overflow:"hidden",marginBottom:24}}>
                 {summaryRows.map(([k,v],i)=>(
-                  <div key={k} style={{display:"flex",borderTop:i===0?"none":"1px solid #c0cfe8"}}>
-                    <div style={{width:180,flexShrink:0,background:"#f4f7fb",padding:"9px 14px",fontSize:11,fontWeight:700,letterSpacing:0.5,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{k}</div>
+                  <div key={k} style={{display:"flex",borderTop:i===0?"none":"1px solid #a7b4c6"}}>
+                    <div style={{width:180,flexShrink:0,background:"#fbfaf8",padding:"9px 14px",fontSize:11,fontWeight:700,letterSpacing:0.5,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{k}</div>
                     <div style={{flex:1,padding:"9px 14px",fontSize:13,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{v}</div>
                   </div>
                 ))}
               </div>
               {/* Executive Summary */}
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Executive Summary</div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Executive Summary</div>
               <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20}}>{interpolateProposal(execSummaryText)}</p>
               {/* Project Locations */}
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Project Locations</div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Project Locations</div>
               <div style={{marginBottom:20}}>
                 {(form.locations||[]).filter(l=>l.address||l.city||l.name).length>0
                   ? (form.locations||[]).filter(l=>l.address||l.city||l.name).map((loc,i)=>{
@@ -2922,7 +2922,7 @@ ${form.npsa1Name||"NPSA"}`
                   : <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#888",fontStyle:"italic"}}>Add locations in the sidebar to list project campuses here.</div>}
               </div>
               {/* Three Phase Approach */}
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Three Phase Approach</div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Three Phase Approach</div>
               {phasesToShow.map((ph,i)=>(
                 <div key={i} style={{marginBottom:16}}>
                   <div style={{fontSize:12.5,fontWeight:700,fontFamily:"Georgia,serif",color:"#1a1a1a",marginBottom:4}}>{ph.title}</div>
@@ -2931,7 +2931,7 @@ ${form.npsa1Name||"NPSA"}`
                 </div>
               ))}
               {/* Eligible Project Types */}
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:20,marginBottom:10}}>Eligible Project Types</div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:20,marginBottom:10}}>Eligible Project Types</div>
               <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.8,marginBottom:20}}>{proposalTpl.eligible}</p>
               {/* Investment & Payment Terms */}
               {(()=>{
@@ -2940,7 +2940,7 @@ ${form.npsa1Name||"NPSA"}`
                 const pDisc = useInh ? form.inhPricingTier==="discounted" : form.pricingTier==="discounted";
                 const pDiscDate = useInh ? form.inhEarlySigningDate : form.earlySigningDate;
                 return <>
-                  <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Investment &amp; Payment Terms</div>
+                  <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Investment &amp; Payment Terms</div>
                   <div style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.8,marginBottom:8}}>
                     <div><strong>Professional Fee:</strong> {fmt(pFees.upfront)}</div>
                     {pDisc&&pFees.discount>0&&<div>Includes a {fmt(pFees.discount)} early-signing discount from the standard {fmt(pFees.baseUpfront)} fee.</div>}
@@ -2953,16 +2953,16 @@ ${form.npsa1Name||"NPSA"}`
                     {isFull&&<div>Award Implementation services are billed as a percentage-based fee, due upon notification of a grant award and formally engaged following State authorization to proceed, as set forth in the governing Engagement Letter.</div>}
                   </div>
                   {pDisc&&pDiscDate&&(
-                    <div style={{border:"1px solid #1a4a6e",borderRadius:4,background:"#f4f7fb",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:"Georgia,serif",color:"#1a4a6e",fontWeight:700}}>
+                    <div style={{border:"1px solid #1e3a5f",borderRadius:4,background:"#fbfaf8",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:"Georgia,serif",color:"#1e3a5f",fontWeight:700}}>
                       To lock the discounted fee, execute the Engagement Letter by {pDiscDate}.
                     </div>
                   )}
                 </>;
               })()}
               {/* Important Note */}
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginBottom:10}}>Important Note</div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Important Note</div>
               <p style={{fontSize:12.5,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20,fontStyle:"italic",color:"#333"}}>{proposalTpl.note}</p>
-              {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1a4a6e",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
+              {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
               <div style={{marginTop:30,paddingTop:10,borderTop:"1px solid #ddd",textAlign:"center",fontSize:10,color:"#aaa"}}>
                 Prepared for the leadership of {form.clientName||"[CLIENT NAME]"} &nbsp;&#8226;&nbsp; Nonprofit Security Advisors &nbsp;&#8226;&nbsp; Lynde Consulting LLC
               </div>
@@ -2973,7 +2973,7 @@ ${form.npsa1Name||"NPSA"}`
             const npsaDate = (()=>{ const v=form.npsaSigningDate||""; if(!v) return ""; const [y,m,d]=v.split("-"); return `${m}-${d}-${y}`; })();
             return <>
               {/* Letterhead */}
-              <div style={{textAlign:"center",borderBottom:"2.5px solid #1a4a6e",paddingBottom:10,marginBottom:12}}>
+              <div style={{textAlign:"center",borderBottom:"2.5px solid #1e3a5f",paddingBottom:10,marginBottom:12}}>
                 <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
                 <div style={{fontSize:10,color:"#888",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
               </div>
@@ -2983,7 +2983,7 @@ ${form.npsa1Name||"NPSA"}`
                 <div style={{fontSize:11,color:"#666",marginTop:5}}>{today}</div>
               </div>
               {/* Parties */}
-              <div style={{border:"1px solid #c0c8d8",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f8f9fc",display:"flex",gap:40}}>
+              <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Client</div>
                   <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{addClient}</div>
@@ -2993,7 +2993,7 @@ ${form.npsa1Name||"NPSA"}`
                   {form.contactEmail&&<div style={{fontSize:11,color:"#666"}}>{form.contactEmail}</div>}
                   {form.contactPhone&&<div style={{fontSize:11,color:"#666"}}>{form.contactPhone}</div>}
                 </div>
-                <div style={{width:1,background:"#c0c8d8"}}/>
+                <div style={{width:1,background:"#8796aa"}}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Consultant</div>
                   <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
@@ -3010,7 +3010,7 @@ ${form.npsa1Name||"NPSA"}`
                 ))}
               </div>
               {/* Signature block */}
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:26,marginBottom:14}}>Acknowledged and Agreed</div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:26,marginBottom:14}}>Acknowledged and Agreed</div>
               <div style={{display:"flex",gap:48}}>
                 {[
                   {party:addClient,sub:null,isNpsa:false,fields:[["Signature",""],["Printed Name",form.contactName||""],["Title",form.contactTitle||""],["Date",""]]},
@@ -3044,7 +3044,7 @@ ${form.npsa1Name||"NPSA"}`
             </>;
           })() : <>
           {/* Logo */}
-          <div style={{textAlign:"center",borderBottom:"2.5px solid #1a4a6e",paddingBottom:10,marginBottom:12}}>
+          <div style={{textAlign:"center",borderBottom:"2.5px solid #1e3a5f",paddingBottom:10,marginBottom:12}}>
             <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
             <div style={{fontSize:10,color:"#888",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
           </div>
@@ -3064,7 +3064,7 @@ ${form.npsa1Name||"NPSA"}`
             <div style={{fontSize:11,color:"#666",marginTop:5}}>{today}</div>
           </div>
           {/* Parties — pre/post only */}
-          {!isGw&&<div style={{border:"1px solid #c0c8d8",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f8f9fc",display:"flex",gap:40}}>
+          {!isGw&&<div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
             <div style={{flex:1}}>
               <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Client</div>
               <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.clientName||"[CLIENT NAME]"}</div>
@@ -3074,7 +3074,7 @@ ${form.npsa1Name||"NPSA"}`
               {form.contactEmail&&<div style={{fontSize:11,color:"#666"}}>{form.contactEmail}</div>}
               {form.contactPhone&&<div style={{fontSize:11,color:"#666"}}>{form.contactPhone}</div>}
             </div>
-            <div style={{width:1,background:"#c0c8d8"}}/>
+            <div style={{width:1,background:"#8796aa"}}/>
             <div style={{flex:1}}>
               <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>Consultant</div>
               <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
@@ -3084,8 +3084,8 @@ ${form.npsa1Name||"NPSA"}`
           </div>}
           {/* Pre-Award Fee Summary Box */}
           {isPre&&(
-            <div style={{border:"1px solid #1a4a6e",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#f4f7fb"}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>
+            <div style={{border:"1px solid #1e3a5f",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>
                 Fee Summary — Pre-Award{form.optPostAwardScope?" & Compliance":""} · {totalApps} Application{totalApps>1?"s":""}
               </div>
               <div style={{display:"flex",gap:0,flexWrap:"wrap"}}>
@@ -3098,42 +3098,42 @@ ${form.npsa1Name||"NPSA"}`
                     const pct = parseFloat(p.pct)||0;
                     const amt = Math.round(fees.upfront * pct / 100);
                     return (
-                      <div key={p.num} style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16,minWidth:80}}>
+                      <div key={p.num} style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16,minWidth:80}}>
                         <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment {p.num}{pct>0?` (${pct}%)`:""}</div>
-                        <div style={{fontSize:16,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{pct>0?fmt(amt):"—"}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{pct>0?fmt(amt):"—"}</div>
                         <div style={{fontSize:10,color:"#888",marginTop:2}}>{p.label||"—"}</div>
                       </div>
                     );
                   })
                 ) : (
-                  <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                  <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Upfront Fee</div>
                     {fees.discount>0
-                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif",textDecoration:"line-through",opacity:0.5}}>{fmt(fees.baseUpfront)}</div>
-                          <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(fees.upfront)}</div>
+                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif",textDecoration:"line-through",opacity:0.5}}>{fmt(fees.baseUpfront)}</div>
+                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.upfront)}</div>
                           <div style={{fontSize:10,color:"#e07030",marginTop:1,fontWeight:600}}>− {fmt(fees.discount)} early signing discount</div></>
-                      : <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(fees.upfront)}</div>
+                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.upfront)}</div>
                     }
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due at signing</div>
                   </div>
                 )}
                 {fees.contingent!==null&&(
-                  <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                  <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Contingent Fee</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(fees.contingent)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.contingent)}</div>
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 {form.optPostAwardScope&&(
-                  <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                  <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(fees.postAward)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.postAward)}</div>
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#888",marginBottom:2}}>Total</div>
-                  <div style={{fontSize:18,fontWeight:700,color:"#7a8c1e",fontFamily:"Georgia,serif"}}>{fmt(fees.total)}</div>
+                  <div style={{fontSize:18,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fmt(fees.total)}</div>
                   <div style={{fontSize:10,color:"#888",marginTop:2}}>Max grant: {fmt((form.programs||[{key:"federal"}]).reduce((s,pg)=>{const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;const n=(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length||0;return s+n*(parseFloat(cfg.maxAward.replace(/,/g,""))||200000);},0))}</div>
                 </div>
               </div>
@@ -3141,8 +3141,8 @@ ${form.npsa1Name||"NPSA"}`
           )}
           {/* In-House Pre-Award Fee Summary Box */}
           {isInh&&(
-            <div style={{border:"1px solid #1a4a6e",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#f4f7fb"}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>
+            <div style={{border:"1px solid #1e3a5f",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>
                 Fee Summary — Pre-Award{form.inhOptPostAwardScope?" & Compliance":""} · {totalApps} Application{totalApps>1?"s":""}
               </div>
               <div style={{display:"flex",gap:0,flexWrap:"wrap"}}>
@@ -3155,42 +3155,42 @@ ${form.npsa1Name||"NPSA"}`
                     const pct = parseFloat(p.pct)||0;
                     const amt = Math.round(inhFees.upfront * pct / 100);
                     return (
-                      <div key={p.num} style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16,minWidth:80}}>
+                      <div key={p.num} style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16,minWidth:80}}>
                         <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment {p.num}{pct>0?` (${pct}%)`:""}</div>
-                        <div style={{fontSize:16,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{pct>0?fmt(amt):"—"}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{pct>0?fmt(amt):"—"}</div>
                         <div style={{fontSize:10,color:"#888",marginTop:2}}>{p.label||"—"}</div>
                       </div>
                     );
                   })
                 ) : (
-                  <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                  <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Upfront Fee</div>
                     {inhFees.discount>0
-                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif",textDecoration:"line-through",opacity:0.5}}>{fmt(inhFees.baseUpfront)}</div>
-                          <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(inhFees.upfront)}</div>
+                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif",textDecoration:"line-through",opacity:0.5}}>{fmt(inhFees.baseUpfront)}</div>
+                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.upfront)}</div>
                           <div style={{fontSize:10,color:"#e07030",marginTop:1,fontWeight:600}}>− {fmt(inhFees.discount)} early signing discount</div></>
-                      : <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(inhFees.upfront)}</div>
+                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.upfront)}</div>
                     }
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due at signing</div>
                   </div>
                 )}
                 {inhFees.contingent!==null&&(
-                  <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                  <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Contingent Fee</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(inhFees.contingent)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.contingent)}</div>
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 {form.inhOptPostAwardScope&&(
-                  <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                  <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fmt(inhFees.postAward)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.postAward)}</div>
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#888",marginBottom:2}}>Total</div>
-                  <div style={{fontSize:18,fontWeight:700,color:"#7a8c1e",fontFamily:"Georgia,serif"}}>{fmt(inhFees.total)}</div>
+                  <div style={{fontSize:18,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fmt(inhFees.total)}</div>
                   <div style={{fontSize:10,color:"#888",marginTop:2}}>Max grant: {fmt((form.programs||[{key:"federal"}]).reduce((s,pg)=>{const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;const n=(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length||0;return s+n*(parseFloat(cfg.maxAward.replace(/,/g,""))||200000);},0))}</div>
                 </div>
               </div>
@@ -3220,7 +3220,7 @@ ${form.npsa1Name||"NPSA"}`
             <SH id="pre_other"/><Body id="pre_other"/>
             {form.optShortNotice&&(
               <>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:30,marginBottom:10}}>IX. Short-Notice Application Circumstances</div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:10}}>IX. Short-Notice Application Circumstances</div>
                 {renderLines(
 `1. CLIENT acknowledges that this engagement is being entered into with less than desirable notice.
 2. NPSA commits to make all commercially reasonable efforts to position CLIENT to submit a compliant and well-written application.
@@ -3233,8 +3233,8 @@ ${form.npsa1Name||"NPSA"}`
               </>
             )}
             {form.polishedClause&&(
-              <div style={{border:"1px solid #c0cfe8",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>Additional Terms</div>
+              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
                 <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{form.polishedClause}</p>
               </div>
             )}
@@ -3263,7 +3263,7 @@ ${form.npsa1Name||"NPSA"}`
             <SH id="inh_other"/><Body id="inh_other"/>
             {form.inhOptShortNotice&&(
               <>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:30,marginBottom:10}}>IX. Short-Notice Application Circumstances</div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:10}}>IX. Short-Notice Application Circumstances</div>
                 {renderLines(
 `1. CLIENT acknowledges that this engagement is being entered into with less than desirable notice.
 2. NPSA commits to make all commercially reasonable efforts to position CLIENT to submit a compliant and well-written application.
@@ -3276,8 +3276,8 @@ ${form.npsa1Name||"NPSA"}`
               </>
             )}
             {form.inhPolishedClause&&(
-              <div style={{border:"1px solid #c0cfe8",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>Additional Terms</div>
+              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
                 <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{form.inhPolishedClause}</p>
               </div>
             )}
@@ -3303,29 +3303,29 @@ ${form.npsa1Name||"NPSA"}`
                 pmt3Due = `Due ${fmtShort(m8)}`;
               }
               return (
-                <div style={{border:"1px solid #1a4a6e",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#f4f7fb"}}>
-                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>
+                <div style={{border:"1px solid #1e3a5f",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>
                     Fee Summary — Award Implementation M&A · {postGrantYear}
                   </div>
                   <div style={{display:"flex",gap:0}}>
-                    <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                    <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment 1 — At Signing{p1>0?` (${p1}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fee>0&&p1>0?fmt(pmt1):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fee>0&&p1>0?fmt(pmt1):"—"}</div>
                       <div style={{fontSize:10,color:"#888",marginTop:2}}>Due at signing</div>
                     </div>
-                    <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                    <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment 2 — Month 4{p2>0?` (${p2}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fee>0&&p2>0?fmt(pmt2):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fee>0&&p2>0?fmt(pmt2):"—"}</div>
                       <div style={{fontSize:10,color:"#888",marginTop:2}}>{pmt2Due}</div>
                     </div>
-                    <div style={{flex:1,borderRight:"1px solid #c0cfe8",paddingRight:16,marginRight:16}}>
+                    <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:10,color:"#888",marginBottom:2}}>Payment 3 — Month 8{p3>0?` (${p3}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1a4a6e",fontFamily:"Georgia,serif"}}>{fee>0&&p3>0?fmt(pmt3):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fee>0&&p3>0?fmt(pmt3):"—"}</div>
                       <div style={{fontSize:10,color:"#888",marginTop:2}}>{pmt3Due}</div>
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:10,color:"#888",marginBottom:2}}>Total Fixed Fee</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#7a8c1e",fontFamily:"Georgia,serif"}}>{fee>0?fmt(fee):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fee>0?fmt(fee):"—"}</div>
                       <div style={{fontSize:10,color:"#888",marginTop:2}}>Fixed engagement fee</div>
                     </div>
                   </div>
@@ -3341,8 +3341,8 @@ ${form.npsa1Name||"NPSA"}`
             <SH id="post_term"/><Body id="post_term"/>
             <SH id="post_other"/><Body id="post_other"/>
             {form.postPolishedClause&&(
-              <div style={{border:"1px solid #c0cfe8",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",marginBottom:8}}>Additional Terms</div>
+              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
                 <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{form.postPolishedClause}</p>
               </div>
             )}
@@ -3360,7 +3360,7 @@ ${form.npsa1Name||"NPSA"}`
             const Row = ({children}) => <div style={{display:"flex",gap:32,marginBottom:0}}>{children}</div>;
             const Col = ({children,flex=1}) => <div style={{flex}}>{children}</div>;
             const SectionHead = ({num,title}) => (
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1a4a6e",borderBottom:"1.5px solid #1a4a6e",paddingBottom:4,marginTop:24,marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",borderBottom:"1.5px solid #1e3a5f",paddingBottom:4,marginTop:24,marginBottom:14}}>
                 {num}. {title}
               </div>
             );
@@ -3372,13 +3372,13 @@ ${form.npsa1Name||"NPSA"}`
             );
             return <>
               {/* Parties box — Grant Writer tab */}
-              <div style={{border:"1px solid #c0c8d8",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f8f9fc",display:"flex",gap:40}}>
+              <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>To: Grant Writer</div>
                   <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.gwRecipientName||"[Grant Writer Name]"}</div>
                   {form.gwOrgName&&<div style={{fontSize:12,color:"#555"}}>{form.gwOrgName}</div>}
                 </div>
-                <div style={{width:1,background:"#c0c8d8"}}/>
+                <div style={{width:1,background:"#8796aa"}}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:4}}>From: Consultant</div>
                   {form.npsa1Name&&<div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.npsa1Name}</div>}
@@ -3435,7 +3435,7 @@ ${form.npsa1Name||"NPSA"}`
                   })}
                   {form.gwNotes && (<>
                     <SectionHead num="" title="Additional Notes"/>
-                    <div style={{background:"#f4f7fb",border:"1px solid #c0cfe8",borderRadius:8,padding:"14px 18px",marginBottom:16}}>
+                    <div style={{background:"#fbfaf8",border:"1px solid #a7b4c6",borderRadius:8,padding:"14px 18px",marginBottom:16}}>
                       <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#333",whiteSpace:"pre-wrap",lineHeight:1.7}}>{form.gwNotes}</div>
                     </div>
                   </>)}
@@ -3474,12 +3474,12 @@ ${form.npsa1Name||"NPSA"}`
 2. Provide its white paper and/or informational materials directly to the client.
 3. Send a meeting invitation including:`)}
               <div style={{marginLeft:24,marginTop:8}}>
-                <div style={{fontSize:12,fontWeight:700,color:"#1a4a6e",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>NPSA:</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#1e3a5f",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>NPSA:</div>
                 {form.npsa1Name&&<div style={{fontSize:13,fontFamily:"Georgia,serif",marginBottom:4}}>• {form.npsa1Name}{form.npsa1Email?` – ${form.npsa1Email}`:""}</div>}
                 {(form.npsa2Selected||[]).map(r=>(
                   <div key={r.name} style={{fontSize:13,fontFamily:"Georgia,serif",marginBottom:4}}>• {r.name}{r.email?` – ${r.email}`:""}</div>
                 ))}
-                <div style={{fontSize:12,fontWeight:700,color:"#1a4a6e",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{form.clientName||"CLIENT"}:</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#1e3a5f",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{form.clientName||"CLIENT"}:</div>
                 {[
                   form.contactName ? {name:form.contactName, email:form.contactEmail} : null,
                   ...(form.gwCcContacts||[]).filter(c=>c.name).map(c=>({name:c.name,email:c.email})),
@@ -3488,7 +3488,7 @@ ${form.npsa1Name||"NPSA"}`
                 ))}
               </div>
               {/* Disclosures */}
-              <div style={{marginTop:28,borderTop:"2px solid #1a4a6e",paddingTop:16}}>
+              <div style={{marginTop:28,borderTop:"2px solid #1e3a5f",paddingTop:16}}>
                 <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",marginBottom:14,fontFamily:"Georgia,serif"}}>Disclosures</div>
                 {(()=>{
                   const gw = form.gwOrgName||"the Grant Writer";
@@ -3508,10 +3508,10 @@ ${form.npsa1Name||"NPSA"}`
             </>;
           })()}
           {/* Expiration clause — all letter variants (pre/inh/post/gw) */}
-          {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1a4a6e",marginTop:24,marginBottom:0}}>This offer expires on {fmtExpiry}.</p>}
+          {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginTop:24,marginBottom:0}}>This offer expires on {fmtExpiry}.</p>}
           {/* Signature — pre/post only */}
           {!isGw&&<>
-          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1a4a6e",borderBottom:"2px solid #1a4a6e",paddingBottom:4,marginTop:30,marginBottom:14}}>Acknowledged and Agreed</div>
+          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:14}}>Acknowledged and Agreed</div>
           <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20}}>The undersigned parties hereby acknowledge and agree to the terms and conditions set forth in this Engagement Letter as of the date first written above.</p>
           <div style={{display:"flex",gap:48}}>
             {[
@@ -3551,8 +3551,8 @@ ${form.npsa1Name||"NPSA"}`
       {signerApprovalModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
           <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:400,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)",textAlign:"center"}}>
-            <div style={{fontSize:36,marginBottom:12,color:"#e8a020",fontWeight:700}}>(!)</div>
-            <div style={{fontWeight:700,fontSize:17,color:"#1a2540",marginBottom:10}}>Management Approval Required</div>
+            <div style={{fontSize:36,marginBottom:12,color:"#e8bd6d",fontWeight:700}}>(!)</div>
+            <div style={{fontWeight:700,fontSize:17,color:"#182230",marginBottom:10}}>Management Approval Required</div>
             <div style={{fontSize:14,color:"#444",marginBottom:8,lineHeight:1.6}}>
               You're changing the authorized signer to <strong>{signerApprovalModal.name}</strong>.
             </div>
@@ -3577,7 +3577,7 @@ ${form.npsa1Name||"NPSA"}`
       {emailModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
           <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:460,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
-            <div style={{fontWeight:700,fontSize:16,color:"#1a2540",marginBottom:4}}>Email to Grant Writer</div>
+            <div style={{fontWeight:700,fontSize:16,color:"#182230",marginBottom:4}}>Email to Grant Writer</div>
             <div style={{fontSize:12,color:"#777",marginBottom:20,lineHeight:1.5}}>Your default email client will open with these fields pre-filled. Attach the downloaded GW document before sending.</div>
             {[
               {label:"To", key:"to", placeholder:"grantwriter@example.com"},
@@ -3609,12 +3609,12 @@ ${form.npsa1Name||"NPSA"}`
                   window.location.href = mailto;
                   setEmailModal(false);
                 }}
-                  style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:"#1a4a6e",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:"#1e3a5f",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                   Open in Email Client
                 </button>
               </div>
               <button onClick={()=>{ handlePrint(); }}
-                style={{width:"100%",padding:"10px 0",borderRadius:8,border:"1px solid #1a4a6e",background:"#fff",color:"#1a4a6e",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                style={{width:"100%",padding:"10px 0",borderRadius:8,border:"1px solid #1e3a5f",background:"#fff",color:"#1e3a5f",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 Download Form First
               </button>
             </div>
@@ -3625,10 +3625,10 @@ ${form.npsa1Name||"NPSA"}`
       {showSaveModal && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}}>
           <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:420,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
-            <div style={{fontWeight:700,fontSize:16,color:"#1a2540",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
+            <div style={{fontWeight:700,fontSize:16,color:"#182230",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
             <div style={{fontSize:12,color:"#777",marginBottom:pendingPrintAfterSave?12:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
             {pendingPrintAfterSave && (
-              <div style={{background:"#eef4fb",border:"1px solid #b8cde4",borderRadius:6,padding:"10px 12px",fontSize:12,color:"#1a4a6e",marginBottom:20,lineHeight:1.5}}>
+              <div style={{background:"#eef4fb",border:"1px solid #b8cde4",borderRadius:6,padding:"10px 12px",fontSize:12,color:"#1e3a5f",marginBottom:20,lineHeight:1.5}}>
                 {currentLetterId
                   ? "This letter has unsaved changes. Save the update and the download will start automatically."
                   : "Letters must be saved before they can be downloaded. Pick the rep and the download will start automatically."}
@@ -3637,7 +3637,7 @@ ${form.npsa1Name||"NPSA"}`
             <div style={{marginBottom:20}}>
               <label style={{fontSize:12,fontWeight:600,color:"#444",display:"block",marginBottom:6}}>Sales Rep</label>
               {reps.length === 0 ? (
-                <div style={{fontSize:12,color:"#c0392b",background:"#fff5f5",border:"1px solid #f5c6c6",borderRadius:6,padding:"10px 12px"}}>
+                <div style={{fontSize:12,color:"#a3341f",background:"#fff5f5",border:"1px solid #f5c6c6",borderRadius:6,padding:"10px 12px"}}>
                   No reps configured. Go to Settings to add reps first.
                 </div>
               ) : (
@@ -3666,50 +3666,50 @@ ${form.npsa1Name||"NPSA"}`
 
       {/* ── LETTER BROWSER MODAL ── */}
       {showLetterBrowser && (
-        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",display:"flex",flexDirection:"column",zIndex:2000,fontFamily:"Inter,sans-serif"}}>
-          <div style={{background:"#f4f6fb",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",display:"flex",flexDirection:"column",zIndex:2000,fontFamily:'var(--font-sans)'}}>
+          <div style={{background:"#fbfaf8",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
             {/* Header */}
-            <div style={{padding:"22px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,background:"#fff",borderBottom:"1px solid #eef1f7"}}>
-              <div style={{color:"#1a2540",fontWeight:800,fontSize:20,flex:1}}>Saved Letters</div>
+            <div style={{padding:"22px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,background:"#fff",borderBottom:"1px solid #f0ede5"}}>
+              <div style={{color:"#182230",fontWeight:800,fontSize:20,flex:1}}>Saved Letters</div>
               <input value={letterSearch} onChange={e=>{ setLetterSearch(e.target.value); fetchLetters(e.target.value); }}
                 placeholder="Search by client or rep..."
-                style={{border:"1px solid #dde1ea",borderRadius:10,padding:"10px 16px",fontSize:14,outline:"none",width:280}}/>
+                style={{border:"1px solid #d9d5cc",borderRadius:10,padding:"10px 16px",fontSize:14,outline:"none",width:280}}/>
               <button onClick={()=>setShowLetterBrowser(false)}
-                style={{background:"#f4f6fb",border:"1px solid #e6e9f2",borderRadius:10,width:40,height:40,color:"#5b6b8c",fontSize:18,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>&#10005;</button>
+                style={{background:"#fbfaf8",border:"1px solid #e7e2d6",borderRadius:10,width:40,height:40,color:"#4a5462",fontSize:18,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>&#10005;</button>
             </div>
             {/* Table — centered, compact columns */}
             <div style={{flex:1,overflowY:"auto",padding:"28px 24px"}}>
               {savedLetters.length === 0 ? (
-                <div style={{padding:60,textAlign:"center",color:"#9aa3b8",fontSize:16}}>
+                <div style={{padding:60,textAlign:"center",color:"#a09a8c",fontSize:16}}>
                   {letterSearch ? "No letters match your search." : "No saved letters yet."}
                 </div>
               ) : (
-                <div style={{maxWidth:880,margin:"0 auto",background:"#fff",borderRadius:18,boxShadow:"0 6px 24px rgba(2,6,23,0.06)",border:"1px solid #eef1f7",overflow:"hidden"}}>
+                <div style={{maxWidth:880,margin:"0 auto",background:"#fff",borderRadius:18,boxShadow:"0 6px 24px rgba(2,6,23,0.06)",border:"1px solid #f0ede5",overflow:"hidden"}}>
                   <table style={{width:"100%",borderCollapse:"collapse"}}>
                     <thead>
-                      <tr style={{borderBottom:"1px solid #eef1f7"}}>
+                      <tr style={{borderBottom:"1px solid #f0ede5"}}>
                         {["Client","Rep","Type","Last Updated",""].map((h,hi)=>(
-                          <th key={h} style={{padding:"16px 14px",textAlign:hi===4?"right":"left",fontSize:12.5,fontWeight:700,color:"#9aa3b8",textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
+                          <th key={h} style={{padding:"16px 14px",textAlign:hi===4?"right":"left",fontSize:12.5,fontWeight:700,color:"#a09a8c",textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {savedLetters.map((l,li)=>(
-                        <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid #f4f5f9",background:currentLetterId===l.id?"#f5f3ff":"#fff"}}>
-                          <td style={{padding:"16px 14px",fontWeight:700,color:"#1a2540",fontSize:16}}>{l.client_name}</td>
-                          <td style={{padding:"16px 14px",color:"#475569",fontSize:15}}>{l.rep_name}</td>
-                          <td style={{padding:"16px 14px",color:"#4f46e5",fontSize:14,fontWeight:600}}>
+                        <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid #f0ede5",background:currentLetterId===l.id?"#f5f3ff":"#fff"}}>
+                          <td style={{padding:"16px 14px",fontWeight:700,color:"#182230",fontSize:16}}>{l.client_name}</td>
+                          <td style={{padding:"16px 14px",color:"#4a5462",fontSize:15}}>{l.rep_name}</td>
+                          <td style={{padding:"16px 14px",color:"#1e3a5f",fontSize:14,fontWeight:600}}>
                             {tabLabel[l.doc_tab]||l.doc_tab}
                           </td>
-                          <td style={{padding:"16px 14px",color:"#94a3b8",fontSize:14}}>{fmtDate(l.updated_at)}</td>
+                          <td style={{padding:"16px 14px",color:"#a09a8c",fontSize:14}}>{fmtDate(l.updated_at)}</td>
                           <td style={{padding:"16px 14px"}}>
                             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                               <button onClick={()=>loadLetter(l.id)}
-                                style={{background:"linear-gradient(135deg,#1a2540,#1a4a6e)",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 3px 10px rgba(26,37,64,0.3)"}}>
+                                style={{background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 3px 10px rgba(26,37,64,0.3)"}}>
                                 Load
                               </button>
                               <button onClick={()=>deleteLetter(l.id)}
-                                style={{background:"#fff",border:"1px solid #f0c0c0",color:"#c0392b",borderRadius:8,padding:"8px 14px",fontSize:13.5,fontWeight:600,cursor:"pointer"}}>
+                                style={{background:"#fff",border:"1px solid #d9a99c",color:"#a3341f",borderRadius:8,padding:"8px 14px",fontSize:13.5,fontWeight:600,cursor:"pointer"}}>
                                 Delete
                               </button>
                             </div>
