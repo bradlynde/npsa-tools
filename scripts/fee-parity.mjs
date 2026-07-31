@@ -9,21 +9,24 @@
 //   node scripts/fee-parity.mjs --save     record baseline (run before refactoring)
 //   node scripts/fee-parity.mjs            compare against baseline; exit 1 on drift
 //
-// The engine is read out of its source file rather than imported, so the harness
-// keeps working whether it lives in App.jsx or a module of its own.
+// Imports src/generator/engine.js, falling back to slicing the engine out of
+// App.jsx so a baseline recorded before the split stays reproducible.
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BASELINE = path.join(ROOT, "scripts", "fee-parity.baseline.json");
 
-// Pull the pricing engine out of whichever file currently holds it.
-function loadEngine() {
-  const candidates = ["src/generator/engine.js", "src/App.jsx"];
-  const file = candidates.map(f => path.join(ROOT, f)).find(fs.existsSync);
-  if (!file) throw new Error("no engine source found");
+// Prefer the extracted module; fall back to slicing App.jsx so the baseline
+// recorded before the split stays reproducible.
+async function loadEngine() {
+  const mod = path.join(ROOT, "src/generator/engine.js");
+  if (fs.existsSync(mod)) return await import(pathToFileURL(mod).href);
+
+  const file = path.join(ROOT, "src/App.jsx");
+  if (!fs.existsSync(file)) throw new Error("no engine source found");
   const src = fs.readFileSync(file, "utf8");
 
   const slice = (startRe, endRe) => {
@@ -79,8 +82,8 @@ function* cases() {
   }
 }
 
-function run() {
-  const { calcFees, buildCompBlock } = loadEngine();
+async function run() {
+  const { calcFees, buildCompBlock } = await loadEngine();
   const out = {};
 
   for (const c of cases()) {
@@ -115,7 +118,7 @@ function run() {
   return out;
 }
 
-const results = run();
+const results = await run();
 const save = process.argv.includes("--save");
 
 if (save) {
