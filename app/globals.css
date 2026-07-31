@@ -10,90 +10,298 @@ body {
   overflow-x: hidden;
 }
 
+/* ── Design tokens ──────────────────────────────────────────────
+   Light is the default. Dark is applied by adding `.dark` to <body>
+   (see ThemeScript in app/layout.tsx + the toggle in TopBar).
+   Every component reads these through var(--x) — never a per-component
+   light/dark conditional.
+   ─────────────────────────────────────────────────────────────── */
+
 body {
-  background: #ffffff;
-  color: #1f2937;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  /* surfaces */
+  --bg: #fbfaf8;
+  --card: #ffffff;
+  --bd: #e7e2d6;
+  --bd2: #d9d5cc;
+  --hair: #e4e0d6;
+  --hair2: #f0ede5;
+  --track: #efece4;
+  --hover: #f6f4ee;
+
+  /* ink */
+  --ink: #182230;
+  --sec: #4a5462;
+  --mute: #8a8577;
+  --faint: #a09a8c;
+  --chip-muted: #6b7583;
+
+  /* brand — navy and olive are the only two hues */
+  --navy: #1e3a5f;
+  --navycard: #1e3a5f;
+  --olive: #6b8e23;
+  --on-accent: #ffffff;
+
+  /* controls */
+  --seg: rgba(24, 34, 48, 0.05);
+  --seg-active: #ffffff;
+  /* Previous-period bars: must read clearly against paper, without competing
+     with the navy series bar in front of it. */
+  --ghost: #c3bba6;
+
+  /* status */
+  --ok-fg: #4a6417;
+  --ok-bg: #eef3e0;
+  --run-fg: #1e3a5f;
+  --run-bg: #e9eef5;
+  --q-fg: #6a675f;
+  --q-bg: #efece4;
+  --err-fg: #a3341f;
+  --err-bg: #fbeee9;
+  --warn-fg: #8a5a12;
+  --warn-bg: #fbf3e2;
+
+  /* misc */
+  --tip-bg: #182230;
+  --tip-fg: #fbfaf8;
+  --logo-filter: none;
+  --shadow-card: 0 2px 12px rgba(60, 50, 30, 0.06);
+  --shadow-card-hover: 0 14px 30px rgba(60, 50, 30, 0.1);
+  --shadow-navy: 0 10px 26px rgba(30, 58, 95, 0.25);
+
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background 0.3s;
 }
 
-:root {
-  --npsa-blue: #1e3a5f;
-  --npsa-green: #6b8e23;
-  --npsa-blue-hover: #2c5282;
+body.dark {
+  --bg: #10161e;
+  --card: #1a2430;
+  --bd: #273244;
+  --bd2: #33415a;
+  --hair: #26313f;
+  --hair2: #222d3a;
+  --track: #242f3d;
+  --hover: #202b38;
+
+  --ink: #e8edf4;
+  --sec: #a7b4c6;
+  --mute: #8796aa;
+  --faint: #66748a;
+  --chip-muted: #8ea0b5;
+
+  /* the accessibility-validated brand siblings — dark mode only */
+  --navy: #4a8bc4;
+  --navycard: #1e3a5f;
+  --olive: #7d9c30;
+  --on-accent: #0e1620;
+
+  --seg: rgba(255, 255, 255, 0.06);
+  --seg-active: #26344a;
+  --ghost: #46586f;
+
+  --ok-fg: #a8c860;
+  --ok-bg: #28331a;
+  --run-fg: #8fb9e4;
+  --run-bg: #1d3145;
+  --q-fg: #9aa5b1;
+  --q-bg: #242f3d;
+  --err-fg: #f0a08c;
+  --err-bg: #3a1f19;
+  --warn-fg: #e8bd6d;
+  --warn-bg: #33260a;
+
+  --tip-bg: #e8edf4;
+  --tip-fg: #10161e;
+  --logo-filter: brightness(0) invert(1);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 14px 30px rgba(0, 0, 0, 0.45);
+  --shadow-navy: 0 10px 26px rgba(0, 0, 0, 0.45);
 }
 
-/* ── Animations ── */
+a {
+  color: var(--navy);
+}
+a:hover {
+  color: var(--olive);
+}
 
+input,
+select,
+textarea {
+  outline-color: var(--navy);
+}
+
+/* Keyboard focus stays visible everywhere */
+:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+/* ── Type roles ──────────────────────────────────────────────── */
+
+.mono {
+  font-family: var(--font-mono);
+}
+.serif {
+  font-family: var(--font-serif);
+}
+
+/* Eyebrow label — mono, lowercase, wide tracking */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--olive);
+}
+
+/* Page headline — Newsreader with a 500-weight italic phrase */
+.headline {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 40px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.headline em {
+  font-weight: 500;
+}
+
+/* KPI number */
+.kpi {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 42px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+
+@keyframes growY {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes growX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  80%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.4s ease both;
+}
+
+/* Legacy helpers still referenced by run-detail / new-run screens */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-
-.animate-in { animation: fadeInUp 0.4s ease-out both; }
+.animate-in {
+  animation: fadeInUp 0.4s ease-out both;
+}
 .delay-1 { animation-delay: 0.05s; }
 .delay-2 { animation-delay: 0.1s; }
 .delay-3 { animation-delay: 0.15s; }
 .delay-4 { animation-delay: 0.2s; }
 .delay-5 { animation-delay: 0.25s; }
 
-/* ── Responsive: Mobile (max 768px) ── */
+/* Card lift — the signature overshoot easing */
+.lift {
+  transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.4, 1), box-shadow 0.25s;
+}
+.lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card-hover);
+}
 
-@media (max-width: 768px) {
-  /* Top padding for hamburger button */
-  main {
-    padding-top: 52px !important;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
   }
+}
 
-  /* All grids collapse to single column */
+/* ── Responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  /* Room for the fixed bottom tab bar (see MobileTabs in TopBar.tsx). */
+  main {
+    padding-bottom: 84px;
+  }
+  .headline {
+    font-size: 30px;
+  }
+  .kpi {
+    font-size: 34px;
+  }
   .grid-responsive {
     grid-template-columns: 1fr !important;
   }
-
-  /* Tighter page padding */
   .page-container {
     padding: 16px 14px !important;
   }
-
-  /* Tables scroll horizontally */
   .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  .table-responsive table {
-    min-width: 500px;
-  }
-
-  /* Stack header elements */
   .header-responsive {
     flex-direction: column !important;
     align-items: flex-start !important;
     gap: 12px !important;
   }
-
-  /* Run detail header buttons wrap */
   .btn-row-responsive {
     flex-wrap: wrap !important;
   }
 }
 
-/* ── Responsive: Small mobile (max 480px) ── */
-
-@media (max-width: 480px) {
-  .page-container {
-    padding: 12px 10px !important;
-  }
-
-  /* Even smaller text on very small screens */
-  h1 {
-    font-size: 18px !important;
-  }
-}
-
-/* ── Responsive: Tablet (769-1024px) ── */
-
-@media (min-width: 769px) and (max-width: 1024px) {
+@media (min-width: 761px) and (max-width: 1024px) {
   .grid-2col-responsive {
     grid-template-columns: 1fr !important;
   }

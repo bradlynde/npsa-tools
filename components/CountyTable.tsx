@@ -89,7 +89,7 @@ export default function CountyTable({ counties, scraperType }: {
           {sorted.map((task, i) => {
             const r = task.result_json;
             return (
-              <tr key={task.id || task.county} style={{ background: i % 2 === 1 ? '#fafbfc' : '#fff' }}>
+              <tr key={task.id || task.county} style={{ background: i % 2 === 1 ? 'var(--hover)' : 'transparent' }}>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{task.county}</td>
                 <td style={tdStyle}><StatusBadge status={task.status} /></td>
                 <td style={{ ...tdStyle, textAlign: 'right' }}>{r?.churches ?? r?.schools ?? '-'}</td>

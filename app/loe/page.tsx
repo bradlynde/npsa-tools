@@ -1,18 +1,18 @@
 "use client";
 
-import { LOE_URL } from "../../lib/constants";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import ToolFrame from "../../components/ToolFrame";
+
+function LOEFrame() {
+  const view = useSearchParams().get("view");
+  return <ToolFrame view={view} title="Sales Toolbox" back="/toolbox" />;
+}
 
 export default function LOEPage() {
   return (
-    <iframe
-      src={LOE_URL}
-      style={{
-        width: "100%",
-        height: "100%",
-        border: "none",
-        display: "block",
-      }}
-      title="Sales Toolbox"
-    />
+    <Suspense fallback={null}>
+      <LOEFrame />
+    </Suspense>
   );
 }

@@ -106,23 +106,23 @@ export default function RunDetailPage({ runId, scraperType }: { runId: string; s
   return (
     <div className="page-container" style={{ padding: "28px 36px", maxWidth: 1200, margin: "0 auto" }}>
       {/* Back link */}
-      <Link className="animate-in" href={`/${scraperType}`} style={{ fontSize: 12, color: COLORS.textMuted, textDecoration: "none", marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 4 }}>
-        &larr; Back to {labels.title}
+      <Link className="animate-in mono" href={`/${scraperType}`} style={{ fontSize: 11.5, letterSpacing: ".06em", color: "var(--mute)", textDecoration: "none", marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 5 }}>
+        &larr; back to scraper
       </Link>
 
       {/* Header */}
       <div className="animate-in delay-1 header-responsive" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: COLORS.textPrimary, margin: 0, letterSpacing: "-0.02em" }}>
-            {stateName} {labels.plural}
+          <h1 className="headline" style={{ fontSize: 30 }}>
+            {stateName} <em>{labels.plural}</em>
           </h1>
           <StatusBadge status={status.status} />
         </div>
         <div className="btn-row-responsive" style={{ display: "flex", gap: 10 }}>
           {isActive && (
             <button onClick={handleStop} style={{
-              background: "none", border: `1px solid ${COLORS.error}`, borderRadius: 6,
-              padding: "8px 16px", fontSize: 12, color: COLORS.error, cursor: "pointer", fontWeight: 500,
+              background: "none", border: "1.5px solid var(--err-fg)", borderRadius: 999,
+              padding: "9px 18px", fontSize: 13, color: "var(--err-fg)", cursor: "pointer", fontWeight: 700, font: "inherit",
             }}>
               Stop Run
             </button>
@@ -130,8 +130,8 @@ export default function RunDetailPage({ runId, scraperType }: { runId: string; s
           {!isActive && (
             <>
               <button onClick={handleDownload} style={{
-                background: COLORS.accent, border: "none", borderRadius: 6,
-                padding: "8px 16px", fontSize: 12, color: "#fff", cursor: "pointer", fontWeight: 600,
+                background: "var(--navy)", border: "none", borderRadius: 999,
+                padding: "10px 20px", fontSize: 13, color: "var(--on-accent)", cursor: "pointer", fontWeight: 700, font: "inherit",
                 transition: "all 0.2s",
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(30,58,95,0.3)"; }}
@@ -140,8 +140,8 @@ export default function RunDetailPage({ runId, scraperType }: { runId: string; s
                 Download CSV
               </button>
               <button onClick={handleArchive} style={{
-                background: "none", border: `1px solid ${COLORS.cardBorder}`, borderRadius: 6,
-                padding: "8px 16px", fontSize: 12, color: COLORS.textSecondary, cursor: "pointer", fontWeight: 500,
+                background: "none", border: "1px solid var(--bd2)", borderRadius: 999,
+                padding: "10px 20px", fontSize: 13, color: "var(--sec)", cursor: "pointer", fontWeight: 700, font: "inherit",
               }}>
                 Archive
               </button>
