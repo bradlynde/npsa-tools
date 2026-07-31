@@ -89,13 +89,19 @@ export function Card({
   return (
     <div
       onClick={onClick}
-      className={[hover ? "lift" : "", className || ""].filter(Boolean).join(" ")}
+      className={["card-surface", hover ? "lift" : "", className || ""]
+        .filter(Boolean)
+        .join(" ")}
       style={{
         background: "var(--card)",
-        border: "1px solid var(--bd)",
+        // A white card on a near-white page needs a border that actually reads;
+        // --bd is too close to --bg to separate one card from the next.
+        border: "1px solid var(--bd2)",
         borderRadius: 16,
         padding: "22px 24px",
-        boxShadow: "var(--shadow-card)",
+        // The resting shadow lives in .card-surface, not here: an inline
+        // box-shadow outranks .lift:hover, which is what kept the hover
+        // shadow from ever showing. Callers can still override via `style`.
         cursor: onClick ? "pointer" : undefined,
         ...style,
       }}
@@ -166,34 +172,33 @@ export function StatTile({
   accent?: boolean;
   delay?: number;
 }) {
+  // The entrance animation sits on a wrapper, not on the Card. `fadeUp` with
+  // fill-mode `both` keeps its final `transform: none` applied for good, and an
+  // animated property outranks a normal one in the cascade — so leaving it on
+  // the Card silently cancels `.lift:hover`.
   return (
-    <Card
-      hover
-      style={{
-        padding: "20px 22px",
-        animation: "fadeUp .5s ease both",
-        animationDelay: `${delay}ms`,
-      }}
-    >
-      <div
-        className="mono"
-        style={{
-          fontWeight: 500,
-          fontSize: 11.5,
-          letterSpacing: ".07em",
-          color: "var(--mute)",
-          marginBottom: 11,
-        }}
-      >
-        {label}
-      </div>
-      <div className="kpi" style={{ color: accent ? "var(--olive)" : "var(--ink)" }}>
-        {value}
-      </div>
-      {note && (
-        <div style={{ fontSize: 12.5, color: "var(--mute)", marginTop: 9 }}>{note}</div>
-      )}
-    </Card>
+    <div style={{ animation: "fadeUp .5s ease both", animationDelay: `${delay}ms` }}>
+      <Card hover style={{ padding: "20px 22px", height: "100%" }}>
+        <div
+          className="mono"
+          style={{
+            fontWeight: 500,
+            fontSize: 11.5,
+            letterSpacing: ".07em",
+            color: "var(--mute)",
+            marginBottom: 11,
+          }}
+        >
+          {label}
+        </div>
+        <div className="kpi" style={{ color: accent ? "var(--olive)" : "var(--ink)" }}>
+          {value}
+        </div>
+        {note && (
+          <div style={{ fontSize: 12.5, color: "var(--mute)", marginTop: 9 }}>{note}</div>
+        )}
+      </Card>
+    </div>
   );
 }
 
