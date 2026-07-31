@@ -51,7 +51,34 @@ export type BookingRow = {
   fee: number;
   won: boolean | null;
   won_amount: number;
+  /** Set when a booking is deliberately left out of every total. */
+  exclusion_reason?: string | null;
+  /** Cancelled in Calendly — stated, not offered as a choice. */
+  cancelled?: boolean | null;
 };
+
+/** The only reasons a booking may be set aside; anything else is rejected upstream. */
+export const EXCLUSION_REASONS = ['unqualified', 'double_booking', 'cancelled'] as const;
+export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
+
+export const EXCLUSION_LABELS: Record<string, string> = {
+  unqualified: 'Unqualified',
+  double_booking: 'Double booking',
+  cancelled: 'Cancelled',
+};
+
+/** Channels a booking can be re-attributed to when the automatic guess is wrong. */
+export const CHANNEL_CHOICES = [
+  'instantly',
+  'google_ads',
+  'search',
+  'email',
+  'social',
+  'referral',
+  'conference',
+  'linkedin',
+  'direct',
+] as const;
 
 /** Headline numbers, including the Salesforce revenue layer. */
 export type Stats = {
@@ -174,16 +201,21 @@ export const fetchUntrackedWins = () => get<UntrackedWin[]>('untracked-wins');
 export const fetchBookings = (search = '') =>
   get<BookingRow[]>(`bookings${search ? `?search=${encodeURIComponent(search)}` : ''}`);
 
-/** Toggles Held / LOE-sent on a single booking (the manual override). */
-export async function patchBooking(
-  id: number,
-  field: 'held' | 'became_client',
-  value: boolean
-): Promise<void> {
+export type BookingPatch = {
+  held?: boolean;
+  became_client?: boolean;
+  /** '' clears the reason and puts the booking back into the totals. */
+  exclusion?: string;
+  /** '' clears a manual channel override and restores the detected one. */
+  channel?: string;
+};
+
+/** Applies a manual override to one booking. */
+export async function patchBooking(id: number, patch: BookingPatch): Promise<void> {
   const res = await fetch(`/api/marketing/bookings/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ [field]: value }),
+    body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error(`Could not update booking: ${res.status}`);
 }
@@ -257,10 +289,19 @@ export function priorTotalsFor(rows: TimeseriesRow[], range: Range): Totals {
   return sum(rows, w.from, w.to);
 }
 
+/**
+ * Upstream leaves excluded and cancelled bookings out of every total, so the
+ * client-side aggregates must too — otherwise the channel and campaign tables
+ * quietly disagree with the KPIs above them.
+ */
+export const countsTowardTotals = (b: BookingRow): boolean =>
+  !b.exclusion_reason && !b.cancelled;
+
 /** LOE fee value booked in the range — the time series doesn't carry fees. */
 export function feesInRange(bookings: BookingRow[], range: Range): number {
   const from = rangeStart(range);
   return bookings.reduce((n, b) => {
+    if (!countsTowardTotals(b)) return n;
     if (!b.booked_on || new Date(b.booked_on) < from) return n;
     return b.became_client ? n + (Number(b.fee) || 0) : n;
   }, 0);
@@ -289,6 +330,7 @@ export function channelsInRange(
   const from = rangeStart(range);
   const map = new Map<string, { booked: number; loes: number; won: number }>();
   for (const b of bookings) {
+    if (!countsTowardTotals(b)) continue;
     if (!b.booked_on) continue;
     if (new Date(b.booked_on) < from) continue;
     const key = channelLabel(b.attribution_channel);
@@ -311,6 +353,7 @@ export function campaignsInRange(
   const from = rangeStart(range);
   const map = new Map<string, { booked: number; held: number; loes: number; fees: number }>();
   for (const b of bookings) {
+    if (!countsTowardTotals(b)) continue;
     if (!b.booked_on) continue;
     if (new Date(b.booked_on) < from) continue;
     const key = b.instantly_campaign?.trim() || '— no campaign —';
@@ -341,6 +384,18 @@ const CHANNEL_LABELS: Record<string, string> = {
   google: 'Google',
   organic: 'Organic',
 };
+
+/**
+ * Calendly gives the host as an email address; the local part is the useful bit.
+ * "jeff@npsa.com" reads as "Jeff".
+ */
+export function hostName(host?: string | null): string {
+  const h = (host || '').trim();
+  if (!h) return '';
+  const local = h.split('@')[0] || h;
+  const first = local.split(/[._-]/)[0] || local;
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
 
 export function channelLabel(c?: string | null): string {
   const key = c?.trim();

@@ -59,9 +59,15 @@ in this Next.js app.
 | Bookings — search by name / org / email | Bookings table | Debounced; searches server-side |
 | Bookings — org/name, channel, campaign, meeting date | Bookings table | |
 | Bookings — Held and LOE checkboxes (PATCH) | Bookings table | Optimistic, rolls back on failure |
+| Bookings — who took the meeting | Bookings table, under the meeting date | Email local-part, title-cased |
+| Bookings — exclusion reason (unqualified / double booking / cancelled) | Bookings table, "COUNTS?" column | Quiet until hovered or set; excluded rows read as set aside |
+| Bookings — Calendly cancellation | Bookings table | Stated as a badge, not offered as a choice |
+| "Excluded from these figures: N cancelled · N double booking (N this week)" | Line under the funnel badge | |
 
 Added, not in the live app: range chips (30d / 90d / YTD / All, remembered
-between visits).
+between visits), and an editable **channel** on each booking row — the backend's
+PATCH has accepted `channel` since #93, but the live table still renders it
+read-only.
 
 Ordering follows the live app: the bookings table sits **above** the campaign
 roll-up (upstream `62b59dc`). The scraper strip was removed from this page —
@@ -97,3 +103,6 @@ adds support.
   aggregated time series and are never capped.
 - **LOE generator wizard** — not built here; it belongs to the `loe-generator`
   app. See PR #95 for why.
+- **`/api/marketing/sync/status`** — the live dashboard calls it and gets a real
+  answer, but no branch in this repo implements it, so Railway is running code
+  that isn't pushed. The sync line is written to tolerate its absence.

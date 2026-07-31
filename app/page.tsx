@@ -214,11 +214,11 @@ export default function DashboardPage() {
   ];
 
 
-  const applyBookingChange = (id: number, field: "held" | "became_client", value: boolean) => {
-    const patch = (rows: BookingRow[]) =>
-      rows.map((r) => (r.id === id ? { ...r, [field]: value } : r));
-    setTableRows(patch);
-    setAllBookings(patch);
+  const applyBookingChange = (id: number, patch: Partial<BookingRow>) => {
+    const merge = (rows: BookingRow[]) =>
+      rows.map((r) => (r.id === id ? { ...r, ...patch } : r));
+    setTableRows(merge);
+    setAllBookings(merge);
   };
 
   return (
@@ -278,6 +278,41 @@ export default function DashboardPage() {
           funnel tracked since Feb 2026
         </span>
       </div>
+
+      {stats?.excluded?.length ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            margin: "-6px 0 16px",
+            fontSize: 12.5,
+            color: "var(--mute)",
+          }}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "var(--bd2)",
+              flexShrink: 0,
+            }}
+            aria-hidden="true"
+          />
+          <span>
+            Excluded from these figures:{" "}
+            {stats.excluded.map((e) => `${e.total} ${e.label.toLowerCase()}`).join(" · ")}
+            {(stats.excluded_this_week || 0) > 0 && (
+              <strong style={{ color: "var(--sec)", fontWeight: 600 }}>
+                {" "}
+                ({stats.excluded_this_week} this week)
+              </strong>
+            )}
+            <span style={{ color: "var(--faint)" }}> — still listed below</span>
+          </span>
+        </div>
+      ) : null}
 
       {mktError && (
         <Card style={{ marginBottom: 14, borderColor: "var(--err-fg)" }}>

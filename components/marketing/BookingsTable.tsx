@@ -2,14 +2,23 @@
 
 import { useState } from "react";
 import { Card, Eyebrow, Note } from "../ui";
-import { channelLabel, patchBooking, type BookingRow } from "../../lib/marketing";
+import {
+  CHANNEL_CHOICES,
+  EXCLUSION_LABELS,
+  channelLabel,
+  hostName,
+  patchBooking,
+  type BookingPatch,
+  type BookingRow,
+} from "../../lib/marketing";
 
-const COLS = "2fr 1.3fr 1.5fr 1fr 70px 70px";
+const COLS = "2.2fr 1.3fr 1.7fr 112px 60px 60px 132px";
 
 /**
- * Raw bookings with the two manual overrides the team relies on: marking a
- * meeting Held and marking that an LOE was sent. Both write straight back to
- * the Sales Toolbox backend.
+ * Raw bookings with the manual overrides the team relies on: marking a meeting
+ * Held, marking that an LOE was sent, correcting a mis-detected channel, and
+ * setting a booking aside without deleting it. All write straight back to the
+ * Sales Toolbox backend.
  */
 export default function BookingsTable({
   rows,
@@ -22,19 +31,25 @@ export default function BookingsTable({
   loading: boolean;
   search: string;
   onSearch: (s: string) => void;
-  onChanged: (id: number, field: "held" | "became_client", value: boolean) => void;
+  onChanged: (id: number, patch: Partial<BookingRow>) => void;
 }) {
   const [saving, setSaving] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const toggle = async (id: number, field: "held" | "became_client", value: boolean) => {
-    setSaving(id);
+  const apply = async (row: BookingRow, patch: BookingPatch, optimistic: Partial<BookingRow>) => {
+    const before: Partial<BookingRow> = {};
+    (Object.keys(optimistic) as (keyof BookingRow)[]).forEach((k) => {
+      (before as Record<string, unknown>)[k] = row[k];
+    });
+
+    setSaving(row.id);
     setError(null);
-    onChanged(id, field, value); // optimistic
+    onChanged(row.id, optimistic);
     try {
-      await patchBooking(id, field, value);
+      await patchBooking(row.id, patch);
     } catch (e) {
-      onChanged(id, field, !value); // roll back
+      onChanged(row.id, before); // roll back
       setError((e as Error).message);
     } finally {
       setSaving(null);
@@ -85,7 +100,7 @@ export default function BookingsTable({
         <Note>{search ? "No bookings match that search." : "No bookings yet."}</Note>
       ) : (
         <div style={{ overflowX: "auto" }} className="table-responsive">
-          <div style={{ minWidth: 720 }}>
+          <div style={{ minWidth: 860 }}>
             <div
               style={{
                 display: "grid",
@@ -95,108 +110,247 @@ export default function BookingsTable({
                 borderBottom: "1px solid var(--hair)",
               }}
             >
-              {["ORG / NAME", "CHANNEL", "CAMPAIGN", "MEETING", "HELD", "LOE"].map((h, i) => (
-                <span
-                  key={h}
-                  className="mono"
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 10.5,
-                    letterSpacing: ".07em",
-                    color: "var(--faint)",
-                    textAlign: i >= 4 ? "center" : "left",
-                  }}
-                >
-                  {h}
-                </span>
-              ))}
+              {["ORG / NAME", "CHANNEL", "CAMPAIGN", "MEETING", "HELD", "LOE", "COUNTS?"].map(
+                (h, i) => (
+                  <span
+                    key={h}
+                    className="mono"
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 10.5,
+                      letterSpacing: ".07em",
+                      color: "var(--faint)",
+                      textAlign: i === 4 || i === 5 ? "center" : i === 6 ? "right" : "left",
+                    }}
+                  >
+                    {h}
+                  </span>
+                )
+              )}
             </div>
 
             <div style={{ maxHeight: 460, overflowY: "auto" }}>
-              {rows.map((r) => (
-                <div
-                  key={r.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: COLS,
-                    gap: 12,
-                    padding: "11px 12px",
-                    borderBottom: "1px solid var(--hair2)",
-                    alignItems: "center",
-                    opacity: saving === r.id ? 0.55 : 1,
-                    transition: "opacity .15s, background .15s",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div
+              {rows.map((r) => {
+                // Excluded rows stay listed, but read as set aside rather than active.
+                const excluded = Boolean(r.exclusion_reason);
+                const isHover = hover === r.id;
+                const muted = excluded ? "var(--faint)" : "var(--sec)";
+                return (
+                  <div
+                    key={r.id}
+                    onMouseEnter={() => setHover(r.id)}
+                    onMouseLeave={() => setHover(null)}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: COLS,
+                      gap: 12,
+                      padding: "10px 12px",
+                      borderBottom: "1px solid var(--hair2)",
+                      alignItems: "center",
+                      background: isHover ? "var(--hover)" : "transparent",
+                      opacity: saving === r.id ? 0.55 : 1,
+                      transition: "opacity .15s, background .15s",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        title={r.organization || ""}
+                        style={{
+                          fontWeight: 600,
+                          color: excluded ? "var(--faint)" : "var(--ink)",
+                          fontSize: 13.5,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.organization || "—"}
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--faint)",
+                          fontSize: 12,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.name || ""}
+                      </div>
+                    </div>
+
+                    {/* Channel is a guess, and sometimes wrong — let it be corrected. */}
+                    <select
+                      value={r.attribution_channel || "direct"}
+                      disabled={saving === r.id}
+                      onChange={(e) =>
+                        apply(
+                          r,
+                          { channel: e.target.value },
+                          { attribution_channel: e.target.value }
+                        )
+                      }
+                      title="Attribution channel — change it if the detected one is wrong"
                       style={{
-                        fontWeight: 600,
-                        color: "var(--ink)",
-                        fontSize: 13.5,
+                        font: "inherit",
+                        fontSize: 12.5,
+                        color: muted,
+                        background: "transparent",
+                        border: `1px solid ${isHover ? "var(--bd2)" : "transparent"}`,
+                        borderRadius: 999,
+                        padding: "3px 6px",
+                        cursor: "pointer",
+                        maxWidth: "100%",
+                      }}
+                    >
+                      {CHANNEL_CHOICES.map((c) => (
+                        <option key={c} value={c}>
+                          {channelLabel(c)}
+                        </option>
+                      ))}
+                    </select>
+
+                    <span
+                      title={r.instantly_campaign || ""}
+                      style={{
+                        color: muted,
+                        fontSize: 13,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {r.organization || "—"}
+                      {r.instantly_campaign || "—"}
+                    </span>
+
+                    {/* Who took the meeting sits under its date — wanted often enough
+                        to show, not often enough to spend a column on. */}
+                    <div style={{ minWidth: 0, color: muted }}>
+                      <div style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+                        {r.meeting_date
+                          ? new Date(r.meeting_date).toLocaleDateString("en-US", {
+                              month: "numeric",
+                              day: "numeric",
+                              year: "2-digit",
+                            })
+                          : "—"}
+                      </div>
+                      <div
+                        title={r.host || ""}
+                        style={{
+                          fontSize: 11.5,
+                          color: "var(--faint)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {hostName(r.host)}
+                      </div>
                     </div>
-                    <div
-                      style={{
-                        color: "var(--faint)",
-                        fontSize: 12,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {r.name || ""}
-                    </div>
+
+                    <span style={{ textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!r.held}
+                        disabled={saving === r.id}
+                        onChange={(e) => apply(r, { held: e.target.checked }, { held: e.target.checked })}
+                        aria-label={`Mark ${r.organization || "booking"} as held`}
+                        style={{ cursor: "pointer", accentColor: "var(--navy)" }}
+                      />
+                    </span>
+                    <span style={{ textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!r.became_client}
+                        disabled={saving === r.id}
+                        onChange={(e) =>
+                          apply(
+                            r,
+                            { became_client: e.target.checked },
+                            { became_client: e.target.checked }
+                          )
+                        }
+                        aria-label={`Mark LOE sent for ${r.organization || "booking"}`}
+                        style={{ cursor: "pointer", accentColor: "var(--olive)" }}
+                      />
+                    </span>
+
+                    {/* A dropdown, not a button: there is more than one reason a booking
+                        stops counting, and which one it was is worth recording. Quiet
+                        until used or hovered. A Calendly cancellation is stated, not
+                        offered as a choice. */}
+                    <span style={{ textAlign: "right" }}>
+                      {r.cancelled ? (
+                        <span
+                          className="mono"
+                          title="Cancelled in Calendly"
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            letterSpacing: ".05em",
+                            color: "var(--err-fg)",
+                            background: "var(--err-bg)",
+                            border: "1px solid var(--err-fg)",
+                            borderRadius: 999,
+                            padding: "3px 9px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          CANCELLED
+                        </span>
+                      ) : (
+                        <select
+                          value={r.exclusion_reason || ""}
+                          disabled={saving === r.id}
+                          onChange={(e) =>
+                            apply(
+                              r,
+                              { exclusion: e.target.value },
+                              { exclusion_reason: e.target.value || null }
+                            )
+                          }
+                          title={
+                            r.exclusion_reason
+                              ? "Excluded from all totals — change or clear it here"
+                              : "Exclude this booking from all totals, keeping it on the list"
+                          }
+                          style={{
+                            font: "inherit",
+                            fontSize: 11.5,
+                            fontWeight: r.exclusion_reason ? 700 : 500,
+                            color: r.exclusion_reason
+                              ? "var(--warn-fg)"
+                              : isHover
+                              ? "var(--sec)"
+                              : "var(--faint)",
+                            background: r.exclusion_reason ? "var(--warn-bg)" : "transparent",
+                            border: `1px solid ${
+                              r.exclusion_reason
+                                ? "var(--warn-fg)"
+                                : isHover
+                                ? "var(--bd2)"
+                                : "transparent"
+                            }`,
+                            borderRadius: 999,
+                            padding: "3px 6px",
+                            cursor: "pointer",
+                            maxWidth: 130,
+                            textAlign: "right",
+                          }}
+                        >
+                          <option value="">{r.exclusion_reason ? "Counts again" : "—"}</option>
+                          {Object.entries(EXCLUSION_LABELS).map(([k, label]) => (
+                            <option key={k} value={k}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </span>
                   </div>
-                  <span style={{ color: "var(--sec)", fontSize: 13 }}>
-                    {channelLabel(r.attribution_channel)}
-                  </span>
-                  <span
-                    style={{
-                      color: "var(--sec)",
-                      fontSize: 13,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {r.instantly_campaign || "—"}
-                  </span>
-                  <span
-                    style={{
-                      color: "var(--sec)",
-                      fontSize: 13,
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {r.meeting_date ? new Date(r.meeting_date).toLocaleDateString("en-US") : "—"}
-                  </span>
-                  <span style={{ textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={!!r.held}
-                      disabled={saving === r.id}
-                      onChange={(e) => toggle(r.id, "held", e.target.checked)}
-                      aria-label={`Mark ${r.organization || "booking"} as held`}
-                      style={{ cursor: "pointer", accentColor: "var(--navy)" }}
-                    />
-                  </span>
-                  <span style={{ textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={!!r.became_client}
-                      disabled={saving === r.id}
-                      onChange={(e) => toggle(r.id, "became_client", e.target.checked)}
-                      aria-label={`Mark LOE sent for ${r.organization || "booking"}`}
-                      style={{ cursor: "pointer", accentColor: "var(--olive)" }}
-                    />
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
