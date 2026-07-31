@@ -236,7 +236,6 @@ export default function DashboardPage() {
           The business, <em>up front.</em>
         </PageHeading>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <SegPill options={RANGES} value={range} onChange={changeRange} />
           <button
             type="button"
             onClick={handleRefresh}
@@ -287,9 +286,21 @@ export default function DashboardPage() {
         />
       )}
 
-      <Eyebrow style={{ margin: "22px 0 8px" }}>
-        marketing · what feeds the pipeline
-      </Eyebrow>
+      {/* The range selector scopes the marketing figures only — the Salesforce
+          band above is all-time — so it belongs to this section, not the page. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          margin: "22px 0 10px",
+        }}
+      >
+        <Eyebrow>marketing · what feeds the pipeline</Eyebrow>
+        <SegPill options={RANGES} value={range} onChange={changeRange} size="sm" />
+      </div>
       <div
         style={{
           display: "flex",
