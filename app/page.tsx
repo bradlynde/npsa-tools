@@ -325,41 +325,6 @@ export default function DashboardPage() {
           funnel tracked since Feb 2026
         </span>
       </div>
-      {stats?.excluded?.length ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            margin: "-6px 0 16px",
-            fontSize: 12.5,
-            color: "var(--mute)",
-          }}
-        >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: "var(--bd2)",
-              flexShrink: 0,
-            }}
-            aria-hidden="true"
-          />
-          <span>
-            Excluded from these figures:{" "}
-            {stats.excluded.map((e) => `${e.total} ${e.label.toLowerCase()}`).join(" · ")}
-            {(stats.excluded_this_week || 0) > 0 && (
-              <strong style={{ color: "var(--sec)", fontWeight: 600 }}>
-                {" "}
-                ({stats.excluded_this_week} this week)
-              </strong>
-            )}
-            <span style={{ color: "var(--faint)" }}> — still listed below</span>
-          </span>
-        </div>
-      ) : null}
-
       {/* Primary, range-scoped KPIs */}
       <div
         style={{
@@ -383,7 +348,7 @@ export default function DashboardPage() {
 
       {/* Fixed-window pulse — these don't move with the range selector */}
       {stats && (
-        <Card style={{ marginBottom: 14, padding: "16px 22px" }}>
+        <Card hover style={{ marginBottom: 14, padding: "16px 22px" }}>
           <div
             style={{
               display: "grid",
@@ -448,6 +413,43 @@ export default function DashboardPage() {
           </div>
         </Card>
       )}
+
+      {/* Sits directly under the figures it qualifies, and above the charts that
+          inherit the same exclusions. */}
+      {stats?.excluded?.length ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            margin: "0 0 16px",
+            fontSize: 12.5,
+            color: "var(--mute)",
+          }}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "var(--bd2)",
+              flexShrink: 0,
+            }}
+            aria-hidden="true"
+          />
+          <span>
+            Excluded from these figures:{" "}
+            {stats.excluded.map((e) => `${e.total} ${e.label.toLowerCase()}`).join(" · ")}
+            {(stats.excluded_this_week || 0) > 0 && (
+              <strong style={{ color: "var(--sec)", fontWeight: 600 }}>
+                {" "}
+                ({stats.excluded_this_week} this week)
+              </strong>
+            )}
+            <span style={{ color: "var(--faint)" }}> — still listed below</span>
+          </span>
+        </div>
+      ) : null}
 
       {/* Time series */}
       <TimeSeriesChart
