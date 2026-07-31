@@ -166,12 +166,8 @@ export default function SalesBand({
         }}
       >
         <div
-          style={{
-            background: "var(--olive)",
-            borderRadius: 16,
-            padding: "22px 24px",
-            boxShadow: "var(--shadow-navy)",
-          }}
+          className="lift-accent"
+          style={{ background: "var(--navycard)", borderRadius: 16, padding: "22px 24px" }}
         >
           <div className="kpi" style={{ color: "#fff", fontSize: 36 }}>
             {/* Older backends don't return the distinct-org count. Falling back to
@@ -195,13 +191,10 @@ export default function SalesBand({
           </div>
         </div>
 
+        {/* Contract value carries the olive: it is the number people look for. */}
         <div
-          style={{
-            background: "var(--navycard)",
-            borderRadius: 16,
-            padding: "22px 24px",
-            boxShadow: "var(--shadow-navy)",
-          }}
+          className="lift-accent"
+          style={{ background: "var(--olive)", borderRadius: 16, padding: "22px 24px" }}
         >
           <div className="kpi" style={{ color: "#fff", fontSize: 36 }}>
             {fmtMoney(stats.won_revenue_total * roll)}
@@ -248,12 +241,8 @@ export default function SalesBand({
 
         {apps && (
           <div
-            style={{
-              background: "var(--navycard)",
-              borderRadius: 16,
-              padding: "22px 24px",
-              boxShadow: "var(--shadow-navy)",
-            }}
+            className="lift-accent"
+            style={{ background: "var(--navycard)", borderRadius: 16, padding: "22px 24px" }}
           >
             <div className="kpi" style={{ color: "#fff", fontSize: 36 }}>
               {fmtInt(apps.total * roll)}
@@ -354,7 +343,7 @@ export default function SalesBand({
             marginBottom: 14,
           }}
         >
-          <Card style={{ padding: "20px 22px" }}>
+          <Card hover style={{ padding: "20px 22px" }}>
             <div
               className="mono"
               style={{ fontWeight: 500, fontSize: 11.5, letterSpacing: ".07em", color: "var(--mute)" }}
@@ -370,7 +359,7 @@ export default function SalesBand({
             </div>
           </Card>
 
-          <Card style={{ padding: "20px 22px" }}>
+          <Card hover style={{ padding: "20px 22px" }}>
             <div
               className="mono"
               style={{ fontWeight: 500, fontSize: 11.5, letterSpacing: ".07em", color: "var(--mute)" }}
@@ -385,7 +374,7 @@ export default function SalesBand({
             </div>
           </Card>
 
-          <Card style={{ padding: "20px 22px" }}>
+          <Card hover style={{ padding: "20px 22px" }}>
             <div
               className="mono"
               style={{ fontWeight: 500, fontSize: 11.5, letterSpacing: ".07em", color: "var(--mute)" }}

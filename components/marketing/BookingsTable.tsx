@@ -12,7 +12,22 @@ import {
   type BookingRow,
 } from "../../lib/marketing";
 
-const COLS = "2.2fr 1.3fr 1.7fr 112px 60px 60px 132px";
+// Channel is a fixed width — its longest label is "Direct / Other", and letting
+// it flex stole room from the two columns people actually read. Meeting, Held
+// and LOE are sized to their content so the text columns get the remainder.
+const COLS = "2.4fr 132px 1.9fr 88px 46px 46px 128px";
+
+/** `inset` matches the border+padding of the control sitting under the header,
+ *  so the label lines up with its column's text rather than the cell edge. */
+const HEAD: { label: string; align: "left" | "center" | "right"; inset?: number }[] = [
+  { label: "ORG / NAME", align: "left" },
+  { label: "CHANNEL", align: "left", inset: 7 },
+  { label: "CAMPAIGN", align: "left" },
+  { label: "MEETING", align: "left" },
+  { label: "HELD", align: "center" },
+  { label: "LOE", align: "center" },
+  { label: "COUNTS?", align: "right", inset: 7 },
+];
 
 /**
  * Raw bookings with the manual overrides the team relies on: marking a meeting
@@ -100,7 +115,7 @@ export default function BookingsTable({
         <Note>{search ? "No bookings match that search." : "No bookings yet."}</Note>
       ) : (
         <div style={{ overflowX: "auto" }} className="table-responsive">
-          <div style={{ minWidth: 860 }}>
+          <div style={{ minWidth: 840 }}>
             <div
               style={{
                 display: "grid",
@@ -108,25 +123,32 @@ export default function BookingsTable({
                 gap: 12,
                 padding: "10px 12px",
                 borderBottom: "1px solid var(--hair)",
+                // Rows reserve 3px on the left for the excluded-row marker. The
+                // header needs the same reservation or every column sits off by
+                // a few pixels against the values beneath it.
+                borderLeft: "3px solid transparent",
               }}
             >
-              {["ORG / NAME", "CHANNEL", "CAMPAIGN", "MEETING", "HELD", "LOE", "COUNTS?"].map(
-                (h, i) => (
-                  <span
-                    key={h}
-                    className="mono"
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 10.5,
-                      letterSpacing: ".07em",
-                      color: "var(--faint)",
-                      textAlign: i === 4 || i === 5 ? "center" : i === 6 ? "right" : "left",
-                    }}
-                  >
-                    {h}
-                  </span>
-                )
-              )}
+              {HEAD.map((h) => (
+                <span
+                  key={h.label}
+                  className="mono"
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 10.5,
+                    letterSpacing: ".07em",
+                    color: "var(--faint)",
+                    textAlign: h.align,
+                    paddingLeft: h.align === "left" ? h.inset : undefined,
+                    paddingRight: h.align === "right" ? h.inset : undefined,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {h.label}
+                </span>
+              ))}
             </div>
 
             <div style={{ maxHeight: 460, overflowY: "auto" }}>
@@ -348,7 +370,7 @@ export default function BookingsTable({
                             borderRadius: 999,
                             padding: "3px 6px",
                             cursor: "pointer",
-                            maxWidth: 130,
+                            maxWidth: "100%",
                             textAlign: "right",
                           }}
                         >
