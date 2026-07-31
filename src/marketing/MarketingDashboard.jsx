@@ -1,6 +1,6 @@
 // src/marketing/MarketingDashboard.jsx
 // Self-contained Marketing dashboard. Matches the Sales Toolbox design language
-// (navy #1a2540→#1a4a6e / olive #7a8c1e→#9aab2e gradients, #d8dfe8 canvas, Inter).
+// (navy #1a2540→#1e3a5f / olive #6b8e23→#6b8e23 gradients, #fbfaf8 canvas, Inter).
 //
 // Mount it however the app navigates. In this repo, add an appView branch:
 //     import MarketingDashboard from './marketing/MarketingDashboard.jsx';
@@ -31,10 +31,10 @@ function RollUp({ value, format, playToken = 0, duration = 850 }) {
   return <>{format ? format(display) : Math.round(display)}</>;
 }
 
-const navy = 'linear-gradient(135deg,#1a2540,#1a4a6e)';
-const olive = 'linear-gradient(135deg,#7a8c1e,#9aab2e)';
+const navy = '#1e3a5f';
+const olive = '#6b8e23';
 const card = { background: '#fff', borderRadius: 18, boxShadow: '0 4px 16px rgba(2,6,23,0.07)', border: '1px solid rgba(255,255,255,0.8)' };
-const label = { fontSize: 13, fontWeight: 800, color: '#5b6b8c', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 14 };
+const label = { fontSize: 13, fontWeight: 800, color: '#4a5462', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 14 };
 const pct = (n) => `${Math.round((n || 0) * 100)}%`;
 const money = (n) => '$' + Math.round(n || 0).toLocaleString('en-US');
 const j = (p) => fetch(p).then(r => (r.ok ? r.json() : null)).catch(() => null);
@@ -53,9 +53,9 @@ const fmtPeriod = (period, gran) => {
 function SectionHead({ title, sub }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, margin: '4px 0 14px', flexWrap: 'wrap' }}>
-      <div style={{ fontSize: 20, fontWeight: 800, color: '#1a2540', letterSpacing: -0.3 }}>{title}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: '#182230', letterSpacing: -0.3 }}>{title}</div>
       <div style={{ height: 1, background: '#c6cfdc', flex: 1, minWidth: 20 }} />
-      <div style={{ fontSize: 12, color: '#7a869f', fontWeight: 600 }}>{sub}</div>
+      <div style={{ fontSize: 12, color: '#8a8577', fontWeight: 600 }}>{sub}</div>
     </div>
   );
 }
@@ -99,17 +99,17 @@ function SyncStrip({ status }) {
   // nothing has ever arrived by either route.
   let tone, text;
   if (!runs.length) {
-    tone = '#7a869f';
+    tone = '#8a8577';
     text = status.pull_configured
       ? 'Salesforce sync has not run yet'
       : 'Salesforce sync not configured — figures are from the last manual load';
   } else if (failed.length) {
-    tone = '#c2410c'; text = `Last Salesforce sync failed — ${failed[0].error || 'unknown error'}`;
+    tone = '#a3341f'; text = `Last Salesforce sync failed — ${failed[0].error || 'unknown error'}`;
   } else if (!newest) {
-    tone = '#7a869f'; text = 'Salesforce sync started but has not finished';
+    tone = '#8a8577'; text = 'Salesforce sync started but has not finished';
   } else {
     const seen = runs.reduce((s, r) => s + (r.rows_seen || 0), 0);
-    tone = stale ? '#b45309' : '#4d7c0f';
+    tone = stale ? '#8a5a12' : '#4d7c0f';
     text = `Synced from Salesforce ${timeAgo(newest)} · ${seen.toLocaleString()} records`;
   }
   // A held-back prune is a successful run that chose not to delete — worth surfacing,
@@ -134,12 +134,12 @@ function ExcludedNote({ stats }) {
   const parts = rows.map(r => `${r.total} ${r.label.toLowerCase()}`);
   const week = stats.excluded_this_week || 0;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 16px', fontSize: 12.5, color: '#7a869f' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 16px', fontSize: 12.5, color: '#8a8577' }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c9d0dc', flexShrink: 0 }} />
       <span>
         Excluded from these figures: {parts.join(' · ')}
-        {week > 0 && <strong style={{ color: '#5b6b8c', fontWeight: 600 }}> ({week} this week)</strong>}
-        <span style={{ color: '#9aa3b8' }}> — still listed below</span>
+        {week > 0 && <strong style={{ color: '#4a5462', fontWeight: 600 }}> ({week} this week)</strong>}
+        <span style={{ color: '#a09a8c' }}> — still listed below</span>
       </span>
     </div>
   );
@@ -295,16 +295,16 @@ export default function MarketingDashboard({ onBack }) {
   const maxCamp = Math.max(1, ...byCampaign.map(c => c.booked));
 
   return (
-    <div style={{ minHeight: '100vh', background: '#d8dfe8', fontFamily: 'Inter,sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ minHeight: '100vh', background: '#fbfaf8', fontFamily: 'Inter,sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ width: '100%', maxWidth: 920, padding: '20px 24px 0', boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {onBack ? <button onClick={onBack} style={{ background: '#fff', border: '1px solid #d0d6e0', borderRadius: 10, padding: '8px 14px', color: '#5b6b8c', cursor: 'pointer', fontWeight: 600 }}>&#8592; Back</button> : <span />}
+        {onBack ? <button onClick={onBack} style={{ background: '#fff', border: '1px solid #d9d5cc', borderRadius: 10, padding: '8px 14px', color: '#4a5462', cursor: 'pointer', fontWeight: 600 }}>&#8592; Back</button> : <span />}
         <button onClick={() => fetch('/api/marketing/enrich', { method: 'POST' }).then(() => window.location.reload())}
-          style={{ background: '#fff', border: '1px solid #d0d6e0', borderRadius: 10, padding: '8px 14px', color: '#5b6b8c', cursor: 'pointer', fontWeight: 600 }}>Refresh data</button>
+          style={{ background: '#fff', border: '1px solid #d9d5cc', borderRadius: 10, padding: '8px 14px', color: '#4a5462', cursor: 'pointer', fontWeight: 600 }}>Refresh data</button>
       </div>
 
       <div style={{ textAlign: 'center', padding: '18px 32px 16px' }}>
-        <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', letterSpacing: -0.5 }}>Sales &amp; Marketing Dashboard</div>
-        <div style={{ fontSize: 15, color: '#5b6b8c', marginTop: 6 }}>What we've won, and what's driving it.</div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: '#182230', letterSpacing: -0.5 }}>Sales &amp; Marketing Dashboard</div>
+        <div style={{ fontSize: 15, color: '#4a5462', marginTop: 6 }}>What we've won, and what's driving it.</div>
       </div>
 
       <div style={{ width: '100%', maxWidth: 920, padding: '0 24px 48px', boxSizing: 'border-box' }}>
@@ -346,19 +346,19 @@ export default function MarketingDashboard({ onBack }) {
             {apps && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, marginBottom: 16 }}>
                 <div style={{ ...card, padding: '20px 22px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Awarded to clients</div>
-                  <div style={{ fontSize: 30, fontWeight: 800, color: '#7a8c1e', marginTop: 6 }}>{money(apps.awarded_amount)}</div>
-                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>{apps.awarded_count} accepted {apps.awarded_count === 1 ? 'application' : 'applications'}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#8a8577', textTransform: 'uppercase', letterSpacing: 0.5 }}>Awarded to clients</div>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: '#6b8e23', marginTop: 6 }}>{money(apps.awarded_amount)}</div>
+                  <div style={{ fontSize: 12.5, color: '#8a8577', marginTop: 4 }}>{apps.awarded_count} accepted {apps.awarded_count === 1 ? 'application' : 'applications'}</div>
                 </div>
                 <div style={{ ...card, padding: '20px 22px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Pending award</div>
-                  <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{money(apps.pending_amount)}</div>
-                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>{apps.pending_count} submitted, awaiting notification</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#8a8577', textTransform: 'uppercase', letterSpacing: 0.5 }}>Pending award</div>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: '#182230', marginTop: 6 }}>{money(apps.pending_amount)}</div>
+                  <div style={{ fontSize: 12.5, color: '#8a8577', marginTop: 4 }}>{apps.pending_count} submitted, awaiting notification</div>
                 </div>
                 <div style={{ ...card, padding: '20px 22px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Acceptance rate</div>
-                  <div style={{ fontSize: 30, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{pct(apps.acceptance_rate)}</div>
-                  <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#8a8577', textTransform: 'uppercase', letterSpacing: 0.5 }}>Acceptance rate</div>
+                  <div style={{ fontSize: 30, fontWeight: 800, color: '#182230', marginTop: 6 }}>{pct(apps.acceptance_rate)}</div>
+                  <div style={{ fontSize: 12.5, color: '#8a8577', marginTop: 4 }}>
                     {apps.awarded_count} of {apps.awarded_count + apps.denied_count} decided
                     {apps.award_fill_rate > 0 ? ` · ${pct(apps.award_fill_rate)} of ask funded` : ''}
                   </div>
@@ -370,12 +370,12 @@ export default function MarketingDashboard({ onBack }) {
             {apps && apps.by_program?.length > 0 && (
               <div style={{ marginBottom: 24 }}>
                 <button onClick={() => setShowPrograms(v => !v)}
-                  style={{ background: 'none', border: 'none', padding: 0, color: '#1a4a6e', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', marginBottom: showPrograms ? 10 : 0 }}>
+                  style={{ background: 'none', border: 'none', padding: 0, color: '#1e3a5f', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', marginBottom: showPrograms ? 10 : 0 }}>
                   {showPrograms ? 'Hide' : 'Show'} breakdown by grant program {showPrograms ? '▾' : '▸'}
                 </button>
                 {showPrograms && (
                   <div style={{ ...card, padding: '8px 6px' }}>
-                    <div style={{ display: 'flex', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 16px' }}>
+                    <div style={{ display: 'flex', fontSize: 11, fontWeight: 700, color: '#a09a8c', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 16px' }}>
                       <div style={{ flex: 2 }}>Program</div>
                       <div style={{ flex: 1, textAlign: 'right' }}>Apps</div>
                       <div style={{ flex: 1, textAlign: 'right' }}>Awarded</div>
@@ -383,11 +383,11 @@ export default function MarketingDashboard({ onBack }) {
                     </div>
                     <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                       {apps.by_program.map((p) => (
-                        <div key={p.grant_program} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid #f0f2f6', fontSize: 13.5 }}>
-                          <div style={{ flex: 2, color: '#1a2540', fontWeight: 600 }}>{p.grant_program}</div>
-                          <div style={{ flex: 1, textAlign: 'right', color: '#5b6b8c' }}>{p.total}</div>
-                          <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: p.awarded_amount ? '#7a8c1e' : '#c2cad6' }}>{p.awarded_amount ? money(p.awarded_amount) : '—'}</div>
-                          <div style={{ flex: 1, textAlign: 'right', color: '#5b6b8c' }}>{p.pending_amount ? money(p.pending_amount) : '—'}</div>
+                        <div key={p.grant_program} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid #f0ede5', fontSize: 13.5 }}>
+                          <div style={{ flex: 2, color: '#182230', fontWeight: 600 }}>{p.grant_program}</div>
+                          <div style={{ flex: 1, textAlign: 'right', color: '#4a5462' }}>{p.total}</div>
+                          <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: p.awarded_amount ? '#6b8e23' : '#a09a8c' }}>{p.awarded_amount ? money(p.awarded_amount) : '—'}</div>
+                          <div style={{ flex: 1, textAlign: 'right', color: '#4a5462' }}>{p.pending_amount ? money(p.pending_amount) : '—'}</div>
                         </div>
                       ))}
                     </div>
@@ -401,31 +401,31 @@ export default function MarketingDashboard({ onBack }) {
               <div style={{ ...card, padding: '18px 22px', marginBottom: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                   <div>
-                    <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15 }}>
+                    <div style={{ fontWeight: 700, color: '#182230', fontSize: 15 }}>
                       {salesCfg.title} over time{salesCumulative ? ' (cumulative)' : ''}
                     </div>
-                    <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 3 }}>
+                    <div style={{ fontSize: 12.5, color: '#8a8577', marginTop: 3 }}>
                       {salesCumulative ? 'Running total · now at ' : 'Total shown · '}
-                      <strong style={{ color: '#7a8c1e' }}>{fmtSalesVal(salesTotal)}</strong>
+                      <strong style={{ color: '#6b8e23' }}>{fmtSalesVal(salesTotal)}</strong>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {['month', 'quarter'].map(g => (
                       <button key={g} onClick={() => setSalesGran(g)}
-                        style={{ border: '1px solid #d0d6e0', background: salesGran === g ? '#1a4a6e' : '#fff', color: salesGran === g ? '#fff' : '#5b6b8c', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
+                        style={{ border: '1px solid #d9d5cc', background: salesGran === g ? '#1e3a5f' : '#fff', color: salesGran === g ? '#fff' : '#4a5462', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
                     ))}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
                   {SALES_METRICS.map(m => (
                     <button key={m.key} onClick={() => setSalesMetric(m.key)}
-                      style={{ border: '1px solid #d0d6e0', background: salesMetric === m.key ? '#eef4f8' : '#fff', color: salesMetric === m.key ? '#1a4a6e' : '#7a869f', fontWeight: salesMetric === m.key ? 700 : 500, borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>{m.label}</button>
+                      style={{ border: '1px solid #d9d5cc', background: salesMetric === m.key ? '#eef3e0' : '#fff', color: salesMetric === m.key ? '#1e3a5f' : '#8a8577', fontWeight: salesMetric === m.key ? 700 : 500, borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>{m.label}</button>
                   ))}
                 </div>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 5, height: 130 }}>
-                  <div style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px dashed #f0f2f6' }} />
-                  <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #f0f2f6' }} />
-                  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid #e6e9f0' }} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px dashed #f0ede5' }} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #f0ede5' }} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid #e4e0d6' }} />
                   {salesShown.map(s => (
                     <div key={s.period} title={`${fmtSalesPeriod(s.period)} — ${salesCfg.title}: ${fmtSalesVal(s.v)}`}
                       style={{ flex: 1, height: '100%', position: 'relative', zIndex: 1 }}>
@@ -435,12 +435,12 @@ export default function MarketingDashboard({ onBack }) {
                 </div>
                 <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>
                   {salesShown.map((s, i) => (
-                    <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#a09a8c', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                       {salesLabelIdx.has(i) ? fmtSalesPeriod(s.period) : ''}
                     </div>
                   ))}
                 </div>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5b6b8c', cursor: 'pointer', userSelect: 'none', marginTop: 12 }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4a5462', cursor: 'pointer', userSelect: 'none', marginTop: 12 }}>
                   <input type="checkbox" checked={salesCumulative} onChange={e => setSalesCumulative(e.target.checked)} style={{ cursor: 'pointer' }} />
                   Show cumulative growth
                 </label>
@@ -454,18 +454,18 @@ export default function MarketingDashboard({ onBack }) {
             {/* The bridge: how much of won revenue traces back to a tracked booking */}
             <div style={{ ...card, padding: '16px 20px', marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                <span style={{ fontWeight: 700, color: '#1a2540', fontSize: 14 }}>Marketing-attributed revenue</span>
-                <span style={{ fontSize: 12.5, color: '#7a869f' }}>
-                  <strong style={{ color: '#7a8c1e' }}>{money(stats.attributed_revenue)}</strong> of {money(stats.won_revenue_total)} traces to a tracked booking
+                <span style={{ fontWeight: 700, color: '#182230', fontSize: 14 }}>Marketing-attributed revenue</span>
+                <span style={{ fontSize: 12.5, color: '#8a8577' }}>
+                  <strong style={{ color: '#6b8e23' }}>{money(stats.attributed_revenue)}</strong> of {money(stats.won_revenue_total)} traces to a tracked booking
                 </span>
               </div>
-              <div style={{ height: 10, borderRadius: 6, background: '#eef1f6', overflow: 'hidden' }}>
+              <div style={{ height: 10, borderRadius: 6, background: '#f0ede5', overflow: 'hidden' }}>
                 <div style={{ width: `${Math.round((stats.attribution_coverage || 0) * 100)}%`, height: '100%', background: olive, borderRadius: 6, transition: 'width .6s ease' }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: '#9aa3b8', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: '#a09a8c', flexWrap: 'wrap', gap: 8 }}>
                 <span>{pct(stats.attribution_coverage)} attributed · {stats.attributed_count} {stats.attributed_count === 1 ? 'win' : 'wins'}</span>
                 {stats.untracked_count > 0 ? (
-                  <button onClick={() => setShowUntracked(v => !v)} style={{ background: 'none', border: 'none', padding: 0, color: '#1a4a6e', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  <button onClick={() => setShowUntracked(v => !v)} style={{ background: 'none', border: 'none', padding: 0, color: '#1e3a5f', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                     {money(stats.untracked_revenue)} untracked / pre-funnel · {stats.untracked_count} {stats.untracked_count === 1 ? 'deal' : 'deals'} · {showUntracked ? 'hide' : 'show'} {showUntracked ? '▾' : '▸'}
                   </button>
                 ) : <span>no untracked wins</span>}
@@ -475,18 +475,18 @@ export default function MarketingDashboard({ onBack }) {
             {/* collapsible untracked list */}
             {showUntracked && (
               <div style={{ ...card, padding: '8px 6px', marginBottom: 16 }}>
-                <div style={{ display: 'flex', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 16px' }}>
+                <div style={{ display: 'flex', fontSize: 11, fontWeight: 700, color: '#a09a8c', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 16px' }}>
                   <div style={{ flex: 1 }}>Organization</div>
                   <div style={{ width: 110, textAlign: 'right' }}>Closed</div>
                   <div style={{ width: 110, textAlign: 'right' }}>Amount</div>
                 </div>
                 <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                  {untracked.length === 0 && <div style={{ padding: '12px 16px', color: '#9aa3b8', fontSize: 13 }}>No untracked wins.</div>}
+                  {untracked.length === 0 && <div style={{ padding: '12px 16px', color: '#a09a8c', fontSize: 13 }}>No untracked wins.</div>}
                   {untracked.map((u) => (
-                    <div key={u.opportunity_id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid #f0f2f6', fontSize: 13.5 }}>
-                      <div style={{ flex: 1, color: '#1a2540', fontWeight: 600 }}>{u.organization || '—'}</div>
-                      <div style={{ width: 110, textAlign: 'right', color: '#7a869f' }}>{u.close_date ? new Date(u.close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div>
-                      <div style={{ width: 110, textAlign: 'right', fontWeight: 700, color: '#1a2540' }}>{money(u.amount)}</div>
+                    <div key={u.opportunity_id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid #f0ede5', fontSize: 13.5 }}>
+                      <div style={{ flex: 1, color: '#182230', fontWeight: 600 }}>{u.organization || '—'}</div>
+                      <div style={{ width: 110, textAlign: 'right', color: '#8a8577' }}>{u.close_date ? new Date(u.close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div>
+                      <div style={{ width: 110, textAlign: 'right', fontWeight: 700, color: '#182230' }}>{money(u.amount)}</div>
                     </div>
                   ))}
                 </div>
@@ -516,10 +516,10 @@ export default function MarketingDashboard({ onBack }) {
               { k: 'Won', v: funnel.won, base: funnel.booked, foot: money(funnel.won_amount) + ' in revenue' },
             ].map((s, i) => (
               <div key={s.k} style={{ ...card, flex: 1, padding: '20px 22px' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#7a869f', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.k}</div>
-                <div style={{ fontSize: 34, fontWeight: 800, color: '#1a2540', marginTop: 6 }}>{s.v}</div>
-                <div style={{ fontSize: 12.5, color: '#7a869f', marginTop: 4 }}>{i === 0 ? ' ' : pct(s.base ? s.v / s.base : 0) + ' of booked'}</div>
-                {s.foot && <div style={{ fontSize: 13, fontWeight: 700, color: '#7a8c1e', marginTop: 6 }}>{s.foot}</div>}
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#8a8577', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.k}</div>
+                <div style={{ fontSize: 34, fontWeight: 800, color: '#182230', marginTop: 6 }}>{s.v}</div>
+                <div style={{ fontSize: 12.5, color: '#8a8577', marginTop: 4 }}>{i === 0 ? ' ' : pct(s.base ? s.v / s.base : 0) + ' of booked'}</div>
+                {s.foot && <div style={{ fontSize: 13, fontWeight: 700, color: '#6b8e23', marginTop: 6 }}>{s.foot}</div>}
               </div>
             ))}
           </div>
@@ -529,10 +529,10 @@ export default function MarketingDashboard({ onBack }) {
         <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
           <div style={{ ...card, flex: 2, padding: '18px 22px', minWidth: 320 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15 }}>{metricCfg.title} over time</div>
+              <div style={{ fontWeight: 700, color: '#182230', fontSize: 15 }}>{metricCfg.title} over time</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {['week', 'month'].map(g => (
-                  <button key={g} onClick={() => { setGran(g); setWinOffset(0); }} style={{ border: '1px solid #d0d6e0', background: gran === g ? '#1a4a6e' : '#fff', color: gran === g ? '#fff' : '#5b6b8c', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
+                  <button key={g} onClick={() => { setGran(g); setWinOffset(0); }} style={{ border: '1px solid #d9d5cc', background: gran === g ? '#1e3a5f' : '#fff', color: gran === g ? '#fff' : '#4a5462', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{g}</button>
                 ))}
               </div>
             </div>
@@ -540,15 +540,15 @@ export default function MarketingDashboard({ onBack }) {
             <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
               {METRICS.map(m => (
                 <button key={m.key} onClick={() => setMetric(m.key)}
-                  style={{ border: '1px solid #d0d6e0', background: metric === m.key ? '#eef4f8' : '#fff', color: metric === m.key ? '#1a4a6e' : '#7a869f', fontWeight: metric === m.key ? 700 : 500, borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>{m.label}</button>
+                  style={{ border: '1px solid #d9d5cc', background: metric === m.key ? '#eef3e0' : '#fff', color: metric === m.key ? '#1e3a5f' : '#8a8577', fontWeight: metric === m.key ? 700 : 500, borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>{m.label}</button>
               ))}
             </div>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: barGap, height: 120 }}>
               {/* faint gridlines + baseline */}
-              <div style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px dashed #f0f2f6' }} />
-              <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #f0f2f6' }} />
-              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid #e6e9f0' }} />
-              {shown.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13, position: 'relative' }}>No data yet.</div>}
+              <div style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px dashed #f0ede5' }} />
+              <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #f0ede5' }} />
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, borderTop: '1px solid #e4e0d6' }} />
+              {shown.length === 0 && <div style={{ color: '#a09a8c', fontSize: 13, position: 'relative' }}>No data yet.</div>}
               {shown.map((s, i) => {
                 const cur = metricVal(s);
                 const ghost = ghostOf(i);
@@ -570,7 +570,7 @@ export default function MarketingDashboard({ onBack }) {
             {shown.length > 0 && (
               <div style={{ display: 'flex', gap: barGap, marginTop: 6 }}>
                 {shown.map((s, i) => (
-                  <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                  <div key={s.period} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#a09a8c', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     {labelIdx.has(i) ? fmtPeriod(s.period, gran) : ''}
                   </div>
                 ))}
@@ -580,24 +580,24 @@ export default function MarketingDashboard({ onBack }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button onClick={() => canOlder && setWinOffset(o => Math.min(maxOffset, o + step))} disabled={!canOlder}
-                  style={{ border: '1px solid #d0d6e0', background: '#fff', color: canOlder ? '#1a4a6e' : '#c2cad6', borderRadius: 8, padding: '2px 9px', fontSize: 14, cursor: canOlder ? 'pointer' : 'default', lineHeight: 1.4 }}>&#8249;</button>
-                <span style={{ fontSize: 11.5, color: '#7a869f', minWidth: 88, textAlign: 'center' }}>{rangeLabel}</span>
+                  style={{ border: '1px solid #d9d5cc', background: '#fff', color: canOlder ? '#1e3a5f' : '#a09a8c', borderRadius: 8, padding: '2px 9px', fontSize: 14, cursor: canOlder ? 'pointer' : 'default', lineHeight: 1.4 }}>&#8249;</button>
+                <span style={{ fontSize: 11.5, color: '#8a8577', minWidth: 88, textAlign: 'center' }}>{rangeLabel}</span>
                 <button onClick={() => canNewer && setWinOffset(o => Math.max(0, o - step))} disabled={!canNewer}
-                  style={{ border: '1px solid #d0d6e0', background: '#fff', color: canNewer ? '#1a4a6e' : '#c2cad6', borderRadius: 8, padding: '2px 9px', fontSize: 14, cursor: canNewer ? 'pointer' : 'default', lineHeight: 1.4 }}>&#8250;</button>
+                  style={{ border: '1px solid #d9d5cc', background: '#fff', color: canNewer ? '#1e3a5f' : '#a09a8c', borderRadius: 8, padding: '2px 9px', fontSize: 14, cursor: canNewer ? 'pointer' : 'default', lineHeight: 1.4 }}>&#8250;</button>
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5b6b8c', cursor: 'pointer', userSelect: 'none' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4a5462', cursor: 'pointer', userSelect: 'none' }}>
                 <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} style={{ cursor: 'pointer' }} />
                 Compare previous period
               </label>
             </div>
           </div>
           <div style={{ ...card, flex: 1, padding: '18px 22px', minWidth: 240 }}>
-            <div style={{ fontWeight: 700, color: '#1a2540', fontSize: 15, marginBottom: 12 }}>By channel</div>
-            {byChannel.length === 0 && <div style={{ color: '#9aa3b8', fontSize: 13 }}>No data yet.</div>}
+            <div style={{ fontWeight: 700, color: '#182230', fontSize: 15, marginBottom: 12 }}>By channel</div>
+            {byChannel.length === 0 && <div style={{ color: '#a09a8c', fontSize: 13 }}>No data yet.</div>}
             {byChannel.map(c => (
-              <div key={c.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f4f5f9', fontSize: 14 }}>
-                <span style={{ color: '#1a2540', textTransform: 'capitalize' }}>{c.channel}</span>
-                <span style={{ color: '#5b6b8c' }}>{c.booked}{c.clients ? ` · ${c.clients} LOE` : ''}</span>
+              <div key={c.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f0ede5', fontSize: 14 }}>
+                <span style={{ color: '#182230', textTransform: 'capitalize' }}>{c.channel}</span>
+                <span style={{ color: '#4a5462' }}>{c.booked}{c.clients ? ` · ${c.clients} LOE` : ''}</span>
               </div>
             ))}
           </div>
@@ -607,15 +607,15 @@ export default function MarketingDashboard({ onBack }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div style={{ ...label, margin: 0 }}>Bookings</div>
           <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadRows()} placeholder="Search name / org / email"
-            style={{ border: '1px solid #d0d6e0', borderRadius: 8, padding: '7px 12px', fontSize: 13, width: 240 }} />
+            style={{ border: '1px solid #d9d5cc', borderRadius: 8, padding: '7px 12px', fontSize: 13, width: 240 }} />
         </div>
         <div style={{ ...card, overflow: 'hidden', marginBottom: 24 }}>
-          <div style={{ display: 'flex', padding: '11px 18px', fontSize: 11, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5, background: '#fafbfc' }}>
+          <div style={{ display: 'flex', padding: '11px 18px', fontSize: 11, fontWeight: 700, color: '#a09a8c', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f6f4ee' }}>
             <div style={{ flex: 2.2 }}>Org / Name</div><div style={{ flex: 1.3 }}>Channel</div><div style={{ flex: 1.7 }}>Campaign</div>
             <div style={{ width: 112 }}>Meeting / With</div><div style={{ width: 60, textAlign: 'center' }}>Held</div><div style={{ width: 60, textAlign: 'center' }}>LOE</div>
             <div style={{ width: 118, textAlign: 'right' }}>Status</div>
           </div>
-          {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#9aa3b8' }}>No bookings yet.</div>}
+          {rows.length === 0 && <div style={{ padding: '16px 18px', color: '#a09a8c' }}>No bookings yet.</div>}
           <div style={{ maxHeight: 460, overflowY: 'auto' }}>
             {rows.map(r => {
               // Excluded rows stay on the list but read as set aside rather than active.
@@ -624,24 +624,24 @@ export default function MarketingDashboard({ onBack }) {
               return (
               <div key={r.id}
                 onMouseEnter={() => setHoverRow(r.id)} onMouseLeave={() => setHoverRow(null)}
-                style={{ display: 'flex', alignItems: 'center', padding: '10px 18px', borderTop: '1px solid #f4f5f9', fontSize: 13.5,
-                  background: excluded ? '#fbfbfd' : (hover ? '#fafbfc' : undefined), color: excluded ? '#98a1b3' : undefined }}>
+                style={{ display: 'flex', alignItems: 'center', padding: '10px 18px', borderTop: '1px solid #f0ede5', fontSize: 13.5,
+                  background: excluded ? '#f6f4ee' : (hover ? '#f6f4ee' : undefined), color: excluded ? '#a09a8c' : undefined }}>
                 <div style={{ flex: 2.2, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: excluded ? '#98a1b3' : '#1a2540', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  <div style={{ fontWeight: 600, color: excluded ? '#a09a8c' : '#1a2540', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                     title={r.organization || ''}>{r.organization || '—'}</div>
-                  <div style={{ color: '#9aa3b8', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+                  <div style={{ color: '#a09a8c', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
                 </div>
-                <div style={{ flex: 1.3, color: excluded ? '#a8b0bf' : '#5b6b8c' }}>{chLabel(r.attribution_channel || 'direct')}</div>
+                <div style={{ flex: 1.3, color: excluded ? '#a09a8c' : '#4a5462' }}>{chLabel(r.attribution_channel || 'direct')}</div>
                 {/* One line, ellipsed — a wrapping campaign name was making every row
                     twice as tall and pushing the list off the screen. */}
-                <div style={{ flex: 1.7, color: excluded ? '#a8b0bf' : '#5b6b8c', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 10 }}
+                <div style={{ flex: 1.7, color: excluded ? '#a09a8c' : '#4a5462', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 10 }}
                   title={r.instantly_campaign || ''}>{r.instantly_campaign || '—'}</div>
                 {/* Who took the meeting sits under its date rather than in a column of
                     its own — the answer is wanted often enough to show, not often enough
                     to spend a column on. */}
-                <div style={{ width: 112, color: excluded ? '#a8b0bf' : '#5b6b8c', minWidth: 0, paddingRight: 8 }}>
+                <div style={{ width: 112, color: excluded ? '#a09a8c' : '#4a5462', minWidth: 0, paddingRight: 8 }}>
                   <div>{r.meeting_date ? new Date(r.meeting_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</div>
-                  <div style={{ fontSize: 11.5, color: '#9aa3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.host || ''}>{hostName(r.host)}</div>
+                  <div style={{ fontSize: 11.5, color: '#a09a8c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.host || ''}>{hostName(r.host)}</div>
                 </div>
                 <div style={{ width: 60, textAlign: 'center' }}>
                   <input type="checkbox" checked={!!r.held} onChange={e => toggle(r.id, 'held', e.target.checked)} />
@@ -656,7 +656,7 @@ export default function MarketingDashboard({ onBack }) {
                     A cancellation detected in Calendly is stated, not offered as a choice. */}
                 <div style={{ width: 132, textAlign: 'right' }}>
                   {r.cancelled ? (
-                    <span title="Cancelled in Calendly" style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', background: '#fdeee7', border: '1px solid #f3d3c4', borderRadius: 999, padding: '3px 9px' }}>Cancelled</span>
+                    <span title="Cancelled in Calendly" style={{ fontSize: 11, fontWeight: 700, color: '#a3341f', background: '#fbeee9', border: '1px solid #d9a99c', borderRadius: 999, padding: '3px 9px' }}>Cancelled</span>
                   ) : (
                     <select
                       value={r.exclusion_reason || ''}
@@ -664,9 +664,9 @@ export default function MarketingDashboard({ onBack }) {
                       title={r.exclusion_reason ? 'Excluded from all totals — change or clear it here' : 'Exclude this booking from all totals, keeping it on the list'}
                       style={{
                         fontSize: 11.5, fontWeight: r.exclusion_reason ? 700 : 500,
-                        color: r.exclusion_reason ? '#b45309' : (hover ? '#5b6b8c' : '#c2c8d4'),
-                        background: r.exclusion_reason ? '#fdf4e7' : 'transparent',
-                        border: '1px solid ' + (r.exclusion_reason ? '#f0dcbc' : (hover ? '#d8dee8' : 'transparent')),
+                        color: r.exclusion_reason ? '#8a5a12' : (hover ? '#4a5462' : '#a09a8c'),
+                        background: r.exclusion_reason ? '#fbf3e2' : 'transparent',
+                        border: '1px solid ' + (r.exclusion_reason ? '#d9c9a5' : (hover ? '#d9d5cc' : 'transparent')),
                         borderRadius: 999, padding: '3px 6px', cursor: 'pointer', maxWidth: 130,
                         appearance: 'auto', textAlign: 'right',
                       }}>
@@ -686,23 +686,23 @@ export default function MarketingDashboard({ onBack }) {
         {/* By campaign — the leadership view */}
         <div style={label}>By Campaign &amp; Source</div>
         <div style={{ ...card, padding: '8px 0', marginBottom: 24 }}>
-          <div style={{ display: 'flex', padding: '10px 22px', fontSize: 11.5, fontWeight: 700, color: '#9aa3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <div style={{ display: 'flex', padding: '10px 22px', fontSize: 11.5, fontWeight: 700, color: '#a09a8c', textTransform: 'uppercase', letterSpacing: 0.5 }}>
             <div style={{ flex: 2 }}>Campaign</div><div style={{ flex: 1, textAlign: 'right' }}>Booked</div>
             <div style={{ flex: 1, textAlign: 'right' }}>Held</div><div style={{ flex: 1, textAlign: 'right' }}>LOEs</div><div style={{ flex: 1, textAlign: 'right' }}>LOE $</div>
           </div>
-          {byCampaign.length === 0 && <div style={{ padding: '14px 22px', color: '#9aa3b8' }}>No data yet.</div>}
+          {byCampaign.length === 0 && <div style={{ padding: '14px 22px', color: '#a09a8c' }}>No data yet.</div>}
           {byCampaign.map((c, i) => (
-            <div key={c.campaign} style={{ display: 'flex', alignItems: 'center', padding: '13px 22px', borderTop: '1px solid #f4f5f9' }}>
+            <div key={c.campaign} style={{ display: 'flex', alignItems: 'center', padding: '13px 22px', borderTop: '1px solid #f0ede5' }}>
               <div style={{ flex: 2 }}>
-                <div style={{ fontWeight: 600, color: '#1a2540', fontSize: 14.5 }}>{c.campaign}</div>
-                <div style={{ height: 5, borderRadius: 4, marginTop: 6, background: '#eef0f5', overflow: 'hidden', maxWidth: 220 }}>
+                <div style={{ fontWeight: 600, color: '#182230', fontSize: 14.5 }}>{c.campaign}</div>
+                <div style={{ height: 5, borderRadius: 4, marginTop: 6, background: '#efece4', overflow: 'hidden', maxWidth: 220 }}>
                   <div style={{ width: `${(c.booked / maxCamp) * 100}%`, height: '100%', background: olive }} />
                 </div>
               </div>
-              <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: '#1a2540' }}>{c.booked}</div>
-              <div style={{ flex: 1, textAlign: 'right', color: '#5b6b8c' }}>{c.held}</div>
-              <div style={{ flex: 1, textAlign: 'right', color: '#5b6b8c' }}>{c.clients}</div>
-              <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: '#7a8c1e' }}>{c.fees ? money(c.fees) : '—'}</div>
+              <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: '#182230' }}>{c.booked}</div>
+              <div style={{ flex: 1, textAlign: 'right', color: '#4a5462' }}>{c.held}</div>
+              <div style={{ flex: 1, textAlign: 'right', color: '#4a5462' }}>{c.clients}</div>
+              <div style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: '#6b8e23' }}>{c.fees ? money(c.fees) : '—'}</div>
             </div>
           ))}
         </div>

@@ -1,0 +1,107 @@
+/*
+ * NPSA toolbox theme.
+ *
+ * The Sales Toolbox sits inside the toolbox shell, so it should read as the
+ * same product. These are the shell's tokens: warm paper, navy and olive as
+ * the only two hues, Newsreader for figures and headings, IBM Plex Mono for
+ * labels.
+ *
+ * This file only sets typography and page-level surfaces. The screens
+ * themselves style inline, so their colours were mapped to this palette
+ * directly — the variables here exist so future work has one place to reach
+ * for rather than another hex.
+ */
+
+:root {
+  /* surfaces */
+  --bg: #fbfaf8;
+  --card: #ffffff;
+  --bd: #e7e2d6;
+  --bd2: #d9d5cc;
+  --hair: #e4e0d6;
+  --hair2: #f0ede5;
+  --track: #efece4;
+  --hover: #f6f4ee;
+
+  /* ink */
+  --ink: #182230;
+  --sec: #4a5462;
+  --mute: #8a8577;
+  --faint: #a09a8c;
+
+  /* brand — navy and olive are the only two hues */
+  --navy: #1e3a5f;
+  --olive: #6b8e23;
+  --on-accent: #ffffff;
+
+  /* the dark editing panel beside the letter preview */
+  --panel: #16202e;
+  --panel-2: #1f2a3a;
+  --panel-bd: #2b3a4d;
+  --panel-ink: #e8edf4;
+  --panel-sec: #a7b4c6;
+  --panel-mute: #8796aa;
+  --panel-accent: #4a8bc4;
+
+  /* status */
+  --ok-fg: #4a6417;
+  --ok-bg: #eef3e0;
+  --warn-fg: #8a5a12;
+  --warn-bg: #fbf3e2;
+  --err-fg: #a3341f;
+  --err-bg: #fbeee9;
+
+  --shadow-card: 0 2px 12px rgba(60, 50, 30, 0.06);
+  --shadow-card-hover: 0 14px 30px rgba(60, 50, 30, 0.1);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Screen titles pick up the shell's serif without touching each component. */
+.npsa-title {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.npsa-title em {
+  font-weight: 500;
+}
+
+/* Uppercase section labels read as mono, matching the shell's eyebrows. */
+.npsa-eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.07em;
+}
+
+/* Figures line up in columns wherever they're compared. */
+.npsa-num {
+  font-family: var(--font-serif);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+  }
+}
