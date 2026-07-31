@@ -1,6 +1,7 @@
 // src/marketing/MarketingDashboard.jsx
 // Self-contained Marketing dashboard. Matches the Sales Toolbox design language
-// (navy #1a2540→#1e3a5f / olive #6b8e23→#6b8e23 gradients, #fbfaf8 canvas, Inter).
+// Colours come from src/theme.css — navy and olive as the only two hues on warm
+// paper. Reach for a token there rather than adding another hex here.
 //
 // Mount it however the app navigates. In this repo, add an appView branch:
 //     import MarketingDashboard from './marketing/MarketingDashboard.jsx';
@@ -54,7 +55,7 @@ function SectionHead({ title, sub }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, margin: '4px 0 14px', flexWrap: 'wrap' }}>
       <div style={{ fontSize: 20, fontWeight: 800, color: '#182230', letterSpacing: -0.3 }}>{title}</div>
-      <div style={{ height: 1, background: '#c6cfdc', flex: 1, minWidth: 20 }} />
+      <div style={{ height: 1, background: 'var(--hair)', flex: 1, minWidth: 20 }} />
       <div style={{ fontSize: 12, color: '#8a8577', fontWeight: 600 }}>{sub}</div>
     </div>
   );
@@ -109,7 +110,7 @@ function SyncStrip({ status }) {
     tone = '#8a8577'; text = 'Salesforce sync started but has not finished';
   } else {
     const seen = runs.reduce((s, r) => s + (r.rows_seen || 0), 0);
-    tone = stale ? '#8a5a12' : '#4d7c0f';
+    tone = stale ? 'var(--warn-fg)' : 'var(--ok-fg)';
     text = `Synced from Salesforce ${timeAgo(newest)} · ${seen.toLocaleString()} records`;
   }
   // A held-back prune is a successful run that chose not to delete — worth surfacing,
@@ -135,7 +136,7 @@ function ExcludedNote({ stats }) {
   const week = stats.excluded_this_week || 0;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 16px', fontSize: 12.5, color: '#8a8577' }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c9d0dc', flexShrink: 0 }} />
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--hair)', flexShrink: 0 }} />
       <span>
         Excluded from these figures: {parts.join(' · ')}
         {week > 0 && <strong style={{ color: '#4a5462', fontWeight: 600 }}> ({week} this week)</strong>}
@@ -559,7 +560,7 @@ export default function MarketingDashboard({ onBack }) {
                 return (
                   <div key={s.period} title={title} style={{ flex: 1, height: '100%', position: 'relative', zIndex: 1 }}>
                     {compare && ghost > 0 && (
-                      <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: ghostW, height: `${(ghost / maxSeries) * 100}%`, background: '#c9d2e0', borderRadius: '4px 4px 0 0', opacity: 0.6 }} />
+                      <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: ghostW, height: `${(ghost / maxSeries) * 100}%`, background: 'var(--bd2)', borderRadius: '4px 4px 0 0', opacity: 0.6 }} />
                     )}
                     <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: barW, height: `${(cur / maxSeries) * 100}%`, background: navy, borderRadius: '4px 4px 0 0', minHeight: cur > 0 ? 2 : 0 }} />
                   </div>
@@ -627,7 +628,7 @@ export default function MarketingDashboard({ onBack }) {
                 style={{ display: 'flex', alignItems: 'center', padding: '10px 18px', borderTop: '1px solid #f0ede5', fontSize: 13.5,
                   background: excluded ? '#f6f4ee' : (hover ? '#f6f4ee' : undefined), color: excluded ? '#a09a8c' : undefined }}>
                 <div style={{ flex: 2.2, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: excluded ? '#a09a8c' : '#1a2540', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  <div style={{ fontWeight: 600, color: excluded ? 'var(--faint)' : 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                     title={r.organization || ''}>{r.organization || '—'}</div>
                   <div style={{ color: '#a09a8c', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
                 </div>
