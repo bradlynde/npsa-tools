@@ -7,7 +7,7 @@
  * time series, which is aggregated server-side and therefore uncapped.
  */
 
-export type Range = '30d' | '90d' | 'ytd';
+export type Range = '30d' | '90d' | 'ytd' | 'all';
 
 export type TimeseriesRow = {
   period: string; // YYYY-MM-DD, start of week
@@ -58,6 +58,7 @@ export const fetchBookings = () => get<BookingRow[]>('bookings');
 /** Inclusive lower bound for a range, relative to now. */
 export function rangeStart(range: Range): Date {
   const now = new Date();
+  if (range === 'all') return new Date(0);
   if (range === 'ytd') return new Date(now.getFullYear(), 0, 1);
   const days = range === '30d' ? 30 : 90;
   const d = new Date(now);
@@ -66,7 +67,9 @@ export function rangeStart(range: Range): Date {
 }
 
 /** The equivalent window immediately before `range`, for period-over-period deltas. */
-function priorWindow(range: Range): { from: Date; to: Date } {
+function priorWindow(range: Range): { from: Date; to: Date } | null {
+  // All-time has nothing before it to compare against.
+  if (range === 'all') return null;
   const to = rangeStart(range);
   const from = new Date(to);
   if (range === 'ytd') from.setFullYear(from.getFullYear() - 1);
@@ -104,8 +107,9 @@ export function totalsFor(rows: TimeseriesRow[], range: Range): Totals {
 }
 
 export function priorTotalsFor(rows: TimeseriesRow[], range: Range): Totals {
-  const { from, to } = priorWindow(range);
-  return sum(rows, from, to);
+  const w = priorWindow(range);
+  if (!w) return { ...EMPTY };
+  return sum(rows, w.from, w.to);
 }
 
 /** The last `count` weeks of the series, oldest → newest, padded if sparse. */
@@ -145,4 +149,29 @@ export const RANGE_WORD: Record<Range, string> = {
   '30d': 'last 30 days',
   '90d': 'last 90 days',
   ytd: 'year to date',
+  all: 'all time',
 };
+
+/** The bookings endpoint caps at 500 rows; used to flag possible truncation. */
+export const BOOKINGS_LIMIT = 500;
+
+const RANGE_KEY = 'npsa-range';
+const VALID: Range[] = ['30d', '90d', 'ytd', 'all'];
+
+export function loadRange(fallback: Range = '90d'): Range {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const v = localStorage.getItem(RANGE_KEY) as Range | null;
+    return v && VALID.includes(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveRange(range: Range): void {
+  try {
+    localStorage.setItem(RANGE_KEY, range);
+  } catch {
+    /* private mode — selection just won't persist */
+  }
+}

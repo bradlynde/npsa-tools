@@ -135,20 +135,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const apiUrl = authApiUrl;
     try {
       console.log("[Auth] Attempting login to:", `${apiUrl}/login`);
-      
+
       // Add timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
+
       try {
-        const response = await fetch(`${apiUrl}/login`, {
+        // Prefer the same-origin proxy (app/api/auth/login) — it sidesteps the
+        // auth service's CORS allowlist, which otherwise blocks every Vercel
+        // preview URL. If the proxy isn't there (older deploy) or can't reach
+        // the service, fall back to calling it directly, as before.
+        let response = await fetch("/api/auth/login", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password }),
           signal: controller.signal,
-        });
+        }).catch(() => null);
+
+        if (!response || response.status === 404 || response.status === 502) {
+          console.log("[Auth] Proxy unavailable, calling auth service directly");
+          response = await fetch(`${apiUrl}/login`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, password }),
+            signal: controller.signal,
+          });
+        }
 
         clearTimeout(timeoutId);
         console.log("Login response status:", response.status);

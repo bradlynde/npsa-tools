@@ -27,6 +27,9 @@ import {
   weekLabel,
   channelsInRange,
   RANGE_WORD,
+  BOOKINGS_LIMIT,
+  loadRange,
+  saveRange,
   type Range,
   type TimeseriesRow,
   type BookingRow,
@@ -47,6 +50,7 @@ const RANGES: { key: Range; label: string }[] = [
   { key: "30d", label: "30d" },
   { key: "90d", label: "90d" },
   { key: "ytd", label: "YTD" },
+  { key: "all", label: "All" },
 ];
 
 const todayLine = () =>
@@ -63,6 +67,13 @@ export default function DashboardPage() {
   const [mktLoading, setMktLoading] = useState(true);
 
   const [range, setRange] = useState<Range>("90d");
+
+  // Restore the last range used, then persist every change.
+  useEffect(() => setRange(loadRange("90d")), []);
+  const changeRange = (r: Range) => {
+    setRange(r);
+    saveRange(r);
+  };
   const [metric, setMetric] = useState<Metric>("booked");
   const [tip, setTip] = useState(-1);
 
@@ -131,6 +142,9 @@ export default function DashboardPage() {
   const prior = useMemo(() => priorTotalsFor(series, range), [series, range]);
   const weeks = useMemo(() => recentWeeks(series, 14), [series]);
   const channels = useMemo(() => channelsInRange(bookings, range), [bookings, range]);
+  // The bookings endpoint hard-caps its result set, so a full page may mean
+  // older bookings were dropped. Only relevant for the wider ranges.
+  const bookingsTruncated = bookings.length >= BOOKINGS_LIMIT;
 
   // Counters re-roll whenever the range changes.
   const roll = useRoll(range);
@@ -139,9 +153,12 @@ export default function DashboardPage() {
   const loeRate = totals.held ? Math.round((totals.loes / totals.held) * 100) : 0;
   const bookingDelta = totals.booked - prior.booked;
 
+  // "90d" reads fine inline; "all" needs spelling out.
+  const rangeTag = range === "all" ? "all time" : range;
+
   const stats = [
     {
-      label: `bookings · ${range}`,
+      label: `bookings · ${rangeTag}`,
       value: fmtInt(totals.booked * roll),
       note:
         prior.booked > 0
@@ -150,19 +167,19 @@ export default function DashboardPage() {
       accent: false,
     },
     {
-      label: `held rate · ${range}`,
+      label: `held rate · ${rangeTag}`,
       value: fmtPct(heldRate * roll),
       note: `${totals.held} of ${totals.booked} booked meetings`,
       accent: false,
     },
     {
-      label: `loes sent · ${range}`,
+      label: `loes sent · ${rangeTag}`,
       value: fmtInt(totals.loes * roll),
       note: totals.held ? `${loeRate}% of held meetings` : "no held meetings yet",
       accent: false,
     },
     {
-      label: `won revenue · ${range}`,
+      label: `won revenue · ${rangeTag}`,
       value: fmtMoney(totals.wonAmount * roll),
       note: `${totals.won} opportunities · attributed to bookings`,
       accent: true,
@@ -207,7 +224,7 @@ export default function DashboardPage() {
         <PageHeading eyebrow={`sales & marketing · ${todayLine()}`}>
           The business, <em>up front.</em>
         </PageHeading>
-        <SegPill options={RANGES} value={range} onChange={setRange} />
+        <SegPill options={RANGES} value={range} onChange={changeRange} />
       </div>
 
       {mktError && (
@@ -398,7 +415,14 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <Eyebrow style={{ marginBottom: 22 }}>bookings by channel — {RANGE_WORD[range]}</Eyebrow>
+          <Eyebrow style={{ marginBottom: bookingsTruncated ? 8 : 22 }}>
+            bookings by channel — {RANGE_WORD[range]}
+          </Eyebrow>
+          {bookingsTruncated && (
+            <div style={{ fontSize: 11.5, color: "var(--faint)", marginBottom: 16 }}>
+              Based on the most recent {BOOKINGS_LIMIT} bookings — older ones aren’t counted here.
+            </div>
+          )}
           {channels.length === 0 ? (
             <Note>{mktLoading ? "Loading…" : "No attributed bookings in this range."}</Note>
           ) : (

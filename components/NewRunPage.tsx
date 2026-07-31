@@ -42,30 +42,30 @@ export default function NewRunPage({ scraperType }: { scraperType: ScraperType }
       margin: "0 auto",
     }}>
       <Link
-        className="animate-in"
         href={`/${scraperType}`}
-        style={{ fontSize: 13, color: COLORS.textMuted, textDecoration: "none", marginBottom: 20, display: "inline-block" }}
+        className="animate-in mono"
+        style={{ fontSize: 11.5, letterSpacing: ".06em", color: "var(--mute)", textDecoration: "none", marginBottom: 20, display: "inline-block" }}
       >
-        &larr; Back to {labels.title}
+        &larr; back to scraper
       </Link>
 
       <div className="animate-in delay-1" style={{
-        background: COLORS.cardBg,
-        borderRadius: 12,
-        padding: "32px",
-        boxShadow: COLORS.cardShadow,
-        border: `1px solid ${COLORS.cardBorder}`,
+        background: "var(--card)",
+        borderRadius: 16,
+        padding: "28px 26px",
+        boxShadow: "var(--shadow-card)",
+        border: "1px solid var(--bd)",
       }}>
-        <div style={{ fontSize: 12, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600, marginBottom: 6 }}>
-          {labels.title}
+        <div className="mono" style={{ fontWeight: 500, fontSize: 12, letterSpacing: ".08em", color: "var(--olive)", marginBottom: 9 }}>
+          {labels.title.toLowerCase()}
         </div>
-        <h2 style={{ margin: "0 0 24px", fontSize: 20, fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>
-          Start New Run
+        <h2 className="headline" style={{ fontSize: 30, margin: "0 0 24px" }}>
+          Start a <em>new run.</em>
         </h2>
 
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 13, color: COLORS.textSecondary, display: "block", marginBottom: 6, fontWeight: 500 }}>
-            Select State
+          <label className="mono" style={{ fontWeight: 500, fontSize: 11, letterSpacing: ".07em", color: "var(--mute)", display: "block", marginBottom: 7 }}>
+            state
           </label>
           <select
             value={selectedState}
@@ -74,8 +74,8 @@ export default function NewRunPage({ scraperType }: { scraperType: ScraperType }
               width: "100%",
               padding: "10px 14px",
               fontSize: 14,
-              borderRadius: 8,
-              border: `1px solid ${COLORS.cardBorder}`,
+              borderRadius: 14,
+              border: "1px solid var(--bd2)",
               background: COLORS.cardBg,
               color: COLORS.textPrimary,
               outline: "none",
@@ -139,7 +139,7 @@ export default function NewRunPage({ scraperType }: { scraperType: ScraperType }
             padding: "12px",
             fontSize: 14,
             fontWeight: 600,
-            borderRadius: 8,
+            borderRadius: 999,
             border: "none",
             background: selectedState && !starting ? COLORS.accent : COLORS.track,
             color: selectedState && !starting ? COLORS.onAccent : COLORS.textMuted,
