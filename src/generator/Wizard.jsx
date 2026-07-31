@@ -2,16 +2,16 @@
  * The engagement-letter wizard shell.
  *
  * Owns navigation, progress and the fee bar; the steps themselves come from
- * steps.jsx and the controls from ui.jsx. The letter preview is passed in as a
- * node — this component never renders letter text, so client-facing wording
- * stays exactly where it was.
+ * steps.jsx and the controls from ui.jsx. It never renders letter text, so
+ * client-facing wording stays exactly where it was.
  *
- * On a phone the preview is hidden until the review step (see wizard.css),
- * which is why the review step carries it inline as well.
+ * Renders the form column only. App owns the .wz grid and keeps the letter
+ * preview as a sibling, so ~700 lines of letter markup never had to move. On a
+ * phone that column is hidden until the review step (see wizard.css).
  */
 
-import { useState } from "react";
-import { fmt, calcFees } from "./engine.js";
+import { useEffect } from "react";
+import { fmt, calcFees, totalMaxAward } from "./engine.js";
 import { RadioCards, Chips, Field } from "./ui.jsx";
 import { stepsFor } from "./steps.jsx";
 
@@ -72,7 +72,7 @@ function DocTypeStep({ docTab, onDocTab }) {
 
 /* ── review ──────────────────────────────────────────────────────────── */
 
-function ReviewStep({ form, docTab, fees, numLocs, preview }) {
+function ReviewStep({ form, docTab, fees, numLocs }) {
   const label = DOC_TYPES.find((d) => d.tab === docTab || (d.tabs || []).includes(docTab))?.label;
   const variant = docTab === "inh" ? "In-House" : docTab === "pre" ? "Third Party" : null;
 
@@ -110,26 +110,30 @@ function ReviewStep({ form, docTab, fees, numLocs, preview }) {
           </div>
         )}
       </div>
-      {/* Carried inline so the letter is reviewable on a phone, where the
-          side-by-side preview column is hidden. */}
-      {preview && <div className="wz-review-doc">{preview}</div>}
     </>
   );
 }
 
 /* ── shell ───────────────────────────────────────────────────────────── */
 
+/* Steps for a document type, including the picker that leads them. */
+export function stepsOf(docTab) {
+  return [{ id: "doc", title: "Engagement Type" }, ...stepsFor(docTab)];
+}
+
 export default function Wizard({
   docTab,
   onDocTab,
   form,
   setF,
-  preview,
+  step,
+  onStep,
+  onBack,
   onDownload,
   onSave,
   saveLabel = "Save Letter",
+  savedNote,
 }) {
-  const [i, setI] = useState(0);
 
   const numLocs = Math.max((form.locations || []).length, 1);
   const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope,
@@ -151,9 +155,24 @@ export default function Wizard({
       : docTab === "gw" ? flat(form.gwProfFee)
         : active;
 
-  const steps = [{ id: "doc", title: "Document" }, ...stepsFor(docTab)];
-  const clamped = Math.min(i, steps.length - 1);
-  const step = steps[clamped];
+  /*
+   * Award Implementation is priced at 5% of total maximum award. This lives in
+   * the shell rather than the Fees step so the bar is right from step one —
+   * mounted-only auto-fill left it showing a stale default until the rep
+   * happened to walk that far.
+   *
+   * loadLetter() sets postFeeTouched, so a saved letter is never repriced.
+   */
+  const postSuggested = Math.round(totalMaxAward(form.postPrograms, form.locations) * 0.05);
+  useEffect(() => {
+    if (docTab !== "post" || form.postFeeTouched || postSuggested <= 0) return;
+    const current = parseFloat(String(form.postFee).replace(/,/g, "")) || 0;
+    if (current !== postSuggested) setF("postFee", postSuggested.toLocaleString());
+  }, [docTab, postSuggested, form.postFeeTouched]);
+
+  const steps = stepsOf(docTab);
+  const clamped = Math.min(step, steps.length - 1);
+  const current = steps[clamped];
   const last = clamped === steps.length - 1;
 
   const ctx = { form, setF, fees: active, inhFees, numLocs, docTab };
@@ -162,12 +181,16 @@ export default function Wizard({
   // the picker rather than stranding the rep on an index that no longer exists.
   const changeDocTab = (t) => {
     onDocTab(t);
-    setI(0);
+    onStep(0);
   };
 
   return (
-    <div className={`wz${last ? " wz-review" : ""}`}>
-      <div className="wz-form">
+    <div className="wz-form">
+        {onBack && (
+          <button type="button" className="wz-back" onClick={onBack}>
+            &#8592; Dashboard
+          </button>
+        )}
         <div className="wz-card">
           <div className="wz-steps">
             {steps.map((s, n) => (
@@ -176,17 +199,17 @@ export default function Wizard({
             ))}
           </div>
           <div className="wz-caption">
-            Step {clamped + 1} of {steps.length} — {step.title}
+            Step {clamped + 1} of {steps.length} — {current.title}
           </div>
         </div>
 
         <div className="wz-card">
-          <h2 className="wz-h">{step.title}</h2>
-          {step.id === "doc" && <DocTypeStep docTab={docTab} onDocTab={changeDocTab} />}
-          {step.id === "review" && (
-            <ReviewStep form={form} docTab={docTab} fees={summary} numLocs={numLocs} preview={preview} />
+          <h2 className="wz-h">{current.title}</h2>
+          {current.id === "doc" && <DocTypeStep docTab={docTab} onDocTab={changeDocTab} />}
+          {current.id === "review" && (
+            <ReviewStep form={form} docTab={docTab} fees={summary} numLocs={numLocs} />
           )}
-          {step.render && step.render(ctx)}
+          {current.render && current.render(ctx)}
         </div>
 
         <div className="wz-bar">
@@ -206,7 +229,7 @@ export default function Wizard({
             )}
           </div>
 
-          <button type="button" className="wz-btn" disabled={clamped === 0} onClick={() => setI(clamped - 1)}>
+          <button type="button" className="wz-btn" disabled={clamped === 0} onClick={() => onStep(clamped - 1)}>
             Back
           </button>
 
@@ -222,14 +245,12 @@ export default function Wizard({
               </button>
             </>
           ) : (
-            <button type="button" className="wz-btn wz-btn-primary" onClick={() => setI(clamped + 1)}>
+            <button type="button" className="wz-btn wz-btn-primary" onClick={() => onStep(clamped + 1)}>
               Next →
             </button>
           )}
         </div>
-      </div>
-
-      <div className="wz-preview">{preview}</div>
+        {savedNote && <div className="wz-caption">{savedNote}</div>}
     </div>
   );
 }

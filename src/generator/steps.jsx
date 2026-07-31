@@ -11,7 +11,6 @@
  * rather than in a junk-drawer step at the end.
  */
 
-import { useEffect } from "react";
 import { fmt, totalMaxAward } from "./engine.js";
 import {
   Field, Text, Check, Chips, RadioCards,
@@ -127,17 +126,6 @@ function PostFee({ form, setF }) {
   const max = totalMaxAward(form.postPrograms, form.locations);
   const suggested = Math.round(max * 0.05);
   const touched = !!form.postFeeTouched;
-
-  // Auto-fill until the rep types their own number, and keep it current as
-  // locations and programs change.
-  //
-  // Requires loadLetter() to set postFeeTouched, otherwise opening a saved
-  // Award Implementation letter would recompute the fee it was signed at.
-  useEffect(() => {
-    if (touched || suggested <= 0) return;
-    const current = parseFloat(String(form.postFee).replace(/,/g, "")) || 0;
-    if (current !== suggested) setF("postFee", suggested.toLocaleString());
-  }, [suggested, touched]);
 
   const apply = () => {
     setF("postFee", suggested.toLocaleString());

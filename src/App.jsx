@@ -13,6 +13,8 @@ import {
   renderPreCallHtml,
 } from "./generator/templates.js";
 import { defaultForm, defaultPreCallForm } from "./generator/defaults.js";
+import Wizard, { stepsOf } from "./generator/Wizard.jsx";
+import "./generator/wizard.css";
 
 function useAI() {
   const [loading, setLoading] = useState(false);
@@ -105,11 +107,50 @@ export default function App() {
   const [pendingPrintAfterSave, setPendingPrintAfterSave] = useState(false);
   const [reps, setReps] = useState([]);
   const [currentLetterId, setCurrentLetterId] = useState(null);
+  const [wizStep, setWizStep] = useState(0);
   const [newRepName, setNewRepName] = useState('');
   const reviewIframeRef = useRef(null);
   const previewRef = useRef();
   const { polish, loading } = useAI();
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  /**
+   * Start a fresh letter of the given type.
+   *
+   * lastSavedSnapshot must be cleared too: it is what the print guard compares
+   * against to decide whether there are unsaved changes, and a stale snapshot
+   * that happens to match a fresh form would let a letter print without ever
+   * being saved.
+   */
+  const startNewLetter = (tab) => {
+    setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]});
+    setDocTab(tab);
+    setCurrentLetterId(null);
+    setSavedLetterOverride(null);
+    setLastSavedSnapshot(null);
+    setWizStep(0);
+    setAppView('generator');
+  };
+
+  // The last step is Review. On phones the preview column is hidden until then,
+  // so the rep still checks the letter before saving.
+  const wizIsReview = wizStep >= stepsOf(docTab).length - 1;
+
+  /**
+   * Switching document type forks to a new letter rather than editing the one
+   * on screen. A post-award letter is a second contract for the same client,
+   * not a revision of their pre-award one — and saving with currentLetterId
+   * still set would overwrite the original in place.
+   */
+  const switchDocType = (tab) => {
+    if (tab === docTab) return;
+    setDocTab(tab);
+    if (currentLetterId) {
+      setCurrentLetterId(null);
+      setSavedLetterOverride(null);
+      setLastSavedSnapshot(null);
+    }
+  };
   // Total applications = sum over programs of locations that include that program
   const programApps = (form.programs||[{key:"federal",year:"2026"}]).map(pg => ({
     ...pg,
@@ -148,13 +189,7 @@ export default function App() {
     const view = new URLSearchParams(window.location.search).get('view');
     if (!view) return;
 
-    const newDocument = (tab) => {
-      setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]});
-      setDocTab(tab);
-      setCurrentLetterId(null);
-      setSavedLetterOverride(null);
-      setAppView('generator');
-    };
+    const newDocument = startNewLetter;
 
     switch (view) {
       case 'settings':   setAppView('settings'); break;
@@ -840,13 +875,21 @@ export default function App() {
   const loadLetter = async (id) => {
     const letter = await fetch(`/api/letters/${id}`).then(r => r.json());
     // Always stamp today's date so a re-opened draft never goes out with a stale signing date
-    const stamped = {...letter.form_data, npsaSigningDate: new Date().toISOString().split('T')[0]};
+    // postFeeTouched pins the Award Implementation fee. Without it the wizard
+    // would recompute 5% of the current max award and silently reprice a letter
+    // that was already signed at a different figure.
+    const stamped = {
+      ...letter.form_data,
+      npsaSigningDate: new Date().toISOString().split('T')[0],
+      postFeeTouched: true,
+    };
     setForm(stamped);
     setDocTab(letter.doc_tab);
     setSavedLetterOverride(letter.saved_html || null);
     setCurrentLetterId(id);
     setLastSavedSnapshot(JSON.stringify({ form: stamped, savedLetterOverride: letter.saved_html || null, docTab: letter.doc_tab }));
     setShowLetterBrowser(false);
+    setWizStep(stepsOf(letter.doc_tab).length - 1);
     setAppView('generator');
   };
 
@@ -912,7 +955,7 @@ export default function App() {
 
             {/* Action cards */}
             <div style={{display:'flex',gap:18,marginBottom:18}}>
-              <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setDocTab('inh'); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
+              <div onClick={()=>startNewLetter('inh')}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -978,7 +1021,7 @@ export default function App() {
             {/* ── Proposals & Addendums ── */}
             <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginTop:34,marginBottom:14}}>Proposals &amp; Addendums</div>
             <div style={{display:'flex',gap:18,marginBottom:18}}>
-              <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setDocTab('proposal'); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
+              <div onClick={()=>startNewLetter('proposal')}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -990,7 +1033,7 @@ export default function App() {
                   <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>One-page leadership summary of scope &amp; price</div>
                 </div>
               </div>
-              <div onClick={()=>{ setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]}); setDocTab('addendum'); setCurrentLetterId(null); setSavedLetterOverride(null); setAppView('generator'); }}
+              <div onClick={()=>startNewLetter('addendum')}
                 style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(122,140,30,0.25)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -1373,962 +1416,23 @@ export default function App() {
 
       {/* ── GENERATOR ── */}
       {appView === 'generator' && (
-    <div style={{display:"flex",height:"100vh",fontFamily:'var(--font-sans)',background:"#fbfaf8"}}>
-      {/* ── SIDEBAR ── */}
-      <div style={{width:320,background:"#16202e",color:"#e8edf4",overflowY:"auto",padding:"20px 16px",flexShrink:0}}>
-        <button onClick={goBack}
-          style={{background:'none',border:'none',color:'#8796aa',fontSize:12,cursor:'pointer',padding:'0 0 14px',display:'flex',alignItems:'center',gap:5,fontFamily:'var(--font-sans)'}}>
-          &#8592; Dashboard
-        </button>
-        {SHARED_FIELDS.map((f2,i)=>{
-          if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>{f2.section}</div>;
-          return (
-            <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
-              <input value={form[f2.key]||""} onChange={e=>setF(f2.key, f2.formatFn ? f2.formatFn(e.target.value) : e.target.value)} placeholder={f2.placeholder||""}
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          );
-        })}
-        {/* Locations — shared across letter/proposal tabs (not GW or addendum) */}
-        {(!isGw&&!isAddendum)&&<>
-        <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Locations</div>
-        {(form.locations||[]).map((loc,idx)=>(
-          <div key={idx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 6px",marginBottom:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <span style={{fontSize:11,color:"#8796aa",fontWeight:700}}>Location {idx+1}{idx===0?" (Primary)":""}</span>
-              {idx>0&&<button onClick={()=>setF("locations",(form.locations||[]).filter((_,i)=>i!==idx))}
-                style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
-            </div>
-            {[{k:"name",ph:"Location / Site Name (optional)"},{k:"address",ph:"Street Address"},{k:"city",ph:"City"},{k:"state",ph:"State"},{k:"zip",ph:"ZIP"}].map(f2=>(
-              <div key={f2.k} style={{marginBottom:6}}>
-                <input value={loc[f2.k]||""} placeholder={f2.ph}
-                  onChange={e=>{
-                    const updated=[...(form.locations||[])];
-                    updated[idx]={...updated[idx],[f2.k]:e.target.value};
-                    setF("locations",updated);
-                  }}
-                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-            ))}
-            {(isPre||isInh||isProposal)&&(form.programs||[]).length>0&&<>
-              <div style={{fontSize:10,color:"#8796aa",marginTop:6,marginBottom:4}}>Applies to:</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:4}}>
-                {(form.programs||[]).map(pg=>{
-                  const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
-                  const checked=(loc.programs||["federal"]).includes(pg.key);
-                  return (
-                    <button key={pg.key} onClick={()=>{
-                      const updated=[...(form.locations||[])];
-                      const cur=updated[idx].programs||["federal"];
-                      updated[idx]={...updated[idx],programs:checked?cur.filter(k=>k!==pg.key):[...cur,pg.key]};
-                      setF("locations",updated);
-                    }} style={{fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid",cursor:"pointer",
-                      background:checked?"#1e3a5f":"#1f2a3a",
-                      borderColor:checked?"#4a8bc4":"#2b3a4d",
-                      color:checked?"#fff":"#8796aa"}}>
-                      {cfg.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </>}
-          </div>
-        ))}
-        <button onClick={()=>setF("locations",[...(form.locations||[]),{name:"",address:"",city:"",state:"",zip:"",programs:(form.programs||[]).map(p=>p.key)}])}
-          style={{width:"100%",background:"#1f2a3a",border:"1px dashed #33415a",borderRadius:6,padding:"7px 0",fontSize:11,color:"#4a8bc4",cursor:"pointer",marginBottom:14}}>
-          + Add Location
-        </button>
-        </>}
-        {/* Engagement Variant selector — In-House (inh) = NPSA writes; Third Party (pre) = outside writer */}
-        {(isPre||isInh)&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Engagement Variant</div>
-          <select value={docTab} onChange={e=>setDocTab(e.target.value)}
-            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:6,outline:"none"}}>
-            <option value="inh">In-House Grant Writing</option>
-            <option value="pre">Third Party Grant Writing</option>
-          </select>
-          <div style={{fontSize:10,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>{isInh?"NPSA manages grant writing, application preparation & submission.":"An outside grant writer prepares the applications; NPSA provides advisory & compliance support."}</div>
-        </>}
-        {/* Pre-award specific — shared by Proposal (proposal is a view of pre-award data) */}
-        {(isPre||isProposal)&&<>
-          {isProposal&&<>
-            <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Proposal Options</div>
-            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Service Model</label>
-            <select value={form.proposalServiceModel||"inhouse"} onChange={e=>setF("proposalServiceModel",e.target.value)}
-              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:6,outline:"none"}}>
-              <option value="inhouse">Grant Writing — Pre-Award &amp; Compliance</option>
-              <option value="full">Full-Service — Pre-Award, Compliance &amp; Implementation</option>
-            </select>
-            <div style={{fontSize:10,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>{form.proposalServiceModel==="full"?"Includes Award Implementation, billed as a percentage-based fee post-award.":"Implementation is presented as optional, under a separate agreement."}</div>
-            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:4}}>Grant Writing Model</label>
-            <div style={{display:"flex",gap:6,marginBottom:4}}>
-              {[{val:"inh",label:"In-House Grant Writer"},{val:"pre",label:"Third-Party Grant Writer"}].map(opt=>(
-                <button key={opt.val} onClick={()=>setF("proposalFeeModel",opt.val)}
-                  style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid",fontSize:11,fontWeight:700,cursor:"pointer",
-                    background:form.proposalFeeModel===opt.val?"#1e3a5f":"#1f2a3a",
-                    borderColor:form.proposalFeeModel===opt.val?"#4a8bc4":"#2b3a4d",
-                    color:form.proposalFeeModel===opt.val?"#fff":"#8796aa"}}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div style={{fontSize:10,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>
-              {form.proposalFeeModel==="inh"?"NPSA manages grant writing, application preparation &amp; submission. (~$11K/location)":"An independent grant writer prepares the applications; NPSA provides advisory &amp; compliance support. (~$4K/location)"}
-            </div>
-          </>}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Programs</div>
-          {(form.programs||[]).map((pg,pgIdx)=>{
-            const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
-            return (
-              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
-                  {(form.programs||[]).length>1&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
-                </div>
-                <div style={{marginBottom:6}}>
-                  <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
-                  <input value={pg.year||"2026"} onChange={e=>{
-                    const updated=[...(form.programs||[])];
-                    updated[pgIdx]={...updated[pgIdx],year:e.target.value};
-                    setF("programs",updated);
-                  }} placeholder="2026"
-                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
-                </div>
-                <div style={{fontSize:10,color:"#8796aa",marginBottom:3}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
-                <div style={{fontSize:10,color:"#8796aa"}}>Applications: <span style={{color:"#fff",fontWeight:700}}>{(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length}</span></div>
-              </div>
-            );
-          })}
-          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-            {Object.entries(PROGRAMS).filter(([k])=>!(form.programs||[]).some(p=>p.key===k)).map(([k,cfg])=>(
-              <button key={k} onClick={()=>{
-                setF("programs",[...(form.programs||[]),{key:k,year:form.grantYear||"2026"}]);
-              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
-                + {cfg.label}
-              </button>
-            ))}
-          </div>
-          {/* Fee Calculator — switches between regular and in-house model for proposals */}
-          {isProposal&&form.proposalFeeModel==="inh" ? <>
-            <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Fee Calculator (In-House Model)</div>
-            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:10,cursor:"pointer"}}>
-              <input type="checkbox" checked={form.inhEngagementModel==="inh-partial-contingency"} onChange={e=>setF("inhEngagementModel",e.target.checked?"inh-partial-contingency":"inh-pre-only")} style={{accentColor:"#6b8e23"}}/>
-              Partial Contingency
-            </label>
-            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Pricing Tier</label>
-            <select value={form.inhPricingTier} onChange={e=>setF("inhPricingTier",e.target.value)}
-              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:10,outline:"none"}}>
-              {Object.entries(TIER_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-            </select>
-            {form.inhPricingTier==="custom"&&(
-              <div style={{marginBottom:10,marginTop:-4}}>
-                <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
-                <input value={form.inhCustomFee||""} onChange={e=>setF("inhCustomFee",e.target.value)} placeholder="e.g. 11,000"
-                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-            )}
-            {form.inhEngagementModel==="inh-partial-contingency"&&(
-              <div style={{marginBottom:10,marginTop:-4}}>
-                <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
-                <input value={form.inhCustomContingencyFee||""} onChange={e=>setF("inhCustomContingencyFee",e.target.value)} placeholder="e.g. 3,500"
-                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-            )}
-            <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#4a8bc4",marginBottom:8}}>Fee Summary</div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-                <span>Upfront Fee</span><span style={{color:"#fff",fontWeight:600}}>{form.inhPricingTier==="discounted"&&inhFees.discount>0?<><span style={{textDecoration:"line-through",color:"#666",marginRight:6}}>{fmt(inhFees.baseUpfront)}</span>{fmt(inhFees.upfront)}</>:fmt(inhFees.upfront)}</span>
-              </div>
-              {form.inhPricingTier==="discounted"&&inhFees.discount>0&&(
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8bd6d",marginBottom:4}}>
-                  <span>Early Signing Discount</span><span style={{fontWeight:600}}>−{fmt(inhFees.discount)}</span>
-                </div>
-              )}
-              {inhFees.contingent!==null&&(
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-                  <span>Contingent Fee (on award)</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.contingent)}</span>
-                </div>
-              )}
-              <div style={{borderTop:"1px solid #2b3a4d",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
-                <span style={{color:"#6b8e23"}}>Total</span><span style={{color:"#6b8e23"}}>{fmt(inhFees.total)}</span>
-              </div>
-            </div>
-            {form.inhPricingTier==="discounted"&&(
-              <div style={{background:"#33260a",border:"1px solid #e8bd6d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8bd6d",marginBottom:10}}>Early Signing Discount</div>
-                <div style={{marginBottom:8}}>
-                  <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Sign-By Date</label>
-                  <input value={form.inhEarlySigningDate} onChange={e=>setF("inhEarlySigningDate",e.target.value)} placeholder="March 15, 2026"
-                    style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                </div>
-                <div>
-                  <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Discount Amount ($)</label>
-                  <input value={form.inhEarlySigningAmount} onChange={e=>setF("inhEarlySigningAmount",e.target.value)} placeholder="1,500"
-                    style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                </div>
-                {inhFees.discount>0&&<div style={{fontSize:11,color:"#e8bd6d",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(inhFees.upfront)} (saves {fmt(inhFees.discount)})</div>}
-              </div>
-            )}
-          </> : <>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Fee Calculator</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.engagementModel==="partial-contingency"} onChange={e=>setF("engagementModel",e.target.checked?"partial-contingency":"pre-only")} style={{accentColor:"#6b8e23"}}/>
-            Partial Contingency
-          </label>
-          <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Pricing Tier</label>
-          <select value={form.pricingTier} onChange={e=>setF("pricingTier",e.target.value)}
-            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:10,outline:"none"}}>
-            {Object.entries(TIER_LABELS).filter(([k])=>k!=="max").map(([k,v])=><option key={k} value={k}>{v}</option>)}
-          </select>
-          {form.pricingTier==="custom"&&(
-            <div style={{marginBottom:10,marginTop:-4,paddingLeft:0}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
-              <input value={form.customFee||""} onChange={e=>setF("customFee",e.target.value)} placeholder="e.g. 5,000"
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          )}
-          {form.engagementModel==="partial-contingency"&&(
-            <div style={{marginBottom:10,marginTop:-4}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
-              <input value={form.customContingencyFee||""} onChange={e=>setF("customContingencyFee",e.target.value)} placeholder="e.g. 3,500"
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          )}
-          {/* Fee summary card */}
-          <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#4a8bc4",marginBottom:8}}>Fee Summary</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-              <span>Upfront Fee</span><span style={{color:"#fff",fontWeight:600}}>{form.pricingTier==="discounted"&&fees.discount>0?<><span style={{textDecoration:"line-through",color:"#666",marginRight:6}}>{fmt(fees.baseUpfront)}</span>{fmt(fees.upfront)}</>:fmt(fees.upfront)}</span>
-            </div>
-            {form.pricingTier==="discounted"&&fees.discount>0&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8bd6d",marginBottom:4}}>
-                <span>Early Signing Discount</span><span style={{fontWeight:600}}>−{fmt(fees.discount)}</span>
-              </div>
-            )}
-            {fees.contingent!==null&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-                <span>Contingent Fee (on award)</span><span style={{color:"#fff",fontWeight:600}}>{fmt(fees.contingent)}</span>
-              </div>
-            )}
-            {form.optPostAwardScope&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-                <span>Compliance Consulting Fee{numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(fees.postAward)}</span>
-              </div>
-            )}
-            <div style={{borderTop:"1px solid #2b3a4d",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
-              <span style={{color:"#6b8e23"}}>Total</span><span style={{color:"#6b8e23"}}>{fmt(fees.total)}</span>
-            </div>
-          </div>
-          {form.pricingTier==="discounted"&&(
-            <div style={{background:"#33260a",border:"1px solid #e8bd6d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8bd6d",marginBottom:10}}>Early Signing Discount</div>
-              <div style={{marginBottom:8}}>
-                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Sign-By Date</label>
-                <input value={form.earlySigningDate} onChange={e=>setF("earlySigningDate",e.target.value)} placeholder="March 15, 2026"
-                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-              <div>
-                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Discount Amount ($)</label>
-                <input value={form.earlySigningAmount} onChange={e=>setF("earlySigningAmount",e.target.value)} placeholder="500"
-                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-              {fees.discount>0&&<div style={{fontSize:11,color:"#e8bd6d",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(fees.upfront)} (saves {fmt(fees.discount)})</div>}
-            </div>
-          )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.optPostAwardScope?4:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.optPostAwardScope} onChange={e=>setF("optPostAwardScope",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-            Compliance Consulting
-          </label>
-          {form.optPostAwardScope&&(
-            <div style={{marginBottom:10,marginTop:0,paddingLeft:22}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Compliance Consulting Fee ($)</label>
-              <input value={form.postAwardFee||""} onChange={e=>setF("postAwardFee",e.target.value)} placeholder="0"
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.installments?10:14,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.installments} onChange={e=>setF("installments",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-            Allow installment payments
-          </label>
-          {form.installments&&(
-            <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#6b8e23",marginBottom:10}}>Installment Schedule</div>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:4}}>Number of Payments</label>
-              <div style={{display:"flex",gap:6,marginBottom:12}}>
-                {[2,3].map(n=>(
-                  <button key={n} onClick={()=>setF("installmentCount",n)}
-                    style={{flex:1,padding:"7px 0",borderRadius:6,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
-                      background:form.installmentCount===n?"#1e3a5f":"#1f2a3a",
-                      borderColor:form.installmentCount===n?"#4a8bc4":"#2b3a4d",
-                      color:form.installmentCount===n?"#fff":"#8796aa"}}>
-                    {n} Payments
-                  </button>
-                ))}
-              </div>
-              {[
-                {pctKey:"installment1Pct",labelKey:"installment1Label",num:1},
-                {pctKey:"installment2Pct",labelKey:"installment2Label",num:2},
-                {pctKey:"installment3Pct",labelKey:"installment3Label",num:3,cond:form.installmentCount>=3},
-              ].filter(r=>r.cond!==false).map(row=>{
-                const pct = parseFloat(form[row.pctKey]) || 0;
-                const amt = Math.round(fees.upfront * pct / 100);
-                return (
-                  <div key={row.num} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e3050"}}>
-                    <div style={{fontSize:10,color:"#4a8bc4",fontWeight:700,marginBottom:5}}>Payment {row.num}</div>
-                    <div style={{display:"flex",gap:6,marginBottom:5}}>
-                      <div style={{flex:"0 0 70px"}}>
-                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>%</label>
-                        <input value={form[row.pctKey]} onChange={e=>setF(row.pctKey,e.target.value)} placeholder="50"
-                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                      </div>
-                      <div style={{flex:1}}>
-                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>Due When</label>
-                        <input value={form[row.labelKey]} onChange={e=>setF(row.labelKey,e.target.value)} placeholder="upon execution"
-                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                      </div>
-                    </div>
-                    {fees.upfront>0&&pct>0&&<div style={{fontSize:10,color:"#a8c860"}}>= {fmt(amt)}</div>}
-                  </div>
-                );
-              })}
-              {fees.upfront>0&&(()=>{
-                const total = [form.installment1Pct,form.installment2Pct,form.installmentCount>=3?form.installment3Pct:"0"].slice(0,form.installmentCount).reduce((s,v)=>s+(parseFloat(v)||0),0);
-                const ok = Math.abs(total-100)<0.01;
-                return <div style={{fontSize:11,fontWeight:700,color:ok?"#a8c860":"#f0a08c",marginTop:4}}>{ok?"Percentages total 100%":`Total: ${total}% (must equal 100%)`}</div>;
-              })()}
-            </div>
-          )}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Guarantees</div>
-          {[{key:"optNofo",label:"No NOFO"},{key:"optStateSwitch",label:"State NSGP Switch Option"}].map(o=>(
-            <label key={o.key} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
-              <input type="checkbox" checked={form[o.key]} onChange={e=>setF(o.key,e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-              {o.label}
-            </label>
-          ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Clauses</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.optShortNotice} onChange={e=>setF("optShortNotice",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-            Short-notice application
-          </label>
-          </>}
-        </>}
-        {/* In-House Pre-Award specific */}
-        {isInh&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Programs</div>
-          {(form.programs||[]).map((pg,pgIdx)=>{
-            const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
-            return (
-              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
-                  {(form.programs||[]).length>1&&<button onClick={()=>setF("programs",(form.programs||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
-                </div>
-                <div style={{marginBottom:6}}>
-                  <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
-                  <input value={pg.year||"2026"} onChange={e=>{
-                    const updated=[...(form.programs||[])];
-                    updated[pgIdx]={...updated[pgIdx],year:e.target.value};
-                    setF("programs",updated);
-                  }} placeholder="2026"
-                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
-                </div>
-                <div style={{fontSize:10,color:"#8796aa",marginBottom:3}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
-                <div style={{fontSize:10,color:"#8796aa"}}>Applications: <span style={{color:"#fff",fontWeight:700}}>{(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length}</span></div>
-              </div>
-            );
-          })}
-          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-            {Object.entries(PROGRAMS).filter(([k])=>!(form.programs||[]).some(p=>p.key===k)).map(([k,cfg])=>(
-              <button key={k} onClick={()=>setF("programs",[...(form.programs||[]),{key:k,year:form.grantYear||"2026"}])}
-                style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
-                + {cfg.label}
-              </button>
-            ))}
-          </div>
-          {/* In-House Fee Calculator */}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Fee Calculator</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhEngagementModel==="inh-partial-contingency"} onChange={e=>setF("inhEngagementModel",e.target.checked?"inh-partial-contingency":"inh-pre-only")} style={{accentColor:"#6b8e23"}}/>
-            Partial Contingency
-          </label>
-          <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Pricing Tier</label>
-          <select value={form.inhPricingTier} onChange={e=>setF("inhPricingTier",e.target.value)}
-            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,marginBottom:10,outline:"none"}}>
-            {Object.entries(TIER_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-          </select>
-          {form.inhPricingTier==="custom"&&(
-            <div style={{marginBottom:10,marginTop:-4}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Custom Fee Amount ($)</label>
-              <input value={form.inhCustomFee||""} onChange={e=>setF("inhCustomFee",e.target.value)} placeholder="e.g. 5,000"
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          )}
-          {form.inhEngagementModel==="inh-partial-contingency"&&(
-            <div style={{marginBottom:10,marginTop:-4}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Contingency Fee ($)</label>
-              <input value={form.inhCustomContingencyFee||""} onChange={e=>setF("inhCustomContingencyFee",e.target.value)} placeholder="e.g. 3,500"
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #4a8bc4",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          )}
-          {/* In-House Fee summary card */}
-          <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#4a8bc4",marginBottom:8}}>Fee Summary</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-              <span>Upfront Fee</span><span style={{color:"#fff",fontWeight:600}}>{form.inhPricingTier==="discounted"&&inhFees.discount>0?<><span style={{textDecoration:"line-through",color:"#666",marginRight:6}}>{fmt(inhFees.baseUpfront)}</span>{fmt(inhFees.upfront)}</>:fmt(inhFees.upfront)}</span>
-            </div>
-            {form.inhPricingTier==="discounted"&&inhFees.discount>0&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#e8bd6d",marginBottom:4}}>
-                <span>Early Signing Discount</span><span style={{fontWeight:600}}>−{fmt(inhFees.discount)}</span>
-              </div>
-            )}
-            {inhFees.contingent!==null&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-                <span>Contingent Fee (on award)</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.contingent)}</span>
-              </div>
-            )}
-            {form.inhOptPostAwardScope&&(
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#a7b4c6",marginBottom:4}}>
-                <span>Compliance Consulting Fee{numLocs>1?` ×${numLocs}`:""}</span><span style={{color:"#fff",fontWeight:600}}>{fmt(inhFees.postAward)}</span>
-              </div>
-            )}
-            <div style={{borderTop:"1px solid #2b3a4d",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}>
-              <span style={{color:"#6b8e23"}}>Total</span><span style={{color:"#6b8e23"}}>{fmt(inhFees.total)}</span>
-            </div>
-          </div>
-          {form.inhPricingTier==="discounted"&&(
-            <div style={{background:"#33260a",border:"1px solid #e8bd6d",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#e8bd6d",marginBottom:10}}>Early Signing Discount</div>
-              <div style={{marginBottom:8}}>
-                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Sign-By Date</label>
-                <input value={form.inhEarlySigningDate} onChange={e=>setF("inhEarlySigningDate",e.target.value)} placeholder="March 15, 2026"
-                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-              <div>
-                <label style={{fontSize:11,color:"#c9a227",display:"block",marginBottom:2}}>Discount Amount ($)</label>
-                <input value={form.inhEarlySigningAmount} onChange={e=>setF("inhEarlySigningAmount",e.target.value)} placeholder="1,500"
-                  style={{width:"100%",background:"#33260a",border:"1px solid #e8bd6d",borderRadius:6,padding:"6px 10px",color:"#fbf3e2",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-              {inhFees.discount>0&&<div style={{fontSize:11,color:"#e8bd6d",marginTop:8,fontWeight:700}}>Discounted fee: {fmt(inhFees.upfront)} (saves {fmt(inhFees.discount)})</div>}
-            </div>
-          )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.inhOptPostAwardScope?4:10,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhOptPostAwardScope} onChange={e=>setF("inhOptPostAwardScope",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-            Compliance Consulting
-          </label>
-          {form.inhOptPostAwardScope&&(
-            <div style={{marginBottom:10,marginTop:0,paddingLeft:22}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Compliance Consulting Fee ($)</label>
-              <input value={form.inhPostAwardFee||""} onChange={e=>setF("inhPostAwardFee",e.target.value)} placeholder="0"
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          )}
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:form.inhInstallments?10:14,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhInstallments} onChange={e=>setF("inhInstallments",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-            Allow installment payments
-          </label>
-          {form.inhInstallments&&(
-            <div style={{background:"#111a24",border:"1px solid #2b3a4d",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#6b8e23",marginBottom:10}}>Installment Schedule</div>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:4}}>Number of Payments</label>
-              <div style={{display:"flex",gap:6,marginBottom:12}}>
-                {[2,3].map(n=>(
-                  <button key={n} onClick={()=>setF("inhInstallmentCount",n)}
-                    style={{flex:1,padding:"7px 0",borderRadius:6,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
-                      background:form.inhInstallmentCount===n?"#1e3a5f":"#1f2a3a",
-                      borderColor:form.inhInstallmentCount===n?"#4a8bc4":"#2b3a4d",
-                      color:form.inhInstallmentCount===n?"#fff":"#8796aa"}}>
-                    {n} Payments
-                  </button>
-                ))}
-              </div>
-              {[
-                {pctKey:"inhInstallment1Pct",labelKey:"inhInstallment1Label",num:1},
-                {pctKey:"inhInstallment2Pct",labelKey:"inhInstallment2Label",num:2},
-                {pctKey:"inhInstallment3Pct",labelKey:"inhInstallment3Label",num:3,cond:form.inhInstallmentCount>=3},
-              ].filter(r=>r.cond!==false).map(row=>{
-                const pct = parseFloat(form[row.pctKey]) || 0;
-                const amt = Math.round(inhFees.upfront * pct / 100);
-                return (
-                  <div key={row.num} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e3050"}}>
-                    <div style={{fontSize:10,color:"#4a8bc4",fontWeight:700,marginBottom:5}}>Payment {row.num}</div>
-                    <div style={{display:"flex",gap:6,marginBottom:5}}>
-                      <div style={{flex:"0 0 70px"}}>
-                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>%</label>
-                        <input value={form[row.pctKey]} onChange={e=>setF(row.pctKey,e.target.value)} placeholder="50"
-                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                      </div>
-                      <div style={{flex:1}}>
-                        <label style={{fontSize:10,color:"#a09a8c",display:"block",marginBottom:2}}>Due When</label>
-                        <input value={form[row.labelKey]} onChange={e=>setF(row.labelKey,e.target.value)} placeholder="upon execution"
-                          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                      </div>
-                    </div>
-                    {inhFees.upfront>0&&pct>0&&<div style={{fontSize:10,color:"#a8c860"}}>= {fmt(amt)}</div>}
-                  </div>
-                );
-              })}
-              {inhFees.upfront>0&&(()=>{
-                const total = [form.inhInstallment1Pct,form.inhInstallment2Pct,form.inhInstallmentCount>=3?form.inhInstallment3Pct:"0"].slice(0,form.inhInstallmentCount).reduce((s,v)=>s+(parseFloat(v)||0),0);
-                const ok = Math.abs(total-100)<0.01;
-                return <div style={{fontSize:11,fontWeight:700,color:ok?"#a8c860":"#f0a08c",marginTop:4}}>{ok?"Percentages total 100%":`Total: ${total}% (must equal 100%)`}</div>;
-              })()}
-            </div>
-          )}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Guarantees</div>
-          {[{key:"inhOptNofo",label:"No NOFO"},{key:"inhOptStateSwitch",label:"State NSGP Switch Option"}].map(o=>(
-            <label key={o.key} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
-              <input type="checkbox" checked={form[o.key]} onChange={e=>setF(o.key,e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-              {o.label}
-            </label>
-          ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Optional Clauses</div>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a7b4c6",marginBottom:9,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.inhOptShortNotice} onChange={e=>setF("inhOptShortNotice",e.target.checked)} style={{accentColor:"#6b8e23"}}/>
-            Short-notice application
-          </label>
-        </>}
-        {/* Post-award grant program selector */}
-        {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Programs</div>
-          {postPrograms.map((pg,pgIdx)=>{
-            const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
-            return (
-              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 12px",marginBottom:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
-                  {postPrograms.length>1&&<button onClick={()=>setF("postPrograms",postPrograms.filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#e05050",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>×</button>}
-                </div>
-                <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Award Year</label>
-                <input value={pg.year||String(new Date().getFullYear())} onChange={e=>{
-                  const updated=[...postPrograms];
-                  updated[pgIdx]={...updated[pgIdx],year:e.target.value};
-                  setF("postPrograms",updated);
-                }} style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:4,padding:"5px 8px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-                <div style={{fontSize:10,color:"#8796aa",marginTop:4}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
-              </div>
-            );
-          })}
-          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
-            {Object.entries(PROGRAMS).filter(([k])=>!postPrograms.some(p=>p.key===k)).map(([k,cfg])=>(
-              <button key={k} onClick={()=>setF("postPrograms",[...postPrograms,{key:k,year:postPrograms[0]?.year||String(new Date().getFullYear())}])}
-                style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
-                + {cfg.label}
-              </button>
-            ))}
-          </div>
-        </>}
-        {/* Post-award fields */}
-        {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&POST_FIELDS.map((f2,i)=>{
-          if(f2.section) return <div key={i} style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>{f2.section}</div>;
-          return (
-            <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
-              {f2.type==="select"
-                ? <select value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)}
-                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}>
-                    {f2.options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                : <input type={f2.type||"text"} value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder||""}
-                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none",colorScheme:"dark"}}/>
-              }
-            </div>
-          );
-        })}
-        {/* Post-award: Reimbursement Option A/B */}
-        {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&(
-          <>
-            <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Reimbursement Expectation</div>
-            {!form.postReimbursementOption&&(
-              <div style={{fontSize:11,color:"#f0a08c",marginBottom:8}}>⚠ Rep must select Option A or Option B</div>
-            )}
-            {[
-              {val:"optionA", label:"Option A — Reimbursement Expected", desc:"M&A fees may be reimbursed through grant funds (timing may differ)"},
-              {val:"optionB", label:"Option B — No Grant Reimbursement", desc:"M&A fees are not reimbursable through grant proceeds"},
-            ].map(opt=>(
-              <label key={opt.val} onClick={()=>setF("postReimbursementOption",opt.val)}
-                style={{display:"flex",alignItems:"flex-start",gap:10,fontSize:12,color:form.postReimbursementOption===opt.val?"#fff":"#a7b4c6",marginBottom:8,cursor:"pointer",background:form.postReimbursementOption===opt.val?"#1e3a5f":"#1a2540",border:`1px solid ${form.postReimbursementOption===opt.val?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"8px 10px"}}>
-                <input type="radio" name="postReimbursementOption" value={opt.val} checked={form.postReimbursementOption===opt.val} onChange={()=>setF("postReimbursementOption",opt.val)} style={{accentColor:"#4a8bc4",marginTop:3,flexShrink:0}}/>
-                <div>
-                  <div style={{fontWeight:700}}>{opt.label}</div>
-                  <div style={{fontSize:10,color:"#8796aa",marginTop:2}}>{opt.desc}</div>
-                </div>
-              </label>
-            ))}
-          </>
-        )}
-        {/* Grant Writer sidebar fields */}
-        {isGw&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:4,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Writer</div>
-          {[{key:"gwRecipientName",label:"Grant Writer Name",placeholder:"Name"},{key:"gwRecipientEmail",label:"Grant Writer Email",placeholder:"email@example.com"},{key:"gwOrgName",label:"Organization",placeholder:"Organization"}].map(f2=>(
-            <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
-              <input value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder}
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Grant Program(s)</div>
-          {(form.gwPrograms||[]).map((pg,pgIdx)=>{
-            const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
-            return (
-              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
-                  {(form.gwPrograms||[]).length>1&&<button onClick={()=>setF("gwPrograms",(form.gwPrograms||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
-                </div>
-                <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
-                <input value={pg.year||""} onChange={e=>{
-                  const updated=[...(form.gwPrograms||[])];
-                  updated[pgIdx]={...updated[pgIdx],year:e.target.value};
-                  setF("gwPrograms",updated);
-                }} placeholder="2026"
-                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
-                <div style={{fontSize:10,color:"#8796aa",marginTop:5}}>Max Award: <span style={{color:"#6b8e23"}}>${cfg.maxAward}</span></div>
-              </div>
-            );
-          })}
-          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-            {Object.entries(PROGRAMS).filter(([k])=>!(form.gwPrograms||[]).some(p=>p.key===k)).map(([k,cfg])=>(
-              <button key={k} onClick={()=>{
-                setF("gwPrograms",[...(form.gwPrograms||[]),{key:k,year:(form.gwPrograms||[])[0]?.year||"2026"}]);
-              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
-                + {cfg.label}
-              </button>
-            ))}
-          </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Requesting NPSA Consultant</div>
-          <div style={{fontSize:11,color:"#a09a8c",marginBottom:6}}>Select consultant</div>
-          <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
-            {[
-              {name:"Brad Lynde",     email:"brad@lyndeconsulting.com",           phone:"815-255-9556"},
-              {name:"Chad Burgess",   email:"chad@nonprofitsecurityadvisors.com",  phone:"815-287-9339"},
-              {name:"Josh Ullrich",   email:"josh@nonprofitsecurityadvisors.com",  phone:"815-608-3131"},
-              {name:"Steven Timlick", email:"steven@nonprofitsecurityadvisors.com",phone:"815-255-9141"},
-              {name:"Stuart Reese",   email:"stuart@nonprofitsecurityadvisors.com",phone:"815-550-5222"},
-            ].map(rep=>{
-              const active = form.npsa1Name===rep.name;
-              return (
-                <button key={rep.name} onClick={()=>{
-                  setF("npsa1Name", rep.name);
-                  setF("npsa1Email", rep.email);
-                  setF("npsa1Phone", rep.phone);
-                }}
-                  style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
-                  <span style={{fontWeight:active?700:400}}>{rep.name}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>CC Contacts</div>
-          {(form.gwCcContacts||[]).map((cc,idx)=>(
-            <div key={idx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 6px",marginBottom:8}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={{fontSize:11,color:"#8796aa",fontWeight:700}}>Contact {idx+1}</span>
-                <button onClick={()=>setF("gwCcContacts",(form.gwCcContacts||[]).filter((_,i)=>i!==idx))}
-                  style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>
-              </div>
-              {[{k:"name",ph:"Name"},{k:"title",ph:"Title"},{k:"phone",ph:"Phone"},{k:"email",ph:"Email"}].map(f2=>(
-                <div key={f2.k} style={{marginBottom:6}}>
-                  <input value={cc[f2.k]||""} placeholder={f2.ph}
-                    onChange={e=>{
-                      const updated=[...(form.gwCcContacts||[])];
-                      updated[idx]={...updated[idx],[f2.k]:e.target.value};
-                      setF("gwCcContacts",updated);
-                    }}
-                    style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
-                </div>
-              ))}
-            </div>
-          ))}
-          <button onClick={()=>setF("gwCcContacts",[...(form.gwCcContacts||[]),{name:"",title:"",phone:"",email:""}])}
-            style={{width:"100%",background:"#1f2a3a",border:"1px dashed #33415a",borderRadius:6,padding:"7px 0",fontSize:11,color:"#4a8bc4",cursor:"pointer",marginBottom:14}}>
-            + Add CC Contact
-          </button>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Additional Meeting Attendees</div>
-          <div style={{fontSize:11,color:"#8796aa",marginBottom:8,lineHeight:1.5}}>
-            Organization contacts are auto-populated from above (primary contact + all CC contacts).
-          </div>
-          {(()=>{
-            const orgAttendees = [
-              form.contactName ? {name:form.contactName, email:form.contactEmail} : null,
-              ...(form.gwCcContacts||[]).filter(c=>c.name).map(c=>({name:c.name,email:c.email})),
-            ].filter(Boolean);
-            if(!orgAttendees.length) return <div style={{fontSize:11,color:"#8796aa",fontStyle:"italic",marginBottom:10}}>Fill in client info above to see attendees here.</div>;
-            return <div style={{background:"#111d33",borderRadius:6,padding:"8px 10px",marginBottom:10}}>
-              {orgAttendees.map((a,i)=>(
-                <div key={i} style={{fontSize:11,color:"#a7b4c6",marginBottom:3}}>• {a.name}{a.email?` — ${a.email}`:""}</div>
-              ))}
-            </div>;
-          })()}
-          <div style={{fontSize:11,color:"#a09a8c",marginBottom:6}}>Add Steven and/or Stuart to the meeting</div>
-          <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
-            {[
-              {name:"Steven Timlick", email:"steven@nonprofitsecurityadvisors.com", phone:"815-255-9141"},
-              {name:"Stuart Reese",   email:"stuart@nonprofitsecurityadvisors.com",  phone:"815-550-5222"},
-            ].map(rep=>{
-              const isPrimary = form.npsa1Name===rep.name;
-              if(isPrimary) return null;
-              const selected = (form.npsa2Selected||[]).some(r=>r.name===rep.name);
-              return (
-                <button key={rep.name} onClick={()=>{
-                  const cur = form.npsa2Selected||[];
-                  if(selected){ setF("npsa2Selected", cur.filter(r=>r.name!==rep.name)); }
-                  else { setF("npsa2Selected", [...cur, {name:rep.name,email:rep.email,phone:rep.phone}]); }
-                }}
-                  style={{textAlign:"left",background:selected?"#1e3a5f":"#1f2a3a",border:`1px solid ${selected?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:selected?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
-                  <span style={{fontWeight:selected?700:400}}>{selected?"[x] ":""}{rep.name}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Contract Terms</div>
-          {[{key:"gwProfFee",label:"Professional Fee ($)",placeholder:"$$$"},{key:"gwPaymentTerms",label:"Payment Terms",placeholder:"Net 30"}].map(f2=>(
-            <div key={f2.key} style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>{f2.label}</label>
-              <input value={form[f2.key]||""} onChange={e=>setF(f2.key,e.target.value)} placeholder={f2.placeholder}
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-              {f2.key==="gwProfFee"&&(
-                <div style={{background:"#111d33",border:"1px solid #26313f",borderRadius:6,padding:"8px 10px",marginTop:6}}>
-                  <div style={{fontSize:10,color:"#8796aa",marginBottom:4}}>Reference — grant writer fee (NPSA pricing sheet):</div>
-                  <div style={{fontSize:10,color:"#a7b4c6",lineHeight:1.6}}>
-                    <div>Undiscounted: 1 loc $7,000 · 2 loc $10,000 · 3 loc $13,000</div>
-                    <div>Discounted: 1 loc $6,000 · 2 loc $8,000 · 3 loc $10,000</div>
-                  </div>
-                  <div style={{fontSize:9,color:"#8796aa",marginTop:4,fontStyle:"italic"}}>Final fee is set by the grant writer's independent contract.</div>
-                </div>
-              )}
-            </div>
-          ))}
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:12,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Guarantee Structure</div>
-          {[
-            {key:"gwGuar1", label:"1. One additional application at no additional fee if not awarded", locked:false, note:null},
-            {key:"gwGuar2", label:"2. If no NOFO: apply work or refund within 10 business days",      locked:false, note:form.optNofo?"Auto-selected: No NOFO is on":null},
-            {key:"gwGuar3", label:"3. If no NOFO: apply work to next available opportunity",           locked:false, note:form.optNofo?"Deselected: No NOFO is on":null},
-            {key:"gwGuar4", label:"4. Commercially reasonable efforts to meet deadline",               locked:false, note:form.optShortNotice?"Auto-selected: Short-notice is on":null},
-          ].map(o=>(
-            <label key={o.key} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:12,color:o.locked?"#4a8bc4":"#a7b4c6",marginBottom:8,cursor:o.locked?"default":"pointer",lineHeight:1.4,opacity:o.locked?0.8:1}}>
-              <input type="checkbox" checked={form[o.key]} onChange={e=>!o.locked&&setF(o.key,e.target.checked)} disabled={o.locked} style={{accentColor:"#6b8e23",marginTop:2,flexShrink:0}}/>
-              <span>
-                {o.label}
-                {o.locked&&<span style={{fontSize:10,color:"#4a8bc4",marginLeft:6,fontStyle:"italic"}}>(always on)</span>}
-                {o.note&&<span style={{fontSize:10,color:"#e8bd6d",display:"block",marginTop:1}}>{o.note}</span>}
-              </span>
-            </label>
-          ))}
-          {form.gwGuar4&&(
-            <div style={{marginBottom:10,marginTop:-4,paddingLeft:20}}>
-              <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Deadline</label>
-              <input value={form.gwGuar4Deadline||""} onChange={e=>setF("gwGuar4Deadline",e.target.value)} placeholder="e.g. March 15, 2026"
-                style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          )}
-          <div style={{fontSize:10,color:"#8796aa",fontStyle:"italic",marginTop:2,marginBottom:10,lineHeight:1.5}}>Note: Options 2 and 3 are mutually exclusive. Option 4 cannot be selected with 2 or 3.</div>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Additional Notes for Grant Writer</div>
-          <textarea value={form.gwNotes||""} onChange={e=>setF("gwNotes",e.target.value)}
-            placeholder="e.g. Background, site details, upsell notes, context from sales rep..."
-            rows={5}
-            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"7px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",resize:"vertical",outline:"none",lineHeight:1.6}}/>
-        </>}
-        {/* Addendum sidebar */}
-        {isAddendum&&<>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Addendum Details</div>
-          <div style={{fontSize:11,color:"#8796aa",marginBottom:10,lineHeight:1.5}}>
-            Removes premature Implementation Period (post-award M&amp;A) services from a previously signed engagement letter.
-          </div>
-          <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Client Name (on original agreement)</label>
-            <input value={form.addendumClientName||""} onChange={e=>setF("addendumClientName",e.target.value)} placeholder={form.clientName||"e.g. Cornerstone Family Church"}
-              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            <div style={{fontSize:10,color:"#8796aa",marginTop:3}}>Leave blank to use the Organization Name above.</div>
-          </div>
-          <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Original Agreement Date</label>
-            <input type="date" value={form.addendumOriginalDate||""} onChange={e=>setF("addendumOriginalDate",e.target.value)}
-              style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>Programs Affected</div>
-          <div style={{fontSize:11,color:"#8796aa",marginBottom:8,lineHeight:1.5}}>Which program(s) does this removal apply to?</div>
-          {(form.addendumPrograms||[]).map((pg,pgIdx)=>{
-            const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;
-            return (
-              <div key={pgIdx} style={{background:"#16202e",border:"1px solid #2b3a4d",borderRadius:6,padding:"10px 10px 8px",marginBottom:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:11,color:"#4a8bc4",fontWeight:700}}>{cfg.label}</span>
-                  {(form.addendumPrograms||[]).length>1&&<button onClick={()=>setF("addendumPrograms",(form.addendumPrograms||[]).filter((_,i)=>i!==pgIdx))}
-                    style={{background:"none",border:"none",color:"#f0a08c",fontSize:13,cursor:"pointer",padding:"0 2px",lineHeight:1}}>x</button>}
-                </div>
-                <label style={{fontSize:10,color:"#8796aa",display:"block",marginBottom:2}}>Grant Year</label>
-                <input value={pg.year||""} onChange={e=>{
-                  const updated=[...(form.addendumPrograms||[])];
-                  updated[pgIdx]={...updated[pgIdx],year:e.target.value};
-                  setF("addendumPrograms",updated);
-                }} placeholder={String(new Date().getFullYear())}
-                  style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"5px 8px",color:"#e8edf4",fontSize:11,boxSizing:"border-box",outline:"none"}}/>
-              </div>
-            );
-          })}
-          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-            {Object.entries(PROGRAMS).filter(([k])=>!(form.addendumPrograms||[]).some(p=>p.key===k)).map(([k,cfg])=>(
-              <button key={k} onClick={()=>{
-                setF("addendumPrograms",[...(form.addendumPrograms||[]),{key:k,year:String(new Date().getFullYear())}]);
-              }} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px dashed #33415a",background:"#1f2a3a",color:"#4a8bc4",cursor:"pointer"}}>
-                + {cfg.label}
-              </button>
-            ))}
-          </div>
-        </>}
-        {/* AI Clause + NPSA signer — hidden on Grant Writer and Proposal tabs */}
-        {!isGw&&!isProposal&&<>
-        {/* AI Custom Clause — letters only (not addendum) */}
-        {!isAddendum&&<>
-        <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>AI Custom Clause</div>
-        <textarea value={isPre?form.customClause:form.postCustomClause} onChange={e=>setF(isPre?"customClause":"postCustomClause",e.target.value)}
-          placeholder="Describe a clause in plain language..." rows={3}
-          style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"7px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
-        <button onClick={()=>polish(isPre?form.customClause:form.postCustomClause,r=>setF(isPre?"polishedClause":"postPolishedClause",r))}
-          disabled={loading||(isPre?!form.customClause.trim():!form.postCustomClause.trim())}
-          style={{marginTop:7,width:"100%",background:loading?"#2b3a4d":"#1e3a5f",color:"#fff",border:"none",borderRadius:6,padding:"7px 0",fontSize:12,fontWeight:600,cursor:loading?"default":"pointer"}}>
-          {loading?"Polishing...":"Polish with AI"}
-        </button>
-        {(isPre?form.polishedClause:form.postPolishedClause)&&(
-          <div style={{marginTop:9,background:"#1e3a2f",border:"1px solid #2d5c42",borderRadius:6,padding:10,fontSize:11,color:"#a8c860",lineHeight:1.6}}>
-            <div style={{fontSize:10,color:"#4caf7d",marginBottom:3,fontWeight:700}}>POLISHED CLAUSE — PENDING APPROVAL</div>
-            {isPre?form.polishedClause:form.postPolishedClause}
-            <button onClick={()=>setMgmtApprovalModal(true)}
-              style={{marginTop:10,width:"100%",background:"#1a4a2e",color:"#a8c860",border:"1px solid #2d5c42",borderRadius:6,padding:"7px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              Insert into Document
-            </button>
-          </div>
-        )}
-        </>}
-        <div style={{fontSize:10,fontWeight:700,color:"#8796aa",letterSpacing:1,textTransform:"uppercase",marginTop:16,marginBottom:7,borderBottom:"1px solid #26313f",paddingBottom:5}}>NPSA Authorized Signer</div>
-        <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
-          {(()=>{
-            const active = form.npsaSignerName==="Brad Lynde";
-            return <button key="Brad Lynde" onClick={()=>{setF("npsaSignerName","Brad Lynde");setF("npsaSignerTitle","Managing Partner");}}
-              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
-              <span style={{fontWeight:active?700:400}}>Brad Lynde</span>
-              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Managing Partner</span>
-            </button>;
-          })()}
-          {(()=>{
-            const active = form.npsaSignerName==="Chad Burgess";
-            return <button key="Chad Burgess" onClick={()=>setSignerApprovalModal({name:"Chad Burgess",title:"Associate | Business Development & Consulting"})}
-              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
-              <span style={{fontWeight:active?700:400}}>Chad Burgess</span>
-              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Associate | Business Development & Consulting</span>
-            </button>;
-          })()}
-          {(()=>{
-            const active = form.npsaSignerName==="Josh Ullrich";
-            return <button key="Josh Ullrich" onClick={()=>setSignerApprovalModal({name:"Josh Ullrich",title:"Business Development Partner"})}
-              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
-              <span style={{fontWeight:active?700:400}}>Josh Ullrich</span>
-              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Business Development Partner</span>
-            </button>;
-          })()}
-          {(()=>{
-            const active = form.npsaSignerName==="Steven Timlick";
-            return <button key="Steven Timlick" onClick={()=>setSignerApprovalModal({name:"Steven Timlick",title:"Associate | Project Mgmt. & Operations"})}
-              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
-              <span style={{fontWeight:active?700:400}}>Steven Timlick</span>
-              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Associate | Project Mgmt. & Operations</span>
-            </button>;
-          })()}
-          {(()=>{
-            const active = form.npsaSignerName==="Stuart Reese";
-            return <button key="Stuart Reese" onClick={()=>setSignerApprovalModal({name:"Stuart Reese",title:"Director of Grants | Co-Director of Operations"})}
-              style={{textAlign:"left",background:active?"#1e3a5f":"#1f2a3a",border:`1px solid ${active?"#4a8bc4":"#2b3a4d"}`,borderRadius:6,padding:"7px 10px",color:active?"#fff":"#a7b4c6",fontSize:12,cursor:"pointer"}}>
-              <span style={{fontWeight:active?700:400}}>Stuart Reese</span>
-              <span style={{fontSize:10,color:active?"#a7b4c6":"#8796aa",marginLeft:6}}>Director of Grants | Co-Director of Operations</span>
-            </button>;
-          })()}
-        </div>
-        <div style={{marginBottom:10}}>
-          <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Signing Date</label>
-          <input type="date" value={form.npsaSigningDate||""} onChange={e=>setF("npsaSigningDate",e.target.value)}
-            style={{width:"100%",background:"#1f2a3a",border:"1px solid #2b3a4d",borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-        </div>
-        {!isAddendum&&(
-          <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"#a09a8c",display:"block",marginBottom:2}}>Expiration Date <span style={{color:"#f0a08c"}}>*</span></label>
-            <input type="date" value={form.expirationDate||""} onChange={e=>setF("expirationDate",e.target.value)}
-              style={{width:"100%",background:"#1f2a3a",border:`1px solid ${form.expirationDate?"#2b3a4d":"#7a3a3a"}`,borderRadius:6,padding:"6px 10px",color:"#e8edf4",fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-            {!form.expirationDate&&<div style={{fontSize:10,color:"#f0a08c",marginTop:3}}>Required to download or print.</div>}
-          </div>
-        )}
-        </>}
-        {/* Management Approval Modal */}
-        {mgmtApprovalModal&&(
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-            <div style={{background:"#16202e",border:"1px solid #f0a08c",borderRadius:12,padding:"28px 32px",maxWidth:380,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.6)"}}>
-              <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:8,textAlign:"center"}}>Management Approval Required</div>
-              <div style={{fontSize:13,color:"#a7b4c6",marginBottom:24,textAlign:"center",lineHeight:1.6}}>Has this AI-generated clause been reviewed and confirmed by management before inserting it into the contract?</div>
-              <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>{
-                  setMgmtApprovalModal(false);
-                  setF(isPre?"polishedClause":"postPolishedClause","");
-                  setF(isPre?"customClause":"postCustomClause","");
-                }} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #555",background:"#26313f",color:"#a09a8c",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                  No — Discard
-                </button>
-                <button onClick={()=>setMgmtApprovalModal(false)}
-                  style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:"#1a6e3a",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                  Yes — Approved
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {(()=>{ const blocked = !isAddendum && !form.expirationDate; return (
-        <button onClick={handlePrint} disabled={blocked} title={blocked?"Set an Expiration Date first":""}
-          style={{marginTop:20,width:"100%",background:blocked?"#4a5340":"#6b8e23",color:blocked?"#aeb59a":"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:blocked?"not-allowed":"pointer"}}>
-          {isGw ? "Print / Save as PDF" : "Download PDF"}
-        </button>
-        );})()}
-        {!isGw && (
-          <button onClick={()=>{
-            const bodyHtml = previewRef.current ? previewRef.current.innerHTML : "";
-            setReviewHtml(bodyHtml);
-            setSavedLetterOverride(null);
-            setReviewMode(true);
-          }} style={{marginTop:8,width:"100%",background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            Review &amp; Edit Letter
-          </button>
-        )}
-        {isGw && (
-          <button onClick={()=>{
-            setEmailFields({
-              to: form.gwRecipientEmail||"",
-              subject: `NPSA New Client: ${form.clientName||"Client"}`,
-              message: `Hi ${form.gwRecipientName||"there"},
-Please find attached the new client information for ${form.clientName||"our client"}. Let us know if you have any questions.
-Thank you,
-${form.npsa1Name||"NPSA"}`
-            });
-            setEmailModal(true);
-          }} style={{marginTop:8,width:"100%",background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            Email to Grant Writer
-          </button>
-        )}
-        {dbAvailable && (
-          <div style={{marginTop:16,borderTop:"1px solid #26313f",paddingTop:14}}>
-            <button onClick={()=>setShowSaveModal(true)}
-              style={{width:"100%",background:"#2b3a4d",color:"#e8edf4",border:"1px solid #3d5080",borderRadius:8,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-              {currentLetterId ? "Update Letter" : "Save Letter"}
-            </button>
-            {currentLetterId && (
-              <div style={{fontSize:11,color:"#8796aa",marginTop:6,textAlign:"center"}}>
-                Saved as: {form.clientName||"Untitled"}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+    <div className={`wz${wizIsReview ? " wz-review" : ""}`} style={{fontFamily:'var(--font-sans)'}}>
+      {/* ── WIZARD ──
+          Replaces the scrolling sidebar. The preview column below is
+          unchanged; App owns the .wz grid so the letter markup never moved. */}
+      <Wizard
+        docTab={docTab}
+        onDocTab={switchDocType}
+        form={form}
+        setF={setF}
+        step={wizStep}
+        onStep={setWizStep}
+        onBack={goBack}
+        onDownload={handlePrint}
+        onSave={()=>setShowSaveModal(true)}
+        saveLabel={currentLetterId ? "Update Letter" : "Save Letter"}
+        savedNote={currentLetterId ? `Saved as: ${form.clientName||"Untitled"}` : null}
+      />
       {/* ── REVIEW & EDIT MODE ── */}
       {reviewMode && (
         <div style={{flex:1,display:"flex",flexDirection:"column",background:"#e7e2d6"}}>
@@ -2370,23 +1474,7 @@ ${form.npsa1Name||"NPSA"}`
         </div>
       )}
       {/* ── PREVIEW ── */}
-      <div style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#e7e2d6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
-        {/* Tabs */}
-        <div style={{position:"sticky",top:0,zIndex:10,background:"#e7e2d6",paddingTop:28}}><div style={{maxWidth:800,margin:"0 auto",display:"flex",overflowX:"auto"}}>
-          {[{id:"pre",label:"Pre-Award",match:["pre","inh"],defaultTab:"inh"},{id:"post",label:"Award Implementation"},{id:"gw",label:"3rd Party Grant Writer"},{id:"proposal",label:"Proposal"},{id:"addendum",label:"Addendum"}].map((t,i,arr)=>{
-            const active = t.match ? t.match.includes(docTab) : docTab===t.id;
-            return (
-            <button key={t.id} onClick={()=>setDocTab(active&&t.match?docTab:(t.defaultTab||t.id))}
-              style={{padding:"10px 18px",fontSize:12,fontWeight:700,border:"none",whiteSpace:"nowrap",flexShrink:0,
-                borderRadius:i===0?"8px 0 0 0":i===arr.length-1?"0 8px 0 0":"0",
-                cursor:"pointer",
-                background:active?"#fff":"#c8cdd8",
-                color:active?"#1e3a5f":"#666",
-                boxShadow:active?"0 -2px 0 #1e3a5f inset":""}}>
-              {t.label}
-            </button>
-          );})}
-        </div></div>
+      <div className="wz-preview" style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#e7e2d6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
         <div style={{maxWidth:800,margin:"0 auto",background:"#fff",boxShadow:"0 4px 32px rgba(0,0,0,0.13)",padding:"64px 72px"}} ref={previewRef}>
           {savedLetterOverride ? <div dangerouslySetInnerHTML={{__html: savedLetterOverride}} /> : isProposal ? (()=>{
             const pgYear = proposalProgs[0]?.year || form.grantYear;

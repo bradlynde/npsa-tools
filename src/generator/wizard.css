@@ -53,10 +53,31 @@
     position: static;
     max-height: none;
   }
-  /* Only the review step shows the letter on small screens. */
+  /* Only the review step shows the letter on small screens. The preview
+     column sets display inline, so this has to outrank it. */
   .wz:not(.wz-review) .wz-preview {
-    display: none;
+    display: none !important;
   }
+  /* Reclaim the column's desktop gutter — 80px of a 390px screen. The letter
+     is a fixed-width document, so it still scrolls inside its own box. */
+  .wz-preview {
+    padding: 0 !important;
+  }
+}
+
+.wz-back {
+  border: none;
+  background: none;
+  color: var(--sec);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  align-self: flex-start;
+}
+
+.wz-back:hover {
+  color: var(--navy);
 }
 
 /* ── cards & type ───────────────────────────────────────────────────── */
@@ -369,22 +390,6 @@ textarea.wz-input {
   resize: vertical;
   line-height: 1.5;
   font-size: 14px;
-}
-
-/* The letter, carried inside the review step for small screens. */
-.wz-review-doc {
-  border: 1px solid var(--bd);
-  border-radius: 12px;
-  overflow: auto;
-  max-height: 70vh;
-  background: var(--card);
-}
-
-/* On desktop the preview column already shows it — don't show it twice. */
-@media (min-width: 981px) {
-  .wz-review-doc {
-    display: none;
-  }
 }
 
 /* ── progress ───────────────────────────────────────────────────────── */
