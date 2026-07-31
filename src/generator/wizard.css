@@ -1,0 +1,448 @@
+/*
+ * Engagement-letter wizard.
+ *
+ * Everything here is class-based on purpose. The generator styles inline, and
+ * inline styles cannot express a media query — which is why the tool has never
+ * worked on a phone. Stacking the columns is the whole reason this file exists.
+ *
+ * Colours come from src/theme.css. Olive is reserved for money and success.
+ */
+
+/* ── layout ─────────────────────────────────────────────────────────── */
+
+.wz {
+  display: grid;
+  grid-template-columns: minmax(340px, 420px) 1fr;
+  gap: 24px;
+  align-items: start;
+  padding: 20px;
+  background: var(--bg);
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.wz-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* The letter preview. On a phone it moves into the review step instead. */
+.wz-preview {
+  position: sticky;
+  top: 20px;
+  min-width: 0;
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--bd);
+  box-shadow: var(--shadow-card);
+}
+
+@media (max-width: 980px) {
+  .wz {
+    grid-template-columns: 1fr;
+    padding: 12px;
+    gap: 14px;
+    /* The fee bar is fixed on mobile; keep it from covering the last control. */
+    padding-bottom: 104px;
+  }
+  .wz-preview {
+    position: static;
+    max-height: none;
+  }
+  /* Only the review step shows the letter on small screens. */
+  .wz:not(.wz-review) .wz-preview {
+    display: none;
+  }
+}
+
+/* ── cards & type ───────────────────────────────────────────────────── */
+
+.wz-card {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.wz-card > * + * {
+  margin-top: 14px;
+}
+
+.wz-h {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.wz-sub {
+  font-size: 13px;
+  color: var(--sec);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.wz-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin-bottom: 6px;
+}
+
+.wz-hint {
+  font-size: 12px;
+  color: var(--mute);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+/* ── controls ───────────────────────────────────────────────────────── */
+
+.wz-input,
+.wz-select {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--card);
+  border: 1px solid var(--bd2);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 15px; /* 16px-ish keeps iOS from zooming on focus */
+  font-family: inherit;
+  color: var(--ink);
+  outline: none;
+}
+
+.wz-input:focus,
+.wz-select:focus {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
+}
+
+.wz-input[readonly] {
+  background: var(--hair2);
+  color: var(--sec);
+}
+
+.wz-field + .wz-field {
+  margin-top: 12px;
+}
+
+/* Selectable chips — organisation type, programs, payment counts. */
+.wz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wz-chip {
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 14px;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--bd2);
+  background: var(--card);
+  color: var(--sec);
+  cursor: pointer;
+}
+
+.wz-chip:hover {
+  background: var(--hover);
+}
+
+.wz-chip[aria-pressed="true"] {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: var(--on-accent);
+}
+
+.wz-chip-add {
+  border-style: dashed;
+  color: var(--navy);
+}
+
+/* Radio cards — engagement model. */
+.wz-radio {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  border: 1px solid var(--bd2);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  background: var(--card);
+}
+
+.wz-radio + .wz-radio {
+  margin-top: 10px;
+}
+
+.wz-radio[data-on="1"] {
+  border: 2px solid var(--navy);
+  padding: 13px; /* absorb the extra border so nothing shifts */
+}
+
+.wz-radio input {
+  margin: 2px 0 0;
+  accent-color: var(--navy);
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+.wz-radio-t {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.wz-radio-d {
+  display: block;
+  font-size: 12.5px;
+  color: var(--sec);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.wz-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.wz-check input {
+  accent-color: var(--olive);
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+/* ── repeating rows (locations, programs, installments) ─────────────── */
+
+.wz-row {
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--bg);
+}
+
+.wz-row + .wz-row {
+  margin-top: 10px;
+}
+
+.wz-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.wz-row-t {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--navy);
+  font-weight: 500;
+}
+
+.wz-x {
+  border: none;
+  background: none;
+  color: var(--err-fg);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.wz-x:hover {
+  background: var(--err-bg);
+}
+
+/* ── money ──────────────────────────────────────────────────────────── */
+
+.wz-fees {
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 14px;
+}
+
+.wz-fee-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+  color: var(--sec);
+  padding: 3px 0;
+}
+
+.wz-fee-line b {
+  font-family: var(--font-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.wz-fee-total {
+  border-top: 1px solid var(--bd);
+  margin-top: 8px;
+  padding-top: 9px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.wz-fee-total b {
+  color: var(--olive);
+  font-weight: 600;
+}
+
+.wz-was {
+  text-decoration: line-through;
+  color: var(--faint);
+  margin-right: 7px;
+  font-weight: 400;
+}
+
+.wz-save {
+  color: var(--ok-fg);
+  background: var(--ok-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  margin-top: 10px;
+}
+
+/* ── progress ───────────────────────────────────────────────────────── */
+
+.wz-steps {
+  display: flex;
+  gap: 6px;
+}
+
+.wz-seg {
+  height: 4px;
+  flex: 1;
+  border-radius: 999px;
+  background: var(--track);
+}
+
+.wz-seg[data-s="done"] {
+  background: var(--olive);
+}
+
+.wz-seg[data-s="now"] {
+  background: var(--navy);
+}
+
+.wz-caption {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin-top: 8px;
+}
+
+/* ── persistent fee bar ─────────────────────────────────────────────── */
+
+.wz-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.wz-bar-fig {
+  flex: 1;
+  min-width: 130px;
+}
+
+.wz-bar-amt {
+  font-family: var(--font-serif);
+  font-variant-numeric: tabular-nums;
+  font-size: 27px;
+  color: var(--olive);
+  line-height: 1.1;
+}
+
+.wz-bar-note {
+  font-size: 12px;
+  color: var(--sec);
+  margin-top: 2px;
+}
+
+.wz-btn {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 20px;
+  min-height: 46px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid var(--bd2);
+  background: var(--card);
+  color: var(--sec);
+}
+
+.wz-btn:hover {
+  background: var(--hover);
+}
+
+.wz-btn-primary {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--on-accent);
+}
+
+.wz-btn-primary:hover {
+  background: #17304f;
+}
+
+.wz-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 980px) {
+  /* Keep the fee and the Next button reachable without scrolling. */
+  .wz-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    box-shadow: 0 -4px 20px rgba(60, 50, 30, 0.1);
+  }
+  .wz-bar-amt {
+    font-size: 23px;
+  }
+  .wz-btn {
+    flex: 1;
+    min-width: 96px;
+  }
+}
