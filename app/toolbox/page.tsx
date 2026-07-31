@@ -196,7 +196,8 @@ export default function ToolboxPage() {
   const roll = useRoll(loading ? "loading" : "ready");
 
   const leaders = useMemo(() => {
-    const rows = (stats?.by_rep || []).filter((r) => r.rep_name).slice(0, 6);
+    // Show every rep — the live leaderboard doesn't truncate.
+    const rows = (stats?.by_rep || []).filter((r) => r.rep_name);
     const max = Math.max(1, ...rows.map((r) => r.count));
     return rows.map((r, i) => ({
       rank: i + 1,
@@ -260,13 +261,13 @@ export default function ToolboxPage() {
             numeral="i."
             title="Generate New Letter"
             description="Pre-award, in-house, or post-award — pricing computed from the 6.14.2026 NPSA sheet."
-            onClick={() => router.push("/loe")}
+            onClick={() => router.push("/loe?view=generator")}
           />
           <ActionCard
             numeral="ii."
             title="Load Previous Letter"
             description="Search and reload a saved draft."
-            onClick={() => router.push("/loe")}
+            onClick={() => router.push("/loe?view=letters")}
           />
 
           <Eyebrow style={{ margin: "8px 0 -4px" }}>proposals &amp; addendums</Eyebrow>
@@ -274,13 +275,13 @@ export default function ToolboxPage() {
             numeral="iii."
             title="New Proposal"
             description="One-page leadership summary of scope & price."
-            onClick={() => router.push("/loe")}
+            onClick={() => router.push("/loe?view=proposal")}
           />
           <ActionCard
             numeral="iv."
             title="New Addendum"
             description="Remove Implementation Period services from a signed letter."
-            onClick={() => router.push("/loe")}
+            onClick={() => router.push("/loe?view=addendum")}
           />
 
           <Eyebrow style={{ margin: "8px 0 -4px" }}>tools</Eyebrow>
@@ -289,7 +290,15 @@ export default function ToolboxPage() {
             title="Pre-Call Notes Generator"
             badge="BETA"
             description="Paste a Calendly invite and generate AI-powered prep notes."
-            onClick={() => router.push("/loe")}
+            onClick={() => router.push("/loe?view=precall")}
+          />
+
+          <Eyebrow style={{ margin: "8px 0 -4px" }}>settings</Eyebrow>
+          <ActionCard
+            numeral="vi."
+            title="Manage Sales Reps"
+            description="Add or remove the reps letters are attributed to — they drive the leaderboard."
+            onClick={() => router.push("/loe?view=settings")}
           />
         </div>
 

@@ -50,14 +50,19 @@ function tokenIsValid(token: string): boolean {
 }
 
 /**
- * Forwards GET {LOE}/api/{prefix}/{path}{query} when the first path segment is
- * allowed and the caller presents a valid token.
+ * Forwards {method} {LOE}/api/{prefix}/{path}{query} when the first path segment
+ * is allowed and the caller presents a valid token.
+ *
+ * Writes are limited to the two the dashboard needs: toggling a booking's
+ * Held / LOE flags, and kicking off enrichment ("Refresh data"). Everything
+ * else stays read-only.
  */
-export async function proxyGet(
+export async function proxyRequest(
   req: NextRequest,
   prefix: string,
   segments: string[],
-  allowed: Set<string>
+  allowed: Set<string>,
+  method: "GET" | "POST" | "PATCH" = "GET"
 ): Promise<NextResponse> {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!token || !tokenIsValid(token)) {
@@ -73,17 +78,28 @@ export async function proxyGet(
   const tail = segments.length ? `/${segments.join("/")}` : "";
   const target = `${loeBaseUrl()}/api/${prefix}${tail}${req.nextUrl.search || ""}`;
 
+  let body: string | undefined;
+  if (method !== "GET") {
+    body = await req.text().catch(() => "");
+  }
+
   try {
     const upstream = await fetch(target, {
-      headers: { Accept: "application/json" },
+      method,
+      headers: {
+        Accept: "application/json",
+        ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
+      },
+      body: method === "GET" ? undefined : body || "{}",
       cache: "no-store",
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(30000),
     });
-    const body = await upstream.text();
-    return new NextResponse(body, {
+    const text = await upstream.text();
+    return new NextResponse(text, {
       status: upstream.status,
       headers: {
         "Content-Type": upstream.headers.get("content-type") || "application/json",
+        "Cache-Control": "no-store",
       },
     });
   } catch (err) {
@@ -93,3 +109,11 @@ export async function proxyGet(
     );
   }
 }
+
+/** Back-compat alias — most callers only read. */
+export const proxyGet = (
+  req: NextRequest,
+  prefix: string,
+  segments: string[],
+  allowed: Set<string>
+) => proxyRequest(req, prefix, segments, allowed, "GET");

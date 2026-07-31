@@ -8,9 +8,10 @@
  */
 
 export type Range = '30d' | '90d' | 'ytd' | 'all';
+export type Granularity = 'week' | 'month';
 
 export type TimeseriesRow = {
-  period: string; // YYYY-MM-DD, start of week
+  period: string; // YYYY-MM-DD, start of the week or month
   booked: number;
   held: number;
   clients: number; // LOEs sent
@@ -25,15 +26,68 @@ export type ChannelRow = {
   fees: number;
 };
 
+export type CampaignRow = {
+  campaign: string;
+  booked: number;
+  held: number;
+  clients: number;
+  fees: number;
+};
+
 export type BookingRow = {
   id: number;
   booked_on: string | null;
-  organization: string | null;
+  meeting_date: string | null;
   name: string | null;
+  organization: string | null;
+  email: string | null;
+  told_us: string | null;
   attribution_channel: string | null;
+  instantly_campaign: string | null;
+  host: string | null;
   held: boolean | null;
   became_client: boolean | null;
+  fee: number;
   won: boolean | null;
+  won_amount: number;
+};
+
+/** Headline numbers, including the Salesforce revenue layer. */
+export type Stats = {
+  total_bookings: number;
+  bookings_this_week: number;
+  bookings_this_month: number;
+  bookings_last_month: number;
+  client_rate: number;
+  held_rate: number;
+  instantly_pct: number;
+  total_fees_won: number;
+  won_count: number;
+  won_rate: number;
+  won_revenue: number;
+  won_revenue_total: number;
+  won_count_total: number;
+  attributed_revenue: number;
+  attributed_count: number;
+  untracked_revenue: number;
+  untracked_count: number;
+  attribution_coverage: number;
+};
+
+export type UntrackedWin = {
+  opportunity_id: string;
+  organization: string | null;
+  domain: string | null;
+  amount: number;
+  close_date: string | null;
+};
+
+export type Funnel = {
+  booked: number;
+  held: number;
+  clients: number;
+  fees: number;
+  won: number;
   won_amount: number;
 };
 
@@ -51,9 +105,41 @@ async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-export const fetchTimeseries = () => get<TimeseriesRow[]>('timeseries?granularity=week');
+export const fetchStats = () => get<Stats>('stats');
+export const fetchFunnel = () => get<Funnel>('funnel');
+export const fetchTimeseries = (gran: Granularity = 'week') =>
+  get<TimeseriesRow[]>(`timeseries?granularity=${gran}`);
 export const fetchChannels = () => get<ChannelRow[]>('by-channel');
-export const fetchBookings = () => get<BookingRow[]>('bookings');
+export const fetchCampaigns = () => get<CampaignRow[]>('by-campaign');
+export const fetchUntrackedWins = () => get<UntrackedWin[]>('untracked-wins');
+export const fetchBookings = (search = '') =>
+  get<BookingRow[]>(`bookings${search ? `?search=${encodeURIComponent(search)}` : ''}`);
+
+/** Toggles Held / LOE-sent on a single booking (the manual override). */
+export async function patchBooking(
+  id: number,
+  field: 'held' | 'became_client',
+  value: boolean
+): Promise<void> {
+  const res = await fetch(`/api/marketing/bookings/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ [field]: value }),
+  });
+  if (!res.ok) throw new Error(`Could not update booking: ${res.status}`);
+}
+
+/** Re-runs enrichment upstream — the dashboard's "Refresh data". */
+export async function refreshEnrichment(): Promise<void> {
+  const res = await fetch('/api/marketing/enrich', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: '{}',
+  });
+  if (!res.ok) throw new Error(`Refresh failed: ${res.status}`);
+}
+
+/* ── Range helpers ──────────────────────────────────────────────── */
 
 /** Inclusive lower bound for a range, relative to now. */
 export function rangeStart(range: Range): Date {
@@ -112,37 +198,88 @@ export function priorTotalsFor(rows: TimeseriesRow[], range: Range): Totals {
   return sum(rows, w.from, w.to);
 }
 
-/** The last `count` weeks of the series, oldest → newest, padded if sparse. */
-export function recentWeeks(rows: TimeseriesRow[], count = 14): TimeseriesRow[] {
-  const sorted = [...rows].sort((a, b) => a.period.localeCompare(b.period));
-  return sorted.slice(-count);
+/** LOE fee value booked in the range — the time series doesn't carry fees. */
+export function feesInRange(bookings: BookingRow[], range: Range): number {
+  const from = rangeStart(range);
+  return bookings.reduce((n, b) => {
+    if (!b.booked_on || new Date(b.booked_on) < from) return n;
+    return b.became_client ? n + (Number(b.fee) || 0) : n;
+  }, 0);
 }
 
-/** "4/20" — short week label for the chart axis. */
-export function weekLabel(period: string): string {
+/** "4/20" for weeks, "Apr 2026" for months. */
+export function periodLabel(period: string, gran: Granularity): string {
   const d = new Date(`${period}T00:00:00`);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  return gran === 'month'
+    ? d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    : `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 /** Range-scoped channel breakdown, computed from raw bookings. */
 export function channelsInRange(
   bookings: BookingRow[],
   range: Range
-): { name: string; booked: number; won: number }[] {
+): { name: string; booked: number; loes: number; won: number }[] {
   const from = rangeStart(range);
-  const map = new Map<string, { booked: number; won: number }>();
+  const map = new Map<string, { booked: number; loes: number; won: number }>();
   for (const b of bookings) {
     if (!b.booked_on) continue;
     if (new Date(b.booked_on) < from) continue;
-    const key = b.attribution_channel?.trim() || 'Direct / Other';
-    const cur = map.get(key) || { booked: 0, won: 0 };
+    const key = channelLabel(b.attribution_channel);
+    const cur = map.get(key) || { booked: 0, loes: 0, won: 0 };
     cur.booked += 1;
+    if (b.became_client) cur.loes += 1;
     if (b.won) cur.won += Number(b.won_amount) || 0;
     map.set(key, cur);
   }
   return [...map.entries()]
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.booked - a.booked);
+}
+
+/** Range-scoped campaign breakdown, mirroring the upstream by-campaign table. */
+export function campaignsInRange(
+  bookings: BookingRow[],
+  range: Range
+): { campaign: string; booked: number; held: number; loes: number; fees: number }[] {
+  const from = rangeStart(range);
+  const map = new Map<string, { booked: number; held: number; loes: number; fees: number }>();
+  for (const b of bookings) {
+    if (!b.booked_on) continue;
+    if (new Date(b.booked_on) < from) continue;
+    const key = b.instantly_campaign?.trim() || '— no campaign —';
+    const cur = map.get(key) || { booked: 0, held: 0, loes: 0, fees: 0 };
+    cur.booked += 1;
+    if (b.held) cur.held += 1;
+    if (b.became_client) {
+      cur.loes += 1;
+      cur.fees += Number(b.fee) || 0;
+    }
+    map.set(key, cur);
+  }
+  return [...map.entries()]
+    .map(([campaign, v]) => ({ campaign, ...v }))
+    .sort((a, b) => b.booked - a.booked);
+}
+
+const CHANNEL_LABELS: Record<string, string> = {
+  instantly: 'Instantly',
+  google_ads: 'Google Ads',
+  search: 'Organic Search',
+  email: 'Email',
+  social: 'Social',
+  referral: 'Referral',
+  conference: 'Conference',
+  linkedin: 'LinkedIn',
+  direct: 'Direct / Other',
+  google: 'Google',
+  organic: 'Organic',
+};
+
+export function channelLabel(c?: string | null): string {
+  const key = c?.trim();
+  if (!key) return 'Direct / Other';
+  return CHANNEL_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 export const RANGE_WORD: Record<Range, string> = {

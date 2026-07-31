@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Page,
@@ -18,33 +18,34 @@ import {
   fmtMoney,
   fmtPct,
 } from "../components/ui";
+import TimeSeriesChart from "../components/marketing/TimeSeriesChart";
+import SalesforceBand from "../components/marketing/SalesforceBand";
+import CampaignTable from "../components/marketing/CampaignTable";
+import BookingsTable from "../components/marketing/BookingsTable";
 import {
+  fetchStats,
+  fetchFunnel,
   fetchTimeseries,
   fetchBookings,
+  refreshEnrichment,
   totalsFor,
   priorTotalsFor,
-  recentWeeks,
-  weekLabel,
+  feesInRange,
   channelsInRange,
+  campaignsInRange,
   RANGE_WORD,
   BOOKINGS_LIMIT,
   loadRange,
   saveRange,
   type Range,
+  type Granularity,
   type TimeseriesRow,
   type BookingRow,
+  type Stats,
+  type Funnel,
 } from "../lib/marketing";
 import { fetchRuns, fetchPipelineStatus } from "../lib/api";
 import type { RunMetadata, PipelineStatus, ScraperType } from "../lib/types";
-
-type Metric = "booked" | "held" | "loes" | "won";
-
-const METRICS: { key: Metric; label: string }[] = [
-  { key: "booked", label: "Bookings" },
-  { key: "held", label: "Held" },
-  { key: "loes", label: "LOEs" },
-  { key: "won", label: "Won $" },
-];
 
 const RANGES: { key: Range; label: string }[] = [
   { key: "30d", label: "30d" },
@@ -61,41 +62,76 @@ const todayLine = () =>
 export default function DashboardPage() {
   const router = useRouter();
 
-  const [series, setSeries] = useState<TimeseriesRow[]>([]);
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
+  // Marketing data
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [funnelAll, setFunnelAll] = useState<Funnel | null>(null);
+  const [weekly, setWeekly] = useState<TimeseriesRow[]>([]);
+  const [monthly, setMonthly] = useState<TimeseriesRow[]>([]);
+  const [allBookings, setAllBookings] = useState<BookingRow[]>([]);
+  const [tableRows, setTableRows] = useState<BookingRow[]>([]);
   const [mktError, setMktError] = useState<string | null>(null);
   const [mktLoading, setMktLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [range, setRange] = useState<Range>("90d");
+  const [gran, setGran] = useState<Granularity>("week");
+  const [search, setSearch] = useState("");
 
-  // Restore the last range used, then persist every change.
+  // Scraper strip
+  const [activeRun, setActiveRun] = useState<RunMetadata | null>(null);
+  const [activeStatus, setActiveStatus] = useState<PipelineStatus | null>(null);
+
   useEffect(() => setRange(loadRange("90d")), []);
   const changeRange = (r: Range) => {
     setRange(r);
     saveRange(r);
   };
-  const [metric, setMetric] = useState<Metric>("booked");
-  const [tip, setTip] = useState(-1);
 
-  const [activeRun, setActiveRun] = useState<RunMetadata | null>(null);
-  const [activeStatus, setActiveStatus] = useState<PipelineStatus | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const [ts, bk] = await Promise.allSettled([fetchTimeseries(), fetchBookings()]);
-      if (!alive) return;
-      if (ts.status === "fulfilled") setSeries(ts.value);
-      else setMktError(ts.reason?.message || "Could not load marketing data");
-      if (bk.status === "fulfilled") setBookings(bk.value);
-      setMktLoading(false);
-    })();
-    return () => {
-      alive = false;
-    };
+  const loadMarketing = useCallback(async () => {
+    const [s, f, w, b] = await Promise.allSettled([
+      fetchStats(),
+      fetchFunnel(),
+      fetchTimeseries("week"),
+      fetchBookings(),
+    ]);
+    if (s.status === "fulfilled") setStats(s.value);
+    if (f.status === "fulfilled") setFunnelAll(f.value);
+    if (w.status === "fulfilled") setWeekly(w.value);
+    else setMktError((w.reason as Error)?.message || "Could not load marketing data");
+    if (b.status === "fulfilled") {
+      setAllBookings(b.value);
+      setTableRows(b.value);
+    }
+    setMktLoading(false);
   }, []);
 
-  // Find a running scrape across both backends for the strip.
+  useEffect(() => {
+    loadMarketing();
+  }, [loadMarketing]);
+
+  // Monthly series is only fetched when the chart is switched to months.
+  useEffect(() => {
+    if (gran !== "month" || monthly.length > 0) return;
+    fetchTimeseries("month")
+      .then(setMonthly)
+      .catch(() => setMonthly([]));
+  }, [gran, monthly.length]);
+
+  // Search re-queries the table only; the aggregates keep using the full set.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!search) {
+        setTableRows(allBookings);
+        return;
+      }
+      fetchBookings(search)
+        .then(setTableRows)
+        .catch(() => setTableRows([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search, allBookings]);
+
+  // Scraper strip — find a run in flight across both backends.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -138,25 +174,42 @@ export default function DashboardPage() {
     };
   }, [activeRun]);
 
-  const totals = useMemo(() => totalsFor(series, range), [series, range]);
-  const prior = useMemo(() => priorTotalsFor(series, range), [series, range]);
-  const weeks = useMemo(() => recentWeeks(series, 14), [series]);
-  const channels = useMemo(() => channelsInRange(bookings, range), [bookings, range]);
-  // The bookings endpoint hard-caps its result set, so a full page may mean
-  // older bookings were dropped. Only relevant for the wider ranges.
-  const bookingsTruncated = bookings.length >= BOOKINGS_LIMIT;
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setMktError(null);
+    try {
+      await refreshEnrichment();
+      await loadMarketing();
+    } catch (e) {
+      setMktError((e as Error).message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
-  // Counters re-roll whenever the range changes.
+  /* ── Derived ────────────────────────────────────────────────── */
+
+  const totals = useMemo(() => totalsFor(weekly, range), [weekly, range]);
+  const prior = useMemo(() => priorTotalsFor(weekly, range), [weekly, range]);
+  const channels = useMemo(() => channelsInRange(allBookings, range), [allBookings, range]);
+  const campaigns = useMemo(() => campaignsInRange(allBookings, range), [allBookings, range]);
+  const bookingsTruncated = allBookings.length >= BOOKINGS_LIMIT;
+
+  // LOE fee value: the time series has no fees, so it comes from bookings —
+  // except all-time, where the funnel endpoint gives an uncapped figure.
+  const loeValue = useMemo(
+    () => (range === "all" && funnelAll ? funnelAll.fees : feesInRange(allBookings, range)),
+    [range, funnelAll, allBookings]
+  );
+
   const roll = useRoll(range);
-
   const heldRate = totals.booked ? (totals.held / totals.booked) * 100 : 0;
   const loeRate = totals.held ? Math.round((totals.loes / totals.held) * 100) : 0;
   const bookingDelta = totals.booked - prior.booked;
-
-  // "90d" reads fine inline; "all" needs spelling out.
   const rangeTag = range === "all" ? "all time" : range;
+  const mom = stats ? stats.bookings_this_month - stats.bookings_last_month : 0;
 
-  const stats = [
+  const primaryStats = [
     {
       label: `bookings · ${rangeTag}`,
       value: fmtInt(totals.booked * roll),
@@ -186,18 +239,6 @@ export default function DashboardPage() {
     },
   ];
 
-  const seriesValue = (r: TimeseriesRow): number => {
-    if (metric === "booked") return Number(r.booked) || 0;
-    if (metric === "held") return Number(r.held) || 0;
-    if (metric === "loes") return Number(r.clients) || 0;
-    return Number(r.won_amount) || 0;
-  };
-  const chartMax = Math.max(1, ...weeks.map(seriesValue));
-  const isMoney = metric === "won";
-  const chartTitle = `${
-    metric === "won" ? "won revenue" : METRICS.find((m) => m.key === metric)!.label.toLowerCase()
-  } by week — last ${weeks.length || 14}`;
-
   const stripTotal = activeStatus?.totalCounties ?? activeStatus?.total_counties ?? 0;
   const stripDone = activeStatus?.countiesProcessed ?? activeStatus?.counties_processed ?? 0;
   const stripPct = stripTotal > 0 ? Math.round((stripDone / stripTotal) * 100) : 0;
@@ -209,6 +250,13 @@ export default function DashboardPage() {
         }`
       : "");
 
+  const applyBookingChange = (id: number, field: "held" | "became_client", value: boolean) => {
+    const patch = (rows: BookingRow[]) =>
+      rows.map((r) => (r.id === id ? { ...r, [field]: value } : r));
+    setTableRows(patch);
+    setAllBookings(patch);
+  };
+
   return (
     <Page>
       <div
@@ -217,14 +265,54 @@ export default function DashboardPage() {
           alignItems: "flex-end",
           justifyContent: "space-between",
           gap: 20,
-          marginBottom: 30,
+          marginBottom: 26,
           flexWrap: "wrap",
         }}
       >
         <PageHeading eyebrow={`sales & marketing · ${todayLine()}`}>
           The business, <em>up front.</em>
         </PageHeading>
-        <SegPill options={RANGES} value={range} onChange={changeRange} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <SegPill options={RANGES} value={range} onChange={changeRange} />
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="mono"
+            style={{
+              fontWeight: 600,
+              fontSize: 12,
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: "1px solid var(--bd2)",
+              background: "transparent",
+              color: "var(--sec)",
+              cursor: refreshing ? "wait" : "pointer",
+              transition: "background .2s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            {refreshing ? "refreshing…" : "↻ refresh data"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 18 }}>
+        <span
+          className="mono"
+          style={{
+            fontSize: 11,
+            letterSpacing: ".06em",
+            color: "var(--mute)",
+            background: "var(--seg)",
+            border: "1px solid var(--hair)",
+            padding: "4px 12px",
+            borderRadius: 999,
+          }}
+        >
+          funnel tracked since Feb 2026
+        </span>
       </div>
 
       {mktError && (
@@ -239,6 +327,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* Primary, range-scoped KPIs */}
       <div
         style={{
           display: "grid",
@@ -247,7 +336,7 @@ export default function DashboardPage() {
           marginBottom: 14,
         }}
       >
-        {stats.map((s, i) => (
+        {primaryStats.map((s, i) => (
           <StatTile
             key={s.label}
             label={s.label}
@@ -259,95 +348,86 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <Card style={{ marginBottom: 14 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 20,
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <Eyebrow>{chartTitle}</Eyebrow>
-          <SegPill options={METRICS} value={metric} onChange={setMetric} size="sm" />
-        </div>
-
-        {weeks.length === 0 ? (
-          <Note>{mktLoading ? "Loading…" : "No bookings recorded yet."}</Note>
-        ) : (
-          <div style={{ position: "relative" }}>
-            {tip >= 0 && weeks[tip] && (
-              <div
-                className="mono"
-                style={{
-                  position: "absolute",
-                  top: -6,
-                  left: `${((tip + 0.5) / weeks.length) * 100}%`,
-                  zIndex: 5,
-                  pointerEvents: "none",
-                  transform: "translate(-50%,-100%)",
-                  background: "var(--tip-bg)",
-                  color: "var(--tip-fg)",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  padding: "6px 11px",
-                  borderRadius: 8,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {weekLabel(weeks[tip].period)} —{" "}
-                {isMoney
-                  ? fmtMoney(seriesValue(weeks[tip]))
-                  : `${seriesValue(weeks[tip])} ${METRICS.find((m) => m.key === metric)!.label.toLowerCase()}`}
-              </div>
-            )}
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 150 }}>
-              {weeks.map((w, i) => (
+      {/* Fixed-window pulse — these don't move with the range selector */}
+      {stats && (
+        <Card style={{ marginBottom: 14, padding: "16px 22px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
+              gap: 18,
+            }}
+          >
+            {[
+              {
+                label: "bookings this week",
+                value: fmtInt(stats.bookings_this_week),
+                note: "sun–sat",
+                accent: false,
+              },
+              {
+                label: "bookings this month",
+                value: fmtInt(stats.bookings_this_month),
+                note: `${mom >= 0 ? "+" : ""}${mom} vs last month`,
+                accent: false,
+              },
+              {
+                label: "from instantly",
+                value: fmtPct(stats.instantly_pct * 100),
+                note: "of all bookings",
+                accent: false,
+              },
+              {
+                label: "loe value won",
+                value: fmtMoney(stats.total_fees_won),
+                note: "all signed letters",
+                accent: true,
+              },
+            ].map((s) => (
+              <div key={s.label}>
                 <div
-                  key={w.period}
-                  onMouseEnter={() => setTip(i)}
-                  onMouseLeave={() => setTip(-1)}
+                  className="mono"
                   style={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "flex-end",
-                    height: "100%",
-                    cursor: "pointer",
+                    fontWeight: 500,
+                    fontSize: 10.5,
+                    letterSpacing: ".07em",
+                    color: "var(--mute)",
+                    marginBottom: 7,
                   }}
                 >
-                  <div
-                    style={{
-                      height: `${Math.max(2, Math.round((seriesValue(w) / chartMax) * 100))}%`,
-                      borderRadius: 5,
-                      transformOrigin: "bottom",
-                      animation: "growY .7s cubic-bezier(.34,1.4,.4,1) both",
-                      transition:
-                        "height .55s cubic-bezier(.34,1.3,.4,1), background .3s, filter .2s",
-                      background: isMoney ? "var(--olive)" : "var(--navy)",
-                      filter: tip === i ? "brightness(1.2)" : "none",
-                    }}
-                  />
+                  {s.label}
                 </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-              {weeks.map((w) => (
                 <div
-                  key={w.period}
-                  className="mono"
-                  style={{ flex: 1, textAlign: "center", fontSize: 10, color: "var(--faint)" }}
+                  className="serif"
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    fontVariantNumeric: "tabular-nums",
+                    color: s.accent ? "var(--olive)" : "var(--ink)",
+                  }}
                 >
-                  {weekLabel(w.period)}
+                  {s.value}
                 </div>
-              ))}
-            </div>
+                <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6 }}>{s.note}</div>
+              </div>
+            ))}
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
+      {/* Salesforce revenue layer */}
+      {stats && <SalesforceBand stats={stats} />}
+
+      {/* Time series */}
+      <TimeSeriesChart
+        series={gran === "week" ? weekly : monthly}
+        gran={gran}
+        onGranChange={setGran}
+        loading={mktLoading}
+      />
+
+      {/* Funnel + channels */}
       <div
         style={{
           display: "grid",
@@ -363,50 +443,76 @@ export default function DashboardPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                { rn: "i.", name: "Booked", val: totals.booked, won: false },
-                { rn: "ii.", name: "Held", val: totals.held, won: false },
-                { rn: "iii.", name: "LOE sent", val: totals.loes, won: false },
-                { rn: "iv.", name: "Won", val: totals.won, won: true },
+                { rn: "i.", name: "Booked", val: totals.booked, won: false, foot: "" },
+                { rn: "ii.", name: "Held", val: totals.held, won: false, foot: "" },
+                {
+                  rn: "iii.",
+                  name: "LOE sent",
+                  val: totals.loes,
+                  won: false,
+                  foot: loeValue ? `${fmtMoney(loeValue)} in LOE value` : "",
+                },
+                {
+                  rn: "iv.",
+                  name: "Won",
+                  val: totals.won,
+                  won: true,
+                  foot: totals.wonAmount ? `${fmtMoney(totals.wonAmount)} in revenue` : "",
+                },
               ].map((f) => {
                 const pct = totals.booked ? Math.round((f.val / totals.booked) * 100) : 0;
                 return (
-                  <div
-                    key={f.name}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "26px 96px 1fr 108px",
-                      alignItems: "center",
-                      gap: 12,
-                    }}
-                  >
-                    <span
-                      className="serif"
-                      style={{ fontStyle: "italic", fontSize: 16, color: "var(--faint)" }}
-                    >
-                      {f.rn}
-                    </span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--sec)" }}>
-                      {f.name}
-                    </span>
-                    <Bar
-                      pct={pct}
-                      height={20}
-                      radius={6}
-                      color={f.won ? "var(--olive)" : "var(--navy)"}
-                    />
-                    <span
+                  <div key={f.name}>
+                    <div
                       style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        fontVariantNumeric: "tabular-nums",
-                        textAlign: "right",
+                        display: "grid",
+                        gridTemplateColumns: "26px 96px 1fr 108px",
+                        alignItems: "center",
+                        gap: 12,
                       }}
                     >
-                      {f.val}{" "}
-                      <span style={{ color: "var(--faint)", fontWeight: 500, fontSize: 11 }}>
-                        {pct}%
+                      <span
+                        className="serif"
+                        style={{ fontStyle: "italic", fontSize: 16, color: "var(--faint)" }}
+                      >
+                        {f.rn}
                       </span>
-                    </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--sec)" }}>
+                        {f.name}
+                      </span>
+                      <Bar
+                        pct={pct}
+                        height={20}
+                        radius={6}
+                        color={f.won ? "var(--olive)" : "var(--navy)"}
+                      />
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          fontVariantNumeric: "tabular-nums",
+                          textAlign: "right",
+                        }}
+                      >
+                        {f.val}{" "}
+                        <span style={{ color: "var(--faint)", fontWeight: 500, fontSize: 11 }}>
+                          {pct}%
+                        </span>
+                      </span>
+                    </div>
+                    {f.foot && (
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          color: "var(--olive)",
+                          marginTop: 5,
+                          paddingLeft: 134,
+                        }}
+                      >
+                        {f.foot}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -427,12 +533,12 @@ export default function DashboardPage() {
             <Note>{mktLoading ? "Loading…" : "No attributed bookings in this range."}</Note>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {channels.slice(0, 6).map((c) => (
+              {channels.map((c) => (
                 <div
                   key={c.name}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "92px 1fr 88px",
+                    gridTemplateColumns: "104px 1fr 104px",
                     alignItems: "center",
                     gap: 12,
                   }}
@@ -449,10 +555,16 @@ export default function DashboardPage() {
                       textAlign: "right",
                     }}
                   >
-                    {c.booked} ·{" "}
-                    <span style={{ color: "var(--olive)", fontWeight: 700 }}>
-                      {c.won >= 1000 ? `$${Math.round(c.won / 1000)}k` : fmtMoney(c.won)}
-                    </span>
+                    {c.booked}
+                    {c.loes ? ` · ${c.loes} LOE` : ""}
+                    {c.won ? (
+                      <>
+                        {" · "}
+                        <span style={{ color: "var(--olive)", fontWeight: 700 }}>
+                          {c.won >= 1000 ? `$${Math.round(c.won / 1000)}k` : fmtMoney(c.won)}
+                        </span>
+                      </>
+                    ) : null}
                   </span>
                 </div>
               ))}
@@ -460,6 +572,18 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {/* By campaign & source */}
+      <CampaignTable rows={campaigns} rangeWord={RANGE_WORD[range]} loading={mktLoading} />
+
+      {/* Raw bookings, with the Held / LOE overrides */}
+      <BookingsTable
+        rows={tableRows}
+        loading={mktLoading}
+        search={search}
+        onSearch={setSearch}
+        onChanged={applyBookingChange}
+      />
 
       {/* Scraper strip — the one place scraping appears on this page */}
       <div
