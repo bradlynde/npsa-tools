@@ -589,6 +589,10 @@ export default function App() {
   const [reviewHtml, setReviewHtml] = useState("");
   const [savedLetterOverride, setSavedLetterOverride] = useState(null);
   const [appView, setAppView] = useState('dashboard');
+  // The ?view= we honoured on load, if any. Set means the toolbox shell sent us
+  // straight to a screen and owns the landing page, so "← Dashboard" belongs to
+  // it rather than to our own near-identical copy.
+  const [enteredVia, setEnteredVia] = useState(null);
   const [letterRoll, setLetterRoll] = useState(0);
   const [feeRoll, setFeeRoll] = useState(0);
   const [dbAvailable, setDbAvailable] = useState(false);
@@ -636,10 +640,59 @@ export default function App() {
     fetch('/api/letters/stats').then(r => { if (r.ok) { setDbAvailable(true); r.json().then(setDashStats); } }).catch(() => {});
     fetch('/api/reps').then(r => { if (r.ok) r.json().then(setReps); }).catch(() => {});
   }, []);
-  // Deep-link: /?view=marketing opens the Marketing dashboard directly
+  // Deep-link: /?view=<screen> opens a screen directly, so the toolbox shell can
+  // link to a tool rather than to a second copy of its own landing page.
+  //
+  // Each dashboard card does state setup before it switches views — resetting the
+  // form, stamping today's signing date, picking the document tab — so these have
+  // to do the same or the deep link lands on whatever was left over. Keep this in
+  // step with the card handlers below; an unrecognised value falls through to the
+  // dashboard exactly as before.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('view') === 'marketing') setAppView('marketing');
+    const view = new URLSearchParams(window.location.search).get('view');
+    if (!view) return;
+
+    const newDocument = (tab) => {
+      setForm({...defaultForm, npsaSigningDate: new Date().toISOString().split('T')[0]});
+      setDocTab(tab);
+      setCurrentLetterId(null);
+      setSavedLetterOverride(null);
+      setAppView('generator');
+    };
+
+    switch (view) {
+      case 'marketing':  setAppView('marketing'); break;
+      case 'settings':   setAppView('settings'); break;
+      case 'generator':  newDocument('inh'); break;
+      case 'proposal':   newDocument('proposal'); break;
+      case 'addendum':   newDocument('addendum'); break;
+      case 'precall':
+        setPreCallInput(''); setPreCallOutput(''); setPreCallMeta(null); setPreCallError('');
+        setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText('');
+        setPreCallViewMode('preview'); setAppView('precall');
+        break;
+      case 'letters':
+        // An overlay rather than a view — it opens over the dashboard.
+        setLetterSearch(''); setShowLetterBrowser(true); fetchLetters();
+        break;
+      default: return; // unknown — stay on the dashboard
+    }
+    setEnteredVia(view);
   }, []);
+
+  // "← Dashboard". When the shell deep-linked us into a screen it never showed
+  // our dashboard, so going back should leave the iframe and return to the
+  // toolbox rather than reveal a second landing page. Opened directly on Railway
+  // — no shell, no deep link — this is just the old behaviour.
+  const goBack = () => {
+    if (enteredVia && window.parent !== window) {
+      let origin = '*';
+      try { origin = new URL(document.referrer).origin; } catch { /* keep '*' */ }
+      window.parent.postMessage({ type: 'npsa:navigate', to: '/toolbox' }, origin);
+      return;
+    }
+    setAppView('dashboard');
+  };
   // Inject Ms Madi font for signatures
   useEffect(()=>{
     const link = document.createElement("link");
@@ -1478,7 +1531,7 @@ export default function App() {
       {appView === 'precall' && (
   <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)'}}>
     <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
-      <button onClick={()=>setAppView('dashboard')}
+      <button onClick={goBack}
         style={{background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
         &#8592; Dashboard
       </button>
@@ -1782,7 +1835,7 @@ export default function App() {
       {appView === 'settings' && (
         <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)'}}>
           <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
-            <button onClick={()=>setAppView('dashboard')}
+            <button onClick={goBack}
               style={{background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
               &#8592; Dashboard
             </button>
@@ -1828,7 +1881,7 @@ export default function App() {
     <div style={{display:"flex",height:"100vh",fontFamily:'var(--font-sans)',background:"#fbfaf8"}}>
       {/* ── SIDEBAR ── */}
       <div style={{width:320,background:"#16202e",color:"#e8edf4",overflowY:"auto",padding:"20px 16px",flexShrink:0}}>
-        <button onClick={()=>setAppView('dashboard')}
+        <button onClick={goBack}
           style={{background:'none',border:'none',color:'#8796aa',fontSize:12,cursor:'pointer',padding:'0 0 14px',display:'flex',alignItems:'center',gap:5,fontFamily:'var(--font-sans)'}}>
           &#8592; Dashboard
         </button>
@@ -3674,7 +3727,7 @@ ${form.npsa1Name||"NPSA"}`
               <input value={letterSearch} onChange={e=>{ setLetterSearch(e.target.value); fetchLetters(e.target.value); }}
                 placeholder="Search by client or rep..."
                 style={{border:"1px solid #d9d5cc",borderRadius:10,padding:"10px 16px",fontSize:14,outline:"none",width:280}}/>
-              <button onClick={()=>setShowLetterBrowser(false)}
+              <button onClick={()=>{ setShowLetterBrowser(false); if (enteredVia === 'letters') goBack(); }}
                 style={{background:"#fbfaf8",border:"1px solid #e7e2d6",borderRadius:10,width:40,height:40,color:"#4a5462",fontSize:18,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>&#10005;</button>
             </div>
             {/* Table — centered, compact columns */}
@@ -3725,7 +3778,7 @@ ${form.npsa1Name||"NPSA"}`
         </div>
       )}
 
-      {appView === 'marketing' && <MarketingDashboard onBack={() => setAppView('dashboard')} />}
+      {appView === 'marketing' && <MarketingDashboard onBack={goBack} />}
     </>
   );
 }
