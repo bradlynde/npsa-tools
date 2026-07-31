@@ -22,6 +22,8 @@ interface StateData {
 
 interface USStateMapProps {
   stateData: Record<string, StateData>;
+  /** Matches the Scraper page's filter chips; changes what "cleared" means. */
+  filter?: "all" | "school" | "church";
 }
 
 interface TooltipInfo {
@@ -48,15 +50,31 @@ const STATE_NAMES: Record<string, string> = {
   west_virginia: "West Virginia", wisconsin: "Wisconsin", wyoming: "Wyoming",
 };
 
-function getStateColor(stateId: string, stateData: Record<string, StateData>): string {
+/**
+ * Two hues only, per the design system: olive means cleared, navy means
+ * partially covered, the track colour means untouched.
+ *
+ * Under the "All" filter a state is only *cleared* once both churches and
+ * schools have been run; one of the two leaves it navy. Filtering to a single
+ * type makes "cleared" mean just that type.
+ */
+function getStateColor(
+  stateId: string,
+  stateData: Record<string, StateData>,
+  filter: "all" | "school" | "church"
+): string {
   const data = stateData[stateId];
-  if (!data) return "#e5e7eb"; // not scraped
+  if (!data) return "var(--track)";
+
   const hasChurch = !!data.churchRun;
   const hasSchool = !!data.schoolRun;
-  if (hasChurch && hasSchool) return "#2d6a4f"; // both
-  if (hasChurch) return COLORS.accent; // navy
-  if (hasSchool) return COLORS.green; // olive
-  return "#e5e7eb";
+
+  if (filter === "school") return hasSchool ? "var(--olive)" : "var(--track)";
+  if (filter === "church") return hasChurch ? "var(--olive)" : "var(--track)";
+
+  if (hasChurch && hasSchool) return "var(--olive)";
+  if (hasChurch || hasSchool) return "var(--navy)";
+  return "var(--track)";
 }
 
 function isInProgress(stateId: string, stateData: Record<string, StateData>): boolean {
@@ -75,7 +93,7 @@ function formatDate(dateStr: string): string {
   }
 }
 
-export default function USStateMap({ stateData }: USStateMapProps) {
+export default function USStateMap({ stateData, filter = "all" }: USStateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipInfo | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -112,7 +130,7 @@ export default function USStateMap({ stateData }: USStateMapProps) {
           `}</style>
         </defs>
         {Object.entries(US_STATE_PATHS).map(([stateId, pathD]) => {
-          const color = getStateColor(stateId, stateData);
+          const color = getStateColor(stateId, stateData, filter);
           const isHovered = tooltip?.stateId === stateId;
           const hasData = !!stateData[stateId];
           const pulsing = isInProgress(stateId, stateData);
@@ -130,7 +148,7 @@ export default function USStateMap({ stateData }: USStateMapProps) {
               key={stateId}
               d={pathD}
               fill={color}
-              stroke="#ffffff"
+              stroke="var(--card)"
               strokeWidth={1}
               transform={transform}
               style={{
@@ -153,8 +171,8 @@ export default function USStateMap({ stateData }: USStateMapProps) {
             position: "absolute",
             left: Math.min(tooltip.x + 12, (containerRef.current?.clientWidth || 600) - 220),
             top: tooltip.y - 10,
-            background: "#1a2540",
-            color: "#fff",
+            background: "var(--tip-bg)",
+            color: "var(--tip-fg)",
             borderRadius: 8,
             padding: "10px 14px",
             fontSize: 12,
@@ -169,20 +187,20 @@ export default function USStateMap({ stateData }: USStateMapProps) {
           </div>
 
           {!tooltipData && (
-            <div style={{ color: "#9ca3af", fontSize: 11 }}>Not yet scraped</div>
+            <div style={{ opacity: .65, fontSize: 11 }}>Not yet scraped</div>
           )}
 
           {tooltipData?.churchRun && (
             <div style={{ marginBottom: tooltipData.schoolRun ? 6 : 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                <span style={{ width: 6, height: 6, borderRadius: 1, background: COLORS.accent, display: "inline-block" }} />
+                <span style={{ width: 6, height: 6, borderRadius: 1, background: "var(--navy)", display: "inline-block" }} />
                 <span style={{ fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}>Churches</span>
               </div>
-              <div style={{ color: "#d1d5db", fontSize: 11, paddingLeft: 10 }}>
+              <div style={{ opacity: .85, fontSize: 11, paddingLeft: 10 }}>
                 {tooltipData.churchRun.total_contacts.toLocaleString()} contacts
                 {tooltipData.churchRun.total_counties > 0 && ` · ${tooltipData.churchRun.total_counties} counties`}
               </div>
-              <div style={{ color: "#9ca3af", fontSize: 10, paddingLeft: 10 }}>
+              <div style={{ opacity: .6, fontSize: 10, paddingLeft: 10 }}>
                 {formatDate(tooltipData.churchRun.completed_at)}
               </div>
             </div>
@@ -191,14 +209,14 @@ export default function USStateMap({ stateData }: USStateMapProps) {
           {tooltipData?.schoolRun && (
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                <span style={{ width: 6, height: 6, borderRadius: 1, background: COLORS.green, display: "inline-block" }} />
+                <span style={{ width: 6, height: 6, borderRadius: 1, background: "var(--olive)", display: "inline-block" }} />
                 <span style={{ fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}>Schools</span>
               </div>
-              <div style={{ color: "#d1d5db", fontSize: 11, paddingLeft: 10 }}>
+              <div style={{ opacity: .85, fontSize: 11, paddingLeft: 10 }}>
                 {tooltipData.schoolRun.total_contacts.toLocaleString()} contacts
                 {tooltipData.schoolRun.total_counties > 0 && ` · ${tooltipData.schoolRun.total_counties} counties`}
               </div>
-              <div style={{ color: "#9ca3af", fontSize: 10, paddingLeft: 10 }}>
+              <div style={{ opacity: .6, fontSize: 10, paddingLeft: 10 }}>
                 {formatDate(tooltipData.schoolRun.completed_at)}
               </div>
             </div>

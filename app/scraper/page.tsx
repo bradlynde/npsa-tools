@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Page,
   Card,
@@ -28,6 +29,9 @@ import {
 } from "../../lib/api";
 import { US_STATES, estimateRunTime } from "../../lib/constants";
 import type { RunMetadata, QueueJob, PipelineStatus, ScraperType } from "../../lib/types";
+
+// Large inline SVG — keep it out of the initial bundle.
+const USStateMap = dynamic(() => import("../../components/USStateMap"), { ssr: false });
 
 type Filter = "all" | "school" | "church";
 
@@ -218,6 +222,37 @@ export default function ScraperPage() {
       setStarting(false);
     }
   };
+
+  // Coverage map: a state counts as cleared once its run has finished; runs
+  // still going are flagged "In Progress" so the map pulses them.
+  const stateData = useMemo(() => {
+    const out: Record<string, any> = {};
+    for (const r of runs) {
+      const key = r.state?.toLowerCase().replace(/\s+/g, "_");
+      if (!key) continue;
+      const type = (r.scraper_type || "school") as ScraperType;
+      const slot = type === "church" ? "churchRun" : "schoolRun";
+      if (!out[key]) out[key] = { state: key };
+      // Keep the first (most recent) run per state+type; runs are sorted desc.
+      if (out[key][slot]) continue;
+      if (!isDone(r.status) && !isActive(r.status)) continue;
+      out[key][slot] = {
+        total_contacts: r.total_contacts || 0,
+        total_counties: r.total_counties || 0,
+        completed_at: isActive(r.status) ? "In Progress" : r.completed_at || r.created_at || "",
+        display_name: runTitle(r, type),
+      };
+    }
+    return out;
+  }, [runs]);
+
+  const clearedCount = useMemo(
+    () =>
+      Object.values(stateData).filter((d: any) =>
+        filter === "school" ? d.schoolRun : filter === "church" ? d.churchRun : d.schoolRun && d.churchRun
+      ).length,
+    [stateData, filter]
+  );
 
   const activeTotal = activeStatus?.totalCounties ?? activeStatus?.total_counties ?? 0;
   const activeDone = activeStatus?.countiesProcessed ?? activeStatus?.counties_processed ?? 0;
@@ -634,6 +669,80 @@ export default function ScraperPage() {
             </div>
           </div>
         )}
+      </Card>
+
+      {/* Coverage map */}
+      <Card style={{ marginTop: 14 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 4,
+            flexWrap: "wrap",
+          }}
+        >
+          <Eyebrow>
+            coverage —{" "}
+            {filter === "all"
+              ? "schools & churches"
+              : filter === "school"
+              ? "schools"
+              : "churches"}
+          </Eyebrow>
+          <Eyebrow color="var(--faint)">
+            {clearedCount} of 50 cleared
+          </Eyebrow>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 18,
+            flexWrap: "wrap",
+            marginBottom: 10,
+            alignItems: "center",
+          }}
+        >
+          {(filter === "all"
+            ? [
+                { c: "var(--olive)", l: "cleared — both" },
+                { c: "var(--navy)", l: "one type only" },
+                { c: "var(--track)", l: "not yet run" },
+              ]
+            : [
+                { c: "var(--olive)", l: "cleared" },
+                { c: "var(--track)", l: "not yet run" },
+              ]
+          ).map((k) => (
+            <span
+              key={k.l}
+              className="mono"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 10.5,
+                letterSpacing: ".05em",
+                color: "var(--mute)",
+              }}
+            >
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 3,
+                  background: k.c,
+                  border: "1px solid var(--hair)",
+                }}
+              />
+              {k.l}
+            </span>
+          ))}
+        </div>
+
+        <USStateMap stateData={stateData} filter={filter} />
       </Card>
     </Page>
   );
