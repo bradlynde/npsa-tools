@@ -471,7 +471,11 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
     text += `\n\n2. Contingent Fee. Upon notification of a grant award, CLIENT will pay NPSA an additional ${fmt(fees.contingent)}. This fee is due upon award notification and is not reimbursable by grant funds.`;
     if (!isInh) text += `\n\nB. Third-Party Grant Writer\n\n1. CLIENT will pay a third-party grant writer for grant writing services directly, outside of NPSA's direction or control, to remain in compliance with NSGP rules.`;
   }
-  if (earlySigningDiscount && earlySigningDate && earlySigningAmount) {
+  // Gate on the discount actually applied, not on the operator's input field. Partial
+  // contingency takes its discounted fees straight from the pricing table and ignores
+  // earlySigningAmount, so keying off that field would drop the execution deadline from
+  // a discounted letter — giving the discount away with no date attached to hold it to.
+  if (earlySigningDiscount && earlySigningDate && fees.discount > 0) {
     text += `\n\n[EARLY_SIGNING_DISCOUNT:${earlySigningDate}:${fmt(fees.discount)}:${fmt(fees.baseUpfront)}]`;
   }
   // Post-Award Consulting and Administrative Support Fee block — shown when toggle is on
