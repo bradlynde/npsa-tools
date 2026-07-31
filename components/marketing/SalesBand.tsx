@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, Eyebrow, SegPill, Note, useRoll, fmtInt, fmtMoney } from "../ui";
 import {
+  fetchUntrackedWins,
   salesPeriodLabel,
+  type UntrackedWin,
   type ApplicationStats,
   type SalesGranularity,
   type SalesPoint,
@@ -106,10 +108,22 @@ export default function SalesBand({
   sync: SyncStatus | null;
 }) {
   const [showPrograms, setShowPrograms] = useState(false);
+  const [showUntracked, setShowUntracked] = useState(false);
+  const [untracked, setUntracked] = useState<UntrackedWin[]>([]);
+  const [loadingUntracked, setLoadingUntracked] = useState(false);
   const [metric, setMetric] = useState<SalesMetric>("new_orgs");
   const [cumulative, setCumulative] = useState(false);
   const [tip, setTip] = useState(-1);
   const roll = useRoll(`sales-${stats.won_revenue_total}-${apps?.total ?? 0}`);
+
+  useEffect(() => {
+    if (!showUntracked || untracked.length > 0) return;
+    setLoadingUntracked(true);
+    fetchUntrackedWins()
+      .then(setUntracked)
+      .catch(() => setUntracked([]))
+      .finally(() => setLoadingUntracked(false));
+  }, [showUntracked, untracked.length]);
 
   const cfg = SALES_METRICS.find((m) => m.key === metric)!;
   const fmtVal = (v: number) => (cfg.money ? fmtMoney(v) : fmtInt(v));
@@ -207,6 +221,29 @@ export default function SalesBand({
           <div style={{ color: "rgba(255,255,255,.72)", fontSize: 12.5, marginTop: 5 }}>
             NPSA revenue won
           </div>
+          {stats.untracked_count > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowUntracked((v) => !v)}
+              aria-expanded={showUntracked}
+              style={{
+                marginTop: 9,
+                background: "none",
+                border: "none",
+                padding: 0,
+                font: "inherit",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "rgba(255,255,255,.85)",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              {fmtMoney(stats.untracked_revenue)} closed before the funnel ·{" "}
+              {showUntracked ? "hide" : "show"} {stats.untracked_count}{" "}
+              {stats.untracked_count === 1 ? "deal" : "deals"} {showUntracked ? "▾" : "▸"}
+            </button>
+          )}
         </div>
 
         {apps && (
@@ -239,6 +276,73 @@ export default function SalesBand({
           </div>
         )}
       </div>
+
+      {showUntracked && (
+        <Card style={{ padding: "8px 6px", marginBottom: 14 }} className="fade-up">
+          <div
+            className="mono"
+            style={{
+              display: "flex",
+              fontSize: 10.5,
+              fontWeight: 600,
+              color: "var(--faint)",
+              letterSpacing: ".07em",
+              padding: "10px 16px",
+            }}
+          >
+            <div style={{ flex: 1 }}>CLOSED BEFORE THE FUNNEL</div>
+            <div style={{ width: 120, textAlign: "right" }}>CLOSED</div>
+            <div style={{ width: 110, textAlign: "right" }}>AMOUNT</div>
+          </div>
+          <div style={{ maxHeight: 320, overflowY: "auto" }}>
+            {loadingUntracked && <Note>Loading…</Note>}
+            {!loadingUntracked && untracked.length === 0 && <Note>Nothing to show.</Note>}
+            {untracked.map((u) => (
+              <div
+                key={u.opportunity_id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "11px 16px",
+                  borderTop: "1px solid var(--hair2)",
+                  fontSize: 13.5,
+                }}
+              >
+                <div style={{ flex: 1, color: "var(--ink)", fontWeight: 600 }}>
+                  {u.organization || "—"}
+                </div>
+                <div
+                  style={{
+                    width: 120,
+                    textAlign: "right",
+                    color: "var(--mute)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {u.close_date
+                    ? new Date(u.close_date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </div>
+                <div
+                  style={{
+                    width: 110,
+                    textAlign: "right",
+                    fontWeight: 700,
+                    color: "var(--ink)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {fmtMoney(u.amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Grant dollars: brought in vs still in play */}
       {apps && (

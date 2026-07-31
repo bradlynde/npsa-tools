@@ -35,17 +35,16 @@ in this Next.js app.
 |---|---|---|
 | "Refresh data" (POST `/api/marketing/enrich`) | `↻ refresh data` in the page header | Re-fetches everything on success |
 | Title + subtitle | Eyebrow + "The business, up front." | |
-| "Funnel tracked since Feb 2026" badge | Badge under the headline | |
+| "Funnel tracked since Feb 2026" badge | Under the *marketing* heading, not the page headline | Applies to the funnel, not the Salesforce figures above it |
 | KPI — bookings this week | Pulse strip | Fixed window; doesn't move with the range chips |
 | KPI — bookings this month (+ MoM) | Pulse strip | Shows `+N vs last month` |
 | KPI — LOE sent (`client_rate`, % of bookings) | Funnel row *LOE sent* (`% of booked`) | Same measure; the KPI tile shows the range-scoped count |
 | KPI — from Instantly (`instantly_pct`) | Pulse strip | |
 | KPI — LOE value (`total_fees_won`) | Pulse strip, olive | |
-| Salesforce — total won revenue + win count | Salesforce band, navy hero card | |
-| Salesforce — attributed to funnel + coverage % + count | Salesforce band | |
-| Salesforce — untracked / pre-funnel + deal count | Salesforce band | |
-| Salesforce — show/hide untracked list (org, closed, amount) | Collapsible table in the band | Lazy-loads `untracked-wins` |
-| ~~Attribution coverage meter~~ | Removed | Dropped at Stuart's request — a comparable funnel predates the round-robin, so the figure misleads. May return in his own session |
+| Salesforce — total won revenue + win count | Sales band, *contract value* card | Was duplicated in a second band; the two showed the same figure |
+| Salesforce — untracked / pre-funnel + deal count + list | Disclosure inside *contract value* | "$X closed before the funnel · show N deals" |
+| ~~Attribution coverage meter~~ | Removed | Dropped at Stuart's request — a comparable funnel predates the round-robin, so the figure misleads |
+| ~~Attributed-to-funnel card~~ | Removed | Same attribution framing as the meter above |
 | Funnel — Booked / Held / LOE Sent / Won + % of booked | Funnel card | |
 | Funnel — "$X in LOE value" footer | Funnel card, LOE sent row | Range-scoped from bookings; all-time uses `funnel.fees` |
 | Funnel — "$X in revenue" footer | Funnel card, Won row | |
@@ -62,15 +61,16 @@ in this Next.js app.
 | Bookings — who took the meeting | Bookings table, under the meeting date | Email local-part, title-cased |
 | Bookings — exclusion reason (unqualified / double booking / cancelled) | Bookings table, "COUNTS?" column | Quiet until hovered or set; excluded rows read as set aside |
 | Bookings — Calendly cancellation | Bookings table | Stated as a badge, not offered as a choice |
-| "Excluded from these figures: N cancelled · N double booking (N this week)" | Line under the funnel badge | |
+| "Excluded from these figures: N cancelled · N double booking (N this week)" | Under the *marketing* heading, with the figures it qualifies | |
 
 Added, not in the live app: range chips (30d / 90d / YTD / All, remembered
 between visits), and an editable **channel** on each booking row — the backend's
 PATCH has accepted `channel` since #93, but the live table still renders it
 read-only.
 
-Ordering follows the live app: the bookings table sits **above** the campaign
-roll-up (upstream `62b59dc`). The scraper strip was removed from this page —
+Section order: sales (Salesforce) → marketing KPIs → bookings chart → raw
+bookings → funnel + channels → campaign & source. Raw rows come before every
+roll-up that summarises them, following upstream `62b59dc`. The scraper strip was removed from this page —
 the Scraper tab owns that.
 
 ## Sales Toolbox

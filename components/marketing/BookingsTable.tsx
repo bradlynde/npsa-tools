@@ -147,7 +147,14 @@ export default function BookingsTable({
                       padding: "10px 12px",
                       borderBottom: "1px solid var(--hair2)",
                       alignItems: "center",
-                      background: isHover ? "var(--hover)" : "transparent",
+                      background: excluded
+                        ? "var(--warn-bg)"
+                        : isHover
+                        ? "var(--hover)"
+                        : "transparent",
+                      borderLeft: excluded
+                        ? "3px solid var(--warn-fg)"
+                        : "3px solid transparent",
                       opacity: saving === r.id ? 0.55 : 1,
                       transition: "opacity .15s, background .15s",
                     }}
@@ -162,6 +169,10 @@ export default function BookingsTable({
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
+                          // Struck through so a set-aside booking is obvious at a
+                          // glance, not just slightly greyer than its neighbours.
+                          textDecoration: excluded ? "line-through" : "none",
+                          textDecorationThickness: excluded ? "1.5px" : undefined,
                         }}
                       >
                         {r.organization || "—"}
@@ -173,6 +184,7 @@ export default function BookingsTable({
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
+                          textDecoration: excluded ? "line-through" : "none",
                         }}
                       >
                         {r.name || ""}
@@ -218,6 +230,7 @@ export default function BookingsTable({
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
+                        textDecoration: excluded ? "line-through" : "none",
                       }}
                     >
                       {r.instantly_campaign || "—"}

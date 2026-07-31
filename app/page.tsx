@@ -18,7 +18,6 @@ import {
   fmtPct,
 } from "../components/ui";
 import TimeSeriesChart from "../components/marketing/TimeSeriesChart";
-import SalesforceBand from "../components/marketing/SalesforceBand";
 import SalesBand from "../components/marketing/SalesBand";
 import CampaignTable from "../components/marketing/CampaignTable";
 import BookingsTable from "../components/marketing/BookingsTable";
@@ -262,7 +261,44 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 18 }}>
+
+
+      {mktError && (
+        <Card style={{ marginBottom: 14, borderColor: "var(--err-fg)" }}>
+          <Eyebrow color="var(--err-fg)" style={{ marginBottom: 6 }}>
+            marketing data unavailable
+          </Eyebrow>
+          <div style={{ fontSize: 13.5, color: "var(--sec)" }}>
+            {mktError}. The Sales Toolbox backend may be unreachable — the rest of the toolbox is
+            unaffected.
+          </div>
+        </Card>
+      )}
+
+      {/* Sales — organisations won, contract value, grant applications */}
+      {stats && (
+        <SalesBand
+          stats={stats}
+          apps={apps}
+          series={salesSeries}
+          gran={salesGran}
+          onGranChange={setSalesGran}
+          sync={sync}
+        />
+      )}
+
+      <Eyebrow style={{ margin: "22px 0 8px" }}>
+        marketing · what feeds the pipeline
+      </Eyebrow>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          marginBottom: 14,
+        }}
+      >
         <span
           className="mono"
           style={{
@@ -278,7 +314,6 @@ export default function DashboardPage() {
           funnel tracked since Feb 2026
         </span>
       </div>
-
       {stats?.excluded?.length ? (
         <div
           style={{
@@ -313,34 +348,6 @@ export default function DashboardPage() {
           </span>
         </div>
       ) : null}
-
-      {mktError && (
-        <Card style={{ marginBottom: 14, borderColor: "var(--err-fg)" }}>
-          <Eyebrow color="var(--err-fg)" style={{ marginBottom: 6 }}>
-            marketing data unavailable
-          </Eyebrow>
-          <div style={{ fontSize: 13.5, color: "var(--sec)" }}>
-            {mktError}. The Sales Toolbox backend may be unreachable — the rest of the toolbox is
-            unaffected.
-          </div>
-        </Card>
-      )}
-
-      {/* Sales — organisations won, contract value, grant applications */}
-      {stats && (
-        <SalesBand
-          stats={stats}
-          apps={apps}
-          series={salesSeries}
-          gran={salesGran}
-          onGranChange={setSalesGran}
-          sync={sync}
-        />
-      )}
-
-      <Eyebrow style={{ margin: "22px 0 12px" }}>
-        marketing · what feeds the pipeline
-      </Eyebrow>
 
       {/* Primary, range-scoped KPIs */}
       <div
@@ -431,15 +438,21 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Salesforce revenue layer */}
-      {stats && <SalesforceBand stats={stats} />}
-
       {/* Time series */}
       <TimeSeriesChart
         series={gran === "week" ? weekly : monthly}
         gran={gran}
         onGranChange={setGran}
         loading={mktLoading}
+      />
+
+      {/* Raw bookings first — the source rows people check before the roll-ups */}
+      <BookingsTable
+        rows={tableRows}
+        loading={mktLoading}
+        search={search}
+        onSearch={setSearch}
+        onChanged={applyBookingChange}
       />
 
       {/* Funnel + channels */}
@@ -587,15 +600,6 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
-
-      {/* Raw bookings first — the source rows people check before the roll-ups */}
-      <BookingsTable
-        rows={tableRows}
-        loading={mktLoading}
-        search={search}
-        onSearch={setSearch}
-        onChanged={applyBookingChange}
-      />
 
       {/* By campaign & source */}
       <CampaignTable rows={campaigns} rangeWord={RANGE_WORD[range]} loading={mktLoading} />
