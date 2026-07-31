@@ -103,6 +103,9 @@ adds support.
   aggregated time series and are never capped.
 - **LOE generator wizard** — not built here; it belongs to the `loe-generator`
   app. See PR #95 for why.
-- **`/api/marketing/sync/status`** — the live dashboard calls it and gets a real
-  answer, but no branch in this repo implements it, so Railway is running code
-  that isn't pushed. The sync line is written to tolerate its absence.
+- **`/api/marketing/sync/status`** — implemented in
+  `server/connectors/salesforce.js` (`registerSalesforceConnector`), not in
+  `server/marketing.js` where the other marketing routes live. Railway
+  auto-deploys the `loe-generator` branch, so nothing is out of sync. The
+  dashboard's sync line still tolerates a missing endpoint, which keeps it safe
+  against older deploys.
