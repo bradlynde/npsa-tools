@@ -155,6 +155,22 @@ const PROGRAMS = {
   california: { label:"California (CSNSGP)", acronym:"CSNSGP", maxAward:"250,000", fullName:(yr)=>`${yr} California State Nonprofit Security Grant Program ("CSNSGP")` },
   newyork:    { label:"New York (NYSCAHC)", acronym:"NYSCAHC", maxAward:"200,000", fullName:(yr)=>`${yr} New York Securing Communities Against Hate Crimes ("NYSCAHC")` },
 };
+/**
+ * Total maximum award across an engagement: each program's own cap times the
+ * number of locations applying under it. Caps are not uniform — Illinois is
+ * $150,000 and California $250,000 against the federal $200,000 — so this
+ * cannot be shortcut to a flat per-location figure.
+ *
+ * Award Implementation prices from this at 5%.
+ */
+function totalMaxAward(programs, locations) {
+  return (programs || []).reduce((sum, pg) => {
+    const cfg = PROGRAMS[pg.key] || PROGRAMS.federal;
+    const n = (locations || []).filter((l) => (l.programs || ["federal"]).includes(pg.key)).length;
+    return sum + n * (parseFloat(String(cfg.maxAward).replace(/,/g, "")) || 0);
+  }, 0);
+}
+
 // ─── NPSA SIGNATURE STYLES ────────────────────────────────────────────────────
 const NPSA_SIGNATURES = {
   "Brad Lynde":     { font:"'Ms Madi', cursive", size:"38px", color:"#182230" },
@@ -169,4 +185,5 @@ export {
   calcFees, buildInstallmentText, buildCompBlock,
   SHARED_FIELDS, POST_FIELDS,
   PROGRAMS, NPSA_SIGNATURES,
+  totalMaxAward,
 };
