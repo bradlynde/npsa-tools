@@ -88,9 +88,27 @@ the Scraper tab owns that.
 | Settings → Sales Reps (gear icon) | Card **vi**, "Manage Sales Reps" |
 
 The cards deep-link with `?view=…`, which `/loe` forwards to the Sales Toolbox
-iframe. That app currently honours `view=marketing` and lands on its dashboard
-for anything else, so the links are safe today and become direct the moment it
-adds support.
+iframe. Each one opens its tool directly:
+
+| `?view=` | Opens |
+|---|---|
+| `generator` / `proposal` / `addendum` | the generator, on that document tab, with a fresh form |
+| `letters` | the saved-letters browser |
+| `precall` | the pre-call notes generator |
+| `settings` | Sales Reps |
+| `marketing` | the embedded marketing dashboard (used by `/marketing`) |
+
+An unrecognised value lands on the Sales Toolbox's own dashboard, as before.
+
+Because a deep link skips that dashboard on the way in, the tool's
+"← Dashboard" shouldn't reveal it on the way out — it posts
+`{type:'npsa:navigate'}` to the shell, and `ToolFrame` routes to `/toolbox`
+(or `/` from `/marketing`). Opened directly on Railway, with no shell and no
+deep link, back still goes to the app's own dashboard, so it stays usable
+standalone.
+
+> Requires the matching `loe-generator` change (PR #97). Without it the deep
+> links fall through to that app's dashboard and you land on it twice.
 
 ## Known gaps (deliberate)
 

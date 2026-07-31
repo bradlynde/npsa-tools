@@ -1,18 +1,9 @@
 "use client";
 
-import { LOE_URL } from "../../lib/constants";
+import ToolFrame from "../../components/ToolFrame";
 
 export default function MarketingPage() {
-  return (
-    <iframe
-      src={`${LOE_URL}/?view=marketing`}
-      style={{
-        width: "100%",
-        height: "100%",
-        border: "none",
-        display: "block",
-      }}
-      title="Marketing"
-    />
-  );
+  // Back from the embedded marketing dashboard belongs on the native one, which
+  // is the shell's home page — not the Sales Toolbox.
+  return <ToolFrame view="marketing" title="Marketing" back="/" height="100%" />;
 }
