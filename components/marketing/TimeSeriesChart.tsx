@@ -189,7 +189,7 @@ export default function TimeSeriesChart({
                           transform: "translateX(-50%)",
                           width: gran === "week" ? "86%" : "78%",
                           height: `${(ghost / maxVal) * 100}%`,
-                          background: "var(--track)",
+                          background: "var(--ghost)",
                           borderRadius: 5,
                         }}
                         title="previous period"

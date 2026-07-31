@@ -9,6 +9,9 @@ const READABLE = new Set([
   "by-channel",
   "by-campaign",
   "timeseries",
+  "sales-timeseries",
+  "applications", // applications/stats
+  "sync", // sync/status
   "bookings",
   "untracked-wins",
 ]);

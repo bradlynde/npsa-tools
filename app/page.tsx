@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Page,
   Card,
@@ -20,10 +19,14 @@ import {
 } from "../components/ui";
 import TimeSeriesChart from "../components/marketing/TimeSeriesChart";
 import SalesforceBand from "../components/marketing/SalesforceBand";
+import SalesBand from "../components/marketing/SalesBand";
 import CampaignTable from "../components/marketing/CampaignTable";
 import BookingsTable from "../components/marketing/BookingsTable";
 import {
   fetchStats,
+  fetchApplicationStats,
+  fetchSalesTimeseries,
+  fetchSyncStatus,
   fetchFunnel,
   fetchTimeseries,
   fetchBookings,
@@ -43,9 +46,11 @@ import {
   type BookingRow,
   type Stats,
   type Funnel,
+  type ApplicationStats,
+  type SalesGranularity,
+  type SalesPoint,
+  type SyncStatus,
 } from "../lib/marketing";
-import { fetchRuns, fetchPipelineStatus } from "../lib/api";
-import type { RunMetadata, PipelineStatus, ScraperType } from "../lib/types";
 
 const RANGES: { key: Range; label: string }[] = [
   { key: "30d", label: "30d" },
@@ -60,11 +65,14 @@ const todayLine = () =>
     .toLowerCase();
 
 export default function DashboardPage() {
-  const router = useRouter();
 
   // Marketing data
   const [stats, setStats] = useState<Stats | null>(null);
   const [funnelAll, setFunnelAll] = useState<Funnel | null>(null);
+  const [apps, setApps] = useState<ApplicationStats | null>(null);
+  const [salesSeries, setSalesSeries] = useState<SalesPoint[]>([]);
+  const [salesGran, setSalesGran] = useState<SalesGranularity>("month");
+  const [sync, setSync] = useState<SyncStatus | null>(null);
   const [weekly, setWeekly] = useState<TimeseriesRow[]>([]);
   const [monthly, setMonthly] = useState<TimeseriesRow[]>([]);
   const [allBookings, setAllBookings] = useState<BookingRow[]>([]);
@@ -77,10 +85,6 @@ export default function DashboardPage() {
   const [gran, setGran] = useState<Granularity>("week");
   const [search, setSearch] = useState("");
 
-  // Scraper strip
-  const [activeRun, setActiveRun] = useState<RunMetadata | null>(null);
-  const [activeStatus, setActiveStatus] = useState<PipelineStatus | null>(null);
-
   useEffect(() => setRange(loadRange("90d")), []);
   const changeRange = (r: Range) => {
     setRange(r);
@@ -88,14 +92,19 @@ export default function DashboardPage() {
   };
 
   const loadMarketing = useCallback(async () => {
-    const [s, f, w, b] = await Promise.allSettled([
+    const [s, f, w, b, a, sy] = await Promise.allSettled([
       fetchStats(),
       fetchFunnel(),
       fetchTimeseries("week"),
       fetchBookings(),
+      fetchApplicationStats(),
+      fetchSyncStatus(),
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (f.status === "fulfilled") setFunnelAll(f.value);
+    // Applications live in a newer backend; absence just hides that band.
+    if (a.status === "fulfilled") setApps(a.value);
+    if (sy.status === "fulfilled") setSync(sy.value);
     if (w.status === "fulfilled") setWeekly(w.value);
     else setMktError((w.reason as Error)?.message || "Could not load marketing data");
     if (b.status === "fulfilled") {
@@ -108,6 +117,12 @@ export default function DashboardPage() {
   useEffect(() => {
     loadMarketing();
   }, [loadMarketing]);
+
+  useEffect(() => {
+    fetchSalesTimeseries(salesGran)
+      .then(setSalesSeries)
+      .catch(() => setSalesSeries([]));
+  }, [salesGran]);
 
   // Monthly series is only fetched when the chart is switched to months.
   useEffect(() => {
@@ -130,49 +145,6 @@ export default function DashboardPage() {
     }, 300);
     return () => clearTimeout(t);
   }, [search, allBookings]);
-
-  // Scraper strip — find a run in flight across both backends.
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const results = await Promise.allSettled([fetchRuns("school"), fetchRuns("church")]);
-      if (!alive) return;
-      const all: RunMetadata[] = [];
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled") {
-          all.push(
-            ...r.value.map((run) => ({
-              ...run,
-              scraper_type: run.scraper_type || ((i === 0 ? "school" : "church") as ScraperType),
-            }))
-          );
-        }
-      });
-      setActiveRun(all.find((r) => r.status === "running" || r.status === "finalizing") || null);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!activeRun) return;
-    let alive = true;
-    const poll = async () => {
-      try {
-        const st = await fetchPipelineStatus(activeRun.scraper_type || "school", activeRun.run_id);
-        if (alive) setActiveStatus(st);
-      } catch {
-        /* transient — keep the last good reading */
-      }
-    };
-    poll();
-    const iv = setInterval(poll, 30000);
-    return () => {
-      alive = false;
-      clearInterval(iv);
-    };
-  }, [activeRun]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -202,7 +174,9 @@ export default function DashboardPage() {
     [range, funnelAll, allBookings]
   );
 
-  const roll = useRoll(range);
+  // Re-run once the data lands, not just on mount — otherwise the counters
+  // finish rolling against zeroes and the numbers appear with no animation.
+  const roll = useRoll(mktLoading ? "loading" : `${range}-${weekly.length}`);
   const heldRate = totals.booked ? (totals.held / totals.booked) * 100 : 0;
   const loeRate = totals.held ? Math.round((totals.loes / totals.held) * 100) : 0;
   const bookingDelta = totals.booked - prior.booked;
@@ -239,16 +213,6 @@ export default function DashboardPage() {
     },
   ];
 
-  const stripTotal = activeStatus?.totalCounties ?? activeStatus?.total_counties ?? 0;
-  const stripDone = activeStatus?.countiesProcessed ?? activeStatus?.counties_processed ?? 0;
-  const stripPct = stripTotal > 0 ? Math.round((stripDone / stripTotal) * 100) : 0;
-  const stripName =
-    activeRun?.display_name ||
-    (activeRun?.state
-      ? `${activeRun.state.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} ${
-          activeRun.scraper_type === "church" ? "Churches" : "Schools"
-        }`
-      : "");
 
   const applyBookingChange = (id: number, field: "held" | "became_client", value: boolean) => {
     const patch = (rows: BookingRow[]) =>
@@ -326,6 +290,22 @@ export default function DashboardPage() {
           </div>
         </Card>
       )}
+
+      {/* Sales — organisations won, contract value, grant applications */}
+      {stats && (
+        <SalesBand
+          stats={stats}
+          apps={apps}
+          series={salesSeries}
+          gran={salesGran}
+          onGranChange={setSalesGran}
+          sync={sync}
+        />
+      )}
+
+      <Eyebrow style={{ margin: "22px 0 12px" }}>
+        marketing · what feeds the pipeline
+      </Eyebrow>
 
       {/* Primary, range-scoped KPIs */}
       <div
@@ -573,10 +553,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* By campaign & source */}
-      <CampaignTable rows={campaigns} rangeWord={RANGE_WORD[range]} loading={mktLoading} />
-
-      {/* Raw bookings, with the Held / LOE overrides */}
+      {/* Raw bookings first — the source rows people check before the roll-ups */}
       <BookingsTable
         rows={tableRows}
         loading={mktLoading}
@@ -585,66 +562,9 @@ export default function DashboardPage() {
         onChanged={applyBookingChange}
       />
 
-      {/* Scraper strip — the one place scraping appears on this page */}
-      <div
-        style={{
-          background: "var(--navycard)",
-          borderRadius: 16,
-          padding: "17px 24px",
-          display: "flex",
-          alignItems: "center",
-          gap: 18,
-          boxShadow: "var(--shadow-navy)",
-          flexWrap: "wrap",
-        }}
-      >
-        {activeRun ? <Pulse /> : null}
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div
-            className="mono"
-            style={{
-              fontWeight: 500,
-              fontSize: 11.5,
-              letterSpacing: ".06em",
-              color: "rgba(255,255,255,.75)",
-              marginBottom: activeRun ? 7 : 0,
-            }}
-          >
-            {activeRun ? `contact scraper — ${stripName} running` : "contact scraper — no active run"}
-          </div>
-          {activeRun && (
-            <div style={{ height: 5, background: "rgba(255,255,255,.16)", borderRadius: 999 }}>
-              <div
-                style={{
-                  width: `${stripPct}%`,
-                  height: "100%",
-                  background: "var(--olive)",
-                  borderRadius: 999,
-                  transformOrigin: "left",
-                  animation: "growX 1s ease both",
-                  transition: "width .6s cubic-bezier(.34,1.3,.4,1)",
-                }}
-              />
-            </div>
-          )}
-        </div>
-        {activeRun && stripTotal > 0 && (
-          <span
-            className="mono"
-            style={{
-              fontWeight: 600,
-              fontSize: 12.5,
-              color: "#fff",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {stripDone} / {stripTotal} · {stripPct}%
-          </span>
-        )}
-        <PillButton tone="white" onClick={() => router.push("/scraper")} style={{ fontSize: 12.5 }}>
-          Open Scraper →
-        </PillButton>
-      </div>
+      {/* By campaign & source */}
+      <CampaignTable rows={campaigns} rangeWord={RANGE_WORD[range]} loading={mktLoading} />
+
     </Page>
   );
 }

@@ -25,9 +25,7 @@ export default function SalesforceBand({ stats }: { stats: Stats }) {
       .finally(() => setLoadingList(false));
   }, [showUntracked, untracked.length]);
 
-  const coverage = Math.round((stats.attribution_coverage || 0) * 100);
-
-  return (
+    return (
     <>
       <Eyebrow style={{ margin: "6px 0 12px" }}>salesforce performance · all time</Eyebrow>
 
@@ -121,35 +119,6 @@ export default function SalesforceBand({ stats }: { stats: Stats }) {
           )}
         </Card>
       </div>
-
-      {/* Attribution coverage meter */}
-      <Card style={{ padding: "14px 18px", marginBottom: showUntracked ? 12 : 14 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 10,
-            fontSize: 12.5,
-            color: "var(--sec)",
-            marginBottom: 9,
-            flexWrap: "wrap",
-          }}
-        >
-          <span style={{ fontWeight: 700 }}>Attribution coverage</span>
-          <span>{pct(stats.attribution_coverage)} of won revenue traces to a tracked booking</span>
-        </div>
-        <div style={{ height: 10, borderRadius: 999, background: "var(--track)", overflow: "hidden" }}>
-          <div
-            style={{
-              width: `${coverage}%`,
-              height: "100%",
-              background: "var(--olive)",
-              borderRadius: 999,
-              transition: "width .6s cubic-bezier(.34,1.3,.4,1)",
-            }}
-          />
-        </div>
-      </Card>
 
       {/* Collapsible untracked wins */}
       {showUntracked && (

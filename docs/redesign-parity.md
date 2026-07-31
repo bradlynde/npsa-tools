@@ -8,6 +8,27 @@ Checked line-by-line against the live apps before the redesign ships:
 Every element below exists in the live app today. "Where" is where it now lives
 in this Next.js app.
 
+> **Note:** the live Sales Toolbox app moves fast. This was re-audited against
+> `origin/loe-generator` at `b2fe15c`, which added the whole Sales /
+> applications section. Re-check before the next big change.
+
+## Sales — grant applications & contracts
+
+| Live element | Where it is now |
+|---|---|
+| Salesforce sync status line | Sales band, above the cards (hidden if the backend has no `sync/status`) |
+| Organizations won + contracts signed | Sales band, olive hero |
+| Contract value | Sales band, navy |
+| Grant applications (preparing / submitted) | Sales band, navy |
+| Awarded to clients | Grant dollars row |
+| Pending award | Grant dollars row |
+| Acceptance rate + % of ask funded | Grant dollars row |
+| Show breakdown by grant program | Collapsible program table |
+| New organizations won over time | Sales trend chart |
+| — month / quarter granularity | Sales trend chart |
+| — New orgs / Contract $ / Contracts | Sales trend chart |
+| — Show cumulative growth | Sales trend chart |
+
 ## Marketing dashboard
 
 | Live element | Where it is now | Notes |
@@ -24,7 +45,7 @@ in this Next.js app.
 | Salesforce — attributed to funnel + coverage % + count | Salesforce band | |
 | Salesforce — untracked / pre-funnel + deal count | Salesforce band | |
 | Salesforce — show/hide untracked list (org, closed, amount) | Collapsible table in the band | Lazy-loads `untracked-wins` |
-| Attribution coverage meter | Salesforce band | |
+| ~~Attribution coverage meter~~ | Removed | Dropped at Stuart's request — a comparable funnel predates the round-robin, so the figure misleads. May return in his own session |
 | Funnel — Booked / Held / LOE Sent / Won + % of booked | Funnel card | |
 | Funnel — "$X in LOE value" footer | Funnel card, LOE sent row | Range-scoped from bookings; all-time uses `funnel.fees` |
 | Funnel — "$X in revenue" footer | Funnel card, Won row | |
@@ -40,7 +61,11 @@ in this Next.js app.
 | Bookings — Held and LOE checkboxes (PATCH) | Bookings table | Optimistic, rolls back on failure |
 
 Added, not in the live app: range chips (30d / 90d / YTD / All, remembered
-between visits), and the live scraper strip.
+between visits).
+
+Ordering follows the live app: the bookings table sits **above** the campaign
+roll-up (upstream `62b59dc`). The scraper strip was removed from this page —
+the Scraper tab owns that.
 
 ## Sales Toolbox
 

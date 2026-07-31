@@ -9,6 +9,7 @@
 
 export type Range = '30d' | '90d' | 'ytd' | 'all';
 export type Granularity = 'week' | 'month';
+export type SalesGranularity = 'month' | 'quarter';
 
 export type TimeseriesRow = {
   period: string; // YYYY-MM-DD, start of the week or month
@@ -72,6 +73,12 @@ export type Stats = {
   untracked_revenue: number;
   untracked_count: number;
   attribution_coverage: number;
+  /** Distinct organisations won — an org with several grants is still one win. */
+  won_org_count?: number;
+  /** Bookings deliberately left out of every figure, with the reason. */
+  excluded?: { reason: string; label: string; total: number; this_week: number }[];
+  excluded_total?: number;
+  excluded_this_week?: number;
 };
 
 export type UntrackedWin = {
@@ -81,6 +88,46 @@ export type UntrackedWin = {
   amount: number;
   close_date: string | null;
 };
+
+/** Grant applications — the client-side of the business, from Salesforce. */
+export type ApplicationStats = {
+  total: number;
+  awarded_count: number;
+  pending_count: number;
+  preparing_count: number;
+  denied_count: number;
+  awarded_amount: number;
+  pending_amount: number;
+  acceptance_rate: number;
+  award_fill_rate: number;
+  by_program: {
+    grant_program: string;
+    total: number;
+    awarded_count: number;
+    pending_count: number;
+    awarded_amount: number;
+    pending_amount: number;
+  }[];
+};
+
+/** One period of won business, for the sales trend. */
+export type SalesPoint = {
+  period: string;
+  contracts: number;
+  orgs: number;
+  new_orgs: number;
+  amount: number;
+};
+
+export type SyncRun = {
+  ok?: boolean | null;
+  finished_at?: string | null;
+  rows_seen?: number | null;
+  error?: string | null;
+  note?: string | null;
+};
+
+export type SyncStatus = { runs?: SyncRun[]; pull_configured?: boolean };
 
 export type Funnel = {
   booked: number;
@@ -106,6 +153,18 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const fetchStats = () => get<Stats>('stats');
+export const fetchApplicationStats = () => get<ApplicationStats>('applications/stats');
+export const fetchSalesTimeseries = (gran: SalesGranularity = 'month') =>
+  get<SalesPoint[]>(`sales-timeseries?granularity=${gran}`);
+
+/** Sync status is best-effort: older backends don't expose it, so a failure is silent. */
+export async function fetchSyncStatus(): Promise<SyncStatus | null> {
+  try {
+    return await get<SyncStatus>('sync/status');
+  } catch {
+    return null;
+  }
+}
 export const fetchFunnel = () => get<Funnel>('funnel');
 export const fetchTimeseries = (gran: Granularity = 'week') =>
   get<TimeseriesRow[]>(`timeseries?granularity=${gran}`);
@@ -205,6 +264,13 @@ export function feesInRange(bookings: BookingRow[], range: Range): number {
     if (!b.booked_on || new Date(b.booked_on) < from) return n;
     return b.became_client ? n + (Number(b.fee) || 0) : n;
   }, 0);
+}
+
+/** "Apr 2026" for months, "Q2 2026" for quarters. */
+export function salesPeriodLabel(period: string, gran: SalesGranularity): string {
+  const d = new Date(`${period}T00:00:00`);
+  if (gran === 'quarter') return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
 /** "4/20" for weeks, "Apr 2026" for months. */

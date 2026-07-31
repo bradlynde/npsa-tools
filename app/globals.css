@@ -44,6 +44,9 @@ body {
   /* controls */
   --seg: rgba(24, 34, 48, 0.05);
   --seg-active: #ffffff;
+  /* Previous-period bars: must read clearly against paper, without competing
+     with the navy series bar in front of it. */
+  --ghost: #c3bba6;
 
   /* status */
   --ok-fg: #4a6417;
@@ -97,6 +100,7 @@ body.dark {
 
   --seg: rgba(255, 255, 255, 0.06);
   --seg-active: #26344a;
+  --ghost: #46586f;
 
   --ok-fg: #a8c860;
   --ok-bg: #28331a;
