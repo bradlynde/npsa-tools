@@ -48,7 +48,10 @@ async function loadEngine() {
 }
 
 const MODELS = ["pre-only", "partial-contingency", "inh-pre-only", "inh-partial-contingency"];
-const TIERS = ["undiscounted", "discounted", "max-discount", "custom"];
+// Real TIER_LABELS keys. "max" is the Max Discount tier — spelling it
+// "max-discount" here silently fell through to an empty pricing row and
+// baselined a $0 fee, covering nothing.
+const TIERS = ["undiscounted", "discounted", "max", "custom"];
 
 // Each case is a real shape a rep can produce in the sidebar today.
 function* cases() {
