@@ -506,7 +506,8 @@ function deriveChannel(row, instantlyCampaign) {
 // by-campaign endpoints so the UI shows friendly names).
 const CHANNEL_LABELS = {
   instantly: 'Instantly', google_ads: 'Google Ads', search: 'Organic Search', email: 'Email',
-  social: 'Social', referral: 'Referral', conference: 'Conference', linkedin: 'LinkedIn', direct: 'Direct / Other',
+  social: 'Social', referral: 'Referral', conference: 'Conference', linkedin: 'LinkedIn',
+  past_engaged_prospect: 'Past Engaged Prospect', direct: 'Direct / Other',
 };
 const channelLabel = (c) => CHANNEL_LABELS[c] || (c ? c[0].toUpperCase() + c.slice(1) : 'Direct / Other');
 
@@ -1171,6 +1172,7 @@ export function registerMarketing(app, pool) {
                  WHEN attribution_channel = 'linkedin'    THEN 'LinkedIn'
                  WHEN attribution_channel = 'referral'    THEN 'Referral'
                  WHEN attribution_channel = 'conference'  THEN 'Conference'
+                 WHEN attribution_channel = 'past_engaged_prospect' THEN 'Past Engaged Prospect'
                  WHEN COALESCE(NULLIF(attribution_channel,''),'direct') = 'direct' THEN 'Direct / Other'
                  ELSE initcap(attribution_channel)
                END AS campaign,
