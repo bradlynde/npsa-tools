@@ -77,6 +77,7 @@ export const CHANNEL_CHOICES = [
   'referral',
   'conference',
   'linkedin',
+  'past_engaged_prospect',
   'direct',
 ] as const;
 
@@ -456,6 +457,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   referral: 'Referral',
   conference: 'Conference',
   linkedin: 'LinkedIn',
+  past_engaged_prospect: 'Past Engaged Prospect',
   direct: 'Direct / Other',
   google: 'Google',
   organic: 'Organic',
