@@ -568,104 +568,109 @@ export default function ScraperPage() {
                 ))}
               </div>
 
-              {rows.map((r, i) => (
-                <div
-                  key={r.key}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1.2fr 1fr 1fr .7fr",
-                    gap: 12,
-                    padding: "13px 12px",
-                    borderBottom: "1px solid var(--hair2)",
-                    alignItems: "center",
-                    transition: "background .15s",
-                    animation: "fadeUp .4s ease both",
-                    animationDelay: `${Math.min(i, 12) * 45}ms`,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  {r.runId ? (
-                    <Link
-                      href={`/${r.type}/${r.runId}`}
+              {/* Scrolls inside the card so a long run history stops pushing
+                  the coverage map off the page — same treatment as the
+                  bookings table on the dashboard. */}
+              <div style={{ maxHeight: 460, overflowY: "auto" }}>
+                {rows.map((r, i) => (
+                  <div
+                    key={r.key}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "2fr 1fr 1.2fr 1fr 1fr .7fr",
+                      gap: 12,
+                      padding: "13px 12px",
+                      borderBottom: "1px solid var(--hair2)",
+                      alignItems: "center",
+                      transition: "background .15s",
+                      animation: "fadeUp .4s ease both",
+                      animationDelay: `${Math.min(i, 12) * 45}ms`,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    {r.runId ? (
+                      <Link
+                        href={`/${r.type}/${r.runId}`}
+                        style={{
+                          fontSize: 13.5,
+                          fontWeight: 700,
+                          color: "var(--ink)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        {r.name}
+                      </Link>
+                    ) : (
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>
+                        {r.name}
+                      </span>
+                    )}
+                    <span>
+                      <Tag>{r.type === "school" ? "SCHOOL" : "CHURCH"}</Tag>
+                    </span>
+                    <span
+                      style={{ fontSize: 13, color: "var(--sec)", fontVariantNumeric: "tabular-nums" }}
+                    >
+                      {r.started}
+                    </span>
+                    <span
                       style={{
-                        fontSize: 13.5,
-                        fontWeight: 700,
-                        color: "var(--ink)",
-                        textDecoration: "none",
+                        fontSize: 13,
+                        color: "var(--sec)",
+                        fontVariantNumeric: "tabular-nums",
+                        textAlign: "right",
                       }}
                     >
-                      {r.name}
-                    </Link>
-                  ) : (
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>
-                      {r.name}
+                      {r.contacts}
                     </span>
-                  )}
-                  <span>
-                    <Tag>{r.type === "school" ? "SCHOOL" : "CHURCH"}</Tag>
-                  </span>
-                  <span
-                    style={{ fontSize: 13, color: "var(--sec)", fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {r.started}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: "var(--sec)",
-                      fontVariantNumeric: "tabular-nums",
-                      textAlign: "right",
-                    }}
-                  >
-                    {r.contacts}
-                  </span>
-                  <span>
-                    <StatusPill tone={r.tone}>{r.label}</StatusPill>
-                  </span>
-                  <span style={{ textAlign: "right" }}>
-                    {r.canDownload && r.runId && (
-                      <button
-                        type="button"
-                        onClick={() => downloadCsv(r.type, r.runId!)}
-                        className="mono"
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 11,
-                          color: "var(--navy)",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: 0,
-                        }}
-                      >
-                        CSV ↓
-                      </button>
-                    )}
-                    {r.queueJobId != null && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await cancelQueueJob(r.type, r.queueJobId!);
-                          load();
-                        }}
-                        className="mono"
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 11,
-                          color: "var(--mute)",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: 0,
-                        }}
-                      >
-                        CANCEL
-                      </button>
-                    )}
-                  </span>
-                </div>
-              ))}
+                    <span>
+                      <StatusPill tone={r.tone}>{r.label}</StatusPill>
+                    </span>
+                    <span style={{ textAlign: "right" }}>
+                      {r.canDownload && r.runId && (
+                        <button
+                          type="button"
+                          onClick={() => downloadCsv(r.type, r.runId!)}
+                          className="mono"
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 11,
+                            color: "var(--navy)",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          CSV ↓
+                        </button>
+                      )}
+                      {r.queueJobId != null && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await cancelQueueJob(r.type, r.queueJobId!);
+                            load();
+                          }}
+                          className="mono"
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 11,
+                            color: "var(--mute)",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          CANCEL
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
