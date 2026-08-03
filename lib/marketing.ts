@@ -322,6 +322,82 @@ export function periodLabel(period: string, gran: Granularity): string {
     : `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+/**
+ * Narrowest comfortable spacing between two x-axis labels, in px, by how wide
+ * the label text runs. One pitch cannot serve both: "7/13" sets about 24px of
+ * ink and "Jul 2026" about 48px, so a value loose enough for months throws away
+ * half the labels a week axis could carry.
+ */
+export const AXIS_LABEL_PITCH = { short: 44, long: 68 };
+
+/** How many labels fit in `width`. Falls back until the axis has been measured. */
+export function axisLabelCount(
+  width: number,
+  pitch: number = AXIS_LABEL_PITCH.long,
+  fallback = 7
+): number {
+  if (!width) return fallback;
+  return Math.max(2, Math.floor(width / pitch));
+}
+
+/**
+ * Rough ink width of an axis label, in px. The axis is set in a monospace face
+ * at 10px, where every character is very close to 6px wide, so counting
+ * characters beats measuring the DOM for what this is used for.
+ */
+export const axisLabelInk = (label: string) => label.length * 6;
+
+/**
+ * How far to nudge an axis label back inside the plot, in px. 0 leaves it
+ * centred on its bar, which is what every label but the outermost two wants.
+ *
+ * The outermost labels are centred on the outermost bars, whose centres sit half
+ * a slot in from the edge of the plot — so a label wider than its slot hangs off
+ * the end, far enough at phone widths to escape the card entirely.
+ *
+ * `text-align` cannot fix this. Browsers decline to push overflowing text past
+ * the start edge of its box, so `text-align: right` on a label wider than its
+ * slot leaves the text exactly where it was. A transform is not subject to that
+ * clamp and costs no layout.
+ */
+export function axisLabelShift(
+  index: number,
+  label: string,
+  { slotWidth, firstLabelled, lastIndex }: {
+    slotWidth: number;
+    firstLabelled: number;
+    lastIndex: number;
+  }
+): number {
+  if (!slotWidth) return 0;
+  const overhang = (axisLabelInk(label) - slotWidth) / 2;
+  if (overhang <= 0) return 0;
+  if (index === lastIndex) return -overhang;
+  if (index === firstLabelled) return overhang;
+  return 0;
+}
+
+/**
+ * Which bar indices get an x-axis label.
+ *
+ * The stride is a constant integer, which is the entire point. Spreading labels
+ * with `Math.round(k * (n - 1) / (t - 1))` reads as even but is not: 14 bars
+ * into 7 labels lands on 0,2,4,7,9,11,13 — one three-wide gap among twos, which
+ * is visible and looks like a mistake.
+ *
+ * Striding backwards from the newest bar keeps every gap identical and always
+ * labels the most recent period, which is the one people read first. The cost is
+ * that the oldest bar may go unlabelled when `count` is not a multiple of the
+ * stride; an even axis is worth more than that label.
+ */
+export function axisLabelIndices(count: number, maxLabels: number): Set<number> {
+  const set = new Set<number>();
+  if (count <= 0) return set;
+  const stride = Math.max(1, Math.ceil(count / Math.max(1, maxLabels)));
+  for (let i = count - 1; i >= 0; i -= stride) set.add(i);
+  return set;
+}
+
 /** Range-scoped channel breakdown, computed from raw bookings. */
 export function channelsInRange(
   bookings: BookingRow[],

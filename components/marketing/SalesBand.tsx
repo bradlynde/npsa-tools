@@ -1,8 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Eyebrow, SegPill, Note, useRoll, fmtInt, fmtMoney } from "../ui";
 import {
+  Card,
+  Eyebrow,
+  SegPill,
+  Note,
+  useRoll,
+  useElementWidth,
+  fmtInt,
+  fmtMoney,
+} from "../ui";
+import {
+  AXIS_LABEL_PITCH,
+  axisLabelShift,
+  axisLabelCount,
+  axisLabelIndices,
   fetchUntrackedWins,
   salesPeriodLabel,
   type UntrackedWin,
@@ -143,13 +156,16 @@ export default function SalesBand({
     ? points[points.length - 1]?.value || 0
     : points.reduce((n, p) => n + p.value, 0);
 
-  const labelIdx = useMemo(() => {
-    const n = points.length;
-    const t = Math.min(7, n);
-    const set = new Set<number>();
-    for (let k = 0; k < t; k++) set.add(Math.round((k * (n - 1)) / (t - 1 || 1)));
-    return set;
-  }, [points.length]);
+  // As many evenly spaced x labels as the axis is actually wide enough for.
+  const [axisRef, axisWidth] = useElementWidth<HTMLDivElement>();
+  // Months and quarters both set wide labels, so both take the long pitch.
+  const labelIdx = useMemo(
+    () => axisLabelIndices(points.length, axisLabelCount(axisWidth, AXIS_LABEL_PITCH.long)),
+    [points.length, axisWidth]
+  );
+  const slotWidth =
+    axisWidth && points.length ? (axisWidth - 6 * (points.length - 1)) / points.length : 0;
+  const firstLabelled = labelIdx.size ? Math.min(...labelIdx) : -1;
 
   return (
     <>
@@ -609,23 +625,42 @@ export default function SalesBand({
                     </div>
                   ))}
                 </div>
-                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                  {points.map((p, i) => (
-                    <div
-                      key={p.period}
-                      className="mono"
-                      style={{
-                        flex: 1,
-                        textAlign: "center",
-                        fontSize: 10,
-                        color: "var(--faint)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {labelIdx.has(i) ? salesPeriodLabel(p.period, gran) : ""}
-                    </div>
-                  ))}
+                {/* Labels are positioned rather than laid out in their slot: a
+                    month label is wider than the bar it names, and text-align
+                    does not centre text that overflows its box. */}
+                <div
+                  ref={axisRef}
+                  style={{ display: "flex", gap: 6, marginTop: 8, height: 13 }}
+                >
+                  {points.map((p, i) => {
+                    const label = labelIdx.has(i) ? salesPeriodLabel(p.period, gran) : "";
+                    const shift = axisLabelShift(i, label, {
+                      slotWidth,
+                      firstLabelled,
+                      lastIndex: points.length - 1,
+                    });
+                    return (
+                      <div key={p.period} style={{ flex: 1, minWidth: 0, position: "relative" }}>
+                        {label && (
+                          <span
+                            className="mono"
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: "50%",
+                              transform: `translateX(calc(-50% + ${shift}px))`,
+                              fontSize: 10,
+                              lineHeight: "13px",
+                              color: "var(--faint)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {label}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

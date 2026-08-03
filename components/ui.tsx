@@ -39,6 +39,29 @@ export function useRoll(key: unknown = 0, duration = 950): number {
   return p;
 }
 
+/**
+ * Live width of the referenced element; 0 until first measured.
+ *
+ * Charts decide how many axis labels fit from this rather than from a viewport
+ * breakpoint — the same chart is a different width inside a full-bleed card than
+ * it is in a two-column grid, and a breakpoint cannot tell them apart.
+ */
+export function useElementWidth<T extends HTMLElement>(): [React.RefObject<T>, number] {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    ro.observe(el);
+    setWidth(el.getBoundingClientRect().width);
+    return () => ro.disconnect();
+  }, []);
+
+  return [ref, width];
+}
+
 export const fmtInt = (v: number) => Math.round(v).toLocaleString("en-US");
 export const fmtMoney = (v: number) => "$" + Math.round(v).toLocaleString("en-US");
 export const fmtPct = (v: number) => `${Math.round(v)}%`;
