@@ -1477,7 +1477,11 @@ export default function App() {
           });
           setEmailModal(true);
         }}
-        onConvertToGw={(isPre||isInh) ? () => {
+        onConvertToGw={isPre ? () => {
+          // Only offered on Third Party letters: an in-house engagement has no
+          // outside grant writer to contract with — buildCompBlock omits the
+          // Third-Party Grant Writer section entirely when isInh.
+          //
           // The GW letter prints the client and site but never collected them;
           // carry the letter's own programs across so the rep isn't retyping.
           if (!(form.gwPrograms||[]).length && (form.programs||[]).length) {

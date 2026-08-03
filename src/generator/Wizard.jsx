@@ -100,8 +100,11 @@ function ReviewStep({ form, docTab, fees, numLocs, signByKey, tierKey }) {
     .join(", ");
 
   // Site names only — the full addresses belong in the letter, not the summary.
+  // Unnamed sites fall back to their city, which reps recognise; the bare index
+  // told them nothing.
   const sites = (form.locations || [])
-    .map((l, i) => l.name || l.city || `Location ${i + 1}`)
+    .map((l, i) => l.name || l.city || `Site ${i + 1}`)
+    .filter(Boolean)
     .join(", ");
 
   // The terms a rep most often needs to sanity-check before sending.
