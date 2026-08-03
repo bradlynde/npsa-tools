@@ -11,7 +11,13 @@
  */
 
 import { useEffect } from "react";
-import { fmt, calcFees, totalMaxAward, applicationCount } from "./engine.js";
+import { fmt, calcFees, totalMaxAward, applicationCount, isoDatePlus, PROGRAMS, TIER_LABELS } from "./engine.js";
+
+/** Long-form date for display; passes through free text from older letters. */
+const fmtDate = (v) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(v || "")
+    ? new Date(v + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : v || "";
 import { RadioCards, Chips, Field } from "./ui.jsx";
 import { stepsFor } from "./steps.jsx";
 
@@ -72,9 +78,10 @@ function DocTypeStep({ docTab, onDocTab }) {
 
 /* ── review ──────────────────────────────────────────────────────────── */
 
-function ReviewStep({ form, docTab, fees, numLocs }) {
+function ReviewStep({ form, docTab, fees, numLocs, signByKey, tierKey }) {
   const label = DOC_TYPES.find((d) => d.tab === docTab || (d.tabs || []).includes(docTab))?.label;
   const variant = docTab === "inh" ? "In-House" : docTab === "pre" ? "Third Party" : null;
+  const isInh = docTab === "inh";
 
   // Each document stores its party under its own key. Falling back across them
   // would show the pre-award client on a grant-writer agreement addressed to
@@ -85,32 +92,69 @@ function ReviewStep({ form, docTab, fees, numLocs }) {
       ? ["Client", form.addendumClientName]
       : ["Client", form.clientName];
 
-  const rows = [
-    [party[0], party[1] || "—"],
-    ["Document", variant ? `${label} · ${variant}` : label],
-  ];
-  // Documents without locations (grant writer, addendum) shouldn't claim one.
-  if (docTab !== "gw" && docTab !== "addendum") rows.push(["Locations", numLocs]);
+  const programsKey = docTab === "post" ? "postPrograms"
+    : docTab === "gw" ? "gwPrograms"
+      : docTab === "addendum" ? "addendumPrograms" : "programs";
+  const programs = (form[programsKey] || [])
+    .map((p) => `${(PROGRAMS[p.key] || PROGRAMS.federal).acronym} ${p.year || ""}`.trim())
+    .join(", ");
+
+  // Site names only — the full addresses belong in the letter, not the summary.
+  const sites = (form.locations || [])
+    .map((l, i) => l.name || l.city || `Location ${i + 1}`)
+    .join(", ");
+
+  // The terms a rep most often needs to sanity-check before sending.
+  const terms = [];
+  if (docTab === "pre" || docTab === "inh" || docTab === "proposal") {
+    const model = form[isInh ? "inhEngagementModel" : "engagementModel"];
+    terms.push(String(model || "").includes("partial-contingency")
+      ? "Pre-Award + Partial Contingency" : "Pre-Award Only");
+    terms.push(TIER_LABELS[form[tierKey]] || "Undiscounted");
+    if (form[isInh ? "inhOptPostAwardScope" : "optPostAwardScope"]) {
+      terms.push(fees?.postAward
+        ? `Compliance Period services (${fmt(fees.postAward)})`
+        : "Compliance Period services");
+    }
+    if (form[isInh ? "inhOptShortNotice" : "optShortNotice"]) terms.push("Short notice");
+    if (form[isInh ? "inhOptNofo" : "optNofo"]) terms.push("NOFO referenced");
+  }
+
+  const rows = [[party[0], party[1] || "—"]];
+  if (form.contactName && docTab !== "gw" && docTab !== "addendum") {
+    rows.push(["Primary contact", form.contactName]);
+  }
+  rows.push(["Document", variant ? `${label} · ${variant}` : label]);
+  if (programs) rows.push(["Programs", programs]);
+  if (sites && docTab !== "gw" && docTab !== "addendum") {
+    rows.push([`Location${(form.locations || []).length === 1 ? "" : "s"}`, sites]);
+  }
+  if (docTab !== "gw" && docTab !== "addendum") rows.push(["Applications", numLocs]);
+  if (terms.length) rows.push(["Terms", terms.join(" · ")]);
+  if (form[tierKey] === "discounted" && form[signByKey]) {
+    rows.push(["Sign by", fmtDate(form[signByKey])]);
+  }
   if (fees) rows.push([docTab === "post" ? "Total fee" : "Upfront fee", fmt(fees.upfront)]);
   if (fees?.contingent) rows.push(["Contingent, on award", fmt(fees.contingent)]);
+  if (form.expirationDate && docTab !== "addendum") {
+    rows.push(["Offer expires", fmtDate(form.expirationDate)]);
+  }
 
   return (
-    <>
-      <div className="wz-fees">
-        {rows.map(([k, v]) => (
-          <div key={k} className="wz-fee-line">
-            <span>{k}</span>
-            <b>{v}</b>
-          </div>
-        ))}
-        {fees && (
-          <div className="wz-fee-line wz-fee-total">
-            <span>Total</span>
-            <b>{fmt(fees.total)}</b>
-          </div>
-        )}
-      </div>
-    </>
+    <div className="wz-fees">
+      {rows.map(([k, v]) => (
+        <div key={k} className="wz-fee-line">
+          <span>{k}</span>
+          <b>{v}</b>
+        </div>
+      ))}
+      {fees && (
+        <div className="wz-fee-line wz-fee-total">
+          <span>Total</span>
+          <b>{fmt(fees.total)}</b>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -135,6 +179,7 @@ export default function Wizard({
   downloadHint,
   onReview,
   onEmail,
+  onConvertToGw,
   onSave,
   saveLabel = "Save Letter",
   savedNote,
@@ -177,6 +222,18 @@ export default function Wizard({
     if (current !== postSuggested) setF("postFee", postSuggested.toLocaleString());
   }, [docTab, postSuggested, form.postFeeTouched]);
 
+  /*
+   * Choosing the Early Signing Discount should arrive with a usable deadline
+   * rather than a hardcoded date that has already passed. Two weeks out, and
+   * only when the field is empty, so a rep's own date and dates on saved
+   * letters are never overwritten.
+   */
+  const signByKey = docTab === "inh" ? "inhEarlySigningDate" : "earlySigningDate";
+  const tierKey = docTab === "inh" ? "inhPricingTier" : "pricingTier";
+  useEffect(() => {
+    if (form[tierKey] === "discounted" && !form[signByKey]) setF(signByKey, isoDatePlus(14));
+  }, [form[tierKey], form[signByKey]]);
+
   const steps = stepsOf(docTab);
   const clamped = Math.min(step, steps.length - 1);
   const current = steps[clamped];
@@ -215,9 +272,14 @@ export default function Wizard({
           {current.id === "doc" && <DocTypeStep docTab={docTab} onDocTab={changeDocTab} />}
           {current.id === "review" && (
             <>
-              <ReviewStep form={form} docTab={docTab} fees={summary} numLocs={numLocs} />
-              {(onReview || onEmail) && (
+              <ReviewStep form={form} docTab={docTab} fees={summary} numLocs={numLocs} signByKey={signByKey} tierKey={tierKey} />
+              {(onReview || onEmail || onConvertToGw) && (
                 <div className="wz-chips">
+                  {onConvertToGw && (
+                    <button type="button" className="wz-btn" onClick={onConvertToGw}>
+                      Create 3rd Party Grant Writer agreement
+                    </button>
+                  )}
                   {onReview && (
                     <button type="button" className="wz-btn" onClick={onReview}>
                       Review &amp; Edit Letter

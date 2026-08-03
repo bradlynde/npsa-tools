@@ -155,6 +155,13 @@ const PROGRAMS = {
   california: { label:"California (CSNSGP)", acronym:"CSNSGP", maxAward:"250,000", fullName:(yr)=>`${yr} California State Nonprofit Security Grant Program ("CSNSGP")` },
   newyork:    { label:"New York (NYSCAHC)", acronym:"NYSCAHC", maxAward:"200,000", fullName:(yr)=>`${yr} New York Securing Communities Against Hate Crimes ("NYSCAHC")` },
 };
+/** ISO yyyy-mm-dd for today plus `days`, in local time. */
+function isoDatePlus(days = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /**
  * Applications in an engagement: one per location, per program it applies
  * under. Fees scale on this rather than on the location count — a single site
@@ -198,5 +205,5 @@ export {
   calcFees, buildInstallmentText, buildCompBlock,
   SHARED_FIELDS, POST_FIELDS,
   PROGRAMS, NPSA_SIGNATURES,
-  totalMaxAward, applicationCount,
+  totalMaxAward, applicationCount, isoDatePlus,
 };

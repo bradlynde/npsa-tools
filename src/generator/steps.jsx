@@ -273,12 +273,18 @@ export const STEPS = {
 
   gw: [
     {
-      id: "client",
-      title: "Recipient",
+      id: "recipient",
+      title: "Grant Writer",
       render: (c) => (
         <>
           <Text label="Grant Writer / Recipient" value={c.form.gwRecipientName}
             onChange={(v) => c.setF("gwRecipientName", v)} />
+          <Text label="Grant Writer Organization" value={c.form.gwOrgName}
+            placeholder="e.g. Cardinal Grants LLC"
+            onChange={(v) => c.setF("gwOrgName", v)} />
+          <Text label="Grant Writer Email" type="email" value={c.form.gwRecipientEmail}
+            placeholder="e.g. writer@firm.com"
+            onChange={(v) => c.setF("gwRecipientEmail", v)} />
           <Text label="Agreement Date" type="date" value={c.form.gwDate}
             onChange={(v) => c.setF("gwDate", v)} />
           <Field label="Copy To" hint="Additional recipients listed on the agreement.">
@@ -306,7 +312,8 @@ export const STEPS = {
         </>
       ),
     },
-    scopeStep({ programsKey: "gwPrograms", locations: false }),
+    clientStep(),
+    scopeStep({ programsKey: "gwPrograms" }),
     {
       id: "fees",
       title: "Fees",

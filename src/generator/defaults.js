@@ -25,7 +25,7 @@ const defaultForm = {
   installment2Pct:"50", installment2Label:"upon award notification",
   installment3Pct:"", installment3Label:"",
   optNofo:false, optStateSwitch:false, optPostAwardScope:true, optShortNotice:false,
-  earlySigningDate:"March 15, 2026", earlySigningAmount:"500",
+  earlySigningDate:"", earlySigningAmount:"500",
   postAwardFee:"10,000",
   customClause:"", polishedClause:"",
   // In-house pre-award fields
@@ -35,7 +35,7 @@ const defaultForm = {
   inhInstallment2Pct:"50", inhInstallment2Label:"upon award notification",
   inhInstallment3Pct:"", inhInstallment3Label:"",
   inhOptNofo:false, inhOptStateSwitch:false, inhOptPostAwardScope:true, inhOptShortNotice:false,
-  inhEarlySigningDate:"March 15, 2026", inhEarlySigningAmount:"1,500",
+  inhEarlySigningDate:"", inhEarlySigningAmount:"1,500",
   inhPostAwardFee:"0",
   inhCustomClause:"", inhPolishedClause:"",
   postFee:"7,000", postPmt1:"40", postPmt2:"30", postPmt3:"30",

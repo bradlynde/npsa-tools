@@ -12,6 +12,21 @@ import {
 } from "./generator/templates.js";
 import { defaultForm, defaultPreCallForm } from "./generator/defaults.js";
 import Wizard, { stepsOf } from "./generator/Wizard.jsx";
+
+/*
+ * Review & Edit hands the team a contenteditable copy of the letter. It broke
+ * the page in testing, and letting reps hand-edit client-facing wording is a
+ * risk on its own. The handler and the whole editing mode are left intact —
+ * flip this to true to bring the button back.
+ */
+const REVIEW_EDIT_ENABLED = false;
+
+/** Best-effort yyyy-mm-dd, passing through anything unparseable unchanged. */
+function toIsoDate(v) {
+  if (!v || /^\d{4}-\d{2}-\d{2}$/.test(v)) return v || "";
+  const d = new Date(v);
+  return isNaN(d) ? v : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
 import "./generator/wizard.css";
 
 function useAI() {
@@ -138,9 +153,10 @@ export default function App() {
    * not a revision of their pre-award one — and saving with currentLetterId
    * still set would overwrite the original in place.
    */
-  const switchDocType = (tab) => {
+  const switchDocType = (tab, step = 0) => {
     if (tab === docTab) return;
     setDocTab(tab);
+    setWizStep(step);
     if (currentLetterId) {
       setCurrentLetterId(null);
       setSavedLetterOverride(null);
@@ -367,6 +383,17 @@ export default function App() {
   },[reviewMode, reviewHtml]);
 
   const today = (()=>{ const d=new Date(); const mm=String(d.getMonth()+1).padStart(2,"0"); const dd=String(d.getDate()).padStart(2,"0"); const yyyy=d.getFullYear(); return `${mm}-${dd}-${yyyy}`; })();
+  /*
+   * Letter dates print long-form. The picker stores ISO (yyyy-mm-dd), but
+   * letters saved before it was a picker hold free text like "March 15, 2026" —
+   * pass those straight through rather than mangling them.
+   */
+  const fmtLetterDate = (v) => {
+    if (!v) return "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;           // legacy free text
+    return new Date(v + "T12:00:00").toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
+  };
+
   const fmtExpiry = (()=>{ const v=form.expirationDate||""; if(!v) return ""; const d=new Date(v+"T12:00:00"); return d.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); })();
   const loc0 = (form.locations||[])[0]||{};
   const clientAddr = [loc0.address,loc0.city,loc0.state,loc0.zip].filter(Boolean).join(", ");
@@ -820,7 +847,8 @@ export default function App() {
     const tokenRe = /\[EARLY_SIGNING_DISCOUNT:([^:]+):([^:]+):([^\]]+)\]/;
     const match = raw.match(tokenRe);
     if (!match) return <div style={{marginBottom:8}}>{renderLines(raw)}</div>;
-    const [full, date, discAmt, baseFee] = match;
+    const [full, rawDate, discAmt, baseFee] = match;
+    const date = fmtLetterDate(rawDate);
     const parts = raw.split(full);
     return <>
       <div style={{marginBottom:8}}>{renderLines(parts[0].trimEnd())}</div>
@@ -881,6 +909,11 @@ export default function App() {
       ...letter.form_data,
       npsaSigningDate: new Date().toISOString().split('T')[0],
       postFeeTouched: true,
+      // The sign-by date is a picker now. Letters saved when it was free text
+      // hold values like "March 15, 2026", which a date input renders blank —
+      // convert what parses, and leave anything odd alone for the rep to fix.
+      earlySigningDate: toIsoDate(letter.form_data?.earlySigningDate),
+      inhEarlySigningDate: toIsoDate(letter.form_data?.inhEarlySigningDate),
     };
     setForm(stamped);
     setDocTab(letter.doc_tab);
@@ -1431,7 +1464,7 @@ export default function App() {
         downloadLabel={isGw ? "Print / Save as PDF" : "Download PDF"}
         downloadDisabled={downloadBlocked}
         downloadHint="Set an Expiration Date first"
-        onReview={isGw ? null : () => {
+        onReview={!REVIEW_EDIT_ENABLED || isGw ? null : () => {
           setReviewHtml(previewRef.current ? previewRef.current.innerHTML : "");
           setSavedLetterOverride(null);
           setReviewMode(true);
@@ -1444,6 +1477,14 @@ export default function App() {
           });
           setEmailModal(true);
         }}
+        onConvertToGw={(isPre||isInh) ? () => {
+          // The GW letter prints the client and site but never collected them;
+          // carry the letter's own programs across so the rep isn't retyping.
+          if (!(form.gwPrograms||[]).length && (form.programs||[]).length) {
+            setF("gwPrograms", form.programs);
+          }
+          switchDocType("gw", 1);   // land on the Grant Writer step, not the picker
+        } : null}
         onSave={dbAvailable ? ()=>setShowSaveModal(true) : null}
         saveLabel={currentLetterId ? "Update Letter" : "Save Letter"}
         savedNote={currentLetterId ? `Saved as: ${form.clientName||"Untitled"}` : null}

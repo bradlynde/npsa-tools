@@ -255,9 +255,9 @@ export function FeeCalculator({ form, setF, prefix = "", fees, numLocs, showPost
         <>
           <Text
             label="Sign-By Date"
+            type="date"
             hint="The client must execute by this date to hold the discount."
             value={g("earlySigningDate")}
-            placeholder="March 15, 2026"
             onChange={(v) => setF(k("earlySigningDate"), v)}
           />
           {amountDrivesPrice ? (
