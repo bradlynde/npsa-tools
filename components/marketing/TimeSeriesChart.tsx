@@ -1,8 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, Eyebrow, SegPill, Note, fmtMoney } from "../ui";
-import { periodLabel, type Granularity, type TimeseriesRow } from "../../lib/marketing";
+import { Card, Eyebrow, SegPill, Note, fmtMoney, useElementWidth } from "../ui";
+import {
+  AXIS_LABEL_PITCH,
+  axisLabelShift,
+  axisLabelCount,
+  axisLabelIndices,
+  periodLabel,
+  type Granularity,
+  type TimeseriesRow,
+} from "../../lib/marketing";
 
 export type Metric = "booked" | "held" | "loes" | "won";
 
@@ -71,14 +79,27 @@ export default function TimeSeriesChart({
     ? `${periodLabel(shown[0].period, gran)} – ${periodLabel(shown[shown.length - 1].period, gran)}`
     : "";
 
-  // ~7 evenly spaced x labels, first and last always shown, so they never collide.
-  const labelIdx = useMemo(() => {
-    const n = shown.length;
-    const t = Math.min(7, n);
-    const set = new Set<number>();
-    for (let k = 0; k < t; k++) set.add(Math.round((k * (n - 1)) / (t - 1 || 1)));
-    return set;
-  }, [shown.length]);
+  // As many evenly spaced x labels as the axis is actually wide enough for:
+  // every bar on a desktop card, a thinned subset on a phone.
+  const [axisRef, axisWidth] = useElementWidth<HTMLDivElement>();
+  const labelIdx = useMemo(
+    () =>
+      axisLabelIndices(
+        shown.length,
+        axisLabelCount(
+          axisWidth,
+          gran === "week" ? AXIS_LABEL_PITCH.short : AXIS_LABEL_PITCH.long
+        )
+      ),
+    [shown.length, axisWidth, gran]
+  );
+
+  const axisGap = gran === "week" ? 8 : 6;
+  const slotWidth =
+    axisWidth && shown.length
+      ? (axisWidth - axisGap * (shown.length - 1)) / shown.length
+      : 0;
+  const firstLabelled = labelIdx.size ? Math.min(...labelIdx) : -1;
 
   const barColor = cfg.money ? "var(--olive)" : "var(--navy)";
 
@@ -216,24 +237,45 @@ export default function TimeSeriesChart({
               })}
             </div>
 
-            {/* x-axis */}
-            <div style={{ display: "flex", gap: gran === "week" ? 8 : 6, marginTop: 8 }}>
-              {shown.map((s, i) => (
-                <div
-                  key={s.period}
-                  className="mono"
-                  style={{
-                    flex: 1,
-                    textAlign: "center",
-                    fontSize: 10,
-                    color: "var(--faint)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                  }}
-                >
-                  {labelIdx.has(i) ? periodLabel(s.period, gran) : ""}
-                </div>
-              ))}
+            {/* x-axis. Each slot matches a bar; the label is positioned rather
+                than laid out inside it, because a label is routinely wider than
+                the bar it names and `text-align` will not centre — or even
+                right-align — text that overflows its box. Absolute centring is
+                exact at any width, and the shift pulls the outermost labels back
+                inside the plot. */}
+            <div
+              ref={axisRef}
+              style={{ display: "flex", gap: axisGap, marginTop: 8, height: 13 }}
+            >
+              {shown.map((s, i) => {
+                const label = labelIdx.has(i) ? periodLabel(s.period, gran) : "";
+                const shift = axisLabelShift(i, label, {
+                  slotWidth,
+                  firstLabelled,
+                  lastIndex: shown.length - 1,
+                });
+                return (
+                  <div key={s.period} style={{ flex: 1, minWidth: 0, position: "relative" }}>
+                    {label && (
+                      <span
+                        className="mono"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: "50%",
+                          transform: `translateX(calc(-50% + ${shift}px))`,
+                          fontSize: 10,
+                          lineHeight: "13px",
+                          color: "var(--faint)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
