@@ -1,5 +1,25 @@
 # Project notes for Claude Code
 
+## This repo holds two different apps on two branch lineages
+
+`loe-generator` and its descendants are `npsa-loe-generator`, a **Vite** app
+built with `vite build`. The default branch `backup`, along with `frontend`
+and the `feature/*` and `chore/*` branches, is `school-scraper-frontend`, a
+**Next.js 14** app built with `next build`.
+
+The `npsa-tools` and `npsa-scraper` Vercel projects were set up for the
+Next.js app, so their Framework Preset is Next.js. Checking out a
+`loe-generator` branch, Vercel finds no `next` in `package.json` and fails
+with "No Next.js version detected" before ever running the build. That is
+why every LOE pull request showed a red Vercel check while the Next.js
+branches deployed fine — including production, which is healthy on those
+projects. The check being red never meant the LOE branch was broken.
+
+`vercel.json` on this lineage overrides the preset back to Vite. It must
+**not** travel to the Next.js branches: `"framework": null` plus
+`vite build` there would break their production deploy. If a merge ever
+carries this file across, delete it on that side.
+
 ## Pull requests: wait for approval before merging
 
 Do not merge a pull request into `loe-generator` without explicit approval
