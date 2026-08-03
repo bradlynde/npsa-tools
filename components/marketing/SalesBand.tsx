@@ -610,9 +610,14 @@ export default function SalesBand({
                         style={{
                           position: "absolute",
                           bottom: 0,
-                          left: "50%",
-                          transform: "translateX(-50%)",
-                          width: "56%",
+                          // Centred with symmetric insets rather than
+                          // translateX(-50%). growY animates `transform`, and an
+                          // animation with fill-mode `both` keeps its final
+                          // keyframe applied — outranking the inline transform
+                          // and dropping the centring, which left every bar half
+                          // its own width right of the label naming it.
+                          left: "22%",
+                          right: "22%",
                           height: `${Math.max(p.value > 0 ? 2 : 0, (p.value / maxVal) * 100)}%`,
                           background: "var(--olive)",
                           borderRadius: 5,
