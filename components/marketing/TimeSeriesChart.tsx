@@ -206,9 +206,10 @@ export default function TimeSeriesChart({
                         style={{
                           position: "absolute",
                           bottom: 0,
-                          left: "50%",
-                          transform: "translateX(-50%)",
-                          width: gran === "week" ? "86%" : "78%",
+                          // Centred by symmetric insets, not translateX — see
+                          // the note on the live bar below.
+                          left: gran === "week" ? "7%" : "11%",
+                          right: gran === "week" ? "7%" : "11%",
                           height: `${(ghost / maxVal) * 100}%`,
                           background: "var(--ghost)",
                           borderRadius: 5,
@@ -220,9 +221,14 @@ export default function TimeSeriesChart({
                       style={{
                         position: "absolute",
                         bottom: 0,
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        width: gran === "week" ? "60%" : "54%",
+                        // Centred with symmetric insets rather than
+                        // translateX(-50%). growY animates `transform`, and an
+                        // animation with fill-mode `both` keeps its final
+                        // keyframe applied — outranking the inline transform and
+                        // dropping the centring, which left every bar sitting
+                        // half its own width right of the label naming it.
+                        left: gran === "week" ? "20%" : "23%",
+                        right: gran === "week" ? "20%" : "23%",
                         height: `${Math.max(cur > 0 ? 2 : 0, (cur / maxVal) * 100)}%`,
                         background: barColor,
                         borderRadius: 5,
