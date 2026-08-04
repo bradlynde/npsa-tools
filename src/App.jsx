@@ -118,6 +118,8 @@ export default function App() {
   const [reps, setReps] = useState([]);
   const [currentLetterId, setCurrentLetterId] = useState(null);
   const [wizStep, setWizStep] = useState(0);
+  // Set while viewing the counterpart of the open document (proposal <-> letter).
+  const [convertOrigin, setConvertOrigin] = useState(null);
   const [newRepName, setNewRepName] = useState('');
   const reviewIframeRef = useRef(null);
   const previewRef = useRef();
@@ -138,6 +140,7 @@ export default function App() {
     setCurrentLetterId(null);
     setSavedLetterOverride(null);
     setLastSavedSnapshot(null);
+    setConvertOrigin(null);
     setWizStep(0);
     setAppView('generator');
   };
@@ -153,8 +156,40 @@ export default function App() {
    * not a revision of their pre-award one — and saving with currentLetterId
    * still set would overwrite the original in place.
    */
+  /**
+   * Show the same engagement as its counterpart document: an in-house or
+   * third-party letter becomes the matching proposal, and vice versa.
+   *
+   * Unlike switchDocType this does NOT fork. A proposal and its engagement
+   * letter are two renderings of one deal, not two contracts, so the saved
+   * record stays as it is and the rep can download whichever they need.
+   *
+   * savedLetterOverride is cleared so the counterpart is built from the live
+   * template rather than the stored HTML of the original — otherwise a letter
+   * opened from the database would print its own body under the other title.
+   * Converting back restores it.
+   */
+  const convertDocView = () => {
+    const target = isProposal
+      ? (form.proposalFeeModel === "inh" ? "inh" : "pre")
+      : "proposal";
+    // Keep the two in step: an in-house letter maps to in-house proposal pricing.
+    if (!isProposal) setF("proposalFeeModel", docTab === "inh" ? "inh" : "pre");
+
+    if (convertOrigin && convertOrigin.docTab === target) {
+      setSavedLetterOverride(convertOrigin.savedLetterOverride);
+      setConvertOrigin(null);
+    } else {
+      setConvertOrigin({ docTab, savedLetterOverride });
+      setSavedLetterOverride(null);
+    }
+    setDocTab(target);
+    setWizStep(stepsOf(target).length - 1);   // land on Review, ready to download
+  };
+
   const switchDocType = (tab, step = 0) => {
     if (tab === docTab) return;
+    setConvertOrigin(null);
     setDocTab(tab);
     setWizStep(step);
     if (currentLetterId) {
@@ -704,10 +739,20 @@ export default function App() {
   // Serialized view of everything saveLetter persists, so an edit made after saving
   // still counts as unsaved. Called at click time to avoid referencing state declared
   // further down this component.
-  const docSnapshot = () => JSON.stringify({ form, savedLetterOverride: savedLetterOverride || null, docTab });
-  const needsSaveBeforePrint = () => lastSavedSnapshot === null || docSnapshot() !== lastSavedSnapshot;
+  const docSnapshot = (tab = docTab, override = savedLetterOverride) =>
+    JSON.stringify({ form, savedLetterOverride: override || null, docTab: tab });
+  const needsSaveBeforePrint = () => {
+    if (lastSavedSnapshot === null) return true;
+    if (docSnapshot() === lastSavedSnapshot) return false;
+    // A proposal and its engagement letter are one deal rendered two ways. If
+    // undoing the conversion would match what was saved, nothing has actually
+    // changed and the rep should not be sent through the save modal again.
+    if (convertOrigin
+      && docSnapshot(convertOrigin.docTab, convertOrigin.savedLetterOverride) === lastSavedSnapshot) return false;
+    return true;
+  };
   const handlePrint = () => {
-    if (!isAddendum && !form.expirationDate) {
+    if (!isAddendum && !isProposal && !form.expirationDate) {
       alert("Please set an Expiration Date before downloading or printing.");
       return;
     }
@@ -773,7 +818,7 @@ export default function App() {
   const isAddendum = docTab==="addendum";
   // An engagement letter without an expiration date is not sendable, so the
   // download stays disabled until one is set. Addenda inherit the original's.
-  const downloadBlocked = !isAddendum && !form.expirationDate;
+  const downloadBlocked = !isAddendum && !isProposal && !form.expirationDate;
   const sections = isPre?preSections:isInh?inhSections:postSections;
   const interp = isPre?interpolatePre:isInh?interpolateInh:interpolatePost;
   const gc = (id,subId) => getContent(sections,id,subId,interp);
@@ -921,6 +966,7 @@ export default function App() {
     setCurrentLetterId(id);
     setLastSavedSnapshot(JSON.stringify({ form: stamped, savedLetterOverride: letter.saved_html || null, docTab: letter.doc_tab }));
     setShowLetterBrowser(false);
+    setConvertOrigin(null);
     setWizStep(stepsOf(letter.doc_tab).length - 1);
     setAppView('generator');
   };
@@ -1477,6 +1523,8 @@ export default function App() {
           });
           setEmailModal(true);
         }}
+        onConvertView={(isPre || isInh || isProposal) ? convertDocView : null}
+        convertViewLabel={isProposal ? "View as Engagement Letter" : "View as Proposal"}
         onConvertToGw={isPre ? () => {
           // Only offered on Third Party letters: an in-house engagement has no
           // outside grant writer to contract with — buildCompBlock omits the
