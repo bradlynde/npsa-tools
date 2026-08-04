@@ -183,6 +183,8 @@ export default function Wizard({
   onReview,
   onEmail,
   onConvertToGw,
+  onConvertView,
+  convertViewLabel,
   onSave,
   saveLabel = "Save Letter",
   savedNote,
@@ -276,8 +278,13 @@ export default function Wizard({
           {current.id === "review" && (
             <>
               <ReviewStep form={form} docTab={docTab} fees={summary} numLocs={numLocs} signByKey={signByKey} tierKey={tierKey} />
-              {(onReview || onEmail || onConvertToGw) && (
+              {(onReview || onEmail || onConvertToGw || onConvertView) && (
                 <div className="wz-chips">
+                  {onConvertView && (
+                    <button type="button" className="wz-btn" onClick={onConvertView}>
+                      {convertViewLabel}
+                    </button>
+                  )}
                   {onConvertToGw && (
                     <button type="button" className="wz-btn" onClick={onConvertToGw}>
                       Create 3rd Party Grant Writer agreement
