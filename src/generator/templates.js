@@ -289,7 +289,7 @@ const DEFAULT_PROPOSAL = {
   phaseImplementationFull: { title:"3. AWARD IMPLEMENTATION PERIOD — WHITE-GLOVE PROJECT MANAGEMENT & ADMINISTRATION",
     body:"Following State authorization to proceed, NPSA manages the project through to completion. Services include implementation planning, procurement coordination and bid support, vendor and installation oversight, reimbursement preparation and submission, ongoing grant administration, and project close-out. Because grant program rules prohibit contracting for implementation services until all compliance requirements have been completed, these services are formally engaged following State authorization and are billed as a percentage-based fee upon award, as set forth in the governing Engagement Letter.",
     deliverable:"Fully implemented security improvements, complete grant administration, and successful project close-out and reimbursement." },
-  eligible: "Physical security equipment • Surveillance and monitoring equipment and services • Communications systems • Cybersecurity improvements • Security training and drills • Contracted security personnel",
+  eligible: "Physical security enhancements • Surveillance systems • Access control systems • Communications systems • Cybersecurity improvements • Security training and exercises • Contracted security personnel",
   note: "This proposal is a summary for leadership review. The complete scope of services, client responsibilities, limitations, compensation provisions, and governing terms are contained in the associated Engagement Letter, which controls in the event of any inconsistency.",
 };
 // Shared NPSA branding stylesheet injected into both the on-screen preview

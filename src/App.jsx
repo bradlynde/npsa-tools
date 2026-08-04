@@ -1562,7 +1562,7 @@ export default function App() {
                 return `${pgYear} ${proposalAcronyms} Application${totalApps>1?"s":""} (${totalApps} Location${totalApps>1?"s":""})`;
               })()],
               ["POTENTIAL FUNDING", `Up to ${fmt(proposalMaxFunding)}`],
-              ["PROFESSIONAL FEE", fmt(summaryFees.upfront)],
+              ["PROFESSIONAL FEE", `${fmt(summaryFees.upfront)} (Net 30)`],
             ];
             return <>
               {/* Logo */}
@@ -1615,7 +1615,7 @@ export default function App() {
                       const parts=[loc.address,loc.city,loc.state,loc.zip].filter(Boolean).join(", ");
                       return <div key={i} style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:3}}>&#8226; {loc.name?`${loc.name} — `:""}{parts||"[Address TBD]"}</div>;
                     })
-                  : <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#888",fontStyle:"italic"}}>Add locations in the sidebar to list project campuses here.</div>}
+                  : <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#888",fontStyle:"italic"}}>Add locations on the Scope step to list project campuses here.</div>}
               </div>
               {/* Three Phase Approach */}
               <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Three Phase Approach</div>
@@ -1641,11 +1641,12 @@ export default function App() {
                     <div><strong>Professional Fee:</strong> {fmt(pFees.upfront)}</div>
                     {pDisc&&pFees.discount>0&&<div>Includes a {fmt(pFees.discount)} early-signing discount from the standard {fmt(pFees.baseUpfront)} fee.</div>}
                     <div>Invoice issued upon execution of the Engagement Letter.</div>
+                    <div>Payment Terms: Net 30.</div>
                     {pFees.contingent!==null&&pFees.contingent>0&&<div>A contingent fee of {fmt(pFees.contingent)} is due upon notification of a grant award.</div>}
                     <div>The fee includes all Pre-Award{form.optPostAwardScope?" and Compliance Period":""} services described herein.</div>
                     {complianceIncluded
                       ? <div>Compliance support following award notification is included at no additional charge.</div>
-                      : !useInh&&<div>A Compliance Period fee of {fmt(fees.postAward)} is due within thirty (30) days of award notification.</div>}
+                      : !useInh&&<div>A Compliance and Implementation Period fee of {fmt(fees.postAward)} applies if CLIENT engages NPSA for those services. This fee is invoiced across the life of the Compliance and Implementation Periods and is reimbursable from grant funds where the program permits.</div>}
                     {isFull&&<div>Award Implementation services are billed as a percentage-based fee, due upon notification of a grant award and formally engaged following State authorization to proceed, as set forth in the governing Engagement Letter.</div>}
                   </div>
                   {pDisc&&pDiscDate&&(

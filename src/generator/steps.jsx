@@ -227,13 +227,18 @@ export const STEPS = {
     clientStep(),
     scopeStep({
       extra: (c) => (
-        <Field label="Service Model">
+        <Field
+          label="Service Model"
+          hint={c.form.proposalServiceModel === "full"
+            ? "Covers the whole grant lifecycle, including Award Implementation."
+            : "Covers the Pre-Award and Compliance Periods. Implementation is separate."}
+        >
           <Chips
             value={c.form.proposalServiceModel || "inhouse"}
             onChange={(v) => c.setF("proposalServiceModel", v)}
             options={[
-              { value: "inhouse", label: "In-house" },
-              { value: "thirdparty", label: "Third party" },
+              { value: "inhouse", label: "Pre-Award & Compliance" },
+              { value: "full", label: "Full-Service" },
             ]}
           />
         </Field>
@@ -246,13 +251,18 @@ export const STEPS = {
         const inh = c.form.proposalFeeModel === "inh";
         return (
           <>
-            <Field label="Fee Model">
+            <Field
+              label="Grant Writing Model"
+              hint={inh
+                ? "NPSA writes and submits the application."
+                : "An independent grant writer, engaged by CLIENT, writes and submits it."}
+            >
               <Chips
-                value={c.form.proposalFeeModel || "pre"}
+                value={c.form.proposalFeeModel || "inh"}
                 onChange={(v) => c.setF("proposalFeeModel", v)}
                 options={[
-                  { value: "pre", label: "Third-party pricing" },
-                  { value: "inh", label: "In-house pricing" },
+                  { value: "inh", label: "In-House Grant Writer" },
+                  { value: "pre", label: "Third-Party Grant Writer" },
                 ]}
               />
             </Field>
