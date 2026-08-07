@@ -192,7 +192,19 @@ export async function getBooking(eventUri) {
   }
   const ev = (await calendlyGet(eventUri)).resource;
   const invitees = (await calendlyGet(`${eventUri}/invitees`)).collection || [];
-  return shapeBooking(ev, invitees[0], collectGuests(ev, invitees));
+  const booking = shapeBooking(ev, invitees[0], collectGuests(ev, invitees));
+
+  // The host's own scheduling link, so a follow-up email offers the rep who ran
+  // the call rather than Brad's link regardless of whose meeting it was. Worth one
+  // extra call here, where a single booking is being read; the list view skips it.
+  const hostUri = (ev.event_memberships || [])[0]?.user;
+  if (hostUri) {
+    try {
+      const u = (await calendlyGet(hostUri)).resource;
+      booking.host.schedulingUrl = u?.scheduling_url || null;
+    } catch { /* the link is a nicety; the briefing does not depend on it */ }
+  }
+  return booking;
 }
 
 export const __test = { readLocation, readState, shapeBooking };
