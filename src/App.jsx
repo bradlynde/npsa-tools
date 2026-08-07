@@ -12,6 +12,8 @@ import {
 } from "./generator/templates.js";
 import { defaultForm, defaultPreCallForm } from "./generator/defaults.js";
 import Wizard, { stepsOf } from "./generator/Wizard.jsx";
+import BookingPicker, { bookingToForm } from "./generator/BookingPicker.jsx";
+import DeadlineEditor from "./generator/DeadlineEditor.jsx";
 
 /*
  * Review & Edit hands the team a contenteditable copy of the letter. It broke
@@ -90,6 +92,10 @@ export default function App() {
   const [preCallFollowUpLoading, setPreCallFollowUpLoading] = useState(false);
   const [preCallFollowUpCopied, setPreCallFollowUpCopied] = useState(false);
   const setPCF = (k, v) => setPreCallForm(f => ({...f, [k]: v}));
+  // The picked booking. Held as a URI rather than a copy of its fields, so the
+  // server re-reads it at generation time and a reschedule in between is caught.
+  const [preCallEventUri, setPreCallEventUri] = useState(null);
+  const [preCallShowDeadlines, setPreCallShowDeadlines] = useState(false);
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
   const [emailModal, setEmailModal] = useState(false);
   const [emailFields, setEmailFields] = useState({to:"", subject:"", message:""});
@@ -246,7 +252,7 @@ export default function App() {
       case 'precall':
         setPreCallOutput(''); setPreCallMeta(null); setPreCallError('');
         setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText('');
-        setPreCallViewMode('preview'); setAppView('precall');
+        setPreCallViewMode('preview'); setPreCallEventUri(null); setAppView('precall');
         break;
       case 'letters':
         // An overlay rather than a view — it opens over the dashboard.
@@ -1127,7 +1133,7 @@ export default function App() {
 
             {/* ── Tools ── */}
             <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
-            <div onClick={()=>{ setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setPreCallViewMode('preview'); setAppView('precall'); }}
+            <div onClick={()=>{ setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setPreCallViewMode('preview'); setPreCallEventUri(null); setAppView('precall'); }}
               style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
@@ -1153,23 +1159,40 @@ export default function App() {
       </button>
       <div style={{color:'#182230',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
       <span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span>
+      <button onClick={()=>setPreCallShowDeadlines(true)}
+        style={{marginLeft:'auto',background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
+        &#128197; Deadlines
+      </button>
     </div>
+    {preCallShowDeadlines && <DeadlineEditor onClose={()=>setPreCallShowDeadlines(false)}/>}
 
     <div style={{maxWidth:900,margin:'28px auto',padding:'0 24px 60px',display:'flex',gap:28,alignItems:'flex-start',flexWrap:'wrap'}}>
 
       {/* ── LEFT: Form ── */}
       <div style={{flex:'1 1 380px',display:'flex',flexDirection:'column',gap:16}}>
 
-        {/* Import from Calendly */}
+        {/* Pick the meeting off the calendar — the preferred route in. */}
+        <BookingPicker
+          selectedUri={preCallEventUri}
+          onSelect={(b)=>{
+            if(!b){ setPreCallEventUri(null); return; }
+            setPreCallEventUri(b.eventUri);
+            setPreCallForm(prev => bookingToForm(b, prev));
+            setPreCallCalendlyText('');
+            setPreCallError('');
+          }}/>
+
+        {/* Import from Calendly — the fallback for a meeting booked another way. */}
         <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'16px 20px 18px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:8}}>&#128248; Import from Calendly Invite</div>
-          <div style={{fontSize:12,color:'#8a8577',marginBottom:8}}>Paste your Calendly notification email and click Parse — it will fill the form below automatically.</div>
+          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:8}}>&#128248; Or Paste a Calendly Invite</div>
+          <div style={{fontSize:12,color:'#8a8577',marginBottom:8}}>For a meeting that is not on the list above. Paste the notification email and click Parse — it fills the form below. Details read from a pasted email are less reliable than a booking picked above.</div>
           <textarea value={preCallCalendlyText} onChange={e=>setPreCallCalendlyText(e.target.value)}
             placeholder="Paste full Calendly invite email here..."
             style={{width:'100%',minHeight:140,border:'1px solid #d9d5cc',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'var(--font-sans)',lineHeight:1.5}}/>
           <button onClick={async()=>{
             if(!preCallCalendlyText.trim()) return;
             setPreCallParsing(true);
+            setPreCallEventUri(null);   // the two routes in are alternatives, not additive
             try {
               const r = await fetch('/api/precall/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({calendlyText:preCallCalendlyText})});
               const d = await r.json();
@@ -1236,7 +1259,7 @@ export default function App() {
                 style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Time (CST)</label>
+              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Time (Central)</label>
               <input type="time" value={preCallForm.meetingTime} onChange={e=>setPCF('meetingTime',e.target.value)}
                 style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
@@ -1306,7 +1329,7 @@ export default function App() {
           if(!preCallForm.orgName.trim()){ setPreCallError('Enter an organization name.'); return; }
           setPreCallError(''); setPreCallLoading(true); setPreCallOutput(''); setPreCallMeta(null);
           try {
-            const r = await fetch('/api/precall',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formData:preCallForm})});
+            const r = await fetch('/api/precall',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formData:preCallForm, eventUri:preCallEventUri})});
             if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||'Generation failed'); }
             const d = await r.json();
             setPreCallOutput(d.notes||'');

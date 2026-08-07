@@ -1,11 +1,21 @@
 import express from 'express';
 import { OpenAI } from 'openai';
+import { repairDocx } from './docx-repair.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
 import pg from 'pg';
 import HTMLtoDOCX from 'html-to-docx';
 import { registerMarketing } from './marketing.js';
+import { listUpcomingBookings, getBooking } from './precall-bookings.js';
+import {
+  buildMeetingDetails, buildAttendees, buildVideoConference,
+  writeInLines, substituteBlocks, fillEmptySections, formatCentral,
+} from './precall-facts.js';
+import {
+  ensureDeadlineSchema, listDeadlines, upsertDeadline, deleteDeadline,
+  deadlinesForState, renderDeadlines,
+} from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 
 const { Pool } = pg;
@@ -44,6 +54,7 @@ if (process.env.DATABASE_URL) {
     );
     ALTER TABLE letters ADD COLUMN IF NOT EXISTS total_fee NUMERIC DEFAULT 0;
   `).catch(err => console.error('DB init error:', err.message));
+  ensureDeadlineSchema(pool).catch(err => console.error('Deadline init error:', err.message));
 }
 
 // The scheduled Salesforce sync delivers its whole record set in one request, which
@@ -158,35 +169,18 @@ const STATE_FUNDED_PROGRAMS = {
   NY: { acronym:'NYSCAHC',  name:'New York Securing Communities Against Hate Crimes Program',  perSite:200000 },
 };
 
-async function searchNsgpDeadlines(state, ms = 14000) {
-  const year = new Date().getFullYear();
-  const sp = STATE_FUNDED_PROGRAMS[state?.toUpperCase()];
-  const queries = [
-    // Federal NSGP sub-applicant deadline for this state (administered via the SAA)
-    `federal NSGP nonprofit security grant program ${state} ${year} sub-applicant deadline application open`,
-    `"nonprofit security grant" "${state}" "sub-applicant" deadline ${year-1} ${year-2} ${year-3}`,
-  ];
-  // If the state runs its own program, search for its deadline too
-  if (sp) queries.push(`${sp.name} ${sp.acronym} ${year} application deadline open close`);
-  const results = await Promise.allSettled(
-    queries.map(q => fetch(`https://s.jina.ai/${encodeURIComponent(q)}`, { headers:{'Accept':'text/plain'}, signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.text() : null).catch(()=>null))
-  );
-  return results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean).join('\n\n---\n\n').slice(0, 7000) || null;
-}
-
 const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
 
 Produce a polished, scannable pre-call briefing that a sales rep can read live during the call. OUTPUT FORMAT IS MARKDOWN. Follow the exact structure and rules below.
 
 MUST-FOLLOW RULES:
-1. Always show meeting time in CST. If another timezone is provided, convert it and show only CST.
-2. Default Meeting Host is always Brad Lynde unless another name is explicitly specified.
-3. Label the organization's website "School Website" for schools, "Church Website" for churches, "Website" otherwise.
-4. NEVER fabricate addresses, titles, phone numbers, mission statements, or facts. Anything not verifiable from the provided information or website text must be written as "TBD". Do not guess.
-5. For attendee titles: confirm from the website text first. If a title cannot be verified, write "Title TBD" — never invent one.
-6. List every campus/property/location found on the website with its complete postal address. If none can be verified, write "TBD".
-7. Keep the fillable sections present with their headings even when empty (the rep fills these in live): Strategic Insights, Top Three Security Wish List Items.
-8. Keep the briefing tight and useful — short sentences, no filler, no marketing fluff. Prefer bullets over paragraphs except in the Objective and Overview.
+1. SUBSTITUTION TOKENS. Some sections are filled in by the application, not by you, because they contain facts the client submitted and those must appear exactly as submitted. Where the structure below shows a token such as <<MEETING_DETAILS>>, output that token ALONE on its own line — no heading text of your own, no surrounding prose, no explanation, and never your own version of the content. Reproduce the token character for character. The application replaces it after you finish.
+2. NEVER fabricate addresses, titles, phone numbers, mission statements, or facts. Anything not verifiable from the provided information or website text must be written as "TBD". Do not guess.
+3. For attendee titles: confirm from the website text. If a title cannot be verified, do not invent one.
+4. Label the organization's website "School Website" for schools, "Church Website" for churches, "Website" otherwise.
+5. List every campus/property/location found on the website with its complete postal address. If none can be verified, write "TBD".
+6. Keep the fillable sections present with their headings even when empty (the rep fills these in live): Strategic Insights, Top Three Security Wish List Items.
+7. Keep the briefing tight and useful — short sentences, no filler, no marketing fluff. Prefer bullets over paragraphs except in the Objective and Overview.
 
 OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a bracketed line entirely if it would just say TBD with no value, EXCEPT where a rule says to keep it):
 
@@ -208,35 +202,26 @@ Let N = the number of verified campus/property locations found (if unknown, use 
 
 **Federal NSGP**
 - **Potential Award:** {N × $200,000 = "Up to $X (N location(s) × $200,000 per site)".}
-- **Sub-Applicant Deadline:** {Check the NSGP GRANT FUNDING DATA deadline section. List the last 3 confirmed sub-applicant deadline dates found (label each with its year). Then project the next window as "~{month} {year} (projected based on {N}-year history)" — or label it "(confirmed)" if a current-cycle date is explicitly published. If no dates are found at all, write "TBD — verify with {SAA name}".}
 - **Administered By:** {SAA name from the data}
 
 **{state program acronym, e.g. NSGP-IL} (State-Funded)** — include this entire block ONLY if PROGRAM 2 exists in the data; otherwise omit it
 - **Potential Award:** {N × the state program's per-site cap from the data = "Up to $X (N location(s) × $Y per site)".}
-- **Application Deadline:** {Same approach: list last 3 confirmed deadline dates for this state program if found, then project next window; or "(confirmed)" if current cycle is published; or "TBD — verify with the state program" if none found.}
 - **Program:** {state program full name from the data}
 
 - **Combined Potential:** {If a state program exists, sum both tracks: "Up to $X across both NSGP and {acronym}". If federal only, omit this line.}
-- **Urgency Frame:** {One sharp sentence the rep can use: position the nearest confirmed/projected deadline relative to today, and note that the organization may be able to pursue both federal and state funding where applicable. E.g. "Illinois nonprofits can stack federal NSGP and NSGP-IL — with applications historically opening in {month}, this call positions {Org} to pursue both before the window."}
+- **Urgency Frame:** {One sharp sentence the rep can use, framing why this call is well timed and noting that the organization may be able to pursue both federal and state funding where applicable. Do NOT state, repeat or estimate any deadline date here — dates appear only in the Deadlines block above, which is filled in by the application. Refer to timing in general terms instead, e.g. "with the next window approaching".}
+
+## NSGP Deadlines
+<<FUNDING_DEADLINES>>
 
 ## Organization Overview
 {2-4 sentences synthesized from the website: what the organization is, who/how many it serves, its location and size, and why it is a strong NSGP candidate. Weave in a one-line mission/values paraphrase if the site states it. If the website was unavailable, write "TBD — website could not be researched."}
 
 ## Meeting Details
-- **Date & Time:** {converted CST time}
-- **Host:** Brad Lynde
-- **Location:** Video Web Conference
-- **Organization:** {Org Name}
-- **{School/Church/}Website:** {URL or TBD}
-- **Contact Phone:** {use the attendee's phone number if available; otherwise TBD}
+<<MEETING_DETAILS>>
 
 ## Attendees
-**{Organization Name}**
-{For each org attendee: Full Name | Title (or "Title TBD") | Email | Phone}
-**NPSA**
-Brad Lynde | Managing Partner, NPSA | brad@lyndeconsulting.com
-**Partners**
-{Partner attendees if any, otherwise: None}
+<<ATTENDEES>>
 
 ## Verified Campus / Property Locations
 {For each: **{Site name}** — {full postal address}. If none verified: TBD}
@@ -263,11 +248,7 @@ Brad Lynde | Managing Partner, NPSA | brad@lyndeconsulting.com
 {Add 1-3 tailored discovery questions based on the org type and any stated needs. Put a blank line after each question so the rep has space for handwritten notes.}
 
 ## Top Three Security Wish List Items
-1.
-
-2.
-
-3.
+<<WISH_LIST>>
 
 ## Next Steps (Post-Call)
 Send a follow-up email including:
@@ -276,9 +257,7 @@ Send a follow-up email including:
 3. Scheduling link — if a second appointment has not been booked
 
 ## Video Conference Details
-- **Link:** {Conference link or TBD}
-- **Meeting ID:** {ID or TBD}
-- **Passcode:** {Passcode or TBD}`;
+<<VIDEO_CONFERENCE>>`;
 
 app.post('/api/precall/parse', async (req, res) => {
   const { calendlyText } = req.body || {};
@@ -349,13 +328,17 @@ app.post('/api/precall/docx', async (req, res) => {
     // html-to-docx chokes on certain CSS (border-bottom, text-transform, decimal line-height)
     // Strip the stylesheet entirely — the library applies its own safe defaults
     const safeHtml = html.replace(/<style[\s\S]*?<\/style>/gi, '');
-    const buffer = await HTMLtoDOCX(safeHtml, null, {
+    const generated = await HTMLtoDOCX(safeHtml, null, {
       title: filename || 'Pre-Call Notes',
       margins: { top: 720, right: 1080, bottom: 720, left: 1080 },
       font: 'Calibri',
       fontSize: 22,
       lineHeight: 276,
     });
+    // html-to-docx emits paragraph properties in source order; OOXML fixes that
+    // order and Word rejects the whole file when it is wrong. Everything else
+    // opens it fine, which is why this looked like a problem with Brad's Word.
+    const buffer = await repairDocx(generated);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${(filename||'Pre-Call Notes').replace(/"/g,"'")}.docx"`);
     res.send(buffer);
@@ -365,9 +348,52 @@ app.post('/api/precall/docx', async (req, res) => {
   }
 });
 
+// Upcoming bookings to start from. Cached briefly: several reps opening the tool
+// at the top of the hour is otherwise one Calendly call per event per rep, and the
+// list does not change minute to minute.
+let bookingCache = { at: 0, data: null };
+app.get('/api/precall/bookings', async (req, res) => {
+  if (!process.env.CALENDLY_API_TOKEN) {
+    return res.status(503).json({ error: 'Calendly is not connected', bookings: [] });
+  }
+  try {
+    const fresh = req.query.refresh === '1';
+    if (!fresh && bookingCache.data && Date.now() - bookingCache.at < 60_000) {
+      return res.json({ bookings: bookingCache.data, cached: true });
+    }
+    const bookings = await listUpcomingBookings({ limit: 40 });
+    bookingCache = { at: Date.now(), data: bookings };
+    res.json({ bookings, cached: false });
+  } catch (e) {
+    console.error('Booking list error:', e.message);
+    res.status(502).json({ error: e.message, bookings: [] });
+  }
+});
+
+// ── Curated NSGP deadlines ────────────────────────────────────────────────────
+app.get('/api/precall/deadlines', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'Storage not configured' });
+  try { res.json({ deadlines: await listDeadlines(pool) }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/precall/deadlines', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'Storage not configured' });
+  try {
+    const id = await upsertDeadline(pool, req.body || {});
+    res.json({ ok: true, id });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/precall/deadlines/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'Storage not configured' });
+  try { await deleteDeadline(pool, req.params.id); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/precall', async (req, res) => {
-  const { formData, calendlyText } = req.body || {};
-  if (!formData && !calendlyText?.trim()) {
+  const { formData, calendlyText, eventUri } = req.body || {};
+  if (!formData && !calendlyText?.trim() && !eventUri) {
     return res.status(400).json({ error: 'No input provided' });
   }
   try {
@@ -375,6 +401,14 @@ app.post('/api/precall', async (req, res) => {
 
     let orgName, orgType, orgState, websiteUrl, meetingDate, meetingTime, meetingTimezone,
         zoomUrl, zoomId, zoomPassword, attendees, extraNotes;
+
+    // The booking is re-read at generation time rather than trusted from the
+    // list the rep clicked, so a meeting rescheduled in between is caught.
+    let booking = null;
+    if (eventUri) {
+      try { booking = await getBooking(eventUri); }
+      catch (e) { console.error('Booking fetch failed:', e.message); }
+    }
 
     if (formData) {
       ({ orgName, orgType, orgState, websiteUrl, meetingDate, meetingTime, meetingTimezone,
@@ -394,6 +428,38 @@ app.post('/api/precall', async (req, res) => {
         zoomPassword = p.zoom_password; attendees = p.attendees;
       } catch { /* best effort */ }
     }
+
+    // Calendly wins over anything the rep typed or a model guessed. The booking is
+    // what the client actually submitted, so where the two disagree the booking is
+    // right by definition — a rep's typo and a model's invention lose to it equally.
+    if (booking) {
+      const f = booking.facts;
+      orgName    = f.orgName    || orgName;
+      orgState   = f.orgState   || orgState;
+      websiteUrl = f.websiteUrl || websiteUrl;
+      zoomUrl    = f.location?.joinUrl   || zoomUrl;
+      zoomId     = f.location?.meetingId || zoomId;
+      zoomPassword = f.location?.passcode || zoomPassword;
+      attendees = [
+        { name: f.inviteeName, email: f.inviteeEmail, phone: f.inviteePhone },
+        ...(f.guests || []).map(email => ({ name: null, email, phone: null })),
+      ];
+    }
+
+    // One shape for both routes, so the sections rendered from it do not care
+    // whether the booking came from Calendly or was typed in by hand.
+    const facts = booking ? booking.facts : {
+      orgName, orgState, websiteUrl,
+      inviteeName:  attendees?.[0]?.name  || null,
+      inviteeEmail: attendees?.[0]?.email || null,
+      inviteePhone: attendees?.[0]?.phone || null,
+      inviteeTimezone: null,
+      startTime: meetingDate && meetingTime ? `${meetingDate}T${meetingTime}:00` : null,
+      guests: (attendees || []).slice(1).map(a => a.email).filter(Boolean),
+      location: { kind: 'custom', label: 'Video Web Conference', joinUrl: zoomUrl || null,
+                  meetingId: zoomId || null, passcode: zoomPassword || null },
+      questions: [],
+    };
 
     // Find website via Jina Search if not provided
     let resolvedWebsite = normalizeBaseUrl(websiteUrl);
@@ -431,7 +497,7 @@ app.post('/api/precall', async (req, res) => {
     // Fetch site content + NSGP deadline data in parallel
     const saaName = STATE_SAA[orgState?.toUpperCase()] || (orgState ? `${orgState} State Administering Agency` : null);
     let siteText = '';
-    let nsgpDeadlineResults = null;
+    let deadlineRows = [];
 
     await Promise.all([
       // Website scraping
@@ -445,18 +511,47 @@ app.post('/api/precall', async (req, res) => {
           .join('\n\n')
           .slice(0, 20000);
       })(),
-      // NSGP deadline search (only if we have a state)
+      // Deadlines come from the curated table now. The web search this replaces is
+      // gone rather than kept as a fallback: scraping search results for dates is
+      // exactly what produced the section Brad called inaccurate, and "not recorded
+      // — confirm with the SAA" is more use to a rep than a confident wrong date.
       (async () => {
-        if (!orgState) return;
-        nsgpDeadlineResults = await searchNsgpDeadlines(orgState);
+        if (!orgState || !pool) return;
+        try { deadlineRows = await deadlinesForState(pool, orgState); }
+        catch (e) { console.error('Deadline lookup failed:', e.message); }
       })(),
     ]);
 
-    // Build structured context block
+    // Guests arrive as an email and nothing else, so a filter on name — which is
+    // what this used to do — dropped exactly the person Brad asked to have looked up.
     const attendeeLines = (attendees || [])
-      .filter(a => a && a.name)
-      .map(a => `  ${a.name} | ${a.email || ''} | ${a.phone || ''}`)
+      .filter(a => a && (a.name || a.email))
+      .map(a => `  ${a.name || '(name not given)'} | ${a.email || ''} | ${a.phone || ''}`)
       .join('\n');
+
+    // Who the attendees are, researched from the website. Separated from the notes
+    // themselves so the answer comes back as data that can be labelled unverified,
+    // rather than as prose already woven in past the point of telling apart.
+    let research = {};
+    const toResearch = (attendees || []).filter(a => a?.email);
+    if (siteText && toResearch.length) {
+      try {
+        const r = await client.chat.completions.create({
+          model: 'gpt-4o-mini', max_tokens: 600,
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'user', content:
+            `From the website text below, identify each person. Return JSON {"people":[{"email":"","name":null,"title":null,"evidence":null}]}.\n` +
+            `Rules: use ONLY the website text. "name" only when the site names the person — for an email like dayna@example.org, look for a matching first name on a staff or leadership page. ` +
+            `"title" only when the site states their role. "evidence" is a short quote from the site supporting it. ` +
+            `Use null for anything the site does not support. Never guess from the email address alone.\n\n` +
+            `PEOPLE:\n${toResearch.map(a => `${a.email}${a.name ? ` (${a.name})` : ''}`).join('\n')}\n\n` +
+            `WEBSITE TEXT:\n${siteText.slice(0, 14000)}` }],
+        });
+        for (const p of (JSON.parse(r.choices[0]?.message?.content || '{}').people || [])) {
+          if (p?.email) research[String(p.email).toLowerCase()] = p;
+        }
+      } catch (e) { console.error('Attendee research failed:', e.message); }
+    }
 
     const stateProgram = STATE_FUNDED_PROGRAMS[orgState?.toUpperCase()];
     const nsgpBlock = orgState ? [
@@ -476,25 +571,26 @@ app.post('/api/precall', async (req, res) => {
           ].join('\n')
         : `\nPROGRAM 2 — State-Funded Program: ${orgState} does NOT operate a separate state-funded nonprofit security grant program. Federal NSGP is the only track — present only the federal track and note there is no separate state program.`,
       ``,
-      nsgpDeadlineResults
-        ? `DEADLINE SEARCH RESULTS (covers federal NSGP and any state program — extract specific published or historical dates if present, and attribute each date to the correct program):\n${nsgpDeadlineResults}`
-        : `DEADLINE SEARCH RESULTS: none returned — use the SAA / program name in the TBD note`,
+      `DEADLINES: filled in by the application from a curated table and inserted at the <<FUNDING_DEADLINES>> token. Do NOT write any deadline date anywhere in your output.`,
     ].join('\n') : null;
 
     const context = [
-      `MEETING INFORMATION:`,
+      `MEETING INFORMATION (background only — the Meeting Details, Attendees and`,
+      `Video Conference sections are filled in by the application at their tokens.`,
+      `Do not restate any phone number, email address, meeting link, meeting ID or`,
+      `passcode anywhere in your output):`,
       `Organization: ${orgName || 'Unknown'}`,
       `Type: ${orgType || 'unknown'}`,
       `State: ${orgState || 'unknown'}`,
-      `Date: ${meetingDate || 'TBD'}`,
-      `Time: ${meetingTime || 'TBD'} ${meetingTimezone || 'CST'}`,
-      `Conference Link: ${zoomUrl || 'TBD'}`,
-      `Meeting ID: ${zoomId || 'TBD'}`,
-      `Passcode: ${zoomPassword || 'TBD'}`,
+      `Meeting: ${formatCentral(facts.startTime) || 'TBD'}`,
       `Website: ${resolvedWebsite || 'not found'}`,
       ``,
-      `ATTENDEES:`,
+      `ATTENDEES (for context when writing the Objective and Overview):`,
       attendeeLines || '  (none provided)',
+      (facts.questions || []).length
+        ? `\nWHAT THE CLIENT SUBMITTED ON THE BOOKING FORM:\n` +
+          facts.questions.map(q => `  ${q.question}: ${q.answer}`).join('\n')
+        : '',
       extraNotes ? `\nADDITIONAL CONTEXT FROM REP:\n${extraNotes}` : '',
       nsgpBlock ? `\n${nsgpBlock}` : '',
       ``,
@@ -513,11 +609,40 @@ app.post('/api/precall', async (req, res) => {
       ],
     });
 
+    // Everything the client submitted goes in here, after the model has finished
+    // and without its involvement. See server/precall-facts.js for why.
+    const todayIso = new Date().toISOString().slice(0, 10);
+    let notes = substituteBlocks(completion.choices[0]?.message?.content || '', {
+      MEETING_DETAILS: {
+        heading: 'Meeting Details',
+        body: buildMeetingDetails(facts, { orgType, website: resolvedWebsite, hostName: booking?.host?.name }),
+      },
+      ATTENDEES: { heading: 'Attendees', body: buildAttendees(facts, research) },
+      VIDEO_CONFERENCE: { heading: 'Video Conference Details', body: buildVideoConference(facts.location) },
+      WISH_LIST: { heading: 'Top Three Security Wish List Items', body: writeInLines(3) },
+      // Always supplied when a state is known. An unsupplied token is stripped, and
+      // since the model is forbidden from writing dates, that would delete the
+      // deadline section altogether rather than degrade it — worse than the
+      // inaccurate section this replaced. With no rows, renderDeadlines says so.
+      FUNDING_DEADLINES: {
+        heading: 'NSGP Deadlines',
+        body: orgState
+          ? renderDeadlines(deadlineRows, { state: orgState, saaName, todayIso })
+          : '- Deadlines depend on the state — set the organization\'s state to see them.',
+      },
+    });
+    notes = fillEmptySections(notes, ['Strategic Insights'], writeInLines(2));
+
     res.json({
-      notes: completion.choices[0]?.message?.content || '',
+      notes,
       website: resolvedWebsite || null,
       websiteFetched: !!siteText,
       orgName: orgName || null,
+      // So the rep can see the booking drove this, and spot a stale selection.
+      booking: booking ? { eventUri: booking.eventUri, startTime: booking.startTime,
+                           inviteeName: booking.facts.inviteeName,
+                           guests: booking.facts.guests } : null,
+      deadlinesFromTable: deadlineRows.length > 0,
     });
   } catch(err) {
     console.error('Pre-call error:', err.message);
