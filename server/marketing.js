@@ -394,6 +394,10 @@ const answerMatching = (qs, re) => {
   return (Array.isArray(a) ? a.join(', ') : (a || '')).trim() || null;
 };
 
+// Shared with the pre-call notes generator, which reads the same events and the
+// same question/answer shape. One reader of Calendly's quirks, not two.
+export { calendlyGet, answerMatching };
+
 async function backfillCalendly(pool, { eventType, since, dryRun }) {
   const me = await calendlyGet('/users/me');
   const org = me.resource.current_organization;

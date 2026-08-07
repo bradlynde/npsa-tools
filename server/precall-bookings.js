@@ -1,0 +1,198 @@
+/*
+ * Upcoming Calendly bookings, shaped for the pre-call notes generator.
+ *
+ * The generator used to start from a block of pasted invite text that a language
+ * model then re-extracted into fields. That is how a client-submitted phone number
+ * became a different phone number in the finished notes: the model was asked to
+ * "find" a fact that was already known exactly, and it obliged with something
+ * plausible. Reading the booking straight from Calendly removes the guess.
+ *
+ * Everything returned under `facts` came from Calendly and is authoritative — the
+ * invitee typed it, or Calendly assigned it. Nothing here is inferred.
+ */
+
+import { calendlyGet, answerMatching } from './marketing.js';
+
+const CAL_API = 'https://api.calendly.com';
+
+// Question text, not question position. A Calendly form can be reordered with a
+// drag and no warning that it has repointed anything downstream.
+const Q_ORGANIZATION = /organi[sz]ation|company/i;
+const Q_PHONE        = /phone|mobile|cell|contact number/i;
+const Q_WEBSITE      = /website|web site|url/i;
+const Q_STATE        = /\bstate\b/i;
+
+/**
+ * Calendly's polymorphic fields (location, and the meeting id inside it) arrive
+ * unwrapped from the REST API but wrapped in a discriminated-union envelope from
+ * some clients — `{ actual_instance: {...}, one_of_schemas: [...] }`. Unwrapping
+ * defensively costs nothing; not unwrapping turns a meeting ID into the string
+ * "[object Object]" on a rep's briefing.
+ */
+function unwrap(v) {
+  let out = v;
+  while (out && typeof out === 'object' && 'actual_instance' in out) out = out.actual_instance;
+  return out;
+}
+
+/**
+ * Calendly reports the conference differently per provider, and the shape for a
+ * Zoom link is not the shape for Google Meet or for a phone call. Normalise to
+ * one thing the notes can print, and keep the raw type so an in-person or
+ * outbound-call booking is not silently described as a video conference.
+ */
+function readLocation(rawLoc) {
+  const loc = unwrap(rawLoc);
+  if (!loc || typeof loc !== 'object') return { kind: 'unknown', label: 'TBD' };
+  const kind = loc.type || 'unknown';
+  const data = loc.data || {};
+  const joinUrl = loc.join_url || data.join_url || null;
+  const rawId = unwrap(data.id);
+  const id = rawId != null && typeof rawId !== 'object' ? String(rawId) : null;
+  // Zoom returns the passcode under settings on some plans and at the top level
+  // on others; both are the same field to a rep reading it off the page.
+  const rawPass = data.password || data.passcode || data.settings?.password || null;
+  // Calendly masks the passcode as a row of asterisks on some org-level reads.
+  // Printing that verbatim gives the rep a passcode that cannot work; the join_url
+  // carries a ?pwd= token anyway, so the link is the usable route.
+  const passcode = rawPass && /^\*+$/.test(String(rawPass).trim()) ? null : rawPass;
+
+  if (kind === 'physical' || kind === 'inbound_call' || kind === 'outbound_call') {
+    return { kind, label: loc.location || 'TBD', joinUrl: null, meetingId: null, passcode: null };
+  }
+  return {
+    kind,
+    label: kind === 'custom' ? (loc.location || 'Video Web Conference') : 'Video Web Conference',
+    joinUrl: joinUrl || (typeof loc.location === 'string' && /^https?:/.test(loc.location) ? loc.location : null),
+    meetingId: id,
+    passcode,
+  };
+}
+
+/** US state abbreviation, only when the answer plainly is one. Never inferred. */
+function readState(qs) {
+  const raw = answerMatching(qs, Q_STATE);
+  if (!raw) return null;
+  const m = /^\s*([A-Za-z]{2})\s*$/.exec(raw);
+  return m ? m[1].toUpperCase() : null;
+}
+
+/**
+ * One booking, flattened. `facts` is the verbatim set — see the note at the top of
+ * this file about why that distinction is load-bearing.
+ */
+/**
+ * Every additional attendee on a booking, from all three places Calendly puts them.
+ *
+ * This is the bug Brad reported: "Tate added a second attendee on the calendly
+ * link, but this was not included." An invitee record has no `guests` property at
+ * all — guests hang off the EVENT as `event_guests`, and only a multi-invitee event
+ * type produces extra invitee records. Reading the invitee alone finds nothing and
+ * reports no guests, which is indistinguishable from a booking that had none.
+ */
+function collectGuests(ev, invitees) {
+  const primaryEmail = String(invitees?.[0]?.email || '').toLowerCase();
+  const seen = new Set([primaryEmail]);
+  const out = [];
+  const candidates = [
+    ...(ev.event_guests || []).map(g => g?.email),
+    ...(invitees?.[0]?.guests || []).map(g => g?.email),   // harmless if absent
+    ...(invitees || []).slice(1).map(i => i?.email),
+  ];
+  for (const email of candidates) {
+    if (!email) continue;
+    const key = String(email).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(email);
+  }
+  return out;
+}
+
+function shapeBooking(ev, invitee, guests) {
+  const qs = invitee?.questions_and_answers || [];
+  const location = readLocation(ev.location);
+  const host = (ev.event_memberships || [])[0] || {};
+
+  return {
+    eventUri: ev.uri,
+    inviteeUri: invitee?.uri || null,
+    eventName: ev.name || null,
+    startTime: ev.start_time || null,          // ISO 8601, UTC — render in the client's zone
+    endTime: ev.end_time || null,
+    status: ev.status || null,
+    host: { name: host.user_name || null, email: host.user_email || null },
+    facts: {
+      orgName: answerMatching(qs, Q_ORGANIZATION),
+      orgState: readState(qs),
+      websiteUrl: answerMatching(qs, Q_WEBSITE),
+      inviteeName: invitee?.name || null,
+      inviteeEmail: invitee?.email || null,
+      inviteePhone: answerMatching(qs, Q_PHONE) || invitee?.text_reminder_number || null,
+      inviteeTimezone: invitee?.timezone || null,
+      startTime: ev.start_time || null,
+      guests,                                   // additional invitees, emails only
+      location,
+      // Kept whole so a rep can see anything the form asked that this code does
+      // not know how to name. A new question should surface, not vanish.
+      questions: qs.map(q => ({
+        question: String(q.question || ''),
+        answer: Array.isArray(q.answer) ? q.answer.join(', ') : (q.answer || ''),
+      })).filter(q => q.answer),
+    },
+  };
+}
+
+/**
+ * Upcoming active bookings across the whole organization — every rep, not just the
+ * token's owner, since any of them may be prepping the call.
+ *
+ * `limit` caps the invitee fetches, which are one API call each. Sorted ascending
+ * by start time, so the cap drops the furthest-out meetings rather than the next
+ * one on the calendar.
+ */
+export async function listUpcomingBookings({ limit = 40, eventType = null } = {}) {
+  const me = await calendlyGet('/users/me');
+  const org = me.resource.current_organization;
+
+  const events = [];
+  let next = `${CAL_API}/scheduled_events?organization=${encodeURIComponent(org)}`
+    + `&status=active&min_start_time=${encodeURIComponent(new Date().toISOString())}`
+    + '&count=100&sort=start_time:asc';
+  while (next && events.length < limit * 3) {
+    const page = await calendlyGet(next);
+    events.push(...(page.collection || []));
+    next = page.pagination?.next_page || null;
+  }
+
+  // Calendly's list-events endpoint accepts an event_type parameter and silently
+  // ignores it, so a request that looks filtered comes back unfiltered. Filter here.
+  const wanted = (eventType ? events.filter(e => e.event_type === eventType) : events)
+    .slice(0, limit);
+
+  const settled = await Promise.allSettled(wanted.map(async (ev) => {
+    const invitees = (await calendlyGet(`${ev.uri}/invitees`)).collection || [];
+    if (!invitees[0]) return null;
+    return shapeBooking(ev, invitees[0], collectGuests(ev, invitees));
+  }));
+
+  const bookings = [];
+  for (const [i, r] of settled.entries()) {
+    // A booking with no invitee has no contact and nothing to prepare for.
+    if (r.status === 'fulfilled') { if (r.value) bookings.push(r.value); }
+    else console.error('[precall-bookings]', wanted[i]?.uri, r.reason?.message);
+  }
+  return bookings;
+}
+
+/** Re-read one booking at generation time, so a reschedule since the list loaded is caught. */
+export async function getBooking(eventUri) {
+  if (!eventUri || !eventUri.startsWith(`${CAL_API}/scheduled_events/`)) {
+    throw new Error('eventUri must be a Calendly scheduled_events URI');
+  }
+  const ev = (await calendlyGet(eventUri)).resource;
+  const invitees = (await calendlyGet(`${eventUri}/invitees`)).collection || [];
+  return shapeBooking(ev, invitees[0], collectGuests(ev, invitees));
+}
+
+export const __test = { readLocation, readState, shapeBooking };
