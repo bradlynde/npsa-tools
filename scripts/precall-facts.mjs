@@ -102,7 +102,16 @@ globalThis.fetch = async (url, init) => {
       { status: 200, headers: { 'content-type': 'application/json' } });
   }
 
+  // Both readers down — the exact condition that emptied a whole briefing in
+  // production, where the website, overview, campus list, state, administering
+  // agency and deadlines all came back TBD for an organisation whose website was
+  // sitting in the invitee's own email address.
+  if (globalThis.__READERS_DOWN) {
+    if (u.includes('jina.ai')) return new Response('rate limited', { status: 429 });
+    if (u.includes('greenlandhills.org')) return new Response('nope', { status: 503 });
+  }
   if (u.includes('jina.ai')) return new Response('Kevin Tran, Facilities Director. '.repeat(30), { status: 200 });
+  if (u.includes('greenlandhills.org')) return new Response('<html><body><h1>Greenland Hills UMC</h1><p>2828 Wesley St, Dallas, TX 75206. Kevin Tran, Facilities Director.</p></body></html>', { status: 200, headers: { 'content-type': 'text/html' } });
   return realFetch(url, init);
 };
 
@@ -116,7 +125,7 @@ await new Promise((resolve) => {
       const parsed = JSON.parse(body || '{}');
       const isJsonMode = parsed.response_format?.type === 'json_object';
       const content = isJsonMode
-        ? JSON.stringify({ people: [{ email: 'kevin@meritdallas.com', name: 'Kevin Tran', title: 'Facilities Director', evidence: 'Staff page' }] })
+        ? JSON.stringify({ org_state: 'TX', people: [{ email: 'kevin@meritdallas.com', name: 'Kevin Tran', title: 'Facilities Director', evidence: 'Staff page' }] })
         : MODEL_OUTPUT;
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ choices: [{ message: { content } }] }));
@@ -129,7 +138,7 @@ await new Promise((r) => setTimeout(r, 1500));
 
 const r = await realFetch('http://localhost:3211/api/precall', {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ eventUri: EVENT, formData: { orgType: 'church', orgState: 'TX', attendees: [] } }),
+  body: JSON.stringify({ eventUri: EVENT, formData: { orgType: 'church', orgState: '', attendees: [] } }),
 });
 const d = await r.json();
 
@@ -154,9 +163,32 @@ const checks = {
   'booking echoed back': d.booking?.eventUri === EVENT,
   'NPSA attendee is the real host, not Brad': n.includes('Jeff Markely') && !n.includes('Brad Lynde'),
   'unknown host gets no borrowed title': !n.includes('Managing Partner'),
-  'award figures survived': n.includes('Up to $200,000') && n.includes('TDEM'),
+  // The booking form asks no state question, so this has to come off the website.
+  // A blank one previously cost the briefing its SAA, its deadlines and the
+  // state's own stackable program all at once.
+  'state derived from the site, not the form': n.includes('TDEM'),
+  'deadline section keyed to the derived state': /TX sub-applicant deadlines/.test(n),
+  'award figures survived': n.includes('Up to $200,000'),
   'deadline section present even with no table': /## NSGP Deadlines/.test(n) && /not recorded|confirm with/i.test(n),
 };
+// Now the degraded run: no reader answers at all.
+globalThis.__READERS_DOWN = true;
+const r2 = await realFetch('http://localhost:3211/api/precall', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ eventUri: EVENT, formData: { orgType: 'church', orgState: '', attendees: [] } }),
+});
+const d2 = await r2.json();
+const n2 = d2.notes || '';
+console.log('\n--- DEGRADED RUN (no reader reachable) ---');
+console.log(n2.split('\n').filter(l => /Website|Organization Overview|could not/i.test(l)).join('\n'));
+
+Object.assign(checks, {
+  'degraded run still succeeds': r2.status === 200,
+  'website survives a reader outage': n2.includes('greenlandhills.org'),
+  'website is not reported as TBD': !/Website:\*{0,2}\s*TBD/i.test(n2),
+  'submitted facts unaffected by the outage': n2.includes('2147089835') && n2.includes('Jeff Markely'),
+});
+
 console.log('\n--- assertions ---');
 for (const [k, v] of Object.entries(checks)) console.log((v ? 'PASS' : 'FAIL') + '  ' + k);
 process.exit(Object.values(checks).every(Boolean) ? 0 : 1);
