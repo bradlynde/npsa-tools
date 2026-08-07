@@ -1,5 +1,6 @@
 import express from 'express';
 import { OpenAI } from 'openai';
+import { repairDocx } from './docx-repair.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
@@ -349,13 +350,17 @@ app.post('/api/precall/docx', async (req, res) => {
     // html-to-docx chokes on certain CSS (border-bottom, text-transform, decimal line-height)
     // Strip the stylesheet entirely — the library applies its own safe defaults
     const safeHtml = html.replace(/<style[\s\S]*?<\/style>/gi, '');
-    const buffer = await HTMLtoDOCX(safeHtml, null, {
+    const generated = await HTMLtoDOCX(safeHtml, null, {
       title: filename || 'Pre-Call Notes',
       margins: { top: 720, right: 1080, bottom: 720, left: 1080 },
       font: 'Calibri',
       fontSize: 22,
       lineHeight: 276,
     });
+    // html-to-docx emits paragraph properties in source order; OOXML fixes that
+    // order and Word rejects the whole file when it is wrong. Everything else
+    // opens it fine, which is why this looked like a problem with Brad's Word.
+    const buffer = await repairDocx(generated);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${(filename||'Pre-Call Notes').replace(/"/g,"'")}.docx"`);
     res.send(buffer);
