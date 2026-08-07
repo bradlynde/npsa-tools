@@ -358,10 +358,12 @@ app.post('/api/precall/docx', async (req, res) => {
     const safeHtml = preserveInlineSpacing(html.replace(/<style[\s\S]*?<\/style>/gi, ''));
     const generated = await HTMLtoDOCX(safeHtml, null, {
       title: filename || 'Pre-Call Notes',
-      margins: { top: 720, right: 1080, bottom: 720, left: 1080 },
-      font: 'Calibri',
-      fontSize: 22,
-      lineHeight: 276,
+      // One-inch margins and Arial, matching the copy of these notes Brad marked
+      // up in Word — that document is the reference for how this should look.
+      margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+      font: 'Arial',
+      fontSize: 21,
+      lineHeight: 240,
     });
     // html-to-docx emits paragraph properties in source order; OOXML fixes that
     // order and Word rejects the whole file when it is wrong. Everything else

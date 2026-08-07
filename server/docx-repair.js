@@ -18,7 +18,7 @@
  */
 
 import JSZip from "jszip";
-import { brandStyles } from "./docx-style.js";
+import { brandStyles, brandDocument } from "./docx-style.js";
 
 // Schema order of w:pPr children (ECMA-376 §17.3.1.26).
 const PPR_ORDER = [
@@ -108,6 +108,10 @@ export async function repairDocx(buffer, { brand = false } = {}) {
   if (!file) return buffer;
 
   let xml = await file.async("string");
+  // Branding runs FIRST so that whatever it inserts is then put into schema order
+  // by the pass below. A colour added after the reorder would be the very thing
+  // that stops Word opening the file.
+  if (brand) xml = brandDocument(xml);
   xml = reorderBlocks(xml, "pPr", PPR_ORDER);
   xml = reorderBlocks(xml, "rPr", RPR_ORDER);
   zip.file(target, xml);

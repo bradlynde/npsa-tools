@@ -70,17 +70,45 @@ const styleHas = (id, needle) => {
   return !!m && m[0].includes(needle);
 };
 
+// Every value below is read out of Brad's marked-up City Church document, which
+// Stuart picked over a first attempt at branding this from scratch. They are
+// asserted as exact numbers rather than "is it styled at all", because matching
+// that file is the requirement — a near miss is the thing being fixed.
 const checks = {
   'pPr blocks in schema order': outOfOrder(doc, 'pPr', repairTest.PPR_ORDER) === 0,
   'rPr blocks in schema order': outOfOrder(doc, 'rPr', repairTest.RPR_ORDER) === 0,
   'no text runs lost': before === after && after > 0,
-  'body ink colour set': /<w:color w:val="26334D"\/>/.test(styles),
-  'h1 branded, not 24pt black': styleHas('Heading1', 'w:color w:val="182230"') && styleHas('Heading1', 'w:sz w:val="34"'),
-  'h2 small caps': styleHas('Heading2', '<w:caps/>'),
-  'h2 has a rule under it': styleHas('Heading2', '<w:pBdr>'),
-  'h2 uses the accent colour': styleHas('Heading2', 'w:color w:val="1E3A5F"'),
-  'h3 branded': styleHas('Heading3', 'w:color w:val="182230"'),
-  'links are not browser blue': styleHas('Hyperlink', 'w:color w:val="1E3A5F"') && !styleHas('Hyperlink', '0000FF'),
+
+  'body is Arial': /w:ascii="Arial"/.test(styles),
+  'body ink 26334D at 10.5pt':
+    /<w:color w:val="26334D"\/>/.test(styles) && /<w:sz w:val="21"\/>/.test(styles),
+
+  'h1 colour 1A2540': styleHas('Heading1', 'w:color w:val="1A2540"'),
+  'h1 size 33 half-points': styleHas('Heading1', 'w:sz w:val="33"'),
+  'h1 tracking -3 and kern 36':
+    styleHas('Heading1', 'w:spacing w:val="-3"') && styleHas('Heading1', 'w:kern w:val="36"'),
+
+  'h2 colour 2C5D8F': styleHas('Heading2', 'w:color w:val="2C5D8F"'),
+  'h2 size 19 half-points': styleHas('Heading2', 'w:sz w:val="19"'),
+  'h2 small caps and tracking 11':
+    styleHas('Heading2', '<w:caps/>') && styleHas('Heading2', 'w:spacing w:val="11"'),
+  'h2 rule sz12 space5 DCE8F4':
+    styleHas('Heading2', '<w:bottom w:val="single" w:sz="12" w:space="5" w:color="DCE8F4"/>'),
+  'h2 spacing before 330 after 135':
+    styleHas('Heading2', 'w:before="330"') && styleHas('Heading2', 'w:after="135"'),
+
+  'h3 matches his bold sub-labels':
+    styleHas('Heading3', 'w:color w:val="1A2540"') && styleHas('Heading3', 'w:sz w:val="21"'),
+  'links are not browser blue':
+    styleHas('Hyperlink', 'w:color w:val="2C5D8F"') && !styleHas('Hyperlink', '0000FF'),
+
+  // Direct formatting outranks a style, so these have to reach the body itself.
+  'bold runs darkened to 1A2540': /<w:b\/>[\s\S]{0,120}?<w:color w:val="1A2540"\/>/.test(doc),
+  'body paragraphs spaced after 150': doc.includes('<w:spacing w:after="150" w:line="240" w:lineRule="auto"/>'),
+  'bullets spaced tighter, after 60': doc.includes('<w:spacing w:after="60" w:line="240" w:lineRule="auto"/>'),
+  'no lineRule-only stamp left to override the defaults':
+    !doc.includes('<w:spacing w:lineRule="auto"/>'),
+
   // The space that vanished only on lines ending in a link.
   'space kept before a link': /<w:t[^>]*> <\/w:t>/.test(doc),
   'unbranded call leaves styles alone':
