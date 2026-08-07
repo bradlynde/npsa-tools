@@ -97,12 +97,73 @@ async function fetchViaJina(url, ms = 15000) {
   try {
     const r = await fetch(`https://r.jina.ai/${url}`, {
       signal: ctrl.signal,
-      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'text', 'X-No-Cache': 'true' }
+      headers: {
+        'Accept': 'text/plain', 'X-Return-Format': 'text', 'X-No-Cache': 'true',
+        // Jina's unauthenticated tier is rate-limited per IP, and every rep
+        // generating notes shares one server address. A key raises that ceiling.
+        ...(process.env.JINA_API_KEY ? { Authorization: `Bearer ${process.env.JINA_API_KEY}` } : {}),
+      },
     });
-    if (!r.ok) return null;
+    if (!r.ok) { console.warn(`[precall] jina ${r.status} for ${url}`); return null; }
     return (await r.text()).slice(0, 8000);
-  } catch { return null; }
-  finally { clearTimeout(t); }
+  } catch (e) {
+    console.warn(`[precall] jina failed for ${url}: ${e.name === 'AbortError' ? `timeout after ${ms}ms` : e.message}`);
+    return null;
+  } finally { clearTimeout(t); }
+}
+
+/** Crude tag stripper — enough to feed a model, not enough to render. */
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<\/(p|div|li|h[1-6]|tr|br)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim();
+}
+
+async function fetchDirect(url, ms = 9000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, {
+      signal: ctrl.signal, redirect: 'follow',
+      // Some church and school hosts serve a block page to an unrecognised agent.
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NPSA-PreCall/1.0)', 'Accept': 'text/html' },
+    });
+    if (!r.ok) { console.warn(`[precall] direct ${r.status} for ${url}`); return null; }
+    if (!/text\/html|text\/plain/i.test(r.headers.get('content-type') || '')) return null;
+    return htmlToText(await r.text()).slice(0, 8000);
+  } catch (e) {
+    console.warn(`[precall] direct failed for ${url}: ${e.name === 'AbortError' ? `timeout after ${ms}ms` : e.message}`);
+    return null;
+  } finally { clearTimeout(t); }
+}
+
+/**
+ * Reads a page, trying the site itself before the third-party reader.
+ *
+ * Everything used to go through Jina alone, and every failure was swallowed by a
+ * bare `catch { return null }`. When it stopped answering, the briefing came back
+ * with the website, the overview, the campus addresses, the state, the
+ * administering agency and the deadlines all reading TBD — a whole document lost
+ * to one dependency, with nothing in the logs to say why.
+ *
+ * Most church and school sites are ordinary server-rendered HTML that a plain GET
+ * handles perfectly well, so the direct fetch is both the faster path and the one
+ * that does not share a rate limit with every other rep. Jina stays as the
+ * fallback, where it earns its keep on JS-rendered sites.
+ */
+async function fetchPage(url) {
+  const direct = await fetchDirect(url);
+  if (direct && direct.length > 400) return direct;
+  const viaJina = await fetchViaJina(url);
+  return viaJina || direct || null;
 }
 
 async function searchForOrgWebsite(orgName, orgType, orgState, ms = 12000) {
@@ -221,7 +282,7 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 <<FUNDING_DEADLINES>>
 
 ## Organization Overview
-{2-4 sentences synthesized from the website: what the organization is, who/how many it serves, its location and size, and why it is a strong NSGP candidate. Weave in a one-line mission/values paraphrase if the site states it. If the website was unavailable, write "TBD — website could not be researched."}
+{2-4 sentences synthesized from the website: what the organization is, who/how many it serves, its location and size, and why it is a strong NSGP candidate. Weave in a one-line mission/values paraphrase if the site states it. If the site could not be read, do NOT describe the organisation from memory — write one line naming the address so the rep can open it, e.g. "Could not read example.org automatically — open it before the call." If no website is known at all, write "TBD — no website found."}
 
 ## Meeting Details
 <<MEETING_DETAILS>>
@@ -505,12 +566,15 @@ app.post('/api/precall', async (req, res) => {
         const d = att?.email?.split('@')[1]?.toLowerCase();
         if (d && !GENERIC_EMAIL_DOMAINS.has(d) && !domains.includes(d)) domains.push(d);
       }
-      for (const domain of domains) {
-        const candidate = normalizeBaseUrl(`https://${domain}`);
-        if (!candidate) continue;
-        const test = await fetchViaJina(candidate);
-        if (test && test.length > 200) { resolvedWebsite = candidate; break; }
-      }
+      // Taken as the answer, NOT probed first. kwhitezell@olph1.org states the
+      // organisation's domain — that is a fact off the booking, not a candidate
+      // needing confirmation. The previous version only accepted it if a scrape of
+      // it came back over 200 characters, which made a scraper outage look like
+      // evidence the domain was wrong: the briefing then reported no website at
+      // all for an organisation whose website was sitting in the invitee's own
+      // address. Whether the site can be READ is a separate question, tracked
+      // below, and a site nobody can read is still the site.
+      if (domains.length) resolvedWebsite = normalizeBaseUrl(`https://${domains[0]}`);
     }
 
     if (!resolvedWebsite && orgName) {
@@ -533,12 +597,25 @@ app.post('/api/precall', async (req, res) => {
 
     if (resolvedWebsite) {
       const paths = ['', '/about', '/about-us', '/staff', '/leadership', '/team', '/our-church', '/locations', '/campuses', '/contact'];
-      const pages = await Promise.allSettled(paths.map(p => fetchViaJina(`${resolvedWebsite}${p}`)));
-      siteText = pages
-        .filter(r => r.status === 'fulfilled' && r.value)
-        .map(r => r.value)
-        .join('\n\n')
-        .slice(0, 20000);
+      let pages = await Promise.allSettled(paths.map(p => fetchPage(`${resolvedWebsite}${p}`)));
+      let ok = pages.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+
+      // Plenty of parish and school sites answer on one of apex/www and not the
+      // other. Retrying the homepage on the other host is cheap next to losing the
+      // whole research pass, which is what used to happen.
+      if (!ok.length) {
+        const host = new URL(resolvedWebsite).host;
+        const alt = host.startsWith('www.')
+          ? resolvedWebsite.replace('://www.', '://')
+          : resolvedWebsite.replace('://', '://www.');
+        console.warn(`[precall] nothing readable at ${resolvedWebsite}, trying ${alt}`);
+        pages = await Promise.allSettled(paths.slice(0, 4).map(p => fetchPage(`${alt}${p}`)));
+        ok = pages.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+        if (ok.length) resolvedWebsite = alt;
+      }
+
+      siteText = ok.join('\n\n').slice(0, 20000);
+      if (!siteText) console.warn(`[precall] no page of ${resolvedWebsite} could be read`);
     }
 
     // Guests arrive as an email and nothing else, so a filter on name — which is
@@ -636,7 +713,11 @@ app.post('/api/precall', async (req, res) => {
       nsgpBlock ? `\n${nsgpBlock}` : '',
       ``,
       resolvedWebsite
-        ? `WEBSITE CONTENT (${resolvedWebsite}) — use to verify attendee titles, campus addresses, mission statement. Do NOT invent facts not found here:`
+        ? (siteText
+            ? `WEBSITE CONTENT (${resolvedWebsite}) — use to verify attendee titles, campus addresses, mission statement. Do NOT invent facts not found here:`
+            // Knowing the address but not being able to read it is a different
+            // situation from not knowing it, and the rep can act on the first.
+            : `WEBSITE: ${resolvedWebsite} — this is the organisation's site, taken from the attendee's email domain, but it could not be read automatically. Say so and give the rep the address to open themselves. Do NOT describe the organisation from memory.`)
         : `WEBSITE CONTENT: unavailable — mark website-dependent fields as TBD`,
       siteText || '(website could not be fetched)',
     ].filter(l => l !== null).join('\n');
