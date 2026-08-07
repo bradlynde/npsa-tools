@@ -68,6 +68,9 @@ globalThis.fetch = async (url, init) => {
 
   if (u.startsWith('https://api.calendly.com')) {
     const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (u.includes('/users/jeff')) {
+      return json({ resource: { scheduling_url: 'https://calendly.com/jeff-npsa' } });
+    }
     if (u.includes('/invitees')) {
       return json({ collection: [{
         uri: `${EVENT}/invitees/993017ba`, email: 'geoffrey@greenlandhills.org',
@@ -84,7 +87,8 @@ globalThis.fetch = async (url, init) => {
       location: { actual_instance: { type: 'zoom', join_url: 'https://us02web.zoom.us/j/86249830965?pwd=Fesx',
         data: { id: { actual_instance: 86249830965 }, password: '**********' } } },
       event_guests: [{ email: 'kevin@meritdallas.com' }, { email: 'raj@meritdallas.com' }],
-      event_memberships: [{ user_email: 'brad@lyndeconsulting.com', user_name: 'Brad Lynde' }],
+      event_memberships: [{ user_email: 'jeff@nonprofitsecurityadvisors.com', user_name: 'Jeff Markely',
+                            user: 'https://api.calendly.com/users/jeff' }],
     } });
   }
 
@@ -148,6 +152,8 @@ const checks = {
   'wish list has write-in lines': /1\.\s*\\_/.test(n),
   'no token leaked': !/<<[A-Z_]+>>/.test(n),
   'booking echoed back': d.booking?.eventUri === EVENT,
+  'NPSA attendee is the real host, not Brad': n.includes('Jeff Markely') && !n.includes('Brad Lynde'),
+  'unknown host gets no borrowed title': !n.includes('Managing Partner'),
   'award figures survived': n.includes('Up to $200,000') && n.includes('TDEM'),
   'deadline section present even with no table': /## NSGP Deadlines/.test(n) && /not recorded|confirm with/i.test(n),
 };

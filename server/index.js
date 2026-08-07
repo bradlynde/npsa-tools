@@ -1,6 +1,7 @@
 import express from 'express';
 import { OpenAI } from 'openai';
 import { repairDocx } from './docx-repair.js';
+import { preserveInlineSpacing } from './docx-style.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
@@ -10,7 +11,7 @@ import { registerMarketing } from './marketing.js';
 import { listUpcomingBookings, getBooking } from './precall-bookings.js';
 import {
   buildMeetingDetails, buildAttendees, buildVideoConference,
-  writeInLines, substituteBlocks, fillEmptySections, formatCentral,
+  writeInLines, substituteBlocks, fillEmptySections, formatCentral, NPSA_TITLES,
 } from './precall-facts.js';
 import {
   ensureDeadlineSchema, listDeadlines, upsertDeadline, deleteDeadline,
@@ -119,6 +120,13 @@ async function searchForOrgWebsite(orgName, orgType, orgState, ms = 12000) {
   finally { clearTimeout(t); }
 }
 
+// A personal mailbox says nothing about the organisation's domain.
+const GENERIC_EMAIL_DOMAINS = new Set([
+  'gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','aol.com',
+  'live.com','msn.com','me.com','comcast.net','att.net','verizon.net','sbcglobal.net',
+  'protonmail.com','proton.me','mac.com','ymail.com','googlemail.com',
+]);
+
 function normalizeBaseUrl(raw) {
   if (!raw) return null;
   let u = raw.trim();
@@ -196,9 +204,7 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 {2-3 sentences: understand the org's current security posture and priorities, and position both Federal and State NSGP grant funding to support their planned upgrades and drivers. Tailor to anything specific the rep noted.}
 
 ## NSGP Funding Snapshot
-Present BOTH funding tracks available to this organization using the NSGP GRANT FUNDING DATA provided. The Federal NSGP track ALWAYS applies. If the data lists a PROGRAM 2 (state-funded program), present it as a second, stackable funding source. If the data says the state has no separate program, show only the Federal NSGP track and add a one-line note that {State} has no separate state-funded program.
-
-Let N = the number of verified campus/property locations found (if unknown, use 1 as a conservative baseline and say so).
+{Show BOTH funding tracks from the NSGP GRANT FUNDING DATA. The Federal NSGP track ALWAYS applies. If the data lists a PROGRAM 2 (state-funded program), show it as a second, stackable source. If the data says the state has no separate program, show only the federal track and add a one-line note that the state has none. Let N be the number of verified campus/property locations — if unknown use 1 and say so. This paragraph is an instruction: do not reproduce any of it in your output, and do not write the words "PROGRAM 2", "Let N" or "GRANT FUNDING DATA" anywhere.}
 
 **Federal NSGP**
 - **Potential Award:** {N × $200,000 = "Up to $X (N location(s) × $200,000 per site)".}
@@ -282,7 +288,8 @@ app.post('/api/precall/parse', async (req, res) => {
 });
 
 app.post('/api/precall/followup', async (req, res) => {
-  const { formData, notes, preCallNotes, orgName: legacyOrg, contactName: legacyCN, contactEmail: legacyCE } = req.body || {};
+  const { formData, notes, preCallNotes, eventUri,
+          orgName: legacyOrg, contactName: legacyCN, contactEmail: legacyCE } = req.body || {};
   const notesText = notes || preCallNotes || '';
   if (!notesText) return res.status(400).json({ error: 'No notes provided' });
   const org = (formData?.orgName || legacyOrg || '').trim();
@@ -290,6 +297,26 @@ app.post('/api/precall/followup', async (req, res) => {
   const contactName = attendee0.name || legacyCN || '';
   const contactEmail = attendee0.email || legacyCE || '';
   const firstName = contactName.split(' ')[0] || 'there';
+
+  // Whose email this is. Read from the booking rather than assumed, for the same
+  // reason the attendee list is: the rep who ran the call is often not Brad.
+  let sender = { name: 'Brad Lynde', email: 'brad@lyndeconsulting.com',
+                 title: 'Managing Partner, NPSA', schedulingUrl: 'https://calendly.com/bradlynde' };
+  if (eventUri) {
+    try {
+      const b = await getBooking(eventUri);
+      if (b?.host?.name || b?.host?.email) {
+        sender = {
+          name: b.host.name || sender.name,
+          email: b.host.email || '',
+          title: NPSA_TITLES[String(b.host.email || '').toLowerCase()] || 'NPSA',
+          schedulingUrl: b.host.schedulingUrl || null,
+        };
+      }
+    } catch (e) { console.error('Follow-up host lookup failed:', e.message); }
+  }
+  const signOff = [sender.name, sender.title, sender.email].filter(Boolean).join(' | ');
+
   try {
     const client = getOpenAI();
     const completion = await client.chat.completions.create({
@@ -297,18 +324,19 @@ app.post('/api/precall/followup', async (req, res) => {
       max_tokens: 800,
       messages: [{
         role: 'system',
-        content: `You are drafting a post-call follow-up email on behalf of Brad Lynde, Managing Partner at NPSA (Nonprofit Security Advisors). Brad sends this email after an introductory Zoom call with a nonprofit prospect.
+        content: `You are drafting a post-call follow-up email on behalf of ${sender.name} at NPSA (Nonprofit Security Advisors), sent after an introductory call with a nonprofit prospect.
 
 Write a concise, warm, professional email. Rules:
 1. Subject line on the first line, formatted as: Subject: {subject}
 2. Blank line, then the email body.
 3. Address the contact by first name (${firstName}).
 4. Thank them for the call and reference the organization by name (${org || 'their organization'}).
-5. Reference the NSGP grant opportunity — pull the specific dollar amount and state deadline/projection from the pre-call notes if present; make the funding feel concrete and timely.
+5. Reference the NSGP grant opportunity — pull the dollar amount from the pre-call notes if present. Only mention a deadline if the notes state one; never estimate or invent a date.
 6. Tell them the Engagement Letter and Brochure are attached for review.
-7. Invite them to book a follow-up appointment using Brad's scheduling link: https://calendly.com/bradlynde
-8. Close from Brad Lynde, Managing Partner, NPSA | brad@lyndeconsulting.com | (618) 555-0100
-9. Keep it under 200 words. No fluff, no bullet points — flowing prose paragraphs only.`
+7. ${sender.schedulingUrl ? `Invite them to book a follow-up using this scheduling link: ${sender.schedulingUrl}` : 'Invite them to reply to arrange a follow-up. Do NOT invent a scheduling link.'}
+8. Close exactly with: ${signOff}
+9. Never include a phone number — you have not been given one, and an invented one would reach a stranger.
+10. Keep it under 200 words. No fluff, no bullet points — flowing prose paragraphs only.`
       }, {
         role: 'user',
         content: `Contact: ${contactName} (${contactEmail})\nOrganization: ${org}\n\nPRE-CALL NOTES FOR CONTEXT:\n${notesText.slice(0, 3000)}`
@@ -327,18 +355,20 @@ app.post('/api/precall/docx', async (req, res) => {
   try {
     // html-to-docx chokes on certain CSS (border-bottom, text-transform, decimal line-height)
     // Strip the stylesheet entirely — the library applies its own safe defaults
-    const safeHtml = html.replace(/<style[\s\S]*?<\/style>/gi, '');
+    const safeHtml = preserveInlineSpacing(html.replace(/<style[\s\S]*?<\/style>/gi, ''));
     const generated = await HTMLtoDOCX(safeHtml, null, {
       title: filename || 'Pre-Call Notes',
-      margins: { top: 720, right: 1080, bottom: 720, left: 1080 },
-      font: 'Calibri',
-      fontSize: 22,
-      lineHeight: 276,
+      // One-inch margins and Arial, matching the copy of these notes Brad marked
+      // up in Word — that document is the reference for how this should look.
+      margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+      font: 'Arial',
+      fontSize: 21,
+      lineHeight: 240,
     });
     // html-to-docx emits paragraph properties in source order; OOXML fixes that
     // order and Word rejects the whole file when it is wrong. Everything else
     // opens it fine, which is why this looked like a problem with Brad's Word.
-    const buffer = await repairDocx(generated);
+    const buffer = await repairDocx(generated, { brand: true });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${(filename||'Pre-Call Notes').replace(/"/g,"'")}.docx"`);
     res.send(buffer);
@@ -461,8 +491,28 @@ app.post('/api/precall', async (req, res) => {
       questions: [],
     };
 
-    // Find website via Jina Search if not provided
+    // Resolve the website. The attendee's own email domain is tried BEFORE the web
+    // search, because kwhitezell@olph1.org states the organisation's domain outright
+    // — there is nothing to infer and nothing to get wrong. The search is a real
+    // guess made from search-result text, so it belongs last, not first.
     let resolvedWebsite = normalizeBaseUrl(websiteUrl);
+
+    if (!resolvedWebsite) {
+      // The invitee's domain leads: a guest may be a consultant or a broker at a
+      // different organisation entirely, which is not the site to research.
+      const domains = [];
+      for (const att of (attendees || [])) {
+        const d = att?.email?.split('@')[1]?.toLowerCase();
+        if (d && !GENERIC_EMAIL_DOMAINS.has(d) && !domains.includes(d)) domains.push(d);
+      }
+      for (const domain of domains) {
+        const candidate = normalizeBaseUrl(`https://${domain}`);
+        if (!candidate) continue;
+        const test = await fetchViaJina(candidate);
+        if (test && test.length > 200) { resolvedWebsite = candidate; break; }
+      }
+    }
+
     if (!resolvedWebsite && orgName) {
       const searchResults = await searchForOrgWebsite(orgName, orgType, orgState);
       if (searchResults) {
@@ -478,49 +528,18 @@ app.post('/api/precall', async (req, res) => {
       }
     }
 
-    // Fallback: derive website from attendee email domains
-    // e.g. michael@calumetstreet.org → try https://calumetstreet.org
-    if (!resolvedWebsite && attendees?.length) {
-      const genericDomains = new Set(['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','aol.com','live.com','msn.com','me.com']);
-      for (const att of (attendees || [])) {
-        const domain = att?.email?.split('@')[1]?.toLowerCase();
-        if (domain && !genericDomains.has(domain)) {
-          const candidate = normalizeBaseUrl(`https://${domain}`);
-          if (candidate) {
-            const test = await fetchViaJina(candidate);
-            if (test && test.length > 200) { resolvedWebsite = candidate; break; }
-          }
-        }
-      }
-    }
-
-    // Fetch site content + NSGP deadline data in parallel
-    const saaName = STATE_SAA[orgState?.toUpperCase()] || (orgState ? `${orgState} State Administering Agency` : null);
     let siteText = '';
     let deadlineRows = [];
 
-    await Promise.all([
-      // Website scraping
-      (async () => {
-        if (!resolvedWebsite) return;
-        const paths = ['', '/about', '/about-us', '/staff', '/leadership', '/team', '/our-church', '/locations', '/campuses', '/contact'];
-        const pages = await Promise.allSettled(paths.map(p => fetchViaJina(`${resolvedWebsite}${p}`)));
-        siteText = pages
-          .filter(r => r.status === 'fulfilled' && r.value)
-          .map(r => r.value)
-          .join('\n\n')
-          .slice(0, 20000);
-      })(),
-      // Deadlines come from the curated table now. The web search this replaces is
-      // gone rather than kept as a fallback: scraping search results for dates is
-      // exactly what produced the section Brad called inaccurate, and "not recorded
-      // — confirm with the SAA" is more use to a rep than a confident wrong date.
-      (async () => {
-        if (!orgState || !pool) return;
-        try { deadlineRows = await deadlinesForState(pool, orgState); }
-        catch (e) { console.error('Deadline lookup failed:', e.message); }
-      })(),
-    ]);
+    if (resolvedWebsite) {
+      const paths = ['', '/about', '/about-us', '/staff', '/leadership', '/team', '/our-church', '/locations', '/campuses', '/contact'];
+      const pages = await Promise.allSettled(paths.map(p => fetchViaJina(`${resolvedWebsite}${p}`)));
+      siteText = pages
+        .filter(r => r.status === 'fulfilled' && r.value)
+        .map(r => r.value)
+        .join('\n\n')
+        .slice(0, 20000);
+    }
 
     // Guests arrive as an email and nothing else, so a filter on name — which is
     // what this used to do — dropped exactly the person Brad asked to have looked up.
@@ -534,23 +553,45 @@ app.post('/api/precall', async (req, res) => {
     // rather than as prose already woven in past the point of telling apart.
     let research = {};
     const toResearch = (attendees || []).filter(a => a?.email);
-    if (siteText && toResearch.length) {
+    if (siteText) {
       try {
         const r = await client.chat.completions.create({
-          model: 'gpt-4o-mini', max_tokens: 600,
+          model: 'gpt-4o-mini', max_tokens: 700,
           response_format: { type: 'json_object' },
           messages: [{ role: 'user', content:
-            `From the website text below, identify each person. Return JSON {"people":[{"email":"","name":null,"title":null,"evidence":null}]}.\n` +
-            `Rules: use ONLY the website text. "name" only when the site names the person — for an email like dayna@example.org, look for a matching first name on a staff or leadership page. ` +
+            `From the website text below, return JSON {"org_state":null,"people":[{"email":"","name":null,"title":null,"evidence":null}]}.\n` +
+            `"org_state": the 2-letter US state abbreviation of the organisation's own address, from a postal address or contact page. Null if the site does not state one.\n` +
+            `For each person: use ONLY the website text. "name" only when the site names the person — for an email like dayna@example.org, look for a matching first name on a staff or leadership page. ` +
             `"title" only when the site states their role. "evidence" is a short quote from the site supporting it. ` +
             `Use null for anything the site does not support. Never guess from the email address alone.\n\n` +
-            `PEOPLE:\n${toResearch.map(a => `${a.email}${a.name ? ` (${a.name})` : ''}`).join('\n')}\n\n` +
+            `PEOPLE:\n${toResearch.map(a => `${a.email}${a.name ? ` (${a.name})` : ''}`).join('\n') || '(none)'}\n\n` +
             `WEBSITE TEXT:\n${siteText.slice(0, 14000)}` }],
         });
-        for (const p of (JSON.parse(r.choices[0]?.message?.content || '{}').people || [])) {
+        const parsed = JSON.parse(r.choices[0]?.message?.content || '{}');
+        for (const p of (parsed.people || [])) {
           if (p?.email) research[String(p.email).toLowerCase()] = p;
         }
+        // The state is not a cosmetic field. It selects the SAA, the deadline rows,
+        // and whether a stackable state-funded program is shown at all — so a blank
+        // one silently cost the Our Lady of Perpetual Help briefing its administering
+        // agency, its deadlines, AND California's $250k-per-site CSNSGP track. The
+        // booking form does not ask for it, so derive it from the organisation's own
+        // published address rather than leaving it to the rep to remember.
+        if (!orgState && /^[A-Za-z]{2}$/.test(String(parsed.org_state || '').trim())) {
+          orgState = String(parsed.org_state).trim().toUpperCase();
+          if (!STATE_SAA[orgState]) orgState = null;   // a real abbreviation, or none
+        }
       } catch (e) { console.error('Attendee research failed:', e.message); }
+    }
+
+    // Deadlines come from the curated table now. The web search this replaces is
+    // gone rather than kept as a fallback: scraping search results for dates is
+    // exactly what produced the section Brad called inaccurate, and "not recorded —
+    // confirm with the SAA" is more use to a rep than a confident wrong date.
+    const saaName = STATE_SAA[orgState?.toUpperCase()] || (orgState ? `${orgState} State Administering Agency` : null);
+    if (orgState && pool) {
+      try { deadlineRows = await deadlinesForState(pool, orgState); }
+      catch (e) { console.error('Deadline lookup failed:', e.message); }
     }
 
     const stateProgram = STATE_FUNDED_PROGRAMS[orgState?.toUpperCase()];
@@ -617,7 +658,7 @@ app.post('/api/precall', async (req, res) => {
         heading: 'Meeting Details',
         body: buildMeetingDetails(facts, { orgType, website: resolvedWebsite, hostName: booking?.host?.name }),
       },
-      ATTENDEES: { heading: 'Attendees', body: buildAttendees(facts, research) },
+      ATTENDEES: { heading: 'Attendees', body: buildAttendees(facts, research, booking?.host) },
       VIDEO_CONFERENCE: { heading: 'Video Conference Details', body: buildVideoConference(facts.location) },
       WISH_LIST: { heading: 'Top Three Security Wish List Items', body: writeInLines(3) },
       // Always supplied when a state is known. An unsupplied token is stripped, and

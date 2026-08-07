@@ -18,6 +18,7 @@
  */
 
 import JSZip from "jszip";
+import { brandStyles, brandDocument } from "./docx-style.js";
 
 // Schema order of w:pPr children (ECMA-376 §17.3.1.26).
 const PPR_ORDER = [
@@ -93,17 +94,33 @@ function reorderBlocks(xml, tag, order) {
   });
 }
 
-/** Reorder property children in a .docx buffer so Word will open it. */
-export async function repairDocx(buffer) {
+/**
+ * Reorder property children in a .docx buffer so Word will open it.
+ *
+ * With `brand`, also restyles styles.xml — see server/docx-style.js. Both jobs
+ * edit parts of the same zip, so they share one open/close rather than each
+ * unpacking and repacking the file.
+ */
+export async function repairDocx(buffer, { brand = false } = {}) {
   const zip = await JSZip.loadAsync(buffer);
   const target = "word/document.xml";
   const file = zip.file(target);
   if (!file) return buffer;
 
   let xml = await file.async("string");
+  // Branding runs FIRST so that whatever it inserts is then put into schema order
+  // by the pass below. A colour added after the reorder would be the very thing
+  // that stops Word opening the file.
+  if (brand) xml = brandDocument(xml);
   xml = reorderBlocks(xml, "pPr", PPR_ORDER);
   xml = reorderBlocks(xml, "rPr", RPR_ORDER);
   zip.file(target, xml);
+
+  if (brand) {
+    const styles = zip.file("word/styles.xml");
+    // Branding is cosmetic; a document that opens unstyled beats one that fails.
+    if (styles) zip.file("word/styles.xml", brandStyles(await styles.async("string")));
+  }
 
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }

@@ -19,7 +19,29 @@
  * at a glance rather than having to trust the whole document equally.
  */
 
-const NPSA_HOST = { name: 'Brad Lynde', title: 'Managing Partner, NPSA', email: 'brad@lyndeconsulting.com' };
+/*
+ * Who is actually running the call.
+ *
+ * This was hard-coded to Brad, so a briefing for one of Jeff's or Chad's meetings
+ * put Brad's name and address in the attendee list. The Meeting Details block had
+ * the host right — it reads the booking — which made the two halves of the same
+ * document disagree with each other.
+ *
+ * Titles are only listed for the people whose titles are known. An unknown one
+ * prints the name and address alone rather than borrowing Brad's, which is the
+ * same rule the rest of this file follows: no value beats an invented one.
+ */
+export const NPSA_TITLES = {
+  'brad@lyndeconsulting.com': 'Managing Partner, NPSA',
+};
+const DEFAULT_HOST = { name: 'Brad Lynde', email: 'brad@lyndeconsulting.com' };
+
+function hostLine(host) {
+  const h = host?.name || host?.email ? host : DEFAULT_HOST;
+  const title = NPSA_TITLES[String(h.email || '').toLowerCase()];
+  return [`**${esc(h.name || h.email)}**`, title, esc(h.email || '')]
+    .filter(Boolean).join(' · ');
+}
 
 /** Escapes the pipe and underscore markdown would otherwise eat inside a value. */
 const esc = (s) => String(s == null ? '' : s).replace(/([|_*`])/g, '\\$1');
@@ -60,7 +82,7 @@ export function buildMeetingDetails(facts, { orgType, website, hostName } = {}) 
   const loc = facts.location || {};
   const rows = [
     ['Date & Time', when ? (theirs ? `${when}  (${theirs} for the client)` : when) : 'TBD'],
-    ['Host', hostName || NPSA_HOST.name],
+    ['Host', hostName || DEFAULT_HOST.name],
     ['Location', loc.label || 'TBD'],
     ['Organization', facts.orgName || 'TBD'],
     [WEBSITE_LABEL[orgType] || 'Website', website || 'TBD'],
@@ -75,7 +97,7 @@ export function buildMeetingDetails(facts, { orgType, website, hostName } = {}) 
  * the website. It is always rendered as research — never merged silently into the
  * submitted facts — so the rep can see which half of a line came from where.
  */
-export function buildAttendees(facts, research = {}) {
+export function buildAttendees(facts, research = {}, host = null) {
   const find = (email) => research[String(email || '').toLowerCase()] || null;
   const out = [];
 
@@ -106,7 +128,7 @@ export function buildAttendees(facts, research = {}) {
 
   out.push('');
   out.push('**NPSA**');
-  out.push(`- **${NPSA_HOST.name}** · ${NPSA_HOST.title} · ${NPSA_HOST.email}`);
+  out.push(`- ${hostLine(host)}`);
   return out.join('\n');
 }
 
@@ -178,4 +200,4 @@ export function fillEmptySections(markdown, headings, filler) {
   return md;
 }
 
-export const __test = { esc, formatInvitee, NPSA_HOST };
+export const __test = { esc, formatInvitee, hostLine, DEFAULT_HOST, NPSA_TITLES };

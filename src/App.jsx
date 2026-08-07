@@ -1428,7 +1428,7 @@ export default function App() {
               setPreCallFollowUpLoading(true);
               setPreCallFollowUpEmail('');
               try {
-                const r=await fetch('/api/precall/followup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formData:preCallForm,notes:preCallOutput})});
+                const r=await fetch('/api/precall/followup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formData:preCallForm,notes:preCallOutput,eventUri:preCallEventUri})});
                 const d=await r.json();
                 if(d.email) setPreCallFollowUpEmail(d.email);
                 else throw new Error(d.error||'No email returned');
