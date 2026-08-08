@@ -1,0 +1,199 @@
+{
+  "_what": "An independent web check of every claim extracted into nsgp-data.json, run 2026-08-08 before the deadline table shipped.",
+
+  "_why_separate": "nsgp-data.json is a mechanical extraction of NPSA's grant-knowledge Drive folder and says so: re-extract when Drive changes rather than editing by hand. Folding these corrections into it would break that — the next extraction would silently revert them, and a hand-edit would be indistinguishable from Drive content. So this is an overlay applied on top, and every row the tool renders carries the layer it came from.",
+
+  "_checked": "2026-08-08",
+
+  "_method": "Each dated row, each administering agency, and each state program's caps and eligibility was searched against the administering agency's own published material. Where a date and its stated day-of-week were both available, the pair was checked for consistency — that alone caught one bad date.",
+
+  "_evidence_limit": "The sandbox's egress proxy refused direct page fetches to every .gov host and to the third-party grant aggregators, so this is search-derived rather than read off the agency's page. That is weaker evidence. It is strong enough to correct a date that two independent results agree on and that passes the day-of-week check, and strong enough to withdraw a 'confirmed' claim nothing corroborates. It is NOT strong enough to invent a date, so nothing here is added on a single weak hit.",
+
+  "corrections": [
+    {
+      "state": "TX", "program": "federal", "cycle": 2026,
+      "was": "2026-07-06", "now": "2026-02-12",
+      "severity": "high",
+      "why": "Texas collects NSGP subapplications through eGrants months ahead of the rest of the country — the FFY2026 solicitation closed February 12, 2026, with awards performing from September 1, 2026. The extracted date put it in July alongside everyone else. A Texas client told 'you have until July' misses the cycle by five months, and there is no second window.",
+      "sources": [
+        "egrants.gov.texas.gov/fundingopp/nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026",
+        "grantedai.com — Nonprofit Security Grant Program (NSGP), Federal Fiscal Year 2026, Office of the Governor, State of Texas"
+      ]
+    },
+    {
+      "state": "AL", "program": "federal", "cycle": 2026,
+      "was": "2026-07-15", "now": "2026-07-16",
+      "severity": "low",
+      "why": "Two results give Thursday, July 16, 2026, and July 16, 2026 is in fact a Thursday — the day-of-week corroborates the date. July 15 was a Wednesday.",
+      "sources": ["alea.gov/nonprofit-security-grant-program-nsgp", "instrumentl.com — NSGP Alabama"]
+    },
+    {
+      "state": "WA", "program": "federal-noi", "cycle": 2026,
+      "was": "2026-05-31", "now": "2026-06-30",
+      "severity": "medium",
+      "why": "The Notice of Intent closed 11:59 p.m. June 30, 2026. The extracted date, May 31 2026, was a Sunday — agencies do not set Sunday deadlines, which is what prompted the recheck.",
+      "sources": ["mil.wa.gov/grants-nsgp-application-details"]
+    },
+    {
+      "state": "AZ", "program": "AZ-NSGP", "cycle": 2026, "nowCycle": 2027,
+      "was": "labelled FY2026", "now": "labelled FY2027",
+      "severity": "low",
+      "why": "The June 12, 2026 deadline is correct, but AZDOHS runs it as the FY2027 cycle. Mislabelling the year makes the row look superseded when it is the current one.",
+      "sources": ["azdohs.gov/sites/default/files/fy2026_state_of_arizona_nsgp_guidance_0.pdf", "azdohs.gov/az-nsgp"]
+    }
+  ],
+
+  "downgrades": [
+    {
+      "state": "SD", "program": "federal", "cycle": 2026, "date": "2026-07-17",
+      "from": "confirmed", "to": "illustrative",
+      "why": "Nothing published corroborates the July 17 date; South Dakota's page says only that the 2026 non-profit window has closed. The date may well be right — but 'confirmed' is a promise, and this one cannot be backed."
+    },
+    {
+      "state": "KY", "program": "federal", "cycle": 2025, "date": "2026-01-16",
+      "from": "confirmed", "to": "illustrative",
+      "why": "Unable to corroborate the FY2025 date. KOHS's published FY2026 date (July 13, 2026) is recorded separately as an addition."
+    }
+  ],
+
+  "additions": [
+    {
+      "state": "CT", "program": "CT-NSGP", "cycle": 2027, "date": "2026-09-04",
+      "confidence": "confirmed", "open": true,
+      "note": "OPEN NOW. State-funded round, $5M from the Bond Commission; DEMHS opened applications July 7, 2026. Reimbursement only and the nonprofit must own the building.",
+      "source": "portal.ct.gov/demhs — CT-NSGP; hk-now.com 2026-07-07 DESPP announcement"
+    },
+    {
+      "state": "PA", "program": "PA-NSGFP", "cycle": 2027, "date": "2026-09-10",
+      "confidence": "confirmed", "open": true,
+      "note": "OPEN NOW. Initial request form due Wednesday, September 10, 2026; $10M in the 2026-27 budget. Remember the tiered match above $25k.",
+      "source": "pa.gov/agencies/pccd — Nonprofit Security Grant Fund Program solicitation"
+    },
+    {
+      "state": "NJ", "program": "NJ-NSGP-THE", "cycle": 2027, "date": "2026-09-11",
+      "confidence": "confirmed", "open": true,
+      "note": "OPEN NOW. Closes 11:59 p.m. Friday, September 11, 2026. $7M available across both NJ state programs.",
+      "source": "njohsp.gov/grants/state-new-jersey-nonprofit-security-grant-program; nj.gov/dca/news 2026-07-13"
+    },
+    {
+      "state": "NJ", "program": "NJ-NSGP-SP", "cycle": 2027, "date": "2026-09-11",
+      "confidence": "confirmed", "open": true,
+      "note": "OPEN NOW. Same close as the equipment track — but an organization may only be AWARDED one NJ state program per fiscal year.",
+      "source": "njohsp.gov/grants/state-new-jersey-nonprofit-security-grant-program"
+    },
+    {
+      "state": "OR", "program": "federal", "cycle": 2026, "date": "2026-07-15",
+      "confidence": "confirmed",
+      "note": "11:59 p.m.; registration to be deemed eligible closed 5 p.m. July 13, 2026 — a two-step the other states do not have.",
+      "source": "oregon.gov/oem — Nonprofit Security Grant Program"
+    },
+    {
+      "state": "KY", "program": "federal", "cycle": 2026, "date": "2026-07-13",
+      "confidence": "confirmed",
+      "note": "11:59 p.m. EST.",
+      "source": "homelandsecurity.ky.gov/Pages/Grants.aspx"
+    },
+    {
+      "state": "CO", "program": "federal", "cycle": 2026, "date": "2026-07-16",
+      "confidence": "confirmed",
+      "note": "Federal NSGP subapplication to DHSEM.",
+      "source": "dhsem.colorado.gov — 2026 Homeland Security Grant Program announcement"
+    },
+    {
+      "state": "AZ", "program": "federal", "cycle": 2026, "date": "2026-07-10",
+      "confidence": "confirmed",
+      "note": "5:00 p.m. Investment Justification deadline to AZDOHS.",
+      "source": "azdohs.gov/usdhs-fema-nsgp"
+    },
+    {
+      "state": "NH", "program": "federal", "cycle": 2026, "date": "2026-07-10",
+      "confidence": "confirmed",
+      "note": "4:00 p.m., submitted electronically to homelandGrants@dos.nh.gov.",
+      "source": "dos.nh.gov/grants/nonprofit-security-grant-program"
+    },
+    {
+      "state": "TN", "program": "TN-HOW", "cycle": 2027, "date": "2026-07-29",
+      "confidence": "confirmed",
+      "note": "11:59 p.m. CT, 2026-2027 cycle. Contracted security PERSONNEL only — not equipment.",
+      "source": "tn.gov/safety/homeland-security/grants.html"
+    },
+    {
+      "state": "GA", "program": "GA-FPC", "cycle": 2026, "date": "2026-05-22",
+      "confidence": "confirmed",
+      "note": "$3M from the Amended FY2026 state budget; performance June 15, 2026 – May 15, 2027. Program created by the General Assembly in 2026.",
+      "source": "gema.georgia.gov/georgia-funds-protection-communities-fpc"
+    }
+  ],
+
+  "confirmed_unchanged": [
+    { "what": "FEMA-to-SAA FY2026 deadline", "value": "2026-07-24", "source": "fema.gov FY26 NSGP NOFO, published 2026-06-24" },
+    { "what": "FY2026 federal award cap", "value": "$200,000 per site, up to 3 sites, $600,000 max; $300M total ($150M UA + $150M State)", "source": "fema.gov FY26 NSGP NOFO", "note": "The tool already uses $200,000 — no change needed." },
+    { "what": "MI federal FY2026", "value": "2026-07-08", "source": "michigan.gov/msp" },
+    { "what": "MS federal FY2026", "value": "2026-07-15, 5:00 p.m.", "source": "homelandsecurity.ms.gov/grants" },
+    { "what": "OH OSG SFY2027", "value": "2026-05-15, 4:00 p.m.; $125,000 per site; $6M total", "source": "ema.ohio.gov SFY2027-OSG-NOFO" },
+    { "what": "NY SCAHC 2026", "value": "2026-07-08 noon; $250,000 max; $70M available", "source": "criminaljustice.ny.gov/ofpa SCAHC 2026 RFA" },
+    { "what": "AZ-NSGP state program", "value": "2026-06-12; $100,000 max", "source": "azdohs.gov/az-nsgp" },
+    { "what": "OR federal FY2025", "value": "2026-01-15, 10 p.m.", "source": "oregon.gov/oem" },
+    { "what": "RI federal FY2025", "value": "2026-01-19, 5 p.m.", "source": "riema.ri.gov" },
+    { "what": "CA CSNSGP", "value": "2025-12-12; $250,000 per site / $500,000 per applicant; $76M", "source": "caloes.ca.gov 2025-26 CSNSGP RFP" },
+    { "what": "IL NSGP-IL", "value": "$150,000 per site, 3 sites, $450,000 max", "source": "iemaohs.illinois.gov/hs/hsac/nsgp-il.html" },
+    { "what": "PA PA-NSGFP cap", "value": "$5,000–$150,000", "source": "pa.gov/agencies/pccd" },
+    { "what": "NJ caps", "value": "THE $100,000 / SP $20,000", "source": "njohsp.gov" },
+    { "what": "MN supplemental", "value": "$75,000; explicitly supplements a federal NSGP award", "source": "dps.mn.gov/divisions/hsem; MN SF734" },
+    { "what": "TN-HOW cap", "value": "$70,000 per organization per physical address", "source": "tn.gov/safety" },
+    { "what": "CO-NSGP cap", "value": "$25,000 per applicant", "source": "dhsem.colorado.gov" },
+    { "what": "CT-NSGP cap", "value": "$50,000 per application", "source": "portal.ct.gov/demhs" },
+    { "what": "LA LCSSGP", "value": "$50,000 per site; $5M FY26; schools only", "source": "lasafeschools.la.gov FY26 NOFO" },
+    { "what": "NV pilot structure", "value": "$50,000 equipment OR $10,000 personnel, never both", "source": "NV SB413, 83rd session" },
+    { "what": "SAA — Hawaii", "value": "Office of Homeland Security, Dept. of Law Enforcement", "source": "law.hawaii.gov/ohs/grants" },
+    { "what": "SAA — Kansas", "value": "Kansas Highway Patrol, Protective Services Bureau", "source": "kansashighwaypatrol.gov" },
+    { "what": "SAA — Massachusetts", "value": "EOPSS Office of Grants and Research", "source": "mass.gov/info-details/nonprofit-security-grant-program" },
+    { "what": "SAA — South Carolina", "value": "SLED Office of Homeland Security", "source": "sled.sc.gov/departments/state-administrative-agency-saa-homeland-security" },
+    { "what": "SAA — New Hampshire", "value": "NH Dept. of Safety, Bureau of Grants Management", "source": "dos.nh.gov/grants" }
+  ],
+
+  "conflicts_resolved_for_the_knowledge_base": [
+    {
+      "what": "MA CNSGP per-site cap",
+      "kb": "$100,000 (stated as a $10k–$100k range)",
+      "web_first_hit": "$60,000",
+      "resolution": "kb",
+      "why": "The $60,000 figure belongs to an earlier cycle's solicitation. The SFY26 grant-size range is $10,000–$100,000, which matches the knowledge base. No change."
+    },
+    {
+      "what": "MD PAHC administering office",
+      "kb": "MDEM is recorded as Maryland's SAA",
+      "web": "PAHC is run by the Governor's Office of Crime Prevention and Policy, not MDEM",
+      "resolution": "both correct",
+      "why": "MDEM is the federal SAA; GOCPP runs the state hate-crimes program. Two different bodies for two different tracks — recorded on the program so a rep sends the client to the right one."
+    }
+  ],
+
+  "unresolved": [
+    {
+      "what": "FL-NSGP availability",
+      "concern": "FDEM's page still refers to the 2023 Florida NSGP as closed, and no cycle since has been found. The knowledge base already calls the program appropriation-dependent, but the tool would still present its $150k/$450k caps as though a rep could point a client at them.",
+      "action": "Program is flagged dormant until a cycle is confirmed. Caps stay recorded; availability does not."
+    },
+    {
+      "what": "NV-NSGP-PILOT enactment",
+      "concern": "SB 413 shows no action after June 3, 2025 in the bill trackers found. If it died, the program does not exist.",
+      "action": "Flagged unconfirmed. Not presented as available funding until someone confirms with NV OEM."
+    },
+    {
+      "what": "MD PAHC deadline and cap",
+      "concern": "The SFY2027 NOFA exists but neither its deadline nor its per-award cap could be read (the PDF host is blocked here).",
+      "action": "Left unrecorded rather than guessed."
+    }
+  ],
+
+  "program_overrides": {
+    "NJ": {
+      "exclusiveWith": ["NJ-NSGP-THE", "NJ-NSGP-SP"],
+      "why": "Both NJ programs are marked stackable, which is true of each against FEDERAL NSGP but false of the two against each other: an organization may apply to both but may be awarded only one NJ state program per fiscal year. The knowledge base carries this as a state-level note, which the renderer never read — so the briefing could pitch $120,000 of New Jersey money that cannot both be won."
+    },
+    "FL": { "dormant": true, "why": "No cycle confirmed since the 2023 program closed in January 2024." },
+    "NV": { "unconfirmed": true, "why": "SB 413 enactment not verified." },
+    "MD": { "administeredBy": "Governor's Office of Crime Prevention and Policy (GOCPP)", "why": "Not MDEM, which is the federal SAA." }
+  }
+}

@@ -679,6 +679,24 @@ app.post('/api/precall', async (req, res) => {
         ? 'NOT stackable — this is an ALTERNATIVE to federal NSGP, and eligibility usually depends on NOT holding a federal award. Do not present the two as additive.'
         : 'Stackability not confirmed — do not claim the two can be combined.';
 
+    /*
+     * Stackability against the federal award is not the only way two numbers get
+     * wrongly added together. New Jersey runs two state programs, each of which
+     * stacks with federal NSGP, and an organization may be awarded only one of
+     * them — so the honest ceiling is $100,000, not $120,000.
+     */
+    const exclusiveLine = (p) => p.exclusiveWith?.length
+      ? `  MUTUALLY EXCLUSIVE with ${p.exclusiveWith.join(', ')} — the organization may apply to both but can be AWARDED only one state program per fiscal year. Do not add these two caps together.`
+      : null;
+
+    // A program with published caps and no live cycle is the quietest way to be
+    // wrong: everything reads correctly and the money is not there.
+    const availabilityLine = (p) => p.dormant
+      ? `  AVAILABILITY: dormant — ${p.availabilityNote} Do not present this as currently available funding; mention it only as something to watch.`
+      : p.unconfirmed
+        ? `  AVAILABILITY: unconfirmed — ${p.availabilityNote} Do not present this as available funding.`
+        : null;
+
     const nsgpBlock = orgState ? [
       `NSGP GRANT FUNDING DATA:`,
       `State: ${orgState}`,
@@ -694,6 +712,9 @@ app.post('/api/precall', async (req, res) => {
             `  Program: ${p.name} (${p.acronym})`,
             `  Award cap: ${capLine(p)}`,
             `  ${stackLine(p)}`,
+            exclusiveLine(p),
+            availabilityLine(p),
+            p.administeredBy ? `  Administered by ${p.administeredBy} — NOT the SAA named above. Point the client at the right office.` : null,
             p.note ? `  Note: ${p.note}` : null,
           ].filter(Boolean).join('\n')).join('\n')
         : `\nSTATE-FUNDED PROGRAMS: ${orgState} does NOT operate a separate state-funded nonprofit security grant program. Federal NSGP is the only track — present only the federal track and note there is no separate state program.`,

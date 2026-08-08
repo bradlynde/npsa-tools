@@ -17,8 +17,10 @@
  */
 
 import { readFileSync } from 'fs';
+import { __test, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE } from '../server/nsgp-deadlines.js';
 
 const KB = JSON.parse(readFileSync(new URL('../server/nsgp-data.json', import.meta.url), 'utf8'));
+const VERIFIED = JSON.parse(readFileSync(new URL('../server/nsgp-verified.json', import.meta.url), 'utf8'));
 const states = KB.states;
 const problems = [];
 const note = (state, msg) => problems.push(`${state}: ${msg}`);
@@ -59,6 +61,38 @@ const dated = Object.values(states).flatMap((s) => (s.deadlines || []).filter((d
 const confirmed = dated.filter((d) => d.confidence === 'confirmed');
 const programs = Object.values(states).flatMap((s) => s.state_programs || []);
 
+/*
+ * The web-check overlay.
+ *
+ * The extraction and the check are two layers on purpose, and the thing most likely
+ * to go wrong is the seam between them: a correction that silently stops applying
+ * because a key drifted would leave the ORIGINAL wrong date in place while every
+ * surface reported the table as verified. Texas is the case in point, so it is
+ * asserted by name rather than only in aggregate.
+ */
+const seed = __test.SEED;
+const find = (state, program, cycle) =>
+  seed.find((r) => r.state === state && r.program === program && r.cycleYear === cycle);
+
+for (const c of VERIFIED.corrections) {
+  const target = c.nowCycle ?? c.cycle;
+  const row = find(c.state, c.program, target);
+  if (!row) note(c.state, `correction for ${c.program} FY${target} matches no seeded row — key drift`);
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(c.now) && row.deadline !== c.now) {
+    note(c.state, `correction not applied: ${c.program} FY${target} is ${row.deadline}, expected ${c.now}`);
+  }
+}
+for (const d of VERIFIED.downgrades) {
+  const row = find(d.state, d.program, d.cycle);
+  if (row && row.confidence !== d.to) note(d.state, `downgrade not applied: ${d.program} FY${d.cycle} still ${row.confidence}`);
+}
+for (const a of VERIFIED.additions) {
+  if (!find(a.state, a.program, a.cycle)) note(a.state, `addition missing from seed: ${a.program} FY${a.cycle}`);
+}
+
+const tx = find('TX', 'federal', 2026);
+const njPrograms = STATE_PROGRAMS_BY_STATE.NJ || [];
+
 const checks = {
   'all 50 states plus DC are present': Object.keys(states).length === 51,
   'every jurisdiction names an agency': !problems.some((p) => p.includes('administering agency')),
@@ -68,6 +102,22 @@ const checks = {
     new Set(Object.entries(states).filter(([, s]) => (s.state_programs || []).length).map(([k]) => k)).size > 3,
   'territories are declared as out of scope': Array.isArray(KB._not_covered) && KB._not_covered.length > 0,
   'provenance is documented': !!KB._source && !!KB._regenerate && !!KB._confidence,
+
+  // The overlay
+  'the web check records its date, method and evidence limits':
+    !!VERIFIED._checked && !!VERIFIED._method && !!VERIFIED._evidence_limit,
+  'every correction, downgrade and addition still lands on a real row': problems.length === 0,
+  'Texas reads February, not July': tx?.deadline === '2026-02-12',
+  'the Texas row says it was corrected and what it was before': /Corrected .*was 2026-07-06/.test(tx?.note || ''),
+  'a downgraded row is no longer presented as confirmed':
+    find('SD', 'federal', 2026)?.confidence === 'illustrative',
+  'rows carry the layer they came from': seed.every((r) => !!r.layer),
+  'the two New Jersey programs are marked mutually exclusive':
+    njPrograms.length === 2 && njPrograms.every((p) => p.exclusiveWith?.length === 1),
+  'a program with no live cycle is flagged rather than quietly quoted':
+    (STATE_PROGRAMS_BY_STATE.FL || []).every((p) => p.dormant === true),
+  'every claim carries a source': [...VERIFIED.additions, ...VERIFIED.confirmed_unchanged]
+    .every((x) => !!(x.source || x.sources?.length)),
 };
 
 for (const p of problems) console.log(`  ! ${p}`);
@@ -79,7 +129,16 @@ for (const [k, v] of Object.entries(checks)) {
   console.log(`${v ? 'PASS' : 'FAIL'}  ${k}`);
 }
 
-console.log(`\n${Object.keys(states).length} jurisdictions · ${dated.length} dated rows ` +
+// Report what actually ships (extraction + overlay), not just the extraction — the
+// two diverging without anyone noticing is the failure this file exists to catch.
+const today = new Date().toISOString().slice(0, 10);
+const open = seed.filter((r) => r.deadline >= today);
+console.log(`\n${Object.keys(states).length} jurisdictions · ${dated.length} extracted dated rows ` +
   `(${confirmed.length} confirmed) · ${programs.length} state-funded programs`);
+console.log(`shipping ${seed.length} rows after the ${VERIFIED._checked} check ` +
+  `(+${VERIFIED.additions.length} added, ${VERIFIED.corrections.length} corrected, ${VERIFIED.downgrades.length} downgraded)`);
+console.log(open.length
+  ? `open as of ${today}: ${open.map((r) => `${r.state} ${r.program} ${r.deadline}`).join(' · ')}`
+  : `nothing open as of ${today}`);
 console.log(`${Object.keys(checks).length - failed}/${Object.keys(checks).length} checks passed`);
 process.exit(failed ? 1 : 0);
