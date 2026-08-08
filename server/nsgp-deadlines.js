@@ -19,29 +19,62 @@
  * appear.
  */
 
-// Seeded only where there is a citation. `source` is carried through to the editor
-// so whoever maintains this can see where a date came from and re-check it.
-// Deliberately sparse: an empty table that says so is more useful than a full one
-// that is quietly wrong, which is the failure being fixed.
+import { readFileSync } from 'fs';
+
+/*
+ * The seed comes from NPSA's own grant-knowledge base rather than from this file.
+ *
+ * server/nsgp-data.json is extracted from the states/*.yaml set in the shared
+ * Drive folder — the set the team already maintains, with its own last_verified
+ * dates and source URLs per state. Transcribing 51 jurisdictions by hand into a
+ * second list would create a rival source of truth that goes stale the first time
+ * someone updates Drive and not this repo, so the extraction is kept mechanical
+ * and the provenance travels with each row.
+ *
+ * `confidence` matters and is not cosmetic. The knowledge base distinguishes a
+ * date it states plainly from one it flags "verify each cycle" or records as a
+ * note about a window that has already closed. Presenting the second kind as
+ * confirmed is precisely the failure this whole table replaced.
+ */
+const KB = JSON.parse(
+  readFileSync(new URL('./nsgp-data.json', import.meta.url), 'utf8'),
+);
+
 const SEED = [
+  // The one row with no state file behind it: FEMA's own deadline for SAAs, which
+  // bounds every sub-applicant deadline from above.
   { state: 'US', program: 'federal', cycleYear: 2026, deadline: '2026-07-24', kind: 'fema',
+    confidence: 'confirmed',
     note: 'FEMA deadline for State Administering Agencies. Sub-applicant deadlines are earlier and set per state.',
     source: 'fema.gov/grants/preparedness/nonprofit-security' },
 
-  { state: 'IN', program: 'federal', cycleYear: 2026, deadline: '2026-07-09', kind: 'sub_applicant',
-    note: 'Submit to IDHS at grants@dhs.in.gov by 4:00 p.m. ET.',
-    source: 'in.gov/dhs/grants-management/nonprofit-security-grant-program' },
-
-  { state: 'MD', program: 'federal', cycleYear: 2026, deadline: '2026-07-15', kind: 'sub_applicant',
-    note: 'Window opened 2026-06-30; closes 4:00 p.m.',
-    source: 'mdem.maryland.gov/pages/nonprofit-security-grant-program.aspx' },
-
-  { state: 'NY', program: 'federal', cycleYear: 2026, deadline: '2026-07-10', kind: 'sub_applicant',
-    note: '', source: 'csiny.org/securitygrants' },
-
-  { state: 'CT', program: 'federal', cycleYear: 2026, deadline: '2026-07-12', kind: 'sub_applicant',
-    note: '', source: 'csiny.org/securitygrants' },
+  ...Object.entries(KB.states).flatMap(([state, s]) =>
+    (s.deadlines || [])
+      .filter((d) => d.date)
+      .map((d) => ({
+        state,
+        program: d.program,
+        cycleYear: d.cycle,
+        deadline: d.date,
+        kind: d.program === 'federal' ? 'sub_applicant' : 'state_program',
+        confidence: d.confidence || 'illustrative',
+        note: d.note || '',
+        source: d.source || '',
+      })),
+  ),
 ];
+
+/** SAA name per state, from the knowledge base rather than from memory. */
+export const SAA_BY_STATE = Object.fromEntries(
+  Object.entries(KB.states).map(([state, s]) => [state, s.saa]).filter(([, v]) => v),
+);
+
+/** State-funded programs that stack with (or substitute for) federal NSGP. */
+export const STATE_PROGRAMS_BY_STATE = Object.fromEntries(
+  Object.entries(KB.states)
+    .filter(([, s]) => (s.state_programs || []).length)
+    .map(([state, s]) => [state, s.state_programs]),
+);
 
 export async function ensureDeadlineSchema(pool) {
   if (!pool) return;
@@ -58,15 +91,16 @@ export async function ensureDeadlineSchema(pool) {
       updated_at  TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE (state, program, cycle_year)
     );
+    ALTER TABLE nsgp_deadlines ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'confirmed';
   `).catch(err => console.error('nsgp_deadlines schema error:', err.message));
 
   // Seed once. ON CONFLICT DO NOTHING means an edited row is never overwritten by a
   // redeploy — the table belongs to whoever maintains it, not to this file.
   for (const d of SEED) {
     await pool.query(
-      `INSERT INTO nsgp_deadlines (state, program, cycle_year, deadline, kind, note, source)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (state, program, cycle_year) DO NOTHING`,
-      [d.state, d.program, d.cycleYear, d.deadline, d.kind, d.note, d.source],
+      `INSERT INTO nsgp_deadlines (state, program, cycle_year, deadline, kind, note, source, confidence)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (state, program, cycle_year) DO NOTHING`,
+      [d.state, d.program, d.cycleYear, d.deadline, d.kind, d.note, d.source, d.confidence],
     ).catch(err => console.error('nsgp_deadlines seed error:', err.message));
   }
 }
@@ -75,7 +109,7 @@ export async function ensureDeadlineSchema(pool) {
 export async function listDeadlines(pool) {
   const { rows } = await pool.query(
     `SELECT id, state, program, cycle_year, to_char(deadline,'YYYY-MM-DD') AS deadline,
-            kind, note, source, updated_at
+            kind, note, source, confidence, updated_at
        FROM nsgp_deadlines ORDER BY state, program, cycle_year DESC`);
   return rows;
 }
@@ -90,13 +124,14 @@ export async function upsertDeadline(pool, d) {
   if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) throw new Error('deadline must be YYYY-MM-DD');
 
   const { rows } = await pool.query(
-    `INSERT INTO nsgp_deadlines (state, program, cycle_year, deadline, kind, note, source, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+    `INSERT INTO nsgp_deadlines (state, program, cycle_year, deadline, kind, note, source, confidence, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
      ON CONFLICT (state, program, cycle_year) DO UPDATE SET
        deadline = EXCLUDED.deadline, kind = EXCLUDED.kind, note = EXCLUDED.note,
-       source = EXCLUDED.source, updated_at = NOW()
+       source = EXCLUDED.source, confidence = EXCLUDED.confidence, updated_at = NOW()
      RETURNING id`,
-    [state, program, cycleYear, deadline, d.kind || 'sub_applicant', d.note || '', d.source || '']);
+    [state, program, cycleYear, deadline, d.kind || 'sub_applicant', d.note || '', d.source || '',
+     d.confidence === 'illustrative' ? 'illustrative' : 'confirmed']);
   return rows[0].id;
 }
 
@@ -112,7 +147,7 @@ export async function deadlinesForState(pool, state) {
   const st = String(state || '').trim().toUpperCase();
   if (!st) return [];
   const { rows } = await pool.query(
-    `SELECT state, program, cycle_year, to_char(deadline,'YYYY-MM-DD') AS deadline, kind, note, source
+    `SELECT state, program, cycle_year, to_char(deadline,'YYYY-MM-DD') AS deadline, kind, note, source, confidence
        FROM nsgp_deadlines WHERE state = $1 OR state = 'US'
       ORDER BY cycle_year DESC`, [st]);
   return rows;
@@ -164,7 +199,11 @@ export function renderDeadlines(rows, { state, saaName, todayIso }) {
       .join('; ') + '.');
     const open = history.find(r => r.deadline >= todayIso);
     if (open) {
-      out.push(`Next deadline: **${pretty(open.deadline)}** (FY${open.cycle_year}, confirmed).` +
+      // "confirmed" is claimed only where the source states the date plainly. A row
+      // the knowledge base itself flags "verify each cycle" is a date worth acting
+      // on but not worth promising, and a rep should be able to see which they have.
+      out.push(`Next deadline: **${pretty(open.deadline)}** (FY${open.cycle_year}, ` +
+        `${open.confidence === 'illustrative' ? 'recorded — confirm before relying on it' : 'confirmed'}).` +
         (open.note ? ` ${open.note}` : ''));
     } else {
       const p = project(sub, todayIso);
@@ -191,7 +230,10 @@ export function renderDeadlines(rows, { state, saaName, todayIso }) {
     if (!pr.length) continue;
     const open = pr.find(r => r.deadline >= todayIso);
     out.push(`**${prog}:** ` + pr.map(r => `FY${r.cycle_year} — ${pretty(r.deadline)}`).join('; ') +
-      (open ? `. Next: **${pretty(open.deadline)}** (confirmed).` : `. Next cycle not yet recorded.`));
+      (open
+        ? `. Next: **${pretty(open.deadline)}** (${open.confidence === 'illustrative' ? 'recorded — confirm' : 'confirmed'}).`
+          + (open.note ? ` ${open.note}` : '')
+        : `. Next cycle not yet recorded.`));
   }
 
   return out.map(l => `- ${l}`).join('\n');

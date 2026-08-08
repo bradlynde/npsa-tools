@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
  * the source column: a date with no provenance is the thing that got us here.
  */
 
-const blank = { state: "", program: "federal", cycleYear: new Date().getFullYear(), deadline: "", kind: "sub_applicant", note: "", source: "" };
+const blank = { state: "", program: "federal", cycleYear: new Date().getFullYear(), deadline: "", kind: "sub_applicant", note: "", source: "", confidence: "confirmed" };
 
 const inputStyle = {
   border: "1px solid #d9d5cc", borderRadius: 7, padding: "6px 9px", fontSize: 12.5,
@@ -79,6 +79,10 @@ export default function DeadlineEditor({ onClose }) {
           deadline (the date the nonprofit must submit to the SAA) and <strong>US</strong> for the
           federal FEMA-to-SAA date. Keeping the last three cycles per state is what makes the
           projection meaningful — with fewer than two recorded, the notes say so rather than guess.
+          <br />
+          Seeded from the grant-knowledge folder in Drive. A row marked <strong>verify</strong> is one
+          that source flags as needing checking each cycle; the briefing prints it, but says so.
+          Promote it to <strong>confirmed</strong> once you have checked it against the SAA.
         </div>
 
         {error && (
@@ -93,6 +97,7 @@ export default function DeadlineEditor({ onClose }) {
               <th style={{ ...th, width: 96 }}>Program</th>
               <th style={{ ...th, width: 72 }}>FY</th>
               <th style={{ ...th, width: 128 }}>Deadline</th>
+              <th style={{ ...th, width: 96 }}>Confidence</th>
               <th style={th}>Note</th>
               <th style={th}>Source</th>
               <th style={{ ...th, width: 64 }} />
@@ -105,6 +110,16 @@ export default function DeadlineEditor({ onClose }) {
                 <td style={{ ...td, fontSize: 12 }}>{r.program}</td>
                 <td style={{ ...td, fontSize: 12 }}>FY{r.cycle_year}</td>
                 <td style={{ ...td, fontSize: 12 }}>{r.deadline || <em style={{ color: "#a09a8c" }}>none</em>}</td>
+                <td style={td}>
+                  {/* A date the source itself flags "verify each cycle" still goes in
+                      the briefing, but labelled — a rep should see which they have. */}
+                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 20,
+                                 color: r.confidence === "illustrative" ? "#8a6d1f" : "#1f6b3a",
+                                 background: r.confidence === "illustrative" ? "#fdf6e3" : "#eef7f0",
+                                 border: `1px solid ${r.confidence === "illustrative" ? "#e8d9a8" : "#cfe6d6"}` }}>
+                    {r.confidence === "illustrative" ? "verify" : "confirmed"}
+                  </span>
+                </td>
                 <td style={{ ...td, fontSize: 11.5, color: "#4a5462" }}>{r.note}</td>
                 <td style={{ ...td, fontSize: 11, color: "#8a8577", wordBreak: "break-all" }}>{r.source}</td>
                 <td style={td}>
@@ -125,6 +140,13 @@ export default function DeadlineEditor({ onClose }) {
                 value={draft.cycleYear} onChange={(e) => setDraft({ ...draft, cycleYear: e.target.value })} /></td>
               <td style={td}><input style={inputStyle} type="date"
                 value={draft.deadline} onChange={(e) => setDraft({ ...draft, deadline: e.target.value })} /></td>
+              <td style={td}>
+                <select style={inputStyle} value={draft.confidence}
+                  onChange={(e) => setDraft({ ...draft, confidence: e.target.value })}>
+                  <option value="confirmed">confirmed</option>
+                  <option value="illustrative">verify</option>
+                </select>
+              </td>
               <td style={td}><input style={inputStyle} placeholder="Submit to IDHS by 4:00 p.m. ET"
                 value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} /></td>
               <td style={td}><input style={inputStyle} placeholder="in.gov/dhs/…"

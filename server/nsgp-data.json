@@ -1,0 +1,829 @@
+{
+  "_source": "NPSA grant-knowledge Drive folder, states/*.yaml (Shared drives > NPSA Shared Files > Claude Context (Do Not Modify) > Projects/Operations/grant-knowledge).",
+  "_regenerate": "These files are the source of truth and are maintained with their own last_verified dates. When they change, re-extract rather than editing this file by hand.",
+  "_confidence": "confirmed = the state file states the date plainly. illustrative = the file itself flags it 'verify each cycle', or it is recorded as a note on a past window rather than as a fixed deadline. Only confirmed dates are presented as confirmed to a rep.",
+  "_not_covered": [
+    "AS",
+    "GU",
+    "MP",
+    "PR",
+    "VI"
+  ],
+  "states": {
+    "FL": {
+      "saa": "Florida Division of Emergency Management (FDEM)",
+      "saa_short": "FDEM",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "FL-NSGP",
+          "name": "Florida Nonprofit Security Grant Program",
+          "perSite": 150000,
+          "perApplicant": 450000,
+          "stackable": "verify",
+          "note": "Appropriation-dependent \u2014 $20M established Nov 2023; not always open. 2023 cycle closed 2024-01-19."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "GA": {
+      "saa": "Georgia Emergency Management and Homeland Security Agency (GEMA/HS)",
+      "saa_short": "GEMA/HS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-11-17",
+          "confidence": "illustrative",
+          "note": "FY25 window opened 10/1, due 11/17 \u2014 recorded as an application-window note.",
+          "source": "gema.georgia.gov/nonprofit-security-grant-program-0"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "GA-FPC",
+          "name": "Non-Profit Security Grant Funds for Protection of Communities (FPC)",
+          "perSite": null,
+          "perApplicant": null,
+          "stackable": "verify",
+          "note": "$3M set aside from the GA Amended FY2026 budget. Caps not yet published. Eligibility is broader than 501(c)(3) \u2014 any 501(c) providing services in Georgia."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "HI": {
+      "saa": "Hawaii Office of Homeland Security (OHS), Department of Law Enforcement",
+      "saa_short": "HI OHS",
+      "saa_correction": "NOT the Hawaii Emergency Management Agency (HI-EMA) \u2014 the tool's hardcoded map had this wrong.",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "ID": {
+      "saa": "Idaho Office of Emergency Management (IOEM)",
+      "saa_short": "IOEM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "IA": {
+      "saa": "Iowa Department of Homeland Security and Emergency Management (HSEM)",
+      "saa_short": "HSEM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 24, 2026"
+    },
+    "KS": {
+      "saa": "Kansas Highway Patrol (KHP) \u2014 Protective Services Bureau, Emergency Operations / Homeland Security",
+      "saa_short": "KHP",
+      "saa_correction": "NOT the Kansas Division of Emergency Management \u2014 the tool's hardcoded map had this wrong.",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026",
+      "note": "Kansas caps at $150k per facility, below the federal $200k ceiling. KC UASI counties apply through Missouri."
+    },
+    "KY": {
+      "saa": "Kentucky Office of Homeland Security (KOHS)",
+      "saa_short": "KOHS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2026-01-16",
+          "confidence": "confirmed",
+          "note": "6:00pm EST hard deadline. Cycle now closed; retained as a pattern reference.",
+          "source": "homelandsecurity.ky.gov/Pages/Grants.aspx"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "LA": {
+      "saa": "Louisiana Governor's Office of Homeland Security & Emergency Preparedness (GOHSEP)",
+      "saa_short": "GOHSEP",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "LCSSGP",
+          "name": "Louisiana Center for Safe Schools Grant Program",
+          "perSite": 50000,
+          "perApplicant": 50000,
+          "stackable": "verify",
+          "note": "SCHOOLS ONLY \u2014 PreK/K-12 instruction. Not a general nonprofit security program, so do not offer it to a church without a school."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "ME": {
+      "saa": "Maine Emergency Management Agency (MEMA)",
+      "saa_short": "MEMA",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-12-15",
+          "confidence": "illustrative",
+          "note": "FY25 closed 12/15/2025; FY26 NOFO expected summer 2026.",
+          "source": "maine.gov/mema/grants/nonprofit-security-grant-program"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "MD": {
+      "saa": "Maryland Department of Emergency Management (MDEM)",
+      "saa_short": "MDEM",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "PAHC",
+          "name": "Protecting Against Hate Crimes",
+          "perSite": null,
+          "perApplicant": null,
+          "stackable": "verify",
+          "note": "Administered by the Governor's Office of Crime Prevention and Policy, NOT MDEM. ~$10M FY26/27. Capital/IT requests over $200k not considered."
+        }
+      ],
+      "last_verified": "June 2026",
+      "note": "Montgomery and Prince George's County orgs apply through DC (National Capital Region), not MDEM."
+    },
+    "MA": {
+      "saa": "Massachusetts Executive Office of Public Safety and Security \u2014 Office of Grants and Research (OGR)",
+      "saa_short": "OGR",
+      "saa_correction": "NOT the Massachusetts Emergency Management Agency (MEMA) \u2014 the tool's hardcoded map had this wrong.",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "CNSGP",
+          "name": "Commonwealth Nonprofit Security Grant Program",
+          "perSite": 100000,
+          "perApplicant": null,
+          "stackable": "verify",
+          "note": "$10k\u2013$100k per site, ~$4.465M FY26. Equipment and physical security."
+        },
+        {
+          "acronym": "CNSPGP",
+          "name": "Commonwealth Nonprofit Security Personnel Grant Program",
+          "perSite": null,
+          "perApplicant": null,
+          "stackable": "verify",
+          "note": "Funds CONTRACTED security personnel rather than equipment \u2014 a separate track from CNSGP."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "MI": {
+      "saa": "Michigan State Police, Emergency Management and Homeland Security Division (MSP/EMHSD)",
+      "saa_short": "MSP/EMHSD",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2026,
+          "date": "2026-07-08",
+          "confidence": "confirmed",
+          "note": "11:59pm ET. Online form only \u2014 email submissions are not accepted. Must use the FY2026 IJ template.",
+          "source": "michigan.gov/msp NSGP"
+        },
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-10-26",
+          "confidence": "illustrative",
+          "note": "FY25 recorded as an application-window note.",
+          "source": "michigan.gov/msp NSGP"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 24, 2026"
+    },
+    "MN": {
+      "saa": "Minnesota Department of Public Safety / Homeland Security and Emergency Management (HSEM)",
+      "saa_short": "HSEM",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "MN-SUPP",
+          "name": "Minnesota Supplemental Nonprofit Security Grant Program",
+          "perSite": null,
+          "perApplicant": 75000,
+          "stackable": true,
+          "note": "AUTO-ELIGIBLE \u2014 the federal application is also considered for state funds, with no separate paperwork. $75,000 is a COMBINED federal + state cap per organization."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "MS": {
+      "saa": "Mississippi Office of Homeland Security (MOHS)",
+      "saa_short": "MOHS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2026,
+          "date": "2026-07-15",
+          "confidence": "confirmed",
+          "note": "5:00pm CT. Late or incomplete submissions are not reviewed.",
+          "source": "homelandsecurity.ms.gov/grants"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 24, 2026"
+    },
+    "MO": {
+      "saa": "Missouri Department of Public Safety, Office of Homeland Security (OHS)",
+      "saa_short": "DPS/OHS",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026",
+      "note": "Kansas-side KC UASI counties (Leavenworth, Wyandotte, Johnson) apply through Missouri, not Kansas."
+    },
+    "MT": {
+      "saa": "Montana Disaster & Emergency Services (MT DES)",
+      "saa_short": "MT DES",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-10-15",
+          "confidence": "illustrative",
+          "note": "FY25 window closed 11:55pm.",
+          "source": "des.mt.gov/Grant-Programs/Nonprofit-Security-Grant-Program-NSGP"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "NE": {
+      "saa": "Nebraska Emergency Management Agency (NEMA)",
+      "saa_short": "NEMA",
+      "deadlines": [
+        {
+          "program": "NE-NSGP",
+          "cycle": 2024,
+          "date": "2025-01-31",
+          "confidence": "illustrative",
+          "note": "FY2024 state cycle opened Jan 6, 2025, due Jan 31, 2025 5pm CST.",
+          "source": "nema.nebraska.gov/articles.php?nid=292"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "NE-NSGP",
+          "name": "Nebraska Nonprofit Security Grant Program",
+          "perSite": null,
+          "perApplicant": 50000,
+          "stackable": false,
+          "note": "Statutory $50k/org/year. INELIGIBLE if the org received a federal NSGP award in the previous 5 years \u2014 so this is an alternative to federal, not an addition."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "NV": {
+      "saa": "Nevada Division of Emergency Management / Office of the Military (NV OEM)",
+      "saa_short": "NV OEM",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "NV-NSGP-PILOT",
+          "name": "Nevada Nonprofit Security Grant Pilot Program (SB 413)",
+          "perSite": null,
+          "perApplicant": 50000,
+          "stackable": "verify",
+          "note": "$50k for equipment OR $10k for personnel \u2014 not both in the same fiscal year. $2M/yr for FY2025-26 and FY2026-27; may sunset after that."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "NH": {
+      "saa": "New Hampshire Department of Safety \u2014 Bureau of Grants Management (Homeland Security)",
+      "saa_short": "NH DOS Grants Management Bureau",
+      "saa_correction": "The tool's map said 'New Hampshire Division of Homeland Security & Emergency Management (HSEM)'; the SAA for NSGP is the DOS Bureau of Grants Management.",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-10-29",
+          "confidence": "illustrative",
+          "note": "FY25 due 4pm; FY24 was May 31 2024 noon \u2014 the window moves a lot in NH.",
+          "source": "dos.nh.gov/grants/nonprofit-security-grant-program"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026",
+      "note": "NH caps at $150k per location and requires a 36-month local funding plan for any hired-security request."
+    },
+    "NJ": {
+      "saa": "New Jersey Office of Homeland Security & Preparedness (NJOHSP)",
+      "saa_short": "NJOHSP",
+      "deadlines": [
+        {
+          "program": "NJ-NSGP-THE",
+          "cycle": 2025,
+          "date": "2025-09-15",
+          "confidence": "illustrative",
+          "note": "FY25 state window closed 11:59pm ET.",
+          "source": "njohsp.gov/grants/state-new-jersey-nonprofit-security-grant-program"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "NJ-NSGP-THE",
+          "name": "NJ NSGP \u2014 Target Hardening Equipment",
+          "perSite": null,
+          "perApplicant": 100000,
+          "stackable": true,
+          "note": "Equipment only. M&A, training, exercise and planning are all disallowed."
+        },
+        {
+          "acronym": "NJ-NSGP-SP",
+          "name": "NJ NSGP \u2014 Security Personnel",
+          "perSite": null,
+          "perApplicant": 20000,
+          "stackable": true,
+          "note": "Contracted/registered security personnel only."
+        }
+      ],
+      "last_verified": "June 2026",
+      "note": "An org may APPLY to both NJ state programs but may receive only ONE state award per fiscal year."
+    },
+    "NM": {
+      "saa": "New Mexico Department of Homeland Security & Emergency Management (NMDHSEM)",
+      "saa_short": "NMDHSEM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "NC": {
+      "saa": "North Carolina Department of Public Safety / NC Emergency Management (NCEM)",
+      "saa_short": "NCEM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "May 13, 2026"
+    },
+    "ND": {
+      "saa": "North Dakota Department of Emergency Services (NDDES)",
+      "saa_short": "NDDES",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "OH": {
+      "saa": "Ohio Emergency Management Agency (Ohio EMA), Ohio Department of Public Safety",
+      "saa_short": "Ohio EMA",
+      "deadlines": [
+        {
+          "program": "OSG",
+          "cycle": 2027,
+          "date": "2026-05-15",
+          "confidence": "confirmed",
+          "note": "SFY2027 deadline 4:00pm; award notice by 2026-06-30.",
+          "source": "ema.ohio.gov SFY2027-OSG-Notice-of-Funding-Opportunity.pdf"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "OSG",
+          "name": "State of Ohio Security Grant",
+          "perSite": 125000,
+          "perApplicant": null,
+          "stackable": "verify",
+          "note": "~$6M SFY2027 round. Requires an active Nonprofit Corporation filing with the Ohio Secretary of State, which is a separate gate from 501(c)(3)."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "OK": {
+      "saa": "Oklahoma Office of Homeland Security (OKOHS)",
+      "saa_short": "OKOHS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-10-31",
+          "confidence": "illustrative",
+          "note": "FY25 window Oct 1-31, 2025.",
+          "source": "oklahoma.gov/homeland-security/grants.html"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "OR": {
+      "saa": "Oregon Department of Emergency Management (OEM)",
+      "saa_short": "OEM",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2026-01-15",
+          "confidence": "confirmed",
+          "note": "FY25 state deadline 22:00.",
+          "source": "oregon.gov/oem nonprofit-security-grant-program"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 23, 2026"
+    },
+    "PA": {
+      "saa": "Pennsylvania Emergency Management Agency (PEMA)",
+      "saa_short": "PEMA",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "PA-NSGFP",
+          "name": "Nonprofit Security Grant Fund Program",
+          "perSite": null,
+          "perApplicant": 150000,
+          "stackable": "verify",
+          "note": "Administered by PCCD, not PEMA. $5,000 minimum. TIERED NON-STATE MATCH: none up to $25k, ~33% for $25,001-$75,000, ~50% above $75,000 \u2014 the only state program here with a match requirement."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "RI": {
+      "saa": "Rhode Island Emergency Management Agency (RIEMA)",
+      "saa_short": "RIEMA",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2026-01-19",
+          "confidence": "confirmed",
+          "note": "FY2025 RIEMA hard deadline, 5pm.",
+          "source": "riema.ri.gov/fiscal-branch/non-disaster-grants"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "SC": {
+      "saa": "South Carolina Law Enforcement Division / Office of Homeland Security (SLED OHS)",
+      "saa_short": "SLED OHS",
+      "saa_correction": "NOT the South Carolina Emergency Management Division (SCEMD) \u2014 the tool's hardcoded map had this wrong.",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026",
+      "note": "No self-service portal \u2014 SLED emails the forms on request. York and Lancaster counties fall inside NC's Charlotte UASI and apply through NCEM. The SC Pray Safe Act is NOT enacted, so there is no state program."
+    },
+    "SD": {
+      "saa": "South Dakota Department of Public Safety / Office of Homeland Security (SD OHS)",
+      "saa_short": "SD OHS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2026,
+          "date": "2026-07-17",
+          "confidence": "confirmed",
+          "note": "5:00pm CT via EDGAR IGX. Quotes now required with the application.",
+          "source": "dps.sd.gov/safety-enforcement/homeland-security/grants"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 24, 2026"
+    },
+    "TN": {
+      "saa": "Tennessee Emergency Management Agency (TEMA)",
+      "saa_short": "TEMA",
+      "deadlines": [
+        {
+          "program": "TN-HOW",
+          "cycle": 2026,
+          "date": "2025-07-31",
+          "confidence": "illustrative",
+          "note": "2025-26 cycle: registration deadline 7/24/2025, application 7/31/2025, both 3pm Central.",
+          "source": "tn.gov/safety/homeland-security/grants.html"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "TN-HOW",
+          "name": "Tennessee Houses of Worship Security Grant",
+          "perSite": 70000,
+          "perApplicant": null,
+          "stackable": false,
+          "note": "PERSONNEL ONLY \u2014 reimburses hours worked by TN POST-certified officers or licensed guards, not equipment. Cannot double-fund the same personnel cost as federal NSGP. Two-step registration gate with its own earlier deadline."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "UT": {
+      "saa": "Utah Division of Emergency Management (Utah DEM)",
+      "saa_short": "Utah DEM",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2026,
+          "date": "2026-07-17",
+          "confidence": "illustrative",
+          "note": "FY2026 TENTATIVE \u2014 11:59pm MT; Utah was still awaiting FEMA guidance and may extend. Optional IJ feedback if submitted by July 10.",
+          "source": "Utah DEM FY2026 application-open email (Danielle Smith)"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 24, 2026"
+    },
+    "VT": {
+      "saa": "Vermont Department of Public Safety \u2014 Homeland Security Grants Unit (HSGU)",
+      "saa_short": "VT DPS HSGU",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "VA": {
+      "saa": "Virginia Department of Emergency Management (VDEM)",
+      "saa_short": "VDEM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026",
+      "note": "Northern Virginia (Arlington, Fairfax, Loudoun, Prince William, City of Alexandria) applies to DC HSEMA, NOT VDEM."
+    },
+    "WA": {
+      "saa": "Washington Emergency Management Division (WA EMD), Washington Military Department",
+      "saa_short": "WA EMD",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2026,
+          "date": "2026-07-07",
+          "confidence": "confirmed",
+          "note": "11:59pm PT. Shortened window \u2014 WA EMD offered no technical-assistance appointments this cycle.",
+          "source": "mil.wa.gov/grants-nsgp-application-details"
+        },
+        {
+          "program": "federal-noi",
+          "cycle": 2026,
+          "date": "2026-05-31",
+          "confidence": "confirmed",
+          "note": "NOTICE OF INTENT \u2014 a hard gate with its own earlier deadline. Required to be considered at all; submit even before the full application is ready.",
+          "source": "mil.wa.gov/grants-nsgp-application-details"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 24, 2026"
+    },
+    "WV": {
+      "saa": "West Virginia Emergency Management Division \u2014 Homeland Security State Administrative Agency (HSSAA)",
+      "saa_short": "WV EMD / HSSAA",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026",
+      "note": "An intent-to-apply email to HSSAA@wv.gov is required first."
+    },
+    "WI": {
+      "saa": "Wisconsin Emergency Management (WEM), Department of Military Affairs",
+      "saa_short": "WEM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026",
+      "note": "SB 789 would create a state program but is NOT enacted as of June 2026."
+    },
+    "WY": {
+      "saa": "Wyoming Office of Homeland Security (WOHS)",
+      "saa_short": "WOHS",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "AL": {
+      "saa": "Alabama Law Enforcement Agency (ALEA) \u2014 Office of the Secretary, Homeland Security / Grants Administration",
+      "saa_short": "ALEA",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2026,
+          "date": "2026-07-15",
+          "confidence": "confirmed",
+          "note": "ALEA portal window Jun 1 \u2013 Jul 15, 2026; 11:59pm CT.",
+          "source": "alea.gov/nonprofit-security-grant-program-nsgp"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "AK": {
+      "saa": "Alaska Division of Homeland Security & Emergency Management (DHS&EM), Dept. of Military & Veterans Affairs",
+      "saa_short": "DHS&EM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "AZ": {
+      "saa": "Arizona Department of Homeland Security (AZDOHS)",
+      "saa_short": "AZDOHS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-10-15",
+          "confidence": "illustrative",
+          "note": "FFY25 federal AZ deadline, recorded as a note rather than a fixed field.",
+          "source": "azdohs.gov/usdhs-fema-nsgp"
+        },
+        {
+          "program": "AZ-NSGP",
+          "cycle": 2026,
+          "date": "2026-06-12",
+          "confidence": "confirmed",
+          "note": "5:00pm; Arizona does not observe DST.",
+          "source": "azdohs.gov/az-nsgp"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "AZ-NSGP",
+          "name": "State of Arizona Nonprofit Security Grant Program",
+          "perSite": 100000,
+          "perApplicant": 100000,
+          "stackable": false,
+          "note": "Eligibility gate: must NOT have received federal NSGP in the last 3 cycles, or have been unable to apply due to the upfront-funding constraint. Mutually exclusive with federal in practice."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "AR": {
+      "saa": "Arkansas Division of Emergency Management (ADEM), Arkansas Dept. of Public Safety \u2014 Homeland Security Branch",
+      "saa_short": "ADEM",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "CA": {
+      "saa": "California Governor's Office of Emergency Services (Cal OES) \u2014 Infrastructure Protection Grants Unit",
+      "saa_short": "Cal OES",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-11-21",
+          "confidence": "illustrative",
+          "note": "Cal OES deadline, 5pm PST. File marks it illustrative \u2014 verify each cycle.",
+          "source": "caloes.ca.gov infrastructure-protection-grants"
+        },
+        {
+          "program": "CSNSGP",
+          "cycle": 2026,
+          "date": "2025-12-12",
+          "confidence": "illustrative",
+          "note": "FY2025-26 CSNSGP deadline, 11:59pm PST.",
+          "source": "caloes.ca.gov FY-2025-CSNSGP-RFP.pdf"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "CSNSGP",
+          "name": "California State Nonprofit Security Grant Program",
+          "perSite": 250000,
+          "perApplicant": 500000,
+          "stackable": true,
+          "note": "Up to 2 locations. FY25-26 pool ~$76M. Established 2019 after the Poway synagogue shooting."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "CO": {
+      "saa": "Colorado Division of Homeland Security and Emergency Management (DHSEM) \u2014 Office of Grants Management",
+      "saa_short": "DHSEM",
+      "deadlines": [
+        {
+          "program": "CO-NSGP",
+          "cycle": null,
+          "date": null,
+          "confidence": "rule",
+          "note": "8 CCR 1507-47 \u00a75.3 sets the deadline as the SECOND MONDAY IN OCTOBER, 11:59pm MDT, in any year the legislature funds the program.",
+          "source": "dhsem.colorado.gov/NSGP"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "CO-NSGP",
+          "name": "Colorado Nonprofit Security Grant Program",
+          "perSite": null,
+          "perApplicant": 25000,
+          "stackable": false,
+          "note": "Backstop for applicants DENIED federal NSGP \u2014 must have applied federally and not been selected. 7-month period of performance, no pre-award costs. Only runs in years the legislature allocates funding."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "CT": {
+      "saa": "Connecticut Department of Emergency Services and Public Protection / Division of Emergency Management and Homeland Security (DEMHS)",
+      "saa_short": "DEMHS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-12-12",
+          "confidence": "illustrative",
+          "note": "FFY2025 NSGP-S. File marks it illustrative \u2014 verify each cycle.",
+          "source": "portal.ct.gov/demhs federal-nonprofit-security-grant-program"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "CT-NSGP",
+          "name": "Connecticut Nonprofit Security Grant Program",
+          "perSite": null,
+          "perApplicant": 50000,
+          "stackable": true,
+          "note": "Reimbursement only, and the nonprofit must OWN the building. Public schools and municipal services are not eligible."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "DE": {
+      "saa": "Delaware Emergency Management Agency (DEMA), Delaware Department of Safety and Homeland Security",
+      "saa_short": "DEMA",
+      "deadlines": [],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "DC": {
+      "saa": "District of Columbia Homeland Security and Emergency Management Agency (HSEMA)",
+      "saa_short": "HSEMA",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2026-01-09",
+          "confidence": "illustrative",
+          "note": "HSEMA deadline historically ~January; FY25 page showed Jan 9. DC applicants are NSGP-UA only.",
+          "source": "hsema.dc.gov/nsgp"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "IL": {
+      "saa": "Illinois Emergency Management Agency & Office of Homeland Security",
+      "saa_short": "IEMA",
+      "deadlines": [],
+      "state_programs": [
+        {
+          "acronym": "NSGP-IL",
+          "name": "Illinois state-funded Nonprofit Security Grant Program",
+          "perSite": 150000,
+          "perApplicant": 450000,
+          "stackable": "verify",
+          "note": "75-day application window. GATA portal + ICQ are hard gates, 4-6 weeks for first-timers."
+        }
+      ],
+      "last_verified": "June 2026"
+    },
+    "IN": {
+      "saa": "Indiana Department of Homeland Security (IDHS)",
+      "saa_short": "IDHS",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2025,
+          "date": "2025-10-21",
+          "confidence": "illustrative",
+          "note": "FY2025 NOFO posted 2025-07-28, due 2025-10-21. Recorded as a note on the application window.",
+          "source": "in.gov/dhs/grants-management/nonprofit-security-grant-program"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 2026"
+    },
+    "NY": {
+      "saa": "NYS Division of Homeland Security & Emergency Services (DHSES)",
+      "saa_short": "DHSES",
+      "deadlines": [
+        {
+          "program": "SCAHC",
+          "cycle": 2026,
+          "date": "2026-07-08",
+          "confidence": "confirmed",
+          "note": "Hard deadline, noon. DCJS Grants Management System only \u2014 submissions outside GMS are not considered.",
+          "source": "criminaljustice.ny.gov/ofpa"
+        }
+      ],
+      "state_programs": [
+        {
+          "acronym": "SCAHC",
+          "name": "Securing Communities Against Hate Crimes",
+          "perSite": null,
+          "perApplicant": 250000,
+          "stackable": true,
+          "note": "Administered by DCJS, not DHSES. M&A is NOT covered. A GMS attestation letter is required when NPSA acts on the applicant's behalf."
+        }
+      ],
+      "last_verified": "April 2026"
+    },
+    "TX": {
+      "saa": "Texas Division of Emergency Management (TDEM)",
+      "saa_short": "TDEM",
+      "deadlines": [
+        {
+          "program": "federal",
+          "cycle": 2026,
+          "date": "2026-07-06",
+          "confidence": "confirmed",
+          "note": "5:00pm CT, no extensions, and submissions cannot be corrected after the deadline. Applies to NSGP-S and NSGP-UA alike.",
+          "source": "egrants.gov.texas.gov nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026"
+        }
+      ],
+      "state_programs": [],
+      "last_verified": "June 24, 2026"
+    }
+  }
+}
