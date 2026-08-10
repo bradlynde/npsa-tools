@@ -15,6 +15,8 @@ export type TimeseriesRow = {
   period: string; // YYYY-MM-DD, start of the week or month
   booked: number;
   held: number;
+  /** Meetings whose outcome is known. Absent on backends older than Aug 2026. */
+  resolved?: number;
   clients: number; // LOEs sent
   won: number;
   won_amount: number | string;
@@ -44,6 +46,8 @@ export type BookingRow = {
   email: string | null;
   told_us: string | null;
   attribution_channel: string | null;
+  /** Which rule supplied the campaign — see attributionNote(). */
+  attribution_source?: string | null;
   instantly_campaign: string | null;
   host: string | null;
   held: boolean | null;
@@ -160,6 +164,7 @@ export type SyncStatus = { runs?: SyncRun[]; pull_configured?: boolean };
 export type Funnel = {
   booked: number;
   held: number;
+  resolved?: number;
   clients: number;
   fees: number;
   won: number;
@@ -260,10 +265,12 @@ export type Totals = {
   held: number;
   loes: number;
   won: number;
+  /** Meetings whose outcome is known — the honest denominator for a held rate. */
+  resolved: number;
   wonAmount: number;
 };
 
-const EMPTY: Totals = { booked: 0, held: 0, loes: 0, won: 0, wonAmount: 0 };
+const EMPTY: Totals = { booked: 0, held: 0, resolved: 0, loes: 0, won: 0, wonAmount: 0 };
 
 function sum(rows: TimeseriesRow[], from: Date, to?: Date): Totals {
   return rows.reduce<Totals>((acc, r) => {
@@ -273,6 +280,9 @@ function sum(rows: TimeseriesRow[], from: Date, to?: Date): Totals {
     return {
       booked: acc.booked + (Number(r.booked) || 0),
       held: acc.held + (Number(r.held) || 0),
+      // A backend that predates `resolved` reports nothing, and falling back to
+      // `booked` reproduces the old behaviour rather than dividing by zero.
+      resolved: acc.resolved + (Number(r.resolved ?? r.booked) || 0),
       loes: acc.loes + (Number(r.clients) || 0),
       won: acc.won + (Number(r.won) || 0),
       wonAmount: acc.wonAmount + (Number(r.won_amount) || 0),
@@ -297,6 +307,22 @@ export function priorTotalsFor(rows: TimeseriesRow[], range: Range): Totals {
  */
 export const countsTowardTotals = (b: BookingRow): boolean =>
   !b.exclusion_reason && !b.cancelled;
+
+const ATTRIBUTION_NOTES: Record<string, string> = {
+  utm: 'read straight off the booking link',
+  reverse_email: 'matched to an Instantly lead by email',
+  reverse_name_org: 'matched to an Instantly lead by name and organization',
+  reverse_domain: 'matched only on email domain — may be a colleague’s campaign',
+  manual: 'set by hand',
+  none: 'no campaign found',
+};
+
+/** Why this booking carries the campaign it does, in words. */
+export function attributionNote(source?: string | null): string {
+  const key = (source || '').trim();
+  if (!key) return 'Attribution source not recorded';
+  return `Attribution: ${ATTRIBUTION_NOTES[key] || key}`;
+}
 
 /** LOE fee value booked in the range — the time series doesn't carry fees. */
 export function feesInRange(bookings: BookingRow[], range: Range): number {
