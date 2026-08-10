@@ -1150,6 +1150,7 @@ export function registerMarketing(app, pool) {
       const { rows } = await pool.query(`
         SELECT COUNT(*)::int AS booked,
                COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
+               COUNT(*) FILTER (WHERE held IS NOT NULL)::int AS resolved,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees,
                COUNT(*) FILTER (WHERE won)::int AS won,
@@ -1213,6 +1214,10 @@ export function registerMarketing(app, pool) {
         SELECT to_char(date_trunc('${g}', booked_on), 'YYYY-MM-DD') AS period,
                COUNT(*)::int AS booked,
                COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
+               -- Meetings whose outcome is actually known. A meeting still in the
+               -- future has held IS NULL, and counting it as "booked but not held"
+               -- makes a held RATE drift upward on its own as dates pass.
+               COUNT(*) FILTER (WHERE held IS NOT NULL)::int AS resolved,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COUNT(*) FILTER (WHERE won)::int AS won,
                COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_amount
@@ -1280,7 +1285,8 @@ export function registerMarketing(app, pool) {
         // Deliberately unfiltered: excluded bookings still belong on the list, which
         // is the whole point of marking rather than deleting them.
         `SELECT id, booked_on, meeting_date, name, organization, email, told_us,
-                attribution_channel, instantly_campaign, host, held, became_client, fee,
+                attribution_channel, attribution_source, instantly_campaign, host,
+                held, became_client, fee,
                 won, won_amount, exclusion_reason, cancelled, cancelled_at
          FROM bookings
          WHERE ($1='' OR name ILIKE '%'||$1||'%' OR organization ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%')
