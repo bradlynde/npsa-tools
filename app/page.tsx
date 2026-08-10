@@ -176,7 +176,12 @@ export default function DashboardPage() {
   // Re-run once the data lands, not just on mount — otherwise the counters
   // finish rolling against zeroes and the numbers appear with no animation.
   const roll = useRoll(mktLoading ? "loading" : `${range}-${weekly.length}`);
-  const heldRate = totals.booked ? (totals.held / totals.booked) * 100 : 0;
+  // Held rate is attendance, so it is measured only over meetings that have
+  // actually happened. Dividing by every booking counts a meeting scheduled for
+  // next week as one that failed to happen, and then lets the rate climb by
+  // itself as those dates pass.
+  const heldRate = totals.resolved ? (totals.held / totals.resolved) * 100 : 0;
+  const upcoming = Math.max(0, totals.booked - totals.resolved);
   const loeRate = totals.held ? Math.round((totals.loes / totals.held) * 100) : 0;
   const bookingDelta = totals.booked - prior.booked;
   const rangeTag = range === "all" ? "all time" : range;
@@ -195,7 +200,7 @@ export default function DashboardPage() {
     {
       label: `held rate · ${rangeTag}`,
       value: fmtPct(heldRate * roll),
-      note: `${totals.held} of ${totals.booked} booked meetings`,
+      note: `${totals.held} of ${totals.resolved} meetings held so far`,
       accent: false,
     },
     {
@@ -485,7 +490,16 @@ export default function DashboardPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
                 { rn: "i.", name: "Booked", val: totals.booked, won: false, foot: "" },
-                { rn: "ii.", name: "Held", val: totals.held, won: false, foot: "" },
+                {
+                  rn: "ii.",
+                  name: "Held",
+                  val: totals.held,
+                  won: false,
+                  // The funnel measures every stage against Booked, so this share
+                  // counts meetings still to come as not-yet-held. Saying how many
+                  // stops it reading as a drop-off it is not.
+                  foot: upcoming ? `${upcoming} still to come` : "",
+                },
                 {
                   rn: "iii.",
                   name: "LOE sent",

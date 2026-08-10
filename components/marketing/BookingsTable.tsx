@@ -5,6 +5,7 @@ import { Card, Eyebrow, Note } from "../ui";
 import {
   CHANNEL_CHOICES,
   EXCLUSION_LABELS,
+  attributionNote,
   channelLabel,
   hostName,
   patchBooking,
@@ -244,8 +245,15 @@ export default function BookingsTable({
                       ))}
                     </select>
 
+                    {/* Hovering says which rule supplied this campaign. A campaign
+                        read off the booking link and one inferred from a colleague
+                        at the same email domain look identical otherwise. */}
                     <span
-                      title={r.instantly_campaign || ""}
+                      title={
+                        r.instantly_campaign
+                          ? `${r.instantly_campaign}\n${attributionNote(r.attribution_source)}`
+                          : attributionNote(r.attribution_source)
+                      }
                       style={{
                         color: muted,
                         fontSize: 13,
