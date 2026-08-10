@@ -96,6 +96,7 @@ export default function App() {
   // server re-reads it at generation time and a reschedule in between is caught.
   const [preCallEventUri, setPreCallEventUri] = useState(null);
   const [preCallShowDeadlines, setPreCallShowDeadlines] = useState(false);
+  const [deadlineSummary, setDeadlineSummary] = useState(null);
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
   const [emailModal, setEmailModal] = useState(false);
   const [emailFields, setEmailFields] = useState({to:"", subject:"", message:""});
@@ -283,6 +284,35 @@ export default function App() {
     link.href = "https://fonts.googleapis.com/css2?family=Ms+Madi&display=swap";
     document.head.appendChild(link);
     return () => document.head.removeChild(link);
+  }, []);
+
+  /*
+   * Deadline summary for the dashboard.
+   *
+   * The count that matters is how many windows are open RIGHT NOW, not how many rows
+   * the table holds — a rep scanning the dashboard wants to know whether there is
+   * anything to act on this week. The August 2026 web check turned up three state
+   * programs still open (CT, PA, NJ) that nothing in the tool had, which is exactly
+   * the case for surfacing this outside the generator.
+   */
+  useEffect(()=>{
+    let live = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/precall/deadlines');
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!live) return;
+        const today = new Date().toISOString().slice(0,10);
+        const rows = d.deadlines || [];
+        setDeadlineSummary({
+          open: rows.filter(x => x.deadline && x.deadline >= today).length,
+          total: rows.length,
+          states: new Set(rows.map(x => x.state)).size,
+        });
+      } catch { /* the dashboard works fine without the count */ }
+    })();
+    return () => { live = false; };
   }, []);
 
   // Sync Grant Writer guarantee options with pre-award toggles
@@ -1145,8 +1175,48 @@ export default function App() {
                 <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Paste a Calendly invite and generate AI-powered prep notes</div>
               </div>
             </div>
+
+            {/*
+              NSGP deadlines, reachable without opening the generator.
+
+              It sits under the Pre-Call card because that is what it feeds, but the
+              reason to surface it here is that the answer to "is anything open?" is
+              worth having before you have a call booked at all.
+            */}
+            <div onClick={()=>setPreCallShowDeadlines(true)}
+              style={{marginTop:10,background:'#fff',borderRadius:14,padding:'14px 18px',cursor:'pointer',boxShadow:'0 2px 10px rgba(2,6,23,0.05)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:14,border:'1px solid rgba(255,255,255,0.8)'}}
+              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 22px rgba(26,37,64,0.16)';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 2px 10px rgba(2,6,23,0.05)';}}>
+              <div style={{width:38,height:38,borderRadius:11,background:'#eef3f8',border:'1px solid #dbe6f0',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{color:'#182230',fontWeight:700,fontSize:14.5}}>NSGP Deadlines</div>
+                <div style={{color:'#8a8577',fontSize:12.5,lineHeight:1.5,marginTop:1}}>
+                  {deadlineSummary
+                    ? `${deadlineSummary.total} cycles on record across ${deadlineSummary.states} jurisdictions`
+                    : 'Federal and state grant windows, editable in the tool'}
+                </div>
+              </div>
+              {/* Only claim "open now" when something actually is — a zero here is a
+                  real answer, so it stays visible rather than collapsing to nothing. */}
+              {deadlineSummary && (
+                <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:20,whiteSpace:'nowrap',
+                              color: deadlineSummary.open ? '#1f6b3a' : '#8a8577',
+                              background: deadlineSummary.open ? '#eef7f0' : '#f4f2ed',
+                              border:`1px solid ${deadlineSummary.open ? '#cfe6d6' : '#e7e2d6'}`}}>
+                  {deadlineSummary.open ? `${deadlineSummary.open} open now` : 'none open'}
+                </span>
+              )}
+              <span style={{color:'#b8b2a4',fontSize:17,lineHeight:1}}>&#8250;</span>
+            </div>
           </div>
         </div>
+      )}
+      {/* The editor is a fixed overlay, so it can be opened from the dashboard as
+          readily as from inside the generator. */}
+      {appView === 'dashboard' && preCallShowDeadlines && (
+        <DeadlineEditor onClose={()=>setPreCallShowDeadlines(false)}/>
       )}
 
       {/* ── PRE-CALL NOTES ── */}

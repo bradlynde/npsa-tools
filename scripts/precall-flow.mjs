@@ -73,8 +73,17 @@ page.on("pageerror", (e) => errors.push(e.message));
 
 let generateBody = null;
 const deadlines = [
-  { id: 1, state: "IN", program: "federal", cycle_year: 2026, deadline: "2026-07-09",
-    kind: "sub_applicant", note: "Submit to IDHS by 4:00 p.m. ET.", source: "in.gov/dhs" },
+  { id: 1, state: "IN", program: "federal", cycle_year: 2025, deadline: "2025-10-21",
+    kind: "sub_applicant", note: "FY2025 NOFO posted 2025-07-28.", source: "in.gov/dhs",
+    confidence: "illustrative" },
+  { id: 2, state: "TX", program: "federal", cycle_year: 2026, deadline: "2026-07-06",
+    kind: "sub_applicant", note: "5:00pm CT, no extensions.", source: "egrants.gov.texas.gov",
+    confidence: "confirmed", layer: "knowledge-base" },
+  // One window still open, so the dashboard's "open now" count is exercised rather
+  // than only its empty state. Dated far out so the harness does not rot in a month.
+  { id: 3, state: "PA", program: "PA-NSGFP", cycle_year: 2099, deadline: "2099-09-10",
+    kind: "state_program", note: "OPEN NOW.", source: "pa.gov/agencies/pccd",
+    confidence: "confirmed", layer: "verified" },
 ];
 
 await page.route(/\/api\//, async (route) => {
@@ -152,9 +161,30 @@ check("submitted phone survives to the request body",
 await page.locator('button:has-text("Deadlines")').first().click();
 await page.waitForTimeout(500);
 check("deadline editor lists the curated row",
-  (await page.locator("text=2026-07-09").count()) > 0);
+  (await page.locator("text=2025-10-21").count()) > 0);
 check("deadline source is shown so it can be re-checked",
   (await page.locator("text=in.gov/dhs").count()) > 0);
+check("a date needing checking is labelled, not shown as confirmed",
+  (await page.locator('text="verify"').count()) > 0 && (await page.locator('text="confirmed"').count()) > 0);
+
+// ── 5. the deadlines are reachable from the dashboard, not only from in here ──
+// A rep wants to know whether anything is open before they have a call booked, so
+// the box has to be one click from the toolbox landing page.
+await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+await page.waitForTimeout(900);
+
+const strip = page.locator('div:has-text("NSGP Deadlines")').last();
+check("deadlines are surfaced on the dashboard", (await strip.count()) > 0);
+check("the dashboard says how many windows are open now",
+  (await page.locator("text=/1 open now/").count()) > 0,
+  await page.locator('text=/open now|none open/').first().textContent().catch(() => "not found"));
+
+await page.locator('text="NSGP Deadlines"').last().click();
+await page.waitForTimeout(600);
+check("clicking it opens the editor over the dashboard",
+  (await page.locator("text=2099-09-10").count()) > 0);
+check("a web-checked row says so, so its provenance is visible",
+  (await page.locator('text="web-checked"').count()) > 0);
 
 await browser.close();
 

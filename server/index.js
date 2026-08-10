@@ -15,7 +15,7 @@ import {
 } from './precall-facts.js';
 import {
   ensureDeadlineSchema, listDeadlines, upsertDeadline, deleteDeadline,
-  deadlinesForState, renderDeadlines,
+  deadlinesForState, renderDeadlines, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE,
 } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 
@@ -200,43 +200,29 @@ function normalizeBaseUrl(raw) {
   }
 }
 
-// ── NSGP State Administering Agency (SAA) lookup ─────────────────────────────
-const STATE_SAA = {
-  AL:'Alabama Law Enforcement Agency (ALEA)',AK:'Alaska Division of Homeland Security & Emergency Management',
-  AZ:'Arizona Department of Emergency & Military Affairs (DEMA)',AR:'Arkansas Division of Emergency Management',
-  CA:'California Governor\'s Office of Emergency Services (Cal OES)',CO:'Colorado Division of Homeland Security & Emergency Management',
-  CT:'Connecticut Division of Emergency Management & Homeland Security (DEMHS)',DE:'Delaware Emergency Management Agency (DEMA)',
-  FL:'Florida Division of Emergency Management',GA:'Georgia Emergency Management & Homeland Security Agency (GEMA/HS)',
-  HI:'Hawaii Emergency Management Agency (HI-EMA)',ID:'Idaho Office of Emergency Management',
-  IL:'Illinois Emergency Management Agency (IEMA)',IN:'Indiana Department of Homeland Security (IDHS)',
-  IA:'Iowa Homeland Security & Emergency Management (HSEMD)',KS:'Kansas Division of Emergency Management',
-  KY:'Kentucky Emergency Management (KYEM)',LA:'Louisiana Governor\'s Office of Homeland Security & Emergency Preparedness (GOHSEP)',
-  ME:'Maine Emergency Management Agency (MEMA)',MD:'Maryland Emergency Management Agency (MEMA)',
-  MA:'Massachusetts Emergency Management Agency (MEMA)',MI:'Michigan State Police, Emergency Management & Homeland Security Division',
-  MN:'Minnesota Department of Public Safety — Homeland Security & Emergency Management (HSEM)',
-  MS:'Mississippi Emergency Management Agency (MEMA)',MO:'Missouri State Emergency Management Agency (SEMA)',
-  MT:'Montana Disaster & Emergency Services (DES)',NE:'Nebraska Emergency Management Agency (NEMA)',
-  NV:'Nevada Division of Emergency Management (NDEM)',NH:'New Hampshire Division of Homeland Security & Emergency Management (HSEM)',
-  NJ:'New Jersey Office of Homeland Security & Preparedness (OHSP)',NM:'New Mexico Department of Homeland Security & Emergency Management',
-  NY:'New York Division of Homeland Security & Emergency Services (DHSES)',NC:'North Carolina Emergency Management (NCEM)',
-  ND:'North Dakota Department of Emergency Services (DES)',OH:'Ohio Emergency Management Agency (Ohio EMA)',
-  OK:'Oklahoma Department of Emergency Management & Homeland Security',OR:'Oregon Office of Emergency Management (OEM)',
-  PA:'Pennsylvania Emergency Management Agency (PEMA)',RI:'Rhode Island Emergency Management Agency (RIEMA)',
-  SC:'South Carolina Emergency Management Division (SCEMD)',SD:'South Dakota Office of Emergency Management (OEM)',
-  TN:'Tennessee Emergency Management Agency (TEMA)',TX:'Texas Division of Emergency Management (TDEM)',
-  UT:'Utah Division of Emergency Management',VT:'Vermont Emergency Management',
-  VA:'Virginia Department of Emergency Management (VDEM)',WA:'Washington Military Department, Emergency Management Division',
-  WV:'West Virginia Division of Homeland Security & Emergency Management',WI:'Wisconsin Emergency Management (WEM)',
-  WY:'Wyoming Office of Homeland Security',DC:'DC Homeland Security & Emergency Management Agency (HSEMA)',
-};
+// ── NSGP State Administering Agency (SAA) and state-funded programs ──────────
+//
+// Both of these used to be written out here from memory, and both were wrong in
+// ways that reached the page. Hawaii's SAA is the Office of Homeland Security
+// under the Department of Law Enforcement, not HI-EMA; Kansas's is the Highway
+// Patrol, not a division of emergency management; Massachusetts is the Office of
+// Grants and Research, not MEMA; South Carolina is SLED; New Hampshire is the
+// Department of Safety's grants bureau. A briefing naming the wrong agency sends
+// a rep somewhere confidently wrong.
+//
+// The state-funded list was worse for being short rather than wrong: only IL, CA
+// and NY were recorded, so briefings for AZ, CO, CT, FL, GA, LA, MD, MA, MN, NE,
+// NV, NJ, OH, PA and TN never mentioned a funding source those clients qualify
+// for — in California's case a track worth more per site than the federal one.
+//
+// Both now come from NPSA's own grant-knowledge base; see server/nsgp-data.json.
+const STATE_SAA = SAA_BY_STATE;
 
-// States that operate their OWN state-funded nonprofit security grant program,
-// stackable on top of the federal NSGP. Per-site caps mirror the app's PROGRAMS.
-const STATE_FUNDED_PROGRAMS = {
-  IL: { acronym:'NSGP-IL',  name:'Illinois Nonprofit Security Grant Program',                 perSite:150000 },
-  CA: { acronym:'CSNSGP',   name:'California State Nonprofit Security Grant Program',          perSite:250000 },
-  NY: { acronym:'NYSCAHC',  name:'New York Securing Communities Against Hate Crimes Program',  perSite:200000 },
-};
+// Keyed by state, each entry a LIST of programs — several states run more than
+// one (New Jersey and Massachusetts each have an equipment track and a personnel
+// track). A program may cap per site, per applicant, or both, so a null of either
+// is normal and callers have to cope with it.
+const STATE_FUNDED_PROGRAMS = STATE_PROGRAMS_BY_STATE;
 
 const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
 
@@ -271,11 +257,13 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 - **Potential Award:** {N × $200,000 = "Up to $X (N location(s) × $200,000 per site)".}
 - **Administered By:** {SAA name from the data}
 
-**{state program acronym, e.g. NSGP-IL} (State-Funded)** — include this entire block ONLY if PROGRAM 2 exists in the data; otherwise omit it
-- **Potential Award:** {N × the state program's per-site cap from the data = "Up to $X (N location(s) × $Y per site)".}
+{Then ONE block per state-funded program listed in the data — some states run two. Omit entirely if the data says the state has none.}
+**{state program acronym} (State-Funded)**
+- **Potential Award:** {Use the cap EXACTLY as the data words it. If the cap is per site, multiply by N locations. If the data says "per applicant (NOT per site)", do NOT multiply — state the flat amount. If the data says the cap is not published, write "Cap not published — confirm with the administering agency" and give no figure.}
 - **Program:** {state program full name from the data}
+- **Note:** {the program's Note line from the data, if there is one — these carry the eligibility catches, e.g. schools-only, personnel-only, or owning the building}
 
-- **Combined Potential:** {If a state program exists, sum both tracks: "Up to $X across both NSGP and {acronym}". If federal only, omit this line.}
+- **Combined Potential:** {ONLY if the data marks a state program "Stackable with federal NSGP." — then sum that track with federal. If the data says NOT stackable, do not sum: say instead that the state program is an alternative to federal NSGP and the organization would choose one. If stackability is unconfirmed, omit this line entirely.}
 - **Urgency Frame:** {One sharp sentence the rep can use, framing why this call is well timed and noting that the organization may be able to pursue both federal and state funding where applicable. Do NOT state, repeat or estimate any deadline date here — dates appear only in the Deadlines block above, which is filled in by the application. Refer to timing in general terms instead, e.g. "with the next window approaching".}
 
 ## NSGP Deadlines
@@ -671,7 +659,44 @@ app.post('/api/precall', async (req, res) => {
       catch (e) { console.error('Deadline lookup failed:', e.message); }
     }
 
-    const stateProgram = STATE_FUNDED_PROGRAMS[orgState?.toUpperCase()];
+    const statePrograms = STATE_FUNDED_PROGRAMS[orgState?.toUpperCase()] || [];
+
+    // A cap can be per site, per applicant, or unpublished, and the difference is
+    // the difference between "up to $250,000 per building" and "up to $50,000 full
+    // stop". Stating the wrong one inflates the number a rep quotes on a call.
+    const capLine = (p) => {
+      if (p.perSite && p.perApplicant) return `$${p.perSite.toLocaleString()} per site, up to $${p.perApplicant.toLocaleString()} per applicant`;
+      if (p.perSite) return `$${p.perSite.toLocaleString()} per site`;
+      if (p.perApplicant) return `$${p.perApplicant.toLocaleString()} per applicant (NOT per site)`;
+      return 'cap not published — do not state an amount';
+    };
+    // Several of these are alternatives to federal NSGP rather than additions:
+    // Arizona, Colorado and Nebraska all bar applicants who have federal awards.
+    // Presenting them as stackable would be a straightforwardly wrong pitch.
+    const stackLine = (p) => p.stackable === true
+      ? 'Stackable with federal NSGP.'
+      : p.stackable === false
+        ? 'NOT stackable — this is an ALTERNATIVE to federal NSGP, and eligibility usually depends on NOT holding a federal award. Do not present the two as additive.'
+        : 'Stackability not confirmed — do not claim the two can be combined.';
+
+    /*
+     * Stackability against the federal award is not the only way two numbers get
+     * wrongly added together. New Jersey runs two state programs, each of which
+     * stacks with federal NSGP, and an organization may be awarded only one of
+     * them — so the honest ceiling is $100,000, not $120,000.
+     */
+    const exclusiveLine = (p) => p.exclusiveWith?.length
+      ? `  MUTUALLY EXCLUSIVE with ${p.exclusiveWith.join(', ')} — the organization may apply to both but can be AWARDED only one state program per fiscal year. Do not add these two caps together.`
+      : null;
+
+    // A program with published caps and no live cycle is the quietest way to be
+    // wrong: everything reads correctly and the money is not there.
+    const availabilityLine = (p) => p.dormant
+      ? `  AVAILABILITY: dormant — ${p.availabilityNote} Do not present this as currently available funding; mention it only as something to watch.`
+      : p.unconfirmed
+        ? `  AVAILABILITY: unconfirmed — ${p.availabilityNote} Do not present this as available funding.`
+        : null;
+
     const nsgpBlock = orgState ? [
       `NSGP GRANT FUNDING DATA:`,
       `State: ${orgState}`,
@@ -680,14 +705,19 @@ app.post('/api/precall', async (req, res) => {
       `  Program: Federal Nonprofit Security Grant Program (NSGP)`,
       `  Award cap: $200,000 per physical site/location`,
       `  Administered in-state by (SAA): ${saaName}`,
-      stateProgram
-        ? [
+      statePrograms.length
+        ? statePrograms.map((p, i) => [
             ``,
-            `PROGRAM 2 — State-Funded Program (${orgState} runs its own program, stackable with federal NSGP):`,
-            `  Program: ${stateProgram.name} (${stateProgram.acronym})`,
-            `  Award cap: $${stateProgram.perSite.toLocaleString()} per physical site/location`,
-          ].join('\n')
-        : `\nPROGRAM 2 — State-Funded Program: ${orgState} does NOT operate a separate state-funded nonprofit security grant program. Federal NSGP is the only track — present only the federal track and note there is no separate state program.`,
+            `PROGRAM ${i + 2} — State-funded (${orgState}):`,
+            `  Program: ${p.name} (${p.acronym})`,
+            `  Award cap: ${capLine(p)}`,
+            `  ${stackLine(p)}`,
+            exclusiveLine(p),
+            availabilityLine(p),
+            p.administeredBy ? `  Administered by ${p.administeredBy} — NOT the SAA named above. Point the client at the right office.` : null,
+            p.note ? `  Note: ${p.note}` : null,
+          ].filter(Boolean).join('\n')).join('\n')
+        : `\nSTATE-FUNDED PROGRAMS: ${orgState} does NOT operate a separate state-funded nonprofit security grant program. Federal NSGP is the only track — present only the federal track and note there is no separate state program.`,
       ``,
       `DEADLINES: filled in by the application from a curated table and inserted at the <<FUNDING_DEADLINES>> token. Do NOT write any deadline date anywhere in your output.`,
     ].join('\n') : null;

@@ -167,6 +167,7 @@ const checks = {
   // A blank one previously cost the briefing its SAA, its deadlines and the
   // state's own stackable program all at once.
   'state derived from the site, not the form': n.includes('TDEM'),
+  'SAA name comes from the knowledge base': n.includes('Texas Division of Emergency Management'),
   'deadline section keyed to the derived state': /TX sub-applicant deadlines/.test(n),
   'award figures survived': n.includes('Up to $200,000'),
   'deadline section present even with no table': /## NSGP Deadlines/.test(n) && /not recorded|confirm with/i.test(n),
