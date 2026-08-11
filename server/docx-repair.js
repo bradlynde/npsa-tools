@@ -252,9 +252,51 @@ function normalizeCoreDates(xml) {
   );
 }
 
+/**
+ * Move the body's section properties to the end, where the schema puts them.
+ *
+ * THIS is the one that broke every export. CT_Body is a sequence: block-level
+ * content, then an optional sectPr LAST. html-to-docx writes sectPr as the FIRST
+ * child of w:body, which makes every paragraph and table after it invalid — 18
+ * schema errors in a short briefing, all of them a consequence of this one
+ * misplacement. No table and no unusual characters required; it is in every file
+ * the library produces.
+ *
+ * Only the body-level sectPr moves. A sectPr inside a paragraph's w:pPr is a
+ * section break and belongs exactly where it is, which is why this works on the
+ * body's direct children rather than by pattern-matching the whole document.
+ */
+function moveSectPrLast(xml) {
+  return xml.replace(/<w:body>([\s\S]*)<\/w:body>/, (whole, inner) => {
+    const kids = splitChildren(inner);
+    const sect = kids.filter((k) => k.name === "w:sectPr");
+    if (!sect.length || kids[kids.length - 1].name === "w:sectPr") return whole;
+    const rest = kids.filter((k) => k.name !== "w:sectPr");
+    return `<w:body>${rest.map((k) => k.xml).join("")}${sect.map((k) => k.xml).join("")}</w:body>`;
+  });
+}
+
+/**
+ * Drop attributes whose value is the literal string "undefined".
+ *
+ * html-to-docx reads margins.header, margins.footer and margins.gutter and
+ * interpolates whatever it finds, so an options object that omits them writes
+ * w:header="undefined" into w:pgMar. Those are measurements; "undefined" is not
+ * one, and the schema rejects it.
+ *
+ * The caller now passes all six margins, so this is the backstop rather than the
+ * fix — but it is worth having, because the failure mode is a document that looks
+ * completely normal and will not open.
+ */
+function dropUndefinedAttrs(xml) {
+  return xml.replace(/\s+[\w:]+="undefined"/g, "");
+}
+
 /** Every content repair, in the order they have to happen. */
 function tidy(xml) {
   let out = stripXmlIllegal(xml);
+  out = dropUndefinedAttrs(out);
+  out = moveSectPrLast(out);
   out = dedupeTblGrid(out);
   out = normalizeCoreDates(out);
   for (const [tag, order] of Object.entries(ORDERS)) out = reorderBlocks(out, tag, order);
@@ -282,4 +324,4 @@ async function repack(zip) {
   return out;
 }
 
-export const __test = { reorderBlocks, splitChildren, stripXmlIllegal, dedupeTblGrid, normalizeCoreDates, tidy, ORDERS, ALIAS };
+export const __test = { reorderBlocks, splitChildren, stripXmlIllegal, dedupeTblGrid, normalizeCoreDates, moveSectPrLast, dropUndefinedAttrs, tidy, ORDERS, ALIAS };

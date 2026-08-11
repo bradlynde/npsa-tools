@@ -414,7 +414,10 @@ app.post('/api/precall/docx', async (req, res) => {
       title: docTitle,
       // One-inch margins and Arial, matching the copy of these notes Brad marked
       // up in Word — that document is the reference for how this should look.
-      margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+      // All six. html-to-docx interpolates margins.header/footer/gutter straight
+      // into w:pgMar, so omitting them writes the literal string "undefined" into
+      // a measurement attribute and the document stops being schema-valid.
+      margins: { top: 1440, right: 1440, bottom: 1440, left: 1440, header: 720, footer: 720, gutter: 0 },
       font: 'Arial',
       fontSize: 21,
       lineHeight: 240,

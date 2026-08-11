@@ -150,6 +150,33 @@ const checks = {
     && outOfOrder(hostileDoc, 'tblBorders') === 0 && outOfOrder(hostileDoc, 'tblCellMar') === 0,
 
   /*
+   * The one that broke every export, and that four rounds of reasoning missed.
+   *
+   * CT_Body is a sequence: block-level content, then an optional sectPr LAST.
+   * html-to-docx writes sectPr FIRST, which makes every paragraph and table after
+   * it invalid — 22 schema errors in a short briefing, all downstream of a single
+   * misplaced element. No table and no unusual characters needed; it is in every
+   * file the library produces, which is why swapping content never changed the
+   * outcome.
+   *
+   * These assertions were not derived by reading the spec and guessing. They come
+   * from validating the output against the real OOXML schema with Apache POI's
+   * XMLBeans type system, after a file built by a different tool opened where ours
+   * did not. `node scripts/precall-docx-schema.mjs` re-runs that validation.
+   */
+  'sectPr is the last thing in the body': (() => {
+    const body = /<w:body>([\s\S]*)<\/w:body>/.exec(hostileDoc)?.[1] ?? '';
+    const kids = repairTest.splitChildren(body);
+    return kids.length > 1 && kids[kids.length - 1].name === 'w:sectPr'
+      && kids.filter((k) => k.name === 'w:sectPr').length === 1;
+  })(),
+  'no attribute is the literal string "undefined"':
+    hostileParts.every(([, xml]) => !/="undefined"/.test(xml)),
+  'page margins are all real measurements':
+    /<w:pgMar\b[^>]*>/.test(hostileDoc)
+    && !/<w:pgMar\b[^>]*(?:undefined|NaN|null)/.test(hostileDoc),
+
+  /*
    * Cardinality, which the ordering checks are structurally blind to.
    *
    * html-to-docx writes w:tblGrid TWICE per table. §17.4.49 allows exactly one, so
