@@ -1,6 +1,6 @@
 import express from 'express';
 import { OpenAI } from 'openai';
-import { repairDocx } from './docx-repair.js';
+import { repairDocx, stripXmlIllegal } from './docx-repair.js';
 import { preserveInlineSpacing } from './docx-style.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -404,9 +404,14 @@ app.post('/api/precall/docx', async (req, res) => {
   try {
     // html-to-docx chokes on certain CSS (border-bottom, text-transform, decimal line-height)
     // Strip the stylesheet entirely — the library applies its own safe defaults
-    const safeHtml = preserveInlineSpacing(html.replace(/<style[\s\S]*?<\/style>/gi, ''));
+    // Illegal characters are stripped BEFORE conversion as well as after. The
+    // repair pass would catch them either way, but the notes travel through
+    // marked, html-to-docx and JSZip first, and it is worth not asking three
+    // libraries to be careful with a character XML does not permit at all.
+    const safeHtml = stripXmlIllegal(preserveInlineSpacing(html.replace(/<style[\s\S]*?<\/style>/gi, '')));
+    const docTitle = stripXmlIllegal(filename || 'Pre-Call Notes').trim() || 'Pre-Call Notes';
     const generated = await HTMLtoDOCX(safeHtml, null, {
-      title: filename || 'Pre-Call Notes',
+      title: docTitle,
       // One-inch margins and Arial, matching the copy of these notes Brad marked
       // up in Word — that document is the reference for how this should look.
       margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
@@ -419,7 +424,10 @@ app.post('/api/precall/docx', async (req, res) => {
     // opens it fine, which is why this looked like a problem with Brad's Word.
     const buffer = await repairDocx(generated, { brand: true });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${(filename||'Pre-Call Notes').replace(/"/g,"'")}.docx"`);
+    // A control character in the organisation name would make Node throw on the
+    // header rather than send the file, so the name is cleaned here too — this is
+    // the one place a bad character stops the download outright.
+    res.setHeader('Content-Disposition', `attachment; filename="${docTitle.replace(/"/g, "'")}.docx"`);
     res.send(buffer);
   } catch(e) {
     console.error('DOCX error:', e.message);
