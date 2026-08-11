@@ -35,14 +35,21 @@
 //   SF_API_VERSION            default v60.0
 //   SF_WON_STAGE              default 'Won - Data Migrated to 2012 Processes'
 //   SF_WINS_SINCE             default 2024-10-01 (company started on security grants)
+//   SF_FINANCIALS_SINCE       default 2024-11-01 (where "All Sec Financials Only" starts)
 //   SF_SYNC_INTERVAL_MINUTES  default 360 (every 6 hours)
+//
+// Financial field API names, all overridable because this org has three misspelled
+// ones already and a wrong guess returns zero rows:
+//   SF_FINANCIAL_OBJECT / _AMOUNT_FIELD / _UPFRONT_FIELD / _IMPL_FIELD
+//   SF_FINANCIAL_PURPOSE_FIELD / _OPPORTUNITY_FIELD
 
 import express from 'express';
 import { createSign } from 'node:crypto';
-import { recordWin, recordApplication, rebuildBookingWins } from '../marketing.js';
+import { recordWin, recordFinancial, recordApplication, rebuildBookingWins } from '../marketing.js';
 
 const DEFAULT_STAGE = 'Won - Data Migrated to 2012 Processes';
 const DEFAULT_SINCE = '2024-10-01';
+const DEFAULT_FINANCIALS_SINCE = '2024-11-01';
 
 // A run that would wipe out more than half the table is treated as a bad pull
 // (partial page, permissions change, wrong stage name) rather than as news. The
@@ -57,10 +64,14 @@ const apiVersion = () => process.env.SF_API_VERSION || 'v60.0';
 
 // SOQL date literals are bare (no quotes), so a malformed env value would be a
 // syntax error at query time. Fall back rather than fail the whole sync.
-const winsSince = () => {
-  const v = (process.env.SF_WINS_SINCE || '').trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : DEFAULT_SINCE;
+const dateFloor = (raw, fallback) => {
+  const v = (raw || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fallback;
 };
+const winsSince = () => dateFloor(process.env.SF_WINS_SINCE, DEFAULT_SINCE);
+// The "All Sec Financials Only" report starts here; anything earlier predates the
+// security grant business. Kept separate from the wins floor, which is a month older.
+const financialsSince = () => dateFloor(process.env.SF_FINANCIALS_SINCE, DEFAULT_FINANCIALS_SINCE);
 
 // ─────────────────────────────────────────────────────────────
 // Auth — OAuth2 JWT bearer flow
@@ -250,7 +261,19 @@ export async function applyApplications(pool, records) {
   return { rows_seen: records.length, ...prune };
 }
 
-export const APPLIERS = { salesforce_wins: applyWins, salesforce_applications: applyApplications };
+export async function applyFinancials(pool, records) {
+  refuseIfEmpty(records, 'financial records');
+  for (const f of records) await recordFinancial(pool, f);
+  const prune = await pruneToSet(pool, 'sf_financials', 'financial_id',
+    records.map(f => String(f.financial_id)));
+  return { rows_seen: records.length, ...prune };
+}
+
+export const APPLIERS = {
+  salesforce_wins: applyWins,
+  salesforce_financials: applyFinancials,
+  salesforce_applications: applyApplications,
+};
 
 // ─────────────────────────────────────────────────────────────
 // Pull sources — used only when this app has its own API access.
@@ -280,6 +303,62 @@ async function syncWins(pool) {
   })));
 }
 
+// Financial records — the authoritative source for revenue. See the comment above
+// COUNTABLE_FINANCIAL in marketing.js for why this replaced the opportunity total.
+//
+// The query deliberately filters on NOTHING but the date floor. Purpose, the
+// non-security flag and the presence of an opportunity are all pulled as data and
+// applied downstream, so the dashboard can report what each one excluded. Filtering
+// here would make an excluded record indistinguishable from one that never existed,
+// which is the failure this whole change is about.
+//
+// Field API names are unverified against the org: production runs the delivered
+// path (a Zap POSTs to /sync/push), not this pull, so nothing here has executed.
+// SF_FINANCIAL_* env vars override each name — set them and confirm in Object
+// Manager before enabling the pull for this source.
+const F = {
+  object: process.env.SF_FINANCIAL_OBJECT || 'Financials__c',
+  amount: process.env.SF_FINANCIAL_AMOUNT_FIELD || 'Security_Total_Potential_Value__c',
+  upfront: process.env.SF_FINANCIAL_UPFRONT_FIELD || 'Security_Upfrton__c',
+  implementation: process.env.SF_FINANCIAL_IMPL_FIELD || 'Security_Potential_Implementatoin_Fees__c',
+  purpose: process.env.SF_FINANCIAL_PURPOSE_FIELD || 'Purpose_for_Creating_Financial__c',
+  opportunity: process.env.SF_FINANCIAL_OPPORTUNITY_FIELD || 'Opportunity__c',
+};
+
+async function syncFinancials(pool) {
+  const rel = F.opportunity.replace(/__c$/, '__r');
+  const records = await soql(
+    `SELECT Id, Name, CreatedDate, ${F.purpose}, ${F.amount}, ${F.upfront}, ${F.implementation},
+            ${F.opportunity},
+            ${rel}.Name, ${rel}.StageName, ${rel}.IsWon, ${rel}.AccountId,
+            ${rel}.Account.Name, ${rel}.Account.Website,
+            ${rel}.Check_if_NOT_Security_Opportunity__c
+       FROM ${F.object}
+      WHERE CreatedDate >= ${financialsSince()}T00:00:00Z`
+  );
+  return applyFinancials(pool, records.map(r => {
+    const o = r[rel] || {};
+    return {
+      financial_id: r.Id,
+      name: r.Name || null,
+      purpose: r[F.purpose] || null,
+      amount: r[F.amount] ?? 0,
+      upfront: r[F.upfront] ?? 0,
+      implementation: r[F.implementation] ?? 0,
+      created_date: r.CreatedDate || null,
+      opportunity_id: r[F.opportunity] || null,
+      opportunity_name: o.Name || null,
+      opportunity_stage: o.StageName || null,
+      opportunity_is_won: typeof o.IsWon === 'boolean' ? o.IsWon : null,
+      opportunity_account_id: o.AccountId || null,
+      non_security: o.Check_if_NOT_Security_Opportunity__c === true,
+      account_id: o.AccountId || null,
+      organization: o.Account?.Name || null,
+      domain: o.Account?.Website || null,
+    };
+  }));
+}
+
 async function syncApplications(pool) {
   // Applicaiton_Status__c is misspelled in Salesforce — that is the real API name.
   const records = await soql(
@@ -304,6 +383,7 @@ async function syncApplications(pool) {
 
 const SOURCES = {
   salesforce_wins: syncWins,
+  salesforce_financials: syncFinancials,
   salesforce_applications: syncApplications,
 };
 
