@@ -59,6 +59,13 @@ export type BookingRow = {
   exclusion_reason?: string | null;
   /** Cancelled in Calendly — stated, not offered as a choice. */
   cancelled?: boolean | null;
+  /** The booking this one replaced, when the meeting was moved rather than newly made. */
+  rescheduled_from?: number | null;
+  /** The booking that replaced this one. */
+  rescheduled_to?: number | null;
+  /** Meeting date on either side of the move, for saying what changed. */
+  rescheduled_from_date?: string | null;
+  rescheduled_to_date?: string | null;
 };
 
 /** The only reasons a booking may be set aside; anything else is rejected upstream. */
@@ -423,6 +430,25 @@ export function axisLabelIndices(count: number, maxLabels: number): Set<number> 
   const stride = Math.max(1, Math.ceil(count / Math.max(1, maxLabels)));
   for (let i = count - 1; i >= 0; i -= stride) set.add(i);
   return set;
+}
+
+/**
+ * The bookings the KPI tiles above the list are actually counting.
+ *
+ * Every other figure on the marketing band is scoped by the range picker; the
+ * list was not, so "held rate · 30d — 6 of 7 meetings held" sat directly above
+ * every booking ever taken. There was no way to reconcile the two by eye, and
+ * the tiles moving while the rows underneath them stayed put read as the list
+ * failing to update.
+ *
+ * Excluded and cancelled rows still belong here — they are struck through and
+ * labelled rather than hidden, which is the whole point of marking instead of
+ * deleting. Only the window is applied.
+ */
+export function bookingsInRange(bookings: BookingRow[], range: Range): BookingRow[] {
+  if (range === 'all') return bookings;
+  const from = rangeStart(range);
+  return bookings.filter((b) => !b.booked_on || new Date(b.booked_on) >= from);
 }
 
 /** Range-scoped channel breakdown, computed from raw bookings. */

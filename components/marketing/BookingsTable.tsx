@@ -20,6 +20,9 @@ const COLS = "2.4fr 132px 1.9fr 88px 46px 46px 128px";
 
 /** `inset` matches the border+padding of the control sitting under the header,
  *  so the label lines up with its column's text rather than the cell edge. */
+const shortDate = (d: string) =>
+  new Date(d).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" });
+
 const HEAD: { label: string; align: "left" | "center" | "right"; inset?: number }[] = [
   { label: "ORG / NAME", align: "left" },
   { label: "CHANNEL", align: "left", inset: 7 },
@@ -40,14 +43,23 @@ export default function BookingsTable({
   rows,
   loading,
   search,
+  rangeTag,
+  hidden,
   onSearch,
   onChanged,
+  onSaved,
 }: {
   rows: BookingRow[];
   loading: boolean;
   search: string;
+  /** The window these rows are scoped to, matching the KPI tiles above. */
+  rangeTag: string;
+  /** How many bookings the window leaves out — stated rather than silently dropped. */
+  hidden: number;
   onSearch: (s: string) => void;
   onChanged: (id: number, patch: Partial<BookingRow>) => void;
+  /** A change landed upstream, so the figures above are now out of date. */
+  onSaved?: () => void;
 }) {
   const [saving, setSaving] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -64,6 +76,9 @@ export default function BookingsTable({
     onChanged(row.id, optimistic);
     try {
       await patchBooking(row.id, patch);
+      // Held and LOE feed the tiles above this list. Without this the two halves
+      // of the same card disagree until the next full reload.
+      onSaved?.();
     } catch (e) {
       onChanged(row.id, before); // roll back
       setError((e as Error).message);
@@ -84,7 +99,7 @@ export default function BookingsTable({
           flexWrap: "wrap",
         }}
       >
-        <Eyebrow>bookings</Eyebrow>
+        <Eyebrow>{search ? "bookings · all time" : `bookings · ${rangeTag}`}</Eyebrow>
         <input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
@@ -110,10 +125,19 @@ export default function BookingsTable({
         </div>
       )}
 
+      {/* Searching deliberately leaves the window — looking a booking up by name is
+          asking for that booking, not for whatever part of it falls inside 30 days. */}
+      {!loading && !search && hidden > 0 && (
+        <div style={{ fontSize: 12.5, color: "var(--mute)", marginBottom: 10 }}>
+          {hidden} older {hidden === 1 ? "booking is" : "bookings are"} outside this window —
+          switch to All to see every booking.
+        </div>
+      )}
+
       {loading ? (
         <Note>Loading…</Note>
       ) : rows.length === 0 ? (
-        <Note>{search ? "No bookings match that search." : "No bookings yet."}</Note>
+        <Note>{search ? "No bookings match that search." : `No bookings in the ${rangeTag}.`}</Note>
       ) : (
         <div style={{ overflowX: "auto" }} className="table-responsive">
           <div style={{ minWidth: 840 }}>
@@ -156,6 +180,8 @@ export default function BookingsTable({
               {rows.map((r) => {
                 // Excluded rows stay listed, but read as set aside rather than active.
                 const excluded = Boolean(r.exclusion_reason);
+                // Set aside because it moved, not because it fell through.
+                const moved = r.exclusion_reason === "rescheduled" || r.rescheduled_to != null;
                 const isHover = hover === r.id;
                 const muted = excluded ? "var(--faint)" : "var(--sec)";
                 return (
@@ -269,14 +295,29 @@ export default function BookingsTable({
                     {/* Who took the meeting sits under its date — wanted often enough
                         to show, not often enough to spend a column on. */}
                     <div style={{ minWidth: 0, color: muted }}>
-                      <div style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-                        {r.meeting_date
-                          ? new Date(r.meeting_date).toLocaleDateString("en-US", {
-                              month: "numeric",
-                              day: "numeric",
-                              year: "2-digit",
-                            })
-                          : "—"}
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontVariantNumeric: "tabular-nums",
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: 4,
+                        }}
+                      >
+                        {r.meeting_date ? shortDate(r.meeting_date) : "—"}
+                        {/* Calendly issues a reschedule as a new booking, so without
+                            this the row is indistinguishable from first contact. */}
+                        {r.rescheduled_from ? (
+                          <span
+                            title={`Rescheduled${
+                              r.rescheduled_from_date ? ` from ${shortDate(r.rescheduled_from_date)}` : ""
+                            } — the same meeting moved, not a new booking`}
+                            aria-label="Rescheduled"
+                            style={{ color: "var(--warn-fg)", fontSize: 12, cursor: "help" }}
+                          >
+                            ↻
+                          </span>
+                        ) : null}
                       </div>
                       <div
                         title={r.host || ""}
@@ -324,7 +365,30 @@ export default function BookingsTable({
                         until used or hovered. A Calendly cancellation is stated, not
                         offered as a choice. */}
                     <span style={{ textAlign: "right" }}>
-                      {r.cancelled ? (
+                      {/* A moved meeting is cancelled in Calendly too, so this has to
+                          be asked first — otherwise every reschedule reads as a loss. */}
+                      {moved ? (
+                        <span
+                          className="mono"
+                          title={`Rescheduled${
+                            r.rescheduled_to_date ? ` to ${shortDate(r.rescheduled_to_date)}` : ""
+                          } — counted on the replacement booking, not here`}
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            letterSpacing: ".05em",
+                            color: "var(--warn-fg)",
+                            background: "var(--warn-bg)",
+                            border: "1px solid var(--warn-fg)",
+                            borderRadius: 999,
+                            padding: "3px 9px",
+                            whiteSpace: "nowrap",
+                            cursor: "help",
+                          }}
+                        >
+                          MOVED
+                        </span>
+                      ) : r.cancelled ? (
                         <span
                           className="mono"
                           title="Cancelled in Calendly"

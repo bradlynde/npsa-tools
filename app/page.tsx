@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Page,
   Card,
@@ -30,6 +30,7 @@ import {
   fetchTimeseries,
   fetchBookings,
   refreshEnrichment,
+  bookingsInRange,
   totalsFor,
   priorTotalsFor,
   feesInRange,
@@ -83,6 +84,7 @@ export default function DashboardPage() {
   const [range, setRange] = useState<Range>("90d");
   const [gran, setGran] = useState<Granularity>("week");
   const [search, setSearch] = useState("");
+  const aggregateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setRange(loadRange("90d")), []);
   const changeRange = (r: Range) => {
@@ -160,6 +162,13 @@ export default function DashboardPage() {
 
   /* ── Derived ────────────────────────────────────────────────── */
 
+  // The list is scoped to the same window as the tiles sitting above it. Search is
+  // the exception: it is a request for a specific booking, not for a slice of one.
+  const visibleRows = useMemo(
+    () => (search ? tableRows : bookingsInRange(tableRows, range)),
+    [tableRows, range, search]
+  );
+
   const totals = useMemo(() => totalsFor(weekly, range), [weekly, range]);
   const prior = useMemo(() => priorTotalsFor(weekly, range), [weekly, range]);
   const channels = useMemo(() => channelsInRange(allBookings, range), [allBookings, range]);
@@ -224,6 +233,32 @@ export default function DashboardPage() {
     setTableRows(merge);
     setAllBookings(merge);
   };
+
+  /**
+   * Ticking Held or LOE on a row changes what the tiles above it say, but those
+   * come from the aggregate endpoints rather than from these rows — so without
+   * re-reading them the two halves of the same view disagree until a full reload.
+   *
+   * Debounced because working down a column of checkboxes is the normal way to
+   * use this table, and each tick would otherwise fire its own round trip.
+   */
+  const refreshAggregates = useCallback(() => {
+    if (aggregateTimer.current) clearTimeout(aggregateTimer.current);
+    aggregateTimer.current = setTimeout(() => {
+      fetchTimeseries("week").then(setWeekly).catch(() => {});
+      fetchStats().then(setStats).catch(() => {});
+      fetchFunnel().then(setFunnelAll).catch(() => {});
+      // Only refreshed if it has already been loaded — switching to months fetches it.
+      setMonthly((m) => {
+        if (m.length) fetchTimeseries("month").then(setMonthly).catch(() => {});
+        return m;
+      });
+    }, 700);
+  }, []);
+
+  useEffect(() => () => {
+    if (aggregateTimer.current) clearTimeout(aggregateTimer.current);
+  }, []);
 
   return (
     <Page>
@@ -466,11 +501,14 @@ export default function DashboardPage() {
 
       {/* Raw bookings first — the source rows people check before the roll-ups */}
       <BookingsTable
-        rows={tableRows}
+        rows={visibleRows}
         loading={mktLoading}
         search={search}
+        rangeTag={RANGE_WORD[range]}
+        hidden={search ? 0 : tableRows.length - visibleRows.length}
         onSearch={setSearch}
         onChanged={applyBookingChange}
+        onSaved={refreshAggregates}
       />
 
       {/* Funnel + channels */}
