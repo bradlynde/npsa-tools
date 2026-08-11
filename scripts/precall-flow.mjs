@@ -79,8 +79,8 @@ const deadlines = [
   { id: 2, state: "TX", program: "federal", cycle_year: 2026, deadline: "2026-07-06",
     kind: "sub_applicant", note: "5:00pm CT, no extensions.", source: "egrants.gov.texas.gov",
     confidence: "confirmed", layer: "knowledge-base" },
-  // One window still open, so the dashboard's "open now" count is exercised rather
-  // than only its empty state. Dated far out so the harness does not rot in a month.
+  // One window still open, so the editor renders a live row rather than only past
+  // ones. Dated far out so the harness does not rot in a month.
   { id: 3, state: "PA", program: "PA-NSGFP", cycle_year: 2099, deadline: "2099-09-10",
     kind: "state_program", note: "OPEN NOW.", source: "pa.gov/agencies/pccd",
     confidence: "confirmed", layer: "verified" },
@@ -167,24 +167,18 @@ check("deadline source is shown so it can be re-checked",
 check("a date needing checking is labelled, not shown as confirmed",
   (await page.locator('text="verify"').count()) > 0 && (await page.locator('text="confirmed"').count()) > 0);
 
-// ── 5. the deadlines are reachable from the dashboard, not only from in here ──
-// A rep wants to know whether anything is open before they have a call booked, so
-// the box has to be one click from the toolbox landing page.
+// ── 5. the dashboard does NOT carry a second copy of the deadlines ──────
+// This screen is only ever reached inside the toolbox's /loe iframe, which always
+// enters with a ?view — so a summary card here was on nobody's path. The toolbox
+// page owns that rendering now, and this asserts the duplicate stayed gone rather
+// than trusting that nobody adds it back.
 await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
 await page.waitForTimeout(900);
 
-const strip = page.locator('div:has-text("NSGP Deadlines")').last();
-check("deadlines are surfaced on the dashboard", (await strip.count()) > 0);
-check("the dashboard says how many windows are open now",
-  (await page.locator("text=/1 open now/").count()) > 0,
-  await page.locator('text=/open now|none open/').first().textContent().catch(() => "not found"));
-
-await page.locator('text="NSGP Deadlines"').last().click();
-await page.waitForTimeout(600);
-check("clicking it opens the editor over the dashboard",
-  (await page.locator("text=2099-09-10").count()) > 0);
-check("a web-checked row says so, so its provenance is visible",
-  (await page.locator('text="web-checked"').count()) > 0);
+check("the dashboard carries no second deadline summary",
+  (await page.locator('text="NSGP Deadlines"').count()) === 0);
+check("and no stray open-now badge with it",
+  (await page.locator("text=/open now|none open/").count()) === 0);
 
 await browser.close();
 
