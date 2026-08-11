@@ -120,6 +120,16 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS exclusion_reason TEXT;
   `).catch(err => console.error('bookings disposition-columns error:', err.message));
 
+  // Calendly does not move a meeting when someone reschedules it: it cancels the
+  // invitee and creates a brand new one, on a brand new event, with no shared key
+  // between them. Ingest sees the second one arrive and has nothing to tie it to
+  // the first, so a move reads on the dashboard as a fresh booking sitting beside
+  // a cancellation. These two columns hold the link in both directions.
+  await pool.query(`
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rescheduled_from INTEGER;
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rescheduled_to   INTEGER;
+  `).catch(err => console.error('bookings reschedule-columns error:', err.message));
+
   // exclusion_reason supersedes the unqualified flag: one booking can be set aside
   // for more than one reason, and "which reason" is worth knowing — a run of double
   // bookings is a scheduling problem, a run of unqualified is a targeting problem.
@@ -335,11 +345,16 @@ export { instantlyCampaignMap, instantlyLeadsForEmail, instantlyFindLead };
 // Why a booking is set aside. One booking, one reason — but which reason matters:
 // a run of double bookings is a scheduling problem, a run of unqualified is a
 // targeting problem, and they want telling apart.
-const EXCLUSION_REASONS = ['unqualified', 'double_booking', 'cancelled'];
+// 'rescheduled' is derived rather than chosen — it is what a cancellation turns out
+// to have been once the replacement booking arrives and points back at it. It is
+// listed here so the reason survives validation and reads properly in the UI, but
+// nothing asks a person to pick it.
+const EXCLUSION_REASONS = ['unqualified', 'double_booking', 'cancelled', 'rescheduled'];
 const EXCLUSION_LABELS = {
   unqualified: 'Unqualified',
   double_booking: 'Double booking',
   cancelled: 'Cancelled',
+  rescheduled: 'Rescheduled',
 };
 export { EXCLUSION_REASONS, EXCLUSION_LABELS };
 
@@ -353,36 +368,53 @@ export { EXCLUSION_REASONS, EXCLUSION_LABELS };
 // next month stayed on the dashboard as an upcoming appointment until its date came
 // round — which is exactly the case this is being asked to fix.
 //
-// checkAttendance skips the second API call for events that have not happened yet.
+//   oldInvitee — the invitee this one replaced, when the booking is a reschedule.
+//                Calendly only records the link on the invitee, so answering it
+//                costs the same second API call attendance does.
+//
+// checkAttendance skips the second API call for events that have not happened yet;
+// checkReschedule asks for it anyway while the link is still unknown, because a
+// move usually lands on a date in the future and would otherwise go unnoticed until
+// after the meeting.
+//
 // Returns null for anything it cannot determine, so a missing token or a Calendly
 // outage leaves existing values untouched rather than overwriting them.
-async function calendlyStatus(eventUri, checkAttendance) {
+async function calendlyStatus(eventUri, { checkAttendance = false, checkReschedule = false } = {}) {
+  const unknown = { cancelled: null, held: null, source: null, oldInvitee: null };
   const key = process.env.CALENDLY_API_TOKEN;
-  if (!key || !eventUri) return { cancelled: null, held: null, source: null };
+  if (!key || !eventUri) return unknown;
   try {
     const ev = await fetch(eventUri, { headers: { Authorization: `Bearer ${key}` } });
-    if (!ev.ok) return { cancelled: null, held: null, source: null };
+    if (!ev.ok) return unknown;
     const status = (await ev.json())?.resource?.status;
     // A cancellation says nothing about attendance, so it deliberately leaves held
     // alone. Writing held=false here was the original conflation, and it stuck: an
     // event cancelled and then reinstated kept "not held" forever, because a future
     // meeting has no attendance to re-read. Cancelled rows are excluded from the
     // counts anyway, so there is nothing to gain by answering a question nobody asked.
-    if (status === 'canceled') return { cancelled: true, held: null, source: null };
-    if (status !== 'active') return { cancelled: null, held: null, source: null };
-    // Still on the calendar. Attendance is the only open question, and only in the past.
-    if (!checkAttendance) return { cancelled: false, held: null, source: null };
+    //
+    // A rescheduled-away event is cancelled too, and its own invitee carries the
+    // forward pointer — but that link is read from the replacement's side instead,
+    // so this path stays a single API call.
+    if (status === 'canceled') return { ...unknown, cancelled: true };
+    if (status !== 'active') return unknown;
+    if (!checkAttendance && !checkReschedule) return { ...unknown, cancelled: false };
     const inv = await fetch(`${eventUri}/invitees`, { headers: { Authorization: `Bearer ${key}` } });
-    if (inv.ok) {
-      const first = ((await inv.json()).collection || [])[0];
-      if (first?.no_show) return { cancelled: false, held: false, source: 'calendly' };
-      if (first) return { cancelled: false, held: true, source: 'calendly' };
-    }
-    return { cancelled: false, held: null, source: null };
+    if (!inv.ok) return { ...unknown, cancelled: false };
+    const first = ((await inv.json()).collection || [])[0];
+    const oldInvitee = (checkReschedule && first?.old_invitee) || null;
+    if (!checkAttendance || !first) return { ...unknown, cancelled: false, oldInvitee };
+    return { cancelled: false, held: !first.no_show, source: 'calendly', oldInvitee };
   } catch {
-    return { cancelled: null, held: null, source: null };
+    return unknown;
   }
 }
+
+/** `.../scheduled_events/EVT/invitees/INV` → `.../scheduled_events/EVT`. */
+const eventUriOfInvitee = (uri) => {
+  const trimmed = (uri || '').replace(/\/invitees\/[^/]+\/?$/, '');
+  return trimmed && trimmed !== uri ? trimmed : null;
+};
 
 // ─────────────────────────────────────────────────────────────
 // 4b. Calendly backfill — import bookings that were never captured
@@ -593,7 +625,12 @@ async function enrichBooking(pool, id) {
   // Attendance is only worth asking about once the meeting has passed; cancellation
   // is asked every time, because a future meeting being called off is the whole point.
   const past = row.meeting_date && new Date(row.meeting_date) < new Date();
-  const st = await calendlyStatus(row.event_uri, Boolean(past));
+  const st = await calendlyStatus(row.event_uri, {
+    checkAttendance: Boolean(past),
+    // Asked until it is answered, then never again: an invitee's old_invitee is
+    // fixed at creation, so a row that already knows its origin costs no calls.
+    checkReschedule: row.rescheduled_from == null,
+  });
 
   let cancelled = row.cancelled === true;
   let cancelledAt = row.cancelled_at;
@@ -605,12 +642,54 @@ async function enrichBooking(pool, id) {
   if (typeof override.held === 'boolean') { held = override.held; heldSource = 'manual'; }
   else if (st.held !== null) { held = st.held; heldSource = st.source; }
 
+  // --- Reschedule link ---
+  // Ingest matches on the invitee URI, which a reschedule always changes, so the
+  // replacement lands as an unrelated row. Calendly's own pointer is the only thing
+  // that ties them together; following it is what turns two disconnected rows into
+  // one meeting that moved. Matching the earlier row on either key covers both ingest
+  // paths — the Zap fills calendly_uri, the backfill fills both.
+  let rescheduledFrom = row.rescheduled_from;
+  let rescheduledTo = row.rescheduled_to;
+  if (rescheduledFrom == null && st.oldInvitee) {
+    const prev = await pool.query(
+      `SELECT id FROM bookings
+        WHERE id <> $3 AND (calendly_uri = $1 OR ($2 <> '' AND event_uri = $2))
+        ORDER BY id LIMIT 1`,
+      [st.oldInvitee, eventUriOfInvitee(st.oldInvitee) || '', id]
+    );
+    if (prev.rows[0]) {
+      rescheduledFrom = prev.rows[0].id;
+      // The row it replaced is already excluded as a cancellation — Calendly cancels
+      // the old event on every reschedule — so this is a relabel, not a new exclusion.
+      // A reason a person chose is left alone.
+      await pool.query(
+        `UPDATE bookings
+            SET rescheduled_to = $1,
+                exclusion_reason = CASE WHEN exclusion_reason IS NULL OR exclusion_reason = 'cancelled'
+                                        THEN 'rescheduled' ELSE exclusion_reason END,
+                updated_at = NOW()
+          WHERE id = $2`,
+        [id, rescheduledFrom]
+      );
+    }
+  }
+
   // --- Why this booking is set aside, if it is ---
   // A person's choice wins over Calendly, since someone marking a double booking
   // knows something the calendar does not. Calendly's cancellation is the fallback,
-  // so a cancelled meeting is excluded even when nobody has touched it.
+  // so a cancelled meeting is excluded even when nobody has touched it — reported as
+  // a reschedule once the replacement has been found, since "cancelled" reads as a
+  // meeting lost and this one was only moved.
+  // rescheduled_to is written by the replacement's enrichment, not this one, so a
+  // cancelled row re-reads it rather than trusting the snapshot taken at the top —
+  // otherwise two rows enriching in the same sweep can relabel each other in the
+  // wrong order and put "cancelled" back on a meeting that only moved.
+  if (rescheduledTo == null && cancelled) {
+    const fresh = await pool.query('SELECT rescheduled_to FROM bookings WHERE id=$1', [id]);
+    rescheduledTo = fresh.rows[0]?.rescheduled_to ?? null;
+  }
   const chosen = EXCLUSION_REASONS.includes(override.exclusion) ? override.exclusion : null;
-  const exclusionReason = chosen || (cancelled ? 'cancelled' : null);
+  const exclusionReason = chosen || (cancelled ? (rescheduledTo != null ? 'rescheduled' : 'cancelled') : null);
 
   // --- Became client + fee (join to letters, same DB) ---
   let becameClient = false, letterId = null, fee = 0;
@@ -641,11 +720,11 @@ async function enrichBooking(pool, id) {
     `UPDATE bookings SET
        instantly_campaign=$1, attribution_channel=$2, attribution_source=$3,
        held=$4, held_source=$5, became_client=$6, client_letter_id=$7, fee=$8,
-       exclusion_reason=$9, cancelled=$10, cancelled_at=$11,
+       exclusion_reason=$9, cancelled=$10, cancelled_at=$11, rescheduled_from=$12,
        enriched_at=NOW(), updated_at=NOW()
-     WHERE id=$12`,
+     WHERE id=$13`,
     [campaign, channel, source, held, heldSource, becameClient, letterId, fee,
-     exclusionReason, cancelled, cancelledAt, id]
+     exclusionReason, cancelled, cancelledAt, rescheduledFrom, id]
   );
 }
 
@@ -1311,15 +1390,22 @@ export function registerMarketing(app, pool) {
       const { rows } = await pool.query(
         // Deliberately unfiltered: excluded bookings still belong on the list, which
         // is the whole point of marking rather than deleting them.
-        `SELECT id, booked_on, meeting_date, name, organization, email, told_us,
-                attribution_channel, attribution_source, instantly_campaign, host,
-                held, became_client, fee,
-                won, won_amount, exclusion_reason, cancelled, cancelled_at
-         FROM bookings
-         WHERE ($1='' OR name ILIKE '%'||$1||'%' OR organization ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%')
-           AND ($2='' OR attribution_channel=$2)
-           AND ($3='' OR instantly_campaign=$3)
-         ORDER BY booked_on DESC NULLS LAST LIMIT 500`,
+        // The two joins carry the dates either side of a reschedule, so the list can
+        // say what a moved meeting moved from or to without a second round trip.
+        `SELECT b.id, b.booked_on, b.meeting_date, b.name, b.organization, b.email, b.told_us,
+                b.attribution_channel, b.attribution_source, b.instantly_campaign, b.host,
+                b.held, b.became_client, b.fee,
+                b.won, b.won_amount, b.exclusion_reason, b.cancelled, b.cancelled_at,
+                b.rescheduled_from, b.rescheduled_to,
+                prev.meeting_date AS rescheduled_from_date,
+                next.meeting_date AS rescheduled_to_date
+         FROM bookings b
+         LEFT JOIN bookings prev ON prev.id = b.rescheduled_from
+         LEFT JOIN bookings next ON next.id = b.rescheduled_to
+         WHERE ($1='' OR b.name ILIKE '%'||$1||'%' OR b.organization ILIKE '%'||$1||'%' OR b.email ILIKE '%'||$1||'%')
+           AND ($2='' OR b.attribution_channel=$2)
+           AND ($3='' OR b.instantly_campaign=$3)
+         ORDER BY b.booked_on DESC NULLS LAST LIMIT 500`,
         [search, channel, campaign]
       );
       res.json(rows.map(r => ({ ...r, fee: Number(r.fee), won_amount: Number(r.won_amount) })));
