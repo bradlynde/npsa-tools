@@ -130,6 +130,13 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rescheduled_to   INTEGER;
   `).catch(err => console.error('bookings reschedule-columns error:', err.message));
 
+  // When we last asked Calendly to identify a booking that arrived without its
+  // identifiers. Recorded so a row Calendly genuinely cannot place — a hand-entered
+  // booking, a test row — is retried occasionally rather than on every sweep.
+  await pool.query(`
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS calendly_lookup_at TIMESTAMPTZ;
+  `).catch(err => console.error('bookings lookup-column error:', err.message));
+
   // exclusion_reason supersedes the unqualified flag: one booking can be set aside
   // for more than one reason, and "which reason" is worth knowing — a run of double
   // bookings is a scheduling problem, a run of unqualified is a targeting problem.
@@ -457,6 +464,52 @@ const answerMatching = (qs, re) => {
 // same question/answer shape. One reader of Calendly's quirks, not two.
 export { calendlyGet, answerMatching };
 
+let _calOrg = null;
+const calendlyOrg = async () => (_calOrg ??= (await calendlyGet('/users/me')).resource.current_organization);
+
+/**
+ * Finds the Calendly event a booking came from, using only what the booking has.
+ *
+ * Not every row arrives carrying Calendly's own identifiers — whether one does
+ * depends on how it was captured, and a row without them can never be asked about
+ * attendance, cancellation or a reschedule. It stays unresolved for ever, and looks
+ * on the dashboard exactly like a meeting nobody has got round to marking.
+ *
+ * Who attended and when is enough to find it again: Calendly will filter its own
+ * events by invitee email, and a start time identifies which of that person's
+ * meetings this is. The window is for clock skew, not for guessing — a candidate
+ * more than a minute off the recorded time is a different meeting and is refused,
+ * because a wrong match here would attach one meeting's attendance to another.
+ *
+ * Cancelled events are deliberately included. The row that most needs finding is
+ * the one whose meeting was called off, since that is the fact nobody recorded.
+ */
+async function findCalendlyEvent(email, meetingDate) {
+  if (!process.env.CALENDLY_API_TOKEN) return null;
+  const wanted = String(email || '').trim().toLowerCase();
+  const at = new Date(meetingDate);
+  if (!wanted || isNaN(at)) return null;
+
+  const pad = 2 * 60 * 60 * 1000;
+  const qs = new URLSearchParams({
+    organization: await calendlyOrg(),
+    invitee_email: wanted,
+    min_start_time: new Date(at.getTime() - pad).toISOString(),
+    max_start_time: new Date(at.getTime() + pad).toISOString(),
+    count: '20',
+  });
+  const events = (await calendlyGet(`/scheduled_events?${qs}`)).collection || [];
+  if (!events.length) return null;
+
+  const closest = events.reduce((best, e) =>
+    Math.abs(new Date(e.start_time) - at) < Math.abs(new Date(best.start_time) - at) ? e : best);
+  if (Math.abs(new Date(closest.start_time) - at) > 60_000) return null;
+
+  const invitees = (await calendlyGet(`${closest.uri}/invitees`)).collection || [];
+  const inv = invitees.find(i => String(i.email || '').toLowerCase() === wanted) || invitees[0];
+  return { eventUri: closest.uri, inviteeUri: inv?.uri || null };
+}
+
 async function backfillCalendly(pool, { eventType, since, dryRun }) {
   const me = await calendlyGet('/users/me');
   const org = me.resource.current_organization;
@@ -624,8 +677,39 @@ async function enrichBooking(pool, id) {
   // --- Cancelled + held (one Calendly lookup answers both) ---
   // Attendance is only worth asking about once the meeting has passed; cancellation
   // is asked every time, because a future meeting being called off is the whole point.
+  // --- Calendly identity, recovered when it is missing ---
+  // Held, cancelled and the reschedule link are all one question asked of one
+  // event, so a row with no event_uri answers none of them — for ever, however
+  // often enrichment runs. Retried on a delay rather than every pass, so a booking
+  // Calendly cannot place does not cost two API calls every sweep.
+  const LOOKUP_RETRY_MS = 6 * 60 * 60 * 1000;
+  let eventUri = row.event_uri;
+  let inviteeUri = null;
+  let lookupAt = row.calendly_lookup_at;
+  const lookupDue = !lookupAt || Date.now() - new Date(lookupAt).getTime() > LOOKUP_RETRY_MS;
+  if (!eventUri && row.email && row.meeting_date && lookupDue) {
+    lookupAt = new Date();
+    try {
+      const found = await findCalendlyEvent(row.email, row.meeting_date);
+      if (found) {
+        eventUri = found.eventUri;
+        // calendly_uri is unique, and the invitee we just found may already belong
+        // to another row. Leaving it null costs nothing — event_uri answers every
+        // question this table asks — whereas colliding would fail the whole write.
+        if (found.inviteeUri && !row.calendly_uri) {
+          const taken = await pool.query('SELECT 1 FROM bookings WHERE calendly_uri=$1 AND id<>$2',
+            [found.inviteeUri, id]);
+          if (!taken.rows[0]) inviteeUri = found.inviteeUri;
+        }
+        console.log(`[marketing] booking ${id} matched to ${found.eventUri}`);
+      }
+    } catch (e) {
+      console.warn(`[marketing] calendly lookup failed for booking ${id}: ${e.message}`);
+    }
+  }
+
   const past = row.meeting_date && new Date(row.meeting_date) < new Date();
-  const st = await calendlyStatus(row.event_uri, {
+  const st = await calendlyStatus(eventUri, {
     checkAttendance: Boolean(past),
     // Asked until it is answered, then never again: an invitee's old_invitee is
     // fixed at creation, so a row that already knows its origin costs no calls.
@@ -721,10 +805,12 @@ async function enrichBooking(pool, id) {
        instantly_campaign=$1, attribution_channel=$2, attribution_source=$3,
        held=$4, held_source=$5, became_client=$6, client_letter_id=$7, fee=$8,
        exclusion_reason=$9, cancelled=$10, cancelled_at=$11, rescheduled_from=$12,
+       event_uri=$13, calendly_uri=COALESCE($14, calendly_uri), calendly_lookup_at=$15,
        enriched_at=NOW(), updated_at=NOW()
-     WHERE id=$13`,
+     WHERE id=$16`,
     [campaign, channel, source, held, heldSource, becameClient, letterId, fee,
-     exclusionReason, cancelled, cancelledAt, rescheduledFrom, id]
+     exclusionReason, cancelled, cancelledAt, rescheduledFrom,
+     eventUri, inviteeUri, lookupAt, id]
   );
 }
 
@@ -1134,10 +1220,25 @@ export function registerMarketing(app, pool) {
         })().catch(e => console.error('enrich sweep error:', e.message)).finally(() => { _enrichRunning = false; });
         return;
       }
-      // Stale-only refresh: a small set, run synchronously so a UI reload sees fresh data.
+      // Stale-only refresh: normally a small set, run synchronously so a UI reload
+      // sees fresh data.
       const { rows } = await pool.query(
         `SELECT id FROM bookings WHERE enriched_at IS NULL OR (meeting_date < NOW() AND held IS NULL)`
       );
+      // Except when it is not small. Every unresolved booking now also costs a
+      // lookup to identify it, so a backlog that used to finish inside the request
+      // can outlast it — and a refresh that times out looks like a refresh that
+      // failed, which is the one outcome worth avoiding.
+      if (rows.length > 25) {
+        if (_enrichRunning) return res.json({ ok: true, running: true, message: 'a sweep is already in progress' });
+        _enrichRunning = true;
+        res.json({ ok: true, started: rows.length, message: 'running in the background — reload shortly' });
+        (async () => {
+          for (const r of rows) { try { await enrichBooking(pool, r.id); } catch (e) { console.error('enrich error:', e.message); } }
+          console.log(`[marketing] stale refresh complete: ${rows.length} rows`);
+        })().catch(e => console.error('stale refresh error:', e.message)).finally(() => { _enrichRunning = false; });
+        return;
+      }
       for (const r of rows) { try { await enrichBooking(pool, r.id); } catch (e) { console.error('enrich error:', e.message); } }
       res.json({ ok: true, enriched: rows.length });
     } catch (err) { if (!res.headersSent) res.status(500).json({ error: err.message }); }
@@ -1552,10 +1653,18 @@ export function registerMarketing(app, pool) {
     if (_enrichRunning) return;
     _enrichRunning = true;
     try {
+      // Two changes of shape from "recent events only". A row with no event_uri was
+      // skipped entirely, which is exactly backwards: those are the rows that need
+      // identifying before they can be asked anything. And a past meeting with no
+      // recorded outcome is worth another look however old it is, since until now
+      // nothing ever came back for it — bounded because resolving it, or setting it
+      // aside, drops it straight out of this set.
       const { rows } = await pool.query(
         `SELECT id FROM bookings
-          WHERE event_uri IS NOT NULL
-            AND (meeting_date IS NULL OR meeting_date > NOW() - interval '7 days')`);
+          WHERE (event_uri IS NOT NULL OR (email IS NOT NULL AND meeting_date IS NOT NULL))
+            AND (meeting_date IS NULL
+                 OR meeting_date > NOW() - interval '7 days'
+                 OR (held IS NULL AND exclusion_reason IS NULL))`);
       for (const r of rows) {
         try { await enrichBooking(pool, r.id); } catch (e) { console.error('sweep enrich error:', e.message); }
       }
