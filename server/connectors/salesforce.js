@@ -323,21 +323,31 @@ const F = {
   implementation: process.env.SF_FINANCIAL_IMPL_FIELD || 'Security_Potential_Implementatoin_Fees__c',
   purpose: process.env.SF_FINANCIAL_PURPOSE_FIELD || 'Purpose_for_Creating_Financial__c',
   opportunity: process.env.SF_FINANCIAL_OPPORTUNITY_FIELD || 'Opportunity__c',
+  account: process.env.SF_FINANCIAL_ACCOUNT_FIELD || 'Account__c',
+  contract: process.env.SF_FINANCIAL_CONTRACT_FIELD || 'Contract__c',
 };
 
 async function syncFinancials(pool) {
   const rel = F.opportunity.replace(/__c$/, '__r');
+  const acc = F.account.replace(/__c$/, '__r');
+  const con = F.contract.replace(/__c$/, '__r');
   const records = await soql(
+    // The account comes from the financial's OWN lookup, not the opportunity's.
+    // Those two differing is a data problem the dashboard exists to catch, so
+    // reading both from one place would make the check impossible to fail.
     `SELECT Id, Name, CreatedDate, ${F.purpose}, ${F.amount}, ${F.upfront}, ${F.implementation},
+            ${F.account}, ${acc}.Name, ${acc}.Website,
+            ${F.contract}, ${con}.ContractNumber,
             ${F.opportunity},
             ${rel}.Name, ${rel}.StageName, ${rel}.IsWon, ${rel}.AccountId,
-            ${rel}.Account.Name, ${rel}.Account.Website,
             ${rel}.Check_if_NOT_Security_Opportunity__c
        FROM ${F.object}
       WHERE CreatedDate >= ${financialsSince()}T00:00:00Z`
   );
   return applyFinancials(pool, records.map(r => {
     const o = r[rel] || {};
+    const a = r[acc] || {};
+    const c = r[con] || {};
     return {
       financial_id: r.Id,
       name: r.Name || null,
@@ -352,9 +362,11 @@ async function syncFinancials(pool) {
       opportunity_is_won: typeof o.IsWon === 'boolean' ? o.IsWon : null,
       opportunity_account_id: o.AccountId || null,
       non_security: o.Check_if_NOT_Security_Opportunity__c === true,
-      account_id: o.AccountId || null,
-      organization: o.Account?.Name || null,
-      domain: o.Account?.Website || null,
+      account_id: r[F.account] || null,
+      organization: a.Name || null,
+      domain: a.Website || null,
+      contract_id: r[F.contract] || null,
+      contract_number: c.ContractNumber || null,
     };
   }));
 }
