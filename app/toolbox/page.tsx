@@ -10,11 +10,12 @@ import {
   StatTile,
   Bar,
   Note,
+  StatusPill,
   useRoll,
   fmtInt,
   fmtMoney,
 } from "../../components/ui";
-import { DeadlinesCard, DeadlinesModal, useDeadlines } from "../../components/DeadlinesPanel";
+import { DeadlinesModal, useDeadlines } from "../../components/DeadlinesPanel";
 type LetterStats = {
   total: number;
   total_fees: number;
@@ -48,7 +49,14 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** Roman-numeral action card. `feature` renders it as the navy hero card. */
+/**
+ * Roman-numeral action card. `feature` renders it as the navy hero card.
+ *
+ * `right` is for a card that carries live state — the deadline count, say. It
+ * goes through here rather than being styled at the call site, so a card with a
+ * status pill still sits on the same padding, radius, shadow and hover as every
+ * card without one.
+ */
 function ActionCard({
   numeral,
   title,
@@ -56,6 +64,7 @@ function ActionCard({
   onClick,
   feature = false,
   badge,
+  right,
 }: {
   numeral: string;
   title: string;
@@ -63,6 +72,7 @@ function ActionCard({
   onClick: () => void;
   feature?: boolean;
   badge?: string;
+  right?: React.ReactNode;
 }) {
   const base: React.CSSProperties = {
     borderRadius: 16,
@@ -156,6 +166,7 @@ function ActionCard({
           {description}
         </p>
       </div>
+      {right}
       {feature && (
         <span className="mono" style={{ fontWeight: 600, fontSize: 12, color: "#fff" }}>
           start →
@@ -299,18 +310,32 @@ export default function ToolboxPage() {
             Sits under the Pre-Call card because that is what it feeds, but it
             earns its place here rather than inside the generator: "is anything
             open right now?" is worth answering before a call is even booked.
+
+            A numbered card like the rest — it is one of the tools, not a footnote
+            attached to the one above it.
           */}
-          <DeadlinesCard
+          <ActionCard
+            numeral="vi."
+            title="NSGP Deadlines"
+            description={
+              deadlines.error
+                ? "Could not reach the Sales Toolbox backend."
+                : "Federal and state grant windows, by jurisdiction."
+            }
             onClick={() => setShowDeadlines(true)}
-            open={deadlines.open}
-            total={deadlines.rows?.length || 0}
-            loading={deadlines.loading}
-            error={deadlines.error}
+            right={
+              deadlines.loading || deadlines.error ? null : (
+                // A zero is a real answer and stays visible rather than collapsing.
+                <StatusPill tone={deadlines.open.length ? "done" : "queued"}>
+                  {deadlines.open.length ? `${deadlines.open.length} open now` : "none open"}
+                </StatusPill>
+              )
+            }
           />
 
           <Eyebrow style={{ margin: "8px 0 -4px" }}>settings</Eyebrow>
           <ActionCard
-            numeral="vi."
+            numeral="vii."
             title="Manage Sales Reps"
             description="Add or remove the reps letters are attributed to — they drive the leaderboard."
             onClick={() => router.push("/loe?view=settings")}
