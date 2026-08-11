@@ -945,6 +945,15 @@ app.delete('/api/reps/:id', async (req, res) => {
 registerMarketing(app, pool);
 registerSalesforceConnector(app, pool);
 
+// An API route that does not exist must say so. Without this the fallback below
+// answers for it, so a JSON caller gets 200 and a page of HTML — which reads as a
+// working endpoint returning the wrong shape rather than an endpoint that is not
+// there. A newly added route that has not finished deploying looks, from the
+// outside, exactly like the toolbox.
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'No such API route', path: req.originalUrl });
+});
+
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
