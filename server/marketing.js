@@ -1412,6 +1412,64 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // Why a booking cannot answer for itself.
+  //
+  // Held, cancelled and the reschedule link all come from one place: asking Calendly
+  // about the row's event. A row with no event_uri can never be asked, so it sits at
+  // held IS NULL for ever and no amount of re-running enrichment changes it — and
+  // nothing on the dashboard says so, because a booking with an unknown outcome and
+  // one with a genuinely empty checkbox look identical.
+  //
+  // This states the shape of that problem rather than leaving it to be inferred from
+  // a rate that looks too clean. It also probes the Calendly token live, since every
+  // derived field on this table is downstream of it.
+  app.get('/api/marketing/bookings/diagnostics', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const { rows: [counts] } = await pool.query(`
+        SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE event_uri IS NOT NULL)::int AS with_event_uri,
+               COUNT(*) FILTER (WHERE calendly_uri IS NOT NULL)::int AS with_calendly_uri,
+               COUNT(*) FILTER (WHERE rescheduled_from IS NOT NULL)::int AS linked_reschedules,
+               COUNT(*) FILTER (WHERE meeting_date < NOW())::int AS past_meetings,
+               COUNT(*) FILTER (WHERE meeting_date < NOW() AND held IS TRUE)::int AS past_held,
+               COUNT(*) FILTER (WHERE meeting_date < NOW() AND held IS FALSE)::int AS past_no_show,
+               COUNT(*) FILTER (WHERE meeting_date < NOW() AND held IS NULL)::int AS past_unresolved,
+               COUNT(*) FILTER (WHERE meeting_date < NOW() AND held IS NULL
+                                  AND event_uri IS NULL)::int AS past_unresolved_no_event_uri,
+               COUNT(*) FILTER (WHERE held_source = 'calendly')::int AS held_from_calendly,
+               COUNT(*) FILTER (WHERE held_source = 'manual')::int AS held_set_by_hand,
+               COUNT(*) FILTER (WHERE enriched_at IS NULL)::int AS never_enriched,
+               MAX(enriched_at) AS last_enriched
+          FROM bookings`);
+
+      // A token that has stopped working looks exactly like a table full of meetings
+      // nobody has got round to marking, so it is worth answering directly.
+      const token = process.env.CALENDLY_API_TOKEN;
+      const calendly = { token_configured: Boolean(token), reachable: null };
+      if (token) {
+        try {
+          const r = await fetch(`${CAL_API}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+          calendly.reachable = r.ok;
+          calendly.status = r.status;
+        } catch (e) {
+          calendly.reachable = false;
+          calendly.error = e.message;
+        }
+      }
+
+      const { rows: unresolved } = await pool.query(`
+        SELECT id, organization, name, meeting_date, enriched_at,
+               (event_uri IS NOT NULL) AS has_event_uri,
+               (calendly_uri IS NOT NULL) AS has_calendly_uri
+          FROM bookings
+         WHERE meeting_date < NOW() AND held IS NULL AND exclusion_reason IS NULL
+         ORDER BY meeting_date DESC LIMIT 20`);
+
+      res.json({ ...counts, calendly, unresolved_sample: unresolved });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // Import a Calendly event type's history. Runs in the background because ~100
   // meetings means ~200 Calendly calls, well past any sensible request timeout, and
   // records the outcome in sync_runs so the result survives the request that started
