@@ -17,10 +17,10 @@ import { useEffect, useState } from "react";
 const blank = { state: "", program: "federal", cycleYear: new Date().getFullYear(), deadline: "", kind: "sub_applicant", note: "", source: "", confidence: "confirmed" };
 
 const inputStyle = {
-  border: "1px solid #d9d5cc", borderRadius: 7, padding: "6px 9px", fontSize: 12.5,
+  border: "1px solid var(--bd2)", borderRadius: 7, padding: "6px 9px", fontSize: 12.5,
   outline: "none", boxSizing: "border-box", width: "100%", fontFamily: "var(--font-sans)",
 };
-const th = { fontSize: 10.5, fontWeight: 700, color: "#8a8577", textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", padding: "0 6px 6px" };
+const th = { fontSize: 10.5, fontWeight: 700, color: "var(--mute)", textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", padding: "0 6px 6px" };
 const td = { padding: "3px 6px", verticalAlign: "top" };
 
 export default function DeadlineEditor({ onClose }) {
@@ -64,17 +64,17 @@ export default function DeadlineEditor({ onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(15,20,30,0.45)", zIndex: 60,
                   display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflowY: "auto" }}>
-      <div style={{ background: "#fbfaf8", borderRadius: 16, maxWidth: 940, width: "100%",
+      <div style={{ background: "var(--bg)", borderRadius: 16, maxWidth: 940, width: "100%",
                     boxShadow: "0 18px 50px rgba(2,6,23,0.3)", padding: "22px 26px 26px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-          <div style={{ fontWeight: 800, fontSize: 18, color: "#182230" }}>NSGP Deadlines</div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "var(--ink)" }}>NSGP Deadlines</div>
           <button onClick={onClose}
-            style={{ marginLeft: "auto", background: "#fff", border: "1px solid #e7e2d6", borderRadius: 8,
-                     padding: "7px 14px", fontSize: 12.5, fontWeight: 600, color: "#4a5462", cursor: "pointer" }}>
+            style={{ marginLeft: "auto", background: "var(--card)", border: "1px solid var(--bd)", borderRadius: 8,
+                     padding: "7px 14px", fontSize: 12.5, fontWeight: 600, color: "var(--sec)", cursor: "pointer" }}>
             Close
           </button>
         </div>
-        <div style={{ fontSize: 12.5, color: "#8a8577", marginBottom: 16, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12.5, color: "var(--mute)", marginBottom: 16, lineHeight: 1.5 }}>
           These dates go straight into the briefing. Use <strong>state</strong> for a sub-applicant
           deadline (the date the nonprofit must submit to the SAA) and <strong>US</strong> for the
           federal FEMA-to-SAA date. Keeping the last three cycles per state is what makes the
@@ -89,7 +89,7 @@ export default function DeadlineEditor({ onClose }) {
         </div>
 
         {error && (
-          <div style={{ color: "#a3341f", background: "#fff5f5", border: "1px solid #f5c6c6",
+          <div style={{ color: "var(--err-fg)", background: "var(--err-bg)", border: "1px solid var(--err-fg)",
                         borderRadius: 8, padding: "9px 12px", fontSize: 12.5, marginBottom: 12 }}>{error}</div>
         )}
 
@@ -108,37 +108,37 @@ export default function DeadlineEditor({ onClose }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} style={{ background: "#fff" }}>
+              <tr key={r.id} style={{ background: "var(--card)" }}>
                 <td style={td}><strong style={{ fontSize: 12.5 }}>{r.state}</strong></td>
                 <td style={{ ...td, fontSize: 12 }}>{r.program}</td>
                 <td style={{ ...td, fontSize: 12 }}>FY{r.cycle_year}</td>
-                <td style={{ ...td, fontSize: 12 }}>{r.deadline || <em style={{ color: "#a09a8c" }}>none</em>}</td>
+                <td style={{ ...td, fontSize: 12 }}>{r.deadline || <em style={{ color: "var(--faint)" }}>none</em>}</td>
                 <td style={td}>
                   {/* A date the source itself flags "verify each cycle" still goes in
                       the briefing, but labelled — a rep should see which they have. */}
                   <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 20,
-                                 color: r.confidence === "illustrative" ? "#8a6d1f" : "#1f6b3a",
-                                 background: r.confidence === "illustrative" ? "#fdf6e3" : "#eef7f0",
-                                 border: `1px solid ${r.confidence === "illustrative" ? "#e8d9a8" : "#cfe6d6"}` }}>
+                                 color: r.confidence === "illustrative" ? "var(--warn-fg)" : "var(--ok-fg)",
+                                 background: r.confidence === "illustrative" ? "var(--warn-bg)" : "var(--ok-bg)",
+                                 border: `1px solid ${r.confidence === "illustrative" ? "var(--warn-bg)" : "var(--ok-bg)"}` }}>
                     {r.confidence === "illustrative" ? "verify" : "confirmed"}
                   </span>
                 </td>
-                <td style={{ ...td, fontSize: 11.5, color: "#4a5462" }}>{r.note}</td>
-                <td style={{ ...td, fontSize: 11, color: "#8a8577", wordBreak: "break-all" }}>
+                <td style={{ ...td, fontSize: 11.5, color: "var(--sec)" }}>{r.note}</td>
+                <td style={{ ...td, fontSize: 11, color: "var(--mute)", wordBreak: "break-all" }}>
                   {r.source}
                   {/* Which layer a row came from decides who may overwrite it, so it
                       is worth being able to see at a glance. */}
                   {r.layer && r.layer !== "knowledge-base" && (
                     <div style={{ marginTop: 3, fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
                                   textTransform: "uppercase",
-                                  color: r.layer === "manual" ? "#3a2c6e" : "#1e3a5f" }}>
+                                  color: r.layer === "manual" ? "var(--navy)" : "var(--navy)" }}>
                       {r.layer === "manual" ? "edited here" : "web-checked"}
                     </div>
                   )}
                 </td>
                 <td style={td}>
                   <button onClick={() => remove(r.id)} disabled={busy}
-                    style={{ background: "none", border: "1px solid #f0d6d6", color: "#a3341f", borderRadius: 6,
+                    style={{ background: "none", border: "1px solid var(--err-fg)", color: "var(--err-fg)", borderRadius: 6,
                              padding: "3px 9px", fontSize: 11, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>
                     Delete
                   </button>
@@ -167,7 +167,7 @@ export default function DeadlineEditor({ onClose }) {
                 value={draft.source} onChange={(e) => setDraft({ ...draft, source: e.target.value })} /></td>
               <td style={td}>
                 <button onClick={() => save(draft)} disabled={busy || !draft.state}
-                  style={{ background: busy || !draft.state ? "#a09a8c" : "#1e3a5f", color: "#fff", border: "none",
+                  style={{ background: busy || !draft.state ? "var(--faint)" : "var(--navy)", color: "var(--card)", border: "none",
                            borderRadius: 6, padding: "6px 12px", fontSize: 11.5, fontWeight: 700,
                            cursor: busy || !draft.state ? "default" : "pointer" }}>
                   Add
@@ -176,7 +176,7 @@ export default function DeadlineEditor({ onClose }) {
             </tr>
           </tbody>
         </table>
-        <div style={{ fontSize: 11.5, color: "#8a8577", marginTop: 12 }}>
+        <div style={{ fontSize: 11.5, color: "var(--mute)", marginTop: 12 }}>
           Adding a state and fiscal year that already exists updates that row rather than duplicating it.
         </div>
       </div>

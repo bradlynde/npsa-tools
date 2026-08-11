@@ -52,39 +52,39 @@ export default function BookingPicker({ selectedUri, onSelect }) {
   useEffect(() => { load(false); }, []);
 
   const card = {
-    background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(2,6,23,0.06)",
-    border: "1px solid #f0ede5", padding: "16px 20px 18px",
+    background: "var(--card)", borderRadius: 14, boxShadow: "0 2px 12px rgba(2,6,23,0.06)",
+    border: "1px solid var(--hair2)", padding: "16px 20px 18px",
   };
 
   return (
     <div style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: "#182230" }}>&#128197; Start from a Booking</div>
+        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--ink)" }}>&#128197; Start from a Booking</div>
         <button onClick={() => load(true)} disabled={loading}
-          style={{ marginLeft: "auto", background: "none", border: "1px solid #e7e2d6", borderRadius: 7,
-                   padding: "4px 10px", fontSize: 11.5, fontWeight: 600, color: "#4a5462",
+          style={{ marginLeft: "auto", background: "none", border: "1px solid var(--bd)", borderRadius: 7,
+                   padding: "4px 10px", fontSize: 11.5, fontWeight: 600, color: "var(--sec)",
                    cursor: loading ? "default" : "pointer" }}>
           {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
-      <div style={{ fontSize: 12, color: "#8a8577", marginBottom: 10 }}>
+      <div style={{ fontSize: 12, color: "var(--mute)", marginBottom: 10 }}>
         Upcoming meetings across the team. Picking one fills the form from what the client
         submitted — phone, guests and conference details are used exactly as booked.
       </div>
 
       {error && (
-        <div style={{ color: "#a3341f", background: "#fff5f5", border: "1px solid #f5c6c6",
+        <div style={{ color: "var(--err-fg)", background: "var(--err-bg)", border: "1px solid var(--err-fg)",
                       borderRadius: 8, padding: "9px 12px", fontSize: 12.5 }}>
           Could not load bookings: {error}. Use the paste box below instead.
         </div>
       )}
 
       {bookings === null && !error && (
-        <div style={{ fontSize: 12.5, color: "#8a8577", padding: "8px 0" }}>Loading upcoming bookings…</div>
+        <div style={{ fontSize: 12.5, color: "var(--mute)", padding: "8px 0" }}>Loading upcoming bookings…</div>
       )}
 
       {bookings && bookings.length === 0 && !error && (
-        <div style={{ fontSize: 12.5, color: "#8a8577", padding: "8px 0" }}>
+        <div style={{ fontSize: 12.5, color: "var(--mute)", padding: "8px 0" }}>
           No upcoming bookings found. Use the paste box below.
         </div>
       )}
@@ -96,30 +96,30 @@ export default function BookingPicker({ selectedUri, onSelect }) {
             const f = b.facts || {};
             return (
               <button key={b.eventUri} onClick={() => onSelect(on ? null : b)}
-                style={{ textAlign: "left", background: on ? "#f2f6fc" : "#fff",
-                         border: `1px solid ${on ? "#1e3a5f" : "#ece8de"}`, borderRadius: 10,
+                style={{ textAlign: "left", background: on ? "var(--hover)" : "var(--card)",
+                         border: `1px solid ${on ? "var(--navy)" : "var(--hair)"}`, borderRadius: 10,
                          padding: "9px 12px", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div style={{ minWidth: 96 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#182230" }}>{dayLabel(b.startTime)}</div>
-                  <div style={{ fontSize: 11, color: "#8a8577" }}>{timeLabel(b.startTime)}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{dayLabel(b.startTime)}</div>
+                  <div style={{ fontSize: 11, color: "var(--mute)" }}>{timeLabel(b.startTime)}</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#182230" }}>
-                    {f.orgName || <span style={{ color: "#a09a8c", fontWeight: 600 }}>Organization not given</span>}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                    {f.orgName || <span style={{ color: "var(--faint)", fontWeight: 600 }}>Organization not given</span>}
                   </div>
-                  <div style={{ fontSize: 11.5, color: "#4a5462" }}>
+                  <div style={{ fontSize: 11.5, color: "var(--sec)" }}>
                     {f.inviteeName || f.inviteeEmail}
                     {b.host?.name ? ` · with ${b.host.name}` : ""}
                   </div>
                   {(f.guests || []).length > 0 && (
                     // Surfaced on the list, not just inside the notes — a rep should be
                     // able to see a second attendee before generating anything.
-                    <div style={{ fontSize: 11, color: "#3a2c6e", marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: "var(--navy)", marginTop: 2 }}>
                       +{f.guests.length} guest{f.guests.length > 1 ? "s" : ""}: {f.guests.map(firstName).join(", ")}
                     </div>
                   )}
                 </div>
-                {on && <div style={{ fontSize: 11, fontWeight: 700, color: "#1e3a5f" }}>&#10003;</div>}
+                {on && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>&#10003;</div>}
               </button>
             );
           })}
