@@ -27,8 +27,35 @@ const CAMPAIGN_SLUGS = {
   'ca-csnsgp-fy26': 'CA Outreach – CSNSGP FY26',
   'xp-campaign': 'XP Campaign',
   'iowa-schools': 'Iowa Schools',
+  'remarket-fy27': 'Remarket FY27 – Non-Repliers',
 };
-const slugToName = (slug) => CAMPAIGN_SLUGS[(slug || '').trim().toLowerCase()] || (slug || null);
+
+// Tokens that stay upper-case when a slug is titled: the grant programs, and any
+// two-letter token, since campaigns are routinely cut by state (ca, tx, il).
+const SLUG_UPPER = new Set(['npsa', 'nsgp', 'csnsgp', 'fnpsg', 'xp']);
+
+const titleFromSlug = (slug) =>
+  slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((t) => {
+      if (SLUG_UPPER.has(t) || t.length === 2) return t.toUpperCase();
+      const fy = /^fy(\d{2,4})$/.exec(t);
+      if (fy) return `FY${fy[1]}`;
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    })
+    .join(' ');
+
+// CAMPAIGN_SLUGS is an OVERRIDE, not a requirement. Anything unmapped used to
+// render as the raw slug — "remarket-fy27" sat in the campaign column looking
+// like a bug — which meant every new campaign needed a deploy before it read
+// properly. Titling the slug instead means a campaign launched this morning is
+// legible this morning, and the map is only for names that need exact wording.
+const slugToName = (slug) => {
+  const key = (slug || '').trim().toLowerCase();
+  if (!key) return slug || null;
+  return CAMPAIGN_SLUGS[key] || titleFromSlug(key);
+};
 
 // ─────────────────────────────────────────────────────────────
 // 2. Schema (same CREATE IF NOT EXISTS pattern as letters/reps)
