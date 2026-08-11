@@ -29,6 +29,36 @@ const local = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 // An explicit escape hatch, so this origin stays reachable for debugging.
 const standalone = new URLSearchParams(window.location.search).has('standalone');
 
+/*
+ * Theme, handed down from the shell.
+ *
+ * The shell frames this app from a different origin, so its localStorage is not
+ * readable here — the toggle in its top bar has to be relayed. It posts on mount
+ * and on every change; this applies the class the stylesheet keys off, exactly
+ * as the shell does to its own <body>.
+ *
+ * The last value is remembered so a reload inside the frame doesn't flash light
+ * before the first message lands. Opened directly, ?theme=dark still works,
+ * which is what makes this screenshottable without the shell.
+ */
+const applyTheme = (mode) => {
+  document.body.classList.toggle('dark', mode === 'dark');
+  try { localStorage.setItem('npsa-theme', mode === 'dark' ? 'dark' : 'light'); } catch { /* private mode */ }
+};
+
+try {
+  const forced = new URLSearchParams(window.location.search).get('theme');
+  applyTheme(forced || localStorage.getItem('npsa-theme') || 'light');
+} catch { /* private mode */ }
+
+window.addEventListener('message', (e) => {
+  // Only the framing shell may restyle this app.
+  if (framed && e.source !== window.parent) return;
+  const data = e.data;
+  if (!data || data.type !== 'npsa:theme') return;
+  applyTheme(data.mode);
+});
+
 if (!framed && !local && !standalone && SHELL) {
   // replace, not assign: the back button should return where they came from,
   // not bounce them through this redirect a second time.

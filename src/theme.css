@@ -51,12 +51,67 @@
   --err-fg: #a3341f;
   --err-bg: #fbeee9;
 
+  /*
+   * The surface the letter sits ON, not the letter. The page itself is a
+   * client-facing document and stays white paper in either theme — only the
+   * desk around it moves, the way it would if you dimmed the room.
+   */
+  --desk: #e7e2d6;
+
+  /* Navy as a FILL. It stays navy in dark mode; --navy is the text/accent
+     sibling and lightens, which would be unreadable behind white type. */
+  --navycard: #1e3a5f;
+
   --shadow-card: 0 2px 12px rgba(60, 50, 30, 0.06);
   --shadow-card-hover: 0 14px 30px rgba(60, 50, 30, 0.1);
 
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/*
+ * Dark mode.
+ *
+ * Values are copied token-for-token from the shell's app/globals.css, not
+ * re-picked — this app renders inside that shell's iframe, so anything chosen
+ * independently would read as a different product one pixel away from it.
+ *
+ * The theme arrives by postMessage from the shell (see main.jsx); the class
+ * goes on <body>, exactly as it does there.
+ */
+body.dark {
+  --bg: #10161e;
+  --card: #1a2430;
+  --bd: #273244;
+  --bd2: #33415a;
+  --hair: #26313f;
+  --hair2: #222d3a;
+  --track: #242f3d;
+  --hover: #202b38;
+
+  --ink: #e8edf4;
+  --sec: #a7b4c6;
+  --mute: #8796aa;
+  --faint: #66748a;
+
+  /* the accessibility-validated brand siblings — dark mode only */
+  --navy: #4a8bc4;
+  --olive: #7d9c30;
+  --on-accent: #0e1620;
+
+  --ok-fg: #a8c860;
+  --ok-bg: #28331a;
+  --warn-fg: #e8bd6d;
+  --warn-bg: #33260a;
+  --err-fg: #f0a08c;
+  --err-bg: #3a1f19;
+
+  /* Dimmed further than the page so the white letter still reads as lit. */
+  --desk: #0b1016;
+
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 14px 30px rgba(0, 0, 0, 0.45);
 }
 
 html,
@@ -67,6 +122,53 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * The letter itself.
+ *
+ * A client-facing document that stays white paper with dark ink in either
+ * theme — only the desk under it dims. The background was already white, but
+ * the text colour was inheriting from <body>, so in dark mode any letter text
+ * that does not set its own colour came out pale on white. Most of it does set
+ * one, which is why this was invisible until it was measured.
+ *
+ * Pinned here rather than inline so the whole subtree is insulated: anything
+ * added to the letter later is light-on-paper by default, without whoever adds
+ * it having to know that dark mode exists.
+ */
+.npsa-paper {
+  background: #ffffff;
+  color: #1a1a1a;
+}
+
+/*
+ * Form controls.
+ *
+ * These carry an inline border and nothing else, so they were taking the
+ * browser's default white fill and near-black text — bright rectangles on a
+ * dark page. Setting them here rather than on seventeen inline styles keeps it
+ * to one rule, and inline borders still win where a control wants its own.
+ *
+ * Not scoped to .dark: in light mode these resolve to the same white and ink
+ * they already had, so there is one behaviour rather than a light path and a
+ * dark path that can drift.
+ */
+input,
+textarea,
+select {
+  background: var(--card);
+  color: var(--ink);
+  font-family: inherit;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+/* The date and time pickers' own glyphs are black-on-black otherwise. */
+body.dark input[type="date"]::-webkit-calendar-picker-indicator,
+body.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.85);
 }
 
 /* Screen titles pick up the shell's serif without touching each component. */

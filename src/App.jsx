@@ -96,6 +96,20 @@ export default function App() {
   // server re-reads it at generation time and a reschedule in between is caught.
   const [preCallEventUri, setPreCallEventUri] = useState(null);
   const [preCallShowDeadlines, setPreCallShowDeadlines] = useState(false);
+
+  /*
+   * The review editor is a srcDoc iframe — its own document, so this app's
+   * stylesheet and therefore its tokens are not in scope inside it. The desk
+   * colour has to be read out here and interpolated into the markup, which
+   * means tracking the theme class rather than just referencing var(--desk).
+   */
+  const [isDark, setIsDark] = useState(() => document.body.classList.contains('dark'));
+  useEffect(() => {
+    const ob = new MutationObserver(() => setIsDark(document.body.classList.contains('dark')));
+    ob.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => ob.disconnect();
+  }, []);
+  const deskColor = isDark ? '#0b1016' : 'var(--bd)';
   const [signerApprovalModal, setSignerApprovalModal] = useState(null); // {name, title} pending approval
   const [emailModal, setEmailModal] = useState(false);
   const [emailFields, setEmailFields] = useState({to:"", subject:"", message:""});
@@ -891,7 +905,7 @@ export default function App() {
     });
   };
   const SH = ({id}) => { const s=sections.find(x=>x.id===id); if(!s||!s.roman) return null;
-    return <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{s.roman} {s.title}</div>; };
+    return <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"var(--navy)",borderBottom:"2px solid var(--navy)",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{s.roman} {s.title}</div>; };
   const SubH = ({label}) => <div style={{fontSize:13,fontWeight:700,fontStyle:"italic",marginTop:14,marginBottom:6,color:"#333",pageBreakAfter:"avoid",breakAfter:"avoid"}}>{label}</div>;
   const Body = ({id,subId}) => {
     const raw = gc(id,subId);
@@ -904,7 +918,7 @@ export default function App() {
     return <>
       <div style={{marginBottom:8}}>{renderLines(parts[0].trimEnd())}</div>
       <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"12px 16px",margin:"10px 0 8px",fontFamily:"Georgia,serif",fontSize:12,lineHeight:1.7,color:"#222"}}>
-        <span style={{fontWeight:700,color:"#1e3a5f",fontSize:11,textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:5}}>Early Signing Discount</span>
+        <span style={{fontWeight:700,color:"var(--navy)",fontSize:11,textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:5}}>Early Signing Discount</span>
         {`A ${discAmt} early signing discount has been applied to the standard ${baseFee} consulting fee. To retain this discount, this Agreement must be executed on or before ${date}.`}
       </div>
       {parts[1]&&<div style={{marginBottom:8}}>{renderLines(parts[1].trimStart())}</div>}
@@ -1011,15 +1025,15 @@ export default function App() {
     <>
       {/* ── DASHBOARD ── */}
       {appView === 'dashboard' && (
-        <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)',display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <div style={{minHeight:'100vh',background:'var(--bg)',fontFamily:'var(--font-sans)',display:'flex',flexDirection:'column',alignItems:'center'}}>
           {/* Gear — top right */}
           {dbAvailable && (
             <div style={{width:'100%',maxWidth:720,padding:'20px 24px 0',boxSizing:'border-box',display:'flex',justifyContent:'flex-end'}}>
               <button onClick={()=>setAppView('settings')}
-                style={{background:'#fff',border:'1px solid #d9d5cc',borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',color:'#4a5462',cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.08)',transition:'color 0.2s, transform 0.3s'}}
+                style={{background:'var(--card)',border:'1px solid var(--bd2)',borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--sec)',cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.08)',transition:'color 0.2s, transform 0.3s'}}
                 title="Settings"
-                onMouseEnter={e=>{e.currentTarget.style.color='#182230';e.currentTarget.style.transform='rotate(60deg)';}}
-                onMouseLeave={e=>{e.currentTarget.style.color='#4a5462';e.currentTarget.style.transform='rotate(0deg)';}}>
+                onMouseEnter={e=>{e.currentTarget.style.color='var(--ink)';e.currentTarget.style.transform='rotate(60deg)';}}
+                onMouseLeave={e=>{e.currentTarget.style.color='var(--sec)';e.currentTarget.style.transform='rotate(0deg)';}}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
             </div>
@@ -1027,41 +1041,41 @@ export default function App() {
 
           {/* Welcome heading */}
           <div style={{textAlign:'center',padding:'20px 32px 16px'}}>
-            <div style={{fontSize:30,fontWeight:800,color:'#182230',letterSpacing:-0.5}}>Sales Toolbox</div>
-            <div style={{fontSize:15,color:'#4a5462',marginTop:6}}>Generate engagement documents and prep for calls — all in one place.</div>
+            <div style={{fontSize:30,fontWeight:800,color:'var(--ink)',letterSpacing:-0.5}}>Sales Toolbox</div>
+            <div style={{fontSize:15,color:'var(--sec)',marginTop:6}}>Generate engagement documents and prep for calls — all in one place.</div>
           </div>
 
           {/* All cards in one aligned container */}
           <div style={{width:'100%',maxWidth:720,padding:'0 24px 48px',boxSizing:'border-box'}}>
 
             {/* ── Engagement Letters ── */}
-            <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginBottom:14}}>Engagement Letters</div>
+            <div style={{fontSize:13,fontWeight:800,color:'var(--sec)',letterSpacing:0.6,textTransform:'uppercase',marginBottom:14}}>Engagement Letters</div>
 
             {/* Action cards */}
             <div style={{display:'flex',gap:18,marginBottom:18}}>
               <div onClick={()=>startNewLetter('inh')}
-                style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
+                style={{flex:1,background:'var(--card)',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                <div style={{width:56,height:56,borderRadius:15,background:'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'var(--navycard)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </div>
                 <div>
-                  <div style={{color:'#182230',fontWeight:700,fontSize:17}}>Generate New Letter</div>
-                  <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Start a new engagement letter from scratch</div>
+                  <div style={{color:'var(--ink)',fontWeight:700,fontSize:17}}>Generate New Letter</div>
+                  <div style={{color:'var(--mute)',fontSize:13,lineHeight:1.5,marginTop:2}}>Start a new engagement letter from scratch</div>
                 </div>
               </div>
               {dbAvailable && (
                 <div onClick={()=>{ fetchLetters(); setLetterSearch(''); setShowLetterBrowser(true); }}
-                  style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
+                  style={{flex:1,background:'var(--card)',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                   onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(122,140,30,0.25)';}}
                   onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                  <div style={{width:56,height:56,borderRadius:15,background:'#6b8e23',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
+                  <div style={{width:56,height:56,borderRadius:15,background:'var(--olive)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                   </div>
                   <div>
-                    <div style={{color:'#182230',fontWeight:700,fontSize:17}}>Load Previous Letter</div>
-                    <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Search and reload a saved draft</div>
+                    <div style={{color:'var(--ink)',fontWeight:700,fontSize:17}}>Load Previous Letter</div>
+                    <div style={{color:'var(--mute)',fontSize:13,lineHeight:1.5,marginTop:2}}>Search and reload a saved draft</div>
                   </div>
                 </div>
               )}
@@ -1071,31 +1085,31 @@ export default function App() {
             {dbAvailable && dashStats && (<>
               <div style={{display:'flex',gap:18,marginBottom:18}}>
                 <div onMouseEnter={()=>setLetterRoll(k=>k+1)}
-                  style={{flex:1,background:'#1e3a5f',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(26,37,64,0.3)',cursor:'default'}}>
+                  style={{flex:1,background:'var(--navycard)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(26,37,64,0.3)',cursor:'default'}}>
                   <div style={{color:'#fff',fontWeight:800,fontSize:42,lineHeight:1}}><RollUp value={dashStats.total} playToken={letterRoll} format={(n)=>Math.round(n).toLocaleString('en-US')} /></div>
                   <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Letters Generated</div>
                 </div>
                 <div onMouseEnter={()=>setFeeRoll(k=>k+1)}
-                  style={{flex:1,background:'#6b8e23',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(122,140,30,0.3)',cursor:'default'}}>
+                  style={{flex:1,background:'var(--olive)',borderRadius:18,padding:'24px 26px',boxShadow:'0 10px 28px rgba(122,140,30,0.3)',cursor:'default'}}>
                   <div style={{color:'#fff',fontWeight:800,fontSize:dashStats.total_fees>0?36:42,lineHeight:1}}><RollUp value={dashStats.total_fees} playToken={feeRoll} format={(n)=> dashStats.total_fees>0 ? '$'+Math.round(n).toLocaleString('en-US') : '—'} /></div>
                   <div style={{color:'rgba(255,255,255,0.75)',fontSize:12,marginTop:8,textTransform:'uppercase',letterSpacing:0.6,fontWeight:600}}>Total Fees Generated</div>
                 </div>
               </div>
 
               {dashStats.by_rep?.length > 0 && (
-                <div style={{background:'#fff',borderRadius:18,boxShadow:'0 4px 16px rgba(2,6,23,0.07)',overflow:'hidden',border:'1px solid rgba(255,255,255,0.8)'}}>
-                  <div style={{padding:'16px 24px',borderBottom:'1px solid #f0ede5',display:'flex',alignItems:'center',gap:9}}>
+                <div style={{background:'var(--card)',borderRadius:18,boxShadow:'0 4px 16px rgba(2,6,23,0.07)',overflow:'hidden',border:'1px solid rgba(255,255,255,0.8)'}}>
+                  <div style={{padding:'16px 24px',borderBottom:'1px solid var(--hair2)',display:'flex',alignItems:'center',gap:9}}>
                     <span style={{fontSize:19}}>&#127942;</span>
-                    <span style={{color:'#182230',fontWeight:700,fontSize:16}}>Rep Leaderboard</span>
+                    <span style={{color:'var(--ink)',fontWeight:700,fontSize:16}}>Rep Leaderboard</span>
                   </div>
                   {dashStats.by_rep.map((row, i) => (
-                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'15px 24px',borderBottom:i===dashStats.by_rep.length-1?'none':'1px solid #f0ede5',gap:14}}>
-                      <div style={{width:32,height:32,borderRadius:'50%',background:rankColors[i]||'#efece4',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,color:i<3?'#1a2540':'#a09a8c',flexShrink:0,boxShadow:i<3?'0 2px 8px rgba(0,0,0,0.12)':'none'}}>
+                    <div key={row.rep_name} style={{display:'flex',alignItems:'center',padding:'15px 24px',borderBottom:i===dashStats.by_rep.length-1?'none':'1px solid var(--hair2)',gap:14}}>
+                      <div style={{width:32,height:32,borderRadius:'50%',background:rankColors[i]||'var(--track)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13,color:i<3?'var(--navy)':'var(--faint)',flexShrink:0,boxShadow:i<3?'0 2px 8px rgba(0,0,0,0.12)':'none'}}>
                         {i+1}
                       </div>
-                      <div style={{flex:1,fontWeight:600,color:'#182230',fontSize:16}}>{row.rep_name}</div>
-                      <div style={{fontWeight:800,color:'#6b8e23',fontSize:17}}>{row.count}</div>
-                      <div style={{color:'#a09a8c',fontSize:13}}>{row.count === 1 ? 'letter' : 'letters'}</div>
+                      <div style={{flex:1,fontWeight:600,color:'var(--ink)',fontSize:16}}>{row.rep_name}</div>
+                      <div style={{fontWeight:800,color:'var(--olive)',fontSize:17}}>{row.count}</div>
+                      <div style={{color:'var(--faint)',fontSize:13}}>{row.count === 1 ? 'letter' : 'letters'}</div>
                     </div>
                   ))}
                 </div>
@@ -1103,46 +1117,46 @@ export default function App() {
             </>)}
 
             {/* ── Proposals & Addendums ── */}
-            <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginTop:34,marginBottom:14}}>Proposals &amp; Addendums</div>
+            <div style={{fontSize:13,fontWeight:800,color:'var(--sec)',letterSpacing:0.6,textTransform:'uppercase',marginTop:34,marginBottom:14}}>Proposals &amp; Addendums</div>
             <div style={{display:'flex',gap:18,marginBottom:18}}>
               <div onClick={()=>startNewLetter('proposal')}
-                style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
+                style={{flex:1,background:'var(--card)',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                <div style={{width:56,height:56,borderRadius:15,background:'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'var(--navycard)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(26,37,64,0.4)'}}>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m12 18-1.5-3-3-1.5 3-1.5L12 9l1.5 3 3 1.5-3 1.5z"/></svg>
                 </div>
                 <div>
-                  <div style={{color:'#182230',fontWeight:700,fontSize:17}}>New Proposal</div>
-                  <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>One-page leadership summary of scope &amp; price</div>
+                  <div style={{color:'var(--ink)',fontWeight:700,fontSize:17}}>New Proposal</div>
+                  <div style={{color:'var(--mute)',fontSize:13,lineHeight:1.5,marginTop:2}}>One-page leadership summary of scope &amp; price</div>
                 </div>
               </div>
               <div onClick={()=>startNewLetter('addendum')}
-                style={{flex:1,background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
+                style={{flex:1,background:'var(--card)',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(122,140,30,0.25)';}}
                 onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-                <div style={{width:56,height:56,borderRadius:15,background:'#6b8e23',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
+                <div style={{width:56,height:56,borderRadius:15,background:'var(--olive)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(122,140,30,0.4)'}}>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10.5 13.5a2.121 2.121 0 0 1 3 3L11 19l-2 .5.5-2Z"/></svg>
                 </div>
                 <div>
-                  <div style={{color:'#182230',fontWeight:700,fontSize:17}}>New Addendum</div>
-                  <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Remove Implementation Period services from a signed letter</div>
+                  <div style={{color:'var(--ink)',fontWeight:700,fontSize:17}}>New Addendum</div>
+                  <div style={{color:'var(--mute)',fontSize:13,lineHeight:1.5,marginTop:2}}>Remove Implementation Period services from a signed letter</div>
                 </div>
               </div>
             </div>
 
             {/* ── Tools ── */}
-            <div style={{fontSize:13,fontWeight:800,color:'#4a5462',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
+            <div style={{fontSize:13,fontWeight:800,color:'var(--sec)',letterSpacing:0.6,textTransform:'uppercase',marginTop:26,marginBottom:14}}>Tools</div>
             <div onClick={()=>{ setPreCallOutput(''); setPreCallMeta(null); setPreCallError(''); setPreCallForm({...defaultPreCallForm}); setPreCallCalendlyText(''); setPreCallViewMode('preview'); setPreCallEventUri(null); setAppView('precall'); }}
-              style={{background:'#fff',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
+              style={{background:'var(--card)',borderRadius:18,padding:'20px',cursor:'pointer',boxShadow:'0 4px 16px rgba(2,6,23,0.07)',transition:'transform 0.15s, box-shadow 0.15s',display:'flex',alignItems:'center',gap:16,border:'1px solid rgba(255,255,255,0.8)'}}
               onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 12px 32px rgba(26,37,64,0.22)';}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 16px rgba(2,6,23,0.07)';}}>
-              <div style={{width:56,height:56,borderRadius:15,background:'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(58,44,110,0.4)'}}>
+              <div style={{width:56,height:56,borderRadius:15,background:'var(--navycard)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 6px 16px rgba(58,44,110,0.4)'}}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.7 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0 1 22 16.92z"/></svg>
               </div>
               <div>
-                <div style={{color:'#182230',fontWeight:700,fontSize:17,display:'flex',alignItems:'center',gap:8}}>Pre-Call Notes Generator<span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span></div>
-                <div style={{color:'#8a8577',fontSize:13,lineHeight:1.5,marginTop:2}}>Paste a Calendly invite and generate AI-powered prep notes</div>
+                <div style={{color:'var(--ink)',fontWeight:700,fontSize:17,display:'flex',alignItems:'center',gap:8}}>Pre-Call Notes Generator<span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span></div>
+                <div style={{color:'var(--mute)',fontSize:13,lineHeight:1.5,marginTop:2}}>Paste a Calendly invite and generate AI-powered prep notes</div>
               </div>
             </div>
 
@@ -1163,16 +1177,16 @@ export default function App() {
 
       {/* ── PRE-CALL NOTES ── */}
       {appView === 'precall' && (
-  <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)'}}>
+  <div style={{minHeight:'100vh',background:'var(--bg)',fontFamily:'var(--font-sans)'}}>
     <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
       <button onClick={goBack}
-        style={{background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
+        style={{background:'var(--card)',border:'1px solid var(--bd)',borderRadius:10,padding:'9px 16px',color:'var(--sec)',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
         &#8592; Dashboard
       </button>
-      <div style={{color:'#182230',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
+      <div style={{color:'var(--ink)',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
       <span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span>
       <button onClick={()=>setPreCallShowDeadlines(true)}
-        style={{marginLeft:'auto',background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
+        style={{marginLeft:'auto',background:'var(--card)',border:'1px solid var(--bd)',borderRadius:10,padding:'9px 16px',color:'var(--sec)',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
         &#128197; Deadlines
       </button>
     </div>
@@ -1195,12 +1209,12 @@ export default function App() {
           }}/>
 
         {/* Import from Calendly — the fallback for a meeting booked another way. */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'16px 20px 18px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:8}}>&#128248; Or Paste a Calendly Invite</div>
-          <div style={{fontSize:12,color:'#8a8577',marginBottom:8}}>For a meeting that is not on the list above. Paste the notification email and click Parse — it fills the form below. Details read from a pasted email are less reliable than a booking picked above.</div>
+        <div style={{background:'var(--card)',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid var(--hair2)',padding:'16px 20px 18px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'var(--ink)',marginBottom:8}}>&#128248; Or Paste a Calendly Invite</div>
+          <div style={{fontSize:12,color:'var(--mute)',marginBottom:8}}>For a meeting that is not on the list above. Paste the notification email and click Parse — it fills the form below. Details read from a pasted email are less reliable than a booking picked above.</div>
           <textarea value={preCallCalendlyText} onChange={e=>setPreCallCalendlyText(e.target.value)}
             placeholder="Paste full Calendly invite email here..."
-            style={{width:'100%',minHeight:140,border:'1px solid #d9d5cc',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'var(--font-sans)',lineHeight:1.5}}/>
+            style={{width:'100%',minHeight:140,border:'1px solid var(--bd2)',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'var(--font-sans)',lineHeight:1.5}}/>
           <button onClick={async()=>{
             if(!preCallCalendlyText.trim()) return;
             setPreCallParsing(true);
@@ -1222,31 +1236,31 @@ export default function App() {
             } catch(e){ setPreCallError('Could not parse invite: '+e.message); }
             setPreCallParsing(false);
           }} disabled={preCallParsing}
-            style={{marginTop:10,background:preCallParsing?'#a09a8c':'#1a2540',color:'#fff',border:'none',borderRadius:8,padding:'9px 20px',fontSize:13,fontWeight:700,cursor:preCallParsing?'default':'pointer'}}>
+            style={{marginTop:10,background:preCallParsing?'var(--faint)':'var(--navy)',color:'#fff',border:'none',borderRadius:8,padding:'9px 20px',fontSize:13,fontWeight:700,cursor:preCallParsing?'default':'pointer'}}>
             {preCallParsing?'Parsing…':'Parse & Fill Form'}
           </button>
         </div>
 
         {/* Organization */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:14}}>Organization</div>
+        <div style={{background:'var(--card)',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid var(--hair2)',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'var(--ink)',marginBottom:14}}>Organization</div>
           <div style={{display:'flex',gap:10,marginBottom:10}}>
             <div style={{flex:2}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Organization Name *</label>
+              <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Organization Name *</label>
               <input value={preCallForm.orgName} onChange={e=>setPCF('orgName',e.target.value)} placeholder="e.g. iThrive Christian Church"
-                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>State</label>
+              <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>State</label>
               <input value={preCallForm.orgState} onChange={e=>setPCF('orgState',e.target.value)} placeholder="GA"
-                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
           </div>
           <div style={{display:'flex',gap:10,marginBottom:10}}>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Type</label>
+              <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Type</label>
               <select value={preCallForm.orgType} onChange={e=>setPCF('orgType',e.target.value)}
-                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',background:'#fff'}}>
+                style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',background:'var(--card)'}}>
                 <option value="church">Church</option>
                 <option value="school">School</option>
                 <option value="other">Other Nonprofit</option>
@@ -1254,89 +1268,89 @@ export default function App() {
             </div>
           </div>
           <div>
-            <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Website URL <span style={{color:'#6b8e23',fontWeight:600}}>(recommended — AI uses this to find titles &amp; addresses)</span></label>
+            <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Website URL <span style={{color:'var(--olive)',fontWeight:600}}>(recommended — AI uses this to find titles &amp; addresses)</span></label>
             <input value={preCallForm.websiteUrl} onChange={e=>setPCF('websiteUrl',e.target.value)} placeholder="https://ithrivecc.org"
-              style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
-            <div style={{fontSize:11,color:'#a09a8c',marginTop:4}}>Leave blank and the AI will try to find the site automatically from the org name.</div>
+              style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+            <div style={{fontSize:11,color:'var(--faint)',marginTop:4}}>Leave blank and the AI will try to find the site automatically from the org name.</div>
           </div>
         </div>
 
         {/* Meeting Details */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:14}}>Meeting Details</div>
+        <div style={{background:'var(--card)',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid var(--hair2)',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'var(--ink)',marginBottom:14}}>Meeting Details</div>
           <div style={{display:'flex',gap:10,marginBottom:10}}>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Date</label>
+              <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Date</label>
               <input type="date" value={preCallForm.meetingDate} onChange={e=>setPCF('meetingDate',e.target.value)}
-                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Time (Central)</label>
+              <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Time (Central)</label>
               <input type="time" value={preCallForm.meetingTime} onChange={e=>setPCF('meetingTime',e.target.value)}
-                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
           </div>
           <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Video Conference Link</label>
+            <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Video Conference Link</label>
             <input value={preCallForm.zoomUrl} onChange={e=>setPCF('zoomUrl',e.target.value)} placeholder="https://zoom.us/j/... or teams.microsoft.com/..."
-              style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+              style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
           </div>
           <div style={{display:'flex',gap:10}}>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Meeting ID</label>
+              <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Meeting ID</label>
               <input value={preCallForm.zoomId} onChange={e=>setPCF('zoomId',e.target.value)} placeholder="815-052-42724"
-                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
             <div style={{flex:1}}>
-              <label style={{fontSize:11,color:'#8a8577',display:'block',marginBottom:3}}>Passcode</label>
+              <label style={{fontSize:11,color:'var(--mute)',display:'block',marginBottom:3}}>Passcode</label>
               <input value={preCallForm.zoomPassword} onChange={e=>setPCF('zoomPassword',e.target.value)} placeholder="408098"
-                style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'8px 12px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
             </div>
           </div>
         </div>
 
         {/* Attendees */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:4}}>Organization Attendees</div>
-          <div style={{fontSize:12,color:'#8a8577',marginBottom:12}}>The AI will look up their titles from the website.</div>
+        <div style={{background:'var(--card)',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid var(--hair2)',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'var(--ink)',marginBottom:4}}>Organization Attendees</div>
+          <div style={{fontSize:12,color:'var(--mute)',marginBottom:12}}>The AI will look up their titles from the website.</div>
           {(preCallForm.attendees||[]).map((att,idx)=>(
             <div key={idx} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
               <div style={{flex:2}}>
-                {idx===0&&<label style={{fontSize:10,color:'#a09a8c',display:'block',marginBottom:2}}>Name</label>}
+                {idx===0&&<label style={{fontSize:10,color:'var(--faint)',display:'block',marginBottom:2}}>Name</label>}
                 <input value={att.name} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],name:e.target.value};setPCF('attendees',a);}} placeholder="Full Name"
-                  style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                  style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
               </div>
               <div style={{flex:2}}>
-                {idx===0&&<label style={{fontSize:10,color:'#a09a8c',display:'block',marginBottom:2}}>Email</label>}
+                {idx===0&&<label style={{fontSize:10,color:'var(--faint)',display:'block',marginBottom:2}}>Email</label>}
                 <input value={att.email} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],email:e.target.value};setPCF('attendees',a);}} placeholder="email@org.org"
-                  style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                  style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
               </div>
               <div style={{flex:2}}>
-                {idx===0&&<label style={{fontSize:10,color:'#a09a8c',display:'block',marginBottom:2}}>Phone</label>}
+                {idx===0&&<label style={{fontSize:10,color:'var(--faint)',display:'block',marginBottom:2}}>Phone</label>}
                 <input value={att.phone} onChange={e=>{const a=[...preCallForm.attendees];a[idx]={...a[idx],phone:e.target.value};setPCF('attendees',a);}} placeholder="404-555-0000"
-                  style={{width:'100%',border:'1px solid #d9d5cc',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+                  style={{width:'100%',border:'1px solid var(--bd2)',borderRadius:8,padding:'7px 10px',fontSize:13,outline:'none',boxSizing:'border-box'}}/>
               </div>
               {(preCallForm.attendees||[]).length>1&&(
                 <button onClick={()=>setPCF('attendees',(preCallForm.attendees||[]).filter((_,i)=>i!==idx))}
-                  style={{background:'none',border:'1px solid #d9a99c',borderRadius:8,color:'#a3341f',cursor:'pointer',padding:'7px 10px',fontSize:12,marginTop:idx===0?16:0}}>✕</button>
+                  style={{background:'none',border:'1px solid #d9a99c',borderRadius:8,color:'var(--err-fg)',cursor:'pointer',padding:'7px 10px',fontSize:12,marginTop:idx===0?16:0}}>✕</button>
               )}
             </div>
           ))}
           <button onClick={()=>setPCF('attendees',[...(preCallForm.attendees||[]),{name:'',email:'',phone:''}])}
-            style={{background:'none',border:'1px dashed #8796aa',borderRadius:8,padding:'7px 16px',fontSize:12,color:'#4a5462',cursor:'pointer',marginTop:4}}>+ Add Attendee</button>
+            style={{background:'none',border:'1px dashed #8796aa',borderRadius:8,padding:'7px 16px',fontSize:12,color:'var(--sec)',cursor:'pointer',marginTop:4}}>+ Add Attendee</button>
         </div>
 
         {/* Additional Context */}
-        <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid #f0ede5',padding:'18px 20px'}}>
-          <div style={{fontWeight:700,fontSize:14,color:'#182230',marginBottom:4}}>Additional Context <span style={{fontWeight:400,color:'#a09a8c',fontSize:12}}>(optional)</span></div>
-          <div style={{fontSize:12,color:'#8a8577',marginBottom:8}}>Anything the rep already knows about the org or meeting that the AI should factor in.</div>
+        <div style={{background:'var(--card)',borderRadius:14,boxShadow:'0 2px 12px rgba(2,6,23,0.06)',border:'1px solid var(--hair2)',padding:'18px 20px'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'var(--ink)',marginBottom:4}}>Additional Context <span style={{fontWeight:400,color:'var(--faint)',fontSize:12}}>(optional)</span></div>
+          <div style={{fontSize:12,color:'var(--mute)',marginBottom:8}}>Anything the rep already knows about the org or meeting that the AI should factor in.</div>
           <textarea value={preCallForm.extraNotes} onChange={e=>setPCF('extraNotes',e.target.value)}
             placeholder="e.g. They were referred by First Baptist Rockford. The pastor mentioned they had a break-in last year..."
-            style={{width:'100%',minHeight:80,border:'1px solid #d9d5cc',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'var(--font-sans)',lineHeight:1.5}}/>
+            style={{width:'100%',minHeight:80,border:'1px solid var(--bd2)',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',boxSizing:'border-box',resize:'vertical',fontFamily:'var(--font-sans)',lineHeight:1.5}}/>
         </div>
 
         {/* Generate Button */}
-        {preCallError&&<div style={{color:'#a3341f',background:'#fff5f5',border:'1px solid #f5c6c6',borderRadius:8,padding:'10px 14px',fontSize:13}}>{preCallError}</div>}
+        {preCallError&&<div style={{color:'var(--err-fg)',background:'var(--err-bg)',border:'1px solid var(--err-fg)',borderRadius:8,padding:'10px 14px',fontSize:13}}>{preCallError}</div>}
         <button onClick={async()=>{
           if(!preCallForm.orgName.trim()){ setPreCallError('Enter an organization name.'); return; }
           setPreCallError(''); setPreCallLoading(true); setPreCallOutput(''); setPreCallMeta(null);
@@ -1350,11 +1364,11 @@ export default function App() {
           } catch(err){ setPreCallError(err.message||'Generation failed'); }
           setPreCallLoading(false);
         }} disabled={preCallLoading}
-          style={{background:preCallLoading?'#a09a8c':'#1e3a5f',color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:700,cursor:preCallLoading?'default':'pointer',boxShadow:'0 4px 14px rgba(58,44,110,0.3)',width:'100%'}}>
+          style={{background:preCallLoading?'var(--faint)':'var(--navy)',color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:700,cursor:preCallLoading?'default':'pointer',boxShadow:'0 4px 14px rgba(58,44,110,0.3)',width:'100%'}}>
           {preCallLoading?'Researching organization & generating notes…':'Generate Pre-Call Notes'}
         </button>
         {preCallMeta&&(
-          <div style={{fontSize:12,color:'#8a8577',textAlign:'center'}}>
+          <div style={{fontSize:12,color:'var(--mute)',textAlign:'center'}}>
             {preCallMeta.websiteFetched?`✓ Website research completed: ${preCallMeta.website}`:`⚠ Could not fetch ${preCallMeta.website||'website'} — some fields may be TBD`}
           </div>
         )}
@@ -1365,21 +1379,21 @@ export default function App() {
         <div style={{flex:'1 1 420px'}}>
           {/* Toolbar row */}
           <div style={{display:'flex',gap:10,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#182230',flex:1}}>Pre-Call Notes</div>
+            <div style={{fontWeight:700,fontSize:15,color:'var(--ink)',flex:1}}>Pre-Call Notes</div>
             {/* Preview / Edit toggle */}
-            <div style={{display:'flex',background:'#f0ede5',borderRadius:8,padding:2}}>
+            <div style={{display:'flex',background:'var(--hair2)',borderRadius:8,padding:2}}>
               <button onClick={()=>setPreCallViewMode('preview')}
-                style={{background:preCallViewMode==='preview'?'#fff':'transparent',color:preCallViewMode==='preview'?'#1a2540':'#8a8577',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='preview'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
+                style={{background:preCallViewMode==='preview'?'#fff':'transparent',color:preCallViewMode==='preview'?'var(--navy)':'var(--mute)',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='preview'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
                 Preview
               </button>
               <button onClick={()=>setPreCallViewMode('edit')}
-                style={{background:preCallViewMode==='edit'?'#fff':'transparent',color:preCallViewMode==='edit'?'#1a2540':'#8a8577',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='edit'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
+                style={{background:preCallViewMode==='edit'?'#fff':'transparent',color:preCallViewMode==='edit'?'var(--navy)':'var(--mute)',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',boxShadow:preCallViewMode==='edit'?'0 1px 4px rgba(2,6,23,0.1)':'none'}}>
                 Edit
               </button>
             </div>
             <button onClick={async()=>{
               const orgName=preCallForm.orgName||'NPSA';
-              const html=`<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif}h1{font-size:18pt;color:#182230}h2{font-size:11pt;color:#1e3a5f;border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin-top:16pt;text-transform:uppercase}h3{font-size:11pt;color:#182230}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:#182230}a{color:#1e3a5f}</style></head><body>${marked(preCallOutput)}</body></html>`;
+              const html=`<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif}h1{font-size:18pt;color:var(--ink)}h2{font-size:11pt;color:var(--navy);border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin-top:16pt;text-transform:uppercase}h3{font-size:11pt;color:var(--ink)}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:var(--ink)}a{color:var(--navy)}</style></head><body>${marked(preCallOutput)}</body></html>`;
               setPreCallDownloading(true);
               try {
                 const r=await fetch('/api/precall/docx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({html,filename:`Pre-Call Notes - ${orgName}`})});
@@ -1392,20 +1406,20 @@ export default function App() {
               } catch(e){ alert('Download failed: '+e.message); }
               setPreCallDownloading(false);
             }} disabled={preCallDownloading}
-              style={{background:preCallDownloading?'#a09a8c':'#fff',color:preCallDownloading?'#fff':'#1e3a5f',border:'1px solid #1e3a5f',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:preCallDownloading?'default':'pointer'}}>
+              style={{background:preCallDownloading?'var(--faint)':'#fff',color:preCallDownloading?'#fff':'var(--navy)',border:'1px solid var(--navy)',borderRadius:8,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:preCallDownloading?'default':'pointer'}}>
               {preCallDownloading?'Generating…':'⬇ Download .docx'}
             </button>
           </div>
 
           {/* Notes preview / edit */}
           {preCallViewMode==='preview' ? (
-            <div style={{background:'#fff',border:'1px solid #f0ede5',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)'}}
+            <div style={{background:'var(--card)',border:'1px solid var(--hair2)',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)'}}
               dangerouslySetInnerHTML={{__html: renderPreCallHtml(preCallOutput)}}/>
           ) : (
             <>
-              <div style={{fontSize:11.5,color:'#a09a8c',marginBottom:6}}>Markdown — use <code>##</code> for sections, <code>-</code> for bullets, <code>**bold**</code>. Switch to Preview to see it formatted.</div>
+              <div style={{fontSize:11.5,color:'var(--faint)',marginBottom:6}}>Markdown — use <code>##</code> for sections, <code>-</code> for bullets, <code>**bold**</code>. Switch to Preview to see it formatted.</div>
               <textarea value={preCallOutput} onChange={e=>setPreCallOutput(e.target.value)}
-                style={{width:'100%',minHeight:700,border:'1px solid #f0ede5',borderRadius:14,padding:'22px 26px',fontSize:13,lineHeight:1.65,color:'#182230',fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
+                style={{width:'100%',minHeight:700,border:'1px solid var(--hair2)',borderRadius:14,padding:'22px 26px',fontSize:13,lineHeight:1.65,color:'var(--ink)',fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace',boxSizing:'border-box',boxShadow:'0 4px 16px rgba(2,6,23,0.06)',outline:'none',resize:'vertical'}}/>
             </>
           )}
 
@@ -1431,7 +1445,7 @@ export default function App() {
               setSavedLetterOverride(null);
               setAppView('generator');
             }}
-              style={{flex:1,minWidth:180,background:'#1e3a5f',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:'pointer',boxShadow:'0 3px 10px rgba(26,74,110,0.25)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              style={{flex:1,minWidth:180,background:'var(--navycard)',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:'pointer',boxShadow:'0 3px 10px rgba(26,74,110,0.25)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
               <span style={{fontSize:16}}>&#128196;</span> Start Engagement Letter
             </button>
 
@@ -1447,7 +1461,7 @@ export default function App() {
               } catch(e){ alert('Could not generate email: '+e.message); }
               setPreCallFollowUpLoading(false);
             }} disabled={preCallFollowUpLoading}
-              style={{flex:1,minWidth:180,background:preCallFollowUpLoading?'#a09a8c':'#6b8e23',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:preCallFollowUpLoading?'default':'pointer',boxShadow:'0 3px 10px rgba(45,122,79,0.22)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              style={{flex:1,minWidth:180,background:preCallFollowUpLoading?'var(--faint)':'var(--olive)',color:'#fff',border:'none',borderRadius:10,padding:'13px 20px',fontSize:13.5,fontWeight:700,cursor:preCallFollowUpLoading?'default':'pointer',boxShadow:'0 3px 10px rgba(45,122,79,0.22)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
               <span style={{fontSize:16}}>&#9993;</span> {preCallFollowUpLoading?'Drafting…':'Draft Follow-up Email'}
             </button>
           </div>
@@ -1468,7 +1482,7 @@ export default function App() {
                   setPreCallFollowUpCopied(true);
                   setTimeout(()=>setPreCallFollowUpCopied(false),2500);
                 }}
-                  style={{background:preCallFollowUpCopied?'#6b8e23':'#fff',color:preCallFollowUpCopied?'#fff':'#6b8e23',border:'1px solid #6b8e23',borderRadius:8,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',transition:'all .2s'}}>
+                  style={{background:preCallFollowUpCopied?'var(--olive)':'#fff',color:preCallFollowUpCopied?'#fff':'var(--olive)',border:'1px solid var(--olive)',borderRadius:8,padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer',transition:'all .2s'}}>
                   {preCallFollowUpCopied?'✓ Copied!':'Copy Email'}
                 </button>
               </div>
@@ -1484,29 +1498,29 @@ export default function App() {
 
       {/* ── SETTINGS ── */}
       {appView === 'settings' && (
-        <div style={{minHeight:'100vh',background:'#fbfaf8',fontFamily:'var(--font-sans)'}}>
+        <div style={{minHeight:'100vh',background:'var(--bg)',fontFamily:'var(--font-sans)'}}>
           <div style={{padding:'24px 32px 0',display:'flex',alignItems:'center',gap:14}}>
             <button onClick={goBack}
-              style={{background:'#fff',border:'1px solid #e7e2d6',borderRadius:10,padding:'9px 16px',color:'#4a5462',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
+              style={{background:'var(--card)',border:'1px solid var(--bd)',borderRadius:10,padding:'9px 16px',color:'var(--sec)',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
               &#8592; Dashboard
             </button>
-            <div style={{color:'#182230',fontWeight:800,fontSize:22}}>Settings</div>
+            <div style={{color:'var(--ink)',fontWeight:800,fontSize:22}}>Settings</div>
           </div>
           <div style={{maxWidth:540,margin:'32px auto',padding:'0 24px'}}>
-            <div style={{background:'#fff',borderRadius:18,boxShadow:'0 6px 24px rgba(2,6,23,0.06)',overflow:'hidden',border:'1px solid #f0ede5'}}>
-              <div style={{padding:'18px 26px',borderBottom:'1px solid #f0ede5',display:'flex',alignItems:'center',gap:9}}>
+            <div style={{background:'var(--card)',borderRadius:18,boxShadow:'0 6px 24px rgba(2,6,23,0.06)',overflow:'hidden',border:'1px solid var(--hair2)'}}>
+              <div style={{padding:'18px 26px',borderBottom:'1px solid var(--hair2)',display:'flex',alignItems:'center',gap:9}}>
                 <span style={{fontSize:18}}>&#128101;</span>
-                <span style={{color:'#182230',fontWeight:700,fontSize:16}}>Sales Reps</span>
+                <span style={{color:'var(--ink)',fontWeight:700,fontSize:16}}>Sales Reps</span>
               </div>
               <div style={{padding:'22px 26px'}}>
                 {reps.length === 0 && (
-                  <div style={{color:'#a09a8c',fontSize:14,marginBottom:18}}>No reps added yet. Add your first rep below.</div>
+                  <div style={{color:'var(--faint)',fontSize:14,marginBottom:18}}>No reps added yet. Add your first rep below.</div>
                 )}
                 {reps.map(rep => (
-                  <div key={rep.id} style={{display:'flex',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f0ede5',gap:8}}>
-                    <div style={{flex:1,fontSize:15,color:'#182230',fontWeight:600}}>{rep.name}</div>
+                  <div key={rep.id} style={{display:'flex',alignItems:'center',padding:'12px 0',borderBottom:'1px solid var(--hair2)',gap:8}}>
+                    <div style={{flex:1,fontSize:15,color:'var(--ink)',fontWeight:600}}>{rep.name}</div>
                     <button onClick={()=>deleteRep(rep.id)}
-                      style={{background:'none',border:'1px solid #d9a99c',color:'#a3341f',borderRadius:8,padding:'6px 14px',fontSize:12.5,cursor:'pointer',fontWeight:600}}>
+                      style={{background:'none',border:'1px solid #d9a99c',color:'var(--err-fg)',borderRadius:8,padding:'6px 14px',fontSize:12.5,cursor:'pointer',fontWeight:600}}>
                       Remove
                     </button>
                   </div>
@@ -1515,9 +1529,9 @@ export default function App() {
                   <input value={newRepName} onChange={e=>setNewRepName(e.target.value)}
                     onKeyDown={e=>e.key==='Enter'&&addRep()}
                     placeholder="Rep name..."
-                    style={{flex:1,border:'1px solid #d9d5cc',borderRadius:10,padding:'10px 14px',fontSize:14,outline:'none'}}/>
+                    style={{flex:1,border:'1px solid var(--bd2)',borderRadius:10,padding:'10px 14px',fontSize:14,outline:'none'}}/>
                   <button onClick={addRep}
-                    style={{background:'#1e3a5f',color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 14px rgba(26,37,64,0.3)'}}>
+                    style={{background:'var(--navycard)',color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 14px rgba(26,37,64,0.3)'}}>
                     Add Rep
                   </button>
                 </div>
@@ -1578,9 +1592,9 @@ export default function App() {
       />
       {/* ── REVIEW & EDIT MODE ── */}
       {reviewMode && (
-        <div style={{flex:1,display:"flex",flexDirection:"column",background:"#e7e2d6"}}>
+        <div style={{flex:1,display:"flex",flexDirection:"column",background:"var(--bd)"}}>
           {/* Toolbar */}
-          <div style={{background:"#1e3a5f",color:"#fff",padding:"12px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
+          <div style={{background:"var(--navycard)",color:"#fff",padding:"12px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
             <span style={{fontWeight:700,fontSize:14}}>Review &amp; Edit Mode</span>
             <span style={{opacity:0.75,fontSize:12}}>Click anywhere in the document to edit. Click "Save to Letter" to apply your changes.</span>
             <div style={{marginLeft:"auto",display:"flex",gap:10}}>
@@ -1604,12 +1618,12 @@ export default function App() {
             </div>
           </div>
           {/* Editable iframe */}
-          <iframe ref={reviewIframeRef} style={{flex:1,border:"none",background:"#e7e2d6"}}
+          <iframe ref={reviewIframeRef} style={{flex:1,border:"none",background:"var(--desk)"}}
             srcDoc={`<!DOCTYPE html><html><head><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Ms+Madi&display=swap" rel="stylesheet"><style>
-              body{margin:0;padding:40px;background:#e7e2d6;font-family:Georgia,serif;}
-              #editable-body{max-width:800px;margin:0 auto;background:#fff;padding:64px 72px;box-shadow:0 4px 32px rgba(0,0,0,0.13);outline:none;font-size:13px;line-height:1.75;color:#1a1a1a;}
+              body{margin:0;padding:40px;background:${deskColor};font-family:Georgia,serif;}
+              #editable-body{max-width:800px;margin:0 auto;background:var(--card);padding:64px 72px;box-shadow:0 4px 32px rgba(0,0,0,0.13);outline:none;font-size:13px;line-height:1.75;color:#1a1a1a;}
               #editable-body:focus{outline:none;}
-              @media print{body{margin:0;padding:0;background:#fff;}#editable-body{box-shadow:none;padding:72pt;max-width:100%;}}
+              @media print{body{margin:0;padding:0;background:var(--card);}#editable-body{box-shadow:none;padding:72pt;max-width:100%;}}
             </style></head><body>
               <div id="editable-body" contenteditable="true">${reviewHtml}</div>
             </body></html>`}
@@ -1617,8 +1631,8 @@ export default function App() {
         </div>
       )}
       {/* ── PREVIEW ── */}
-      <div className="wz-preview" style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"#e7e2d6",display:reviewMode?"none":"flex",flexDirection:"column"}}>
-        <div style={{maxWidth:800,margin:"0 auto",background:"#fff",boxShadow:"0 4px 32px rgba(0,0,0,0.13)",padding:"64px 72px"}} ref={previewRef}>
+      <div className="wz-preview" style={{flex:1,overflowY:"auto",padding:"0 40px 40px",background:"var(--desk)",display:reviewMode?"none":"flex",flexDirection:"column"}}>
+        <div className="npsa-paper" style={{maxWidth:800,margin:"0 auto",boxShadow:"0 4px 32px rgba(0,0,0,0.13)",padding:"64px 72px"}} ref={previewRef}>
           {savedLetterOverride ? <div dangerouslySetInnerHTML={{__html: savedLetterOverride}} /> : isProposal ? (()=>{
             const pgYear = proposalProgs[0]?.year || form.grantYear;
             const isDisc = form.pricingTier==="discounted" && fees.discount>0;
@@ -2330,9 +2344,9 @@ export default function App() {
       {/* ── SIGNER APPROVAL MODAL ── */}
       {signerApprovalModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:400,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)",textAlign:"center"}}>
+          <div style={{background:"var(--card)",borderRadius:10,padding:"32px 36px",maxWidth:400,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)",textAlign:"center"}}>
             <div style={{fontSize:36,marginBottom:12,color:"#e8bd6d",fontWeight:700}}>(!)</div>
-            <div style={{fontWeight:700,fontSize:17,color:"#182230",marginBottom:10}}>Management Approval Required</div>
+            <div style={{fontWeight:700,fontSize:17,color:"var(--ink)",marginBottom:10}}>Management Approval Required</div>
             <div style={{fontSize:14,color:"#444",marginBottom:8,lineHeight:1.6}}>
               You're changing the authorized signer to <strong>{signerApprovalModal.name}</strong>.
             </div>
@@ -2345,7 +2359,7 @@ export default function App() {
                 Cancel
               </button>
               <button onClick={()=>{setF("npsaSignerName",signerApprovalModal.name);setF("npsaSignerTitle",signerApprovalModal.title);setSignerApprovalModal(null);}}
-                style={{padding:"9px 22px",borderRadius:6,border:"none",background:"#1a3a6e",fontSize:13,cursor:"pointer",fontWeight:700,color:"#fff"}}>
+                style={{padding:"9px 22px",borderRadius:6,border:"none",background:"var(--navycard)",fontSize:13,cursor:"pointer",fontWeight:700,color:"#fff"}}>
                 Yes, Approved
               </button>
             </div>
@@ -2356,8 +2370,8 @@ export default function App() {
       {/* ── EMAIL MODAL ── */}
       {emailModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:460,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
-            <div style={{fontWeight:700,fontSize:16,color:"#182230",marginBottom:4}}>Email to Grant Writer</div>
+          <div style={{background:"var(--card)",borderRadius:10,padding:"32px 36px",maxWidth:460,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
+            <div style={{fontWeight:700,fontSize:16,color:"var(--ink)",marginBottom:4}}>Email to Grant Writer</div>
             <div style={{fontSize:12,color:"#777",marginBottom:20,lineHeight:1.5}}>Your default email client will open with these fields pre-filled. Attach the downloaded GW document before sending.</div>
             {[
               {label:"To", key:"to", placeholder:"grantwriter@example.com"},
@@ -2389,12 +2403,12 @@ export default function App() {
                   window.location.href = mailto;
                   setEmailModal(false);
                 }}
-                  style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:"#1e3a5f",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:"var(--navycard)",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                   Open in Email Client
                 </button>
               </div>
               <button onClick={()=>{ handlePrint(); }}
-                style={{width:"100%",padding:"10px 0",borderRadius:8,border:"1px solid #1e3a5f",background:"#fff",color:"#1e3a5f",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                style={{width:"100%",padding:"10px 0",borderRadius:8,border:"1px solid var(--navy)",background:"var(--card)",color:"var(--navy)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 Download Form First
               </button>
             </div>
@@ -2404,11 +2418,11 @@ export default function App() {
       {/* ── SAVE MODAL ── */}
       {showSaveModal && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}}>
-          <div style={{background:"#fff",borderRadius:10,padding:"32px 36px",maxWidth:420,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
-            <div style={{fontWeight:700,fontSize:16,color:"#182230",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
+          <div style={{background:"var(--card)",borderRadius:10,padding:"32px 36px",maxWidth:420,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
+            <div style={{fontWeight:700,fontSize:16,color:"var(--ink)",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
             <div style={{fontSize:12,color:"#777",marginBottom:pendingPrintAfterSave?12:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
             {pendingPrintAfterSave && (
-              <div style={{background:"#eef4fb",border:"1px solid #b8cde4",borderRadius:6,padding:"10px 12px",fontSize:12,color:"#1e3a5f",marginBottom:20,lineHeight:1.5}}>
+              <div style={{background:"#eef4fb",border:"1px solid #b8cde4",borderRadius:6,padding:"10px 12px",fontSize:12,color:"var(--navy)",marginBottom:20,lineHeight:1.5}}>
                 {currentLetterId
                   ? "This letter has unsaved changes. Save the update and the download will start automatically."
                   : "Letters must be saved before they can be downloaded. Pick the rep and the download will start automatically."}
@@ -2417,12 +2431,12 @@ export default function App() {
             <div style={{marginBottom:20}}>
               <label style={{fontSize:12,fontWeight:600,color:"#444",display:"block",marginBottom:6}}>Sales Rep</label>
               {reps.length === 0 ? (
-                <div style={{fontSize:12,color:"#a3341f",background:"#fff5f5",border:"1px solid #f5c6c6",borderRadius:6,padding:"10px 12px"}}>
+                <div style={{fontSize:12,color:"var(--err-fg)",background:"var(--err-bg)",border:"1px solid var(--err-fg)",borderRadius:6,padding:"10px 12px"}}>
                   No reps configured. Go to Settings to add reps first.
                 </div>
               ) : (
                 <select value={selectedRep} onChange={e=>setSelectedRep(e.target.value)}
-                  style={{width:"100%",border:"1px solid #ccc",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",background:"#fff"}}>
+                  style={{width:"100%",border:"1px solid #ccc",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",background:"var(--card)"}}>
                   <option value="">— Select rep —</option>
                   {reps.map(r=><option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
@@ -2434,7 +2448,7 @@ export default function App() {
                 Cancel
               </button>
               <button onClick={saveLetter} disabled={!selectedRep}
-                style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:selectedRep?"#1a2540":"#ccc",color:"#fff",fontSize:13,fontWeight:700,cursor:selectedRep?"pointer":"not-allowed"}}>
+                style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:selectedRep?"var(--navy)":"#ccc",color:"#fff",fontSize:13,fontWeight:700,cursor:selectedRep?"pointer":"not-allowed"}}>
                 {pendingPrintAfterSave ? (currentLetterId ? "Update & Download" : "Save & Download") : (currentLetterId ? "Update" : "Save")}
               </button>
             </div>
@@ -2447,49 +2461,49 @@ export default function App() {
       {/* ── LETTER BROWSER MODAL ── */}
       {showLetterBrowser && (
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",display:"flex",flexDirection:"column",zIndex:2000,fontFamily:'var(--font-sans)'}}>
-          <div style={{background:"#fbfaf8",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
+          <div style={{background:"var(--bg)",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
             {/* Header */}
-            <div style={{padding:"22px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,background:"#fff",borderBottom:"1px solid #f0ede5"}}>
-              <div style={{color:"#182230",fontWeight:800,fontSize:20,flex:1}}>Saved Letters</div>
+            <div style={{padding:"22px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,background:"var(--card)",borderBottom:"1px solid var(--hair2)"}}>
+              <div style={{color:"var(--ink)",fontWeight:800,fontSize:20,flex:1}}>Saved Letters</div>
               <input value={letterSearch} onChange={e=>{ setLetterSearch(e.target.value); fetchLetters(e.target.value); }}
                 placeholder="Search by client or rep..."
-                style={{border:"1px solid #d9d5cc",borderRadius:10,padding:"10px 16px",fontSize:14,outline:"none",width:280}}/>
+                style={{border:"1px solid var(--bd2)",borderRadius:10,padding:"10px 16px",fontSize:14,outline:"none",width:280}}/>
               <button onClick={()=>{ setShowLetterBrowser(false); if (enteredVia === 'letters') goBack(); }}
-                style={{background:"#fbfaf8",border:"1px solid #e7e2d6",borderRadius:10,width:40,height:40,color:"#4a5462",fontSize:18,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>&#10005;</button>
+                style={{background:"var(--bg)",border:"1px solid var(--bd)",borderRadius:10,width:40,height:40,color:"var(--sec)",fontSize:18,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>&#10005;</button>
             </div>
             {/* Table — centered, compact columns */}
             <div style={{flex:1,overflowY:"auto",padding:"28px 24px"}}>
               {savedLetters.length === 0 ? (
-                <div style={{padding:60,textAlign:"center",color:"#a09a8c",fontSize:16}}>
+                <div style={{padding:60,textAlign:"center",color:"var(--faint)",fontSize:16}}>
                   {letterSearch ? "No letters match your search." : "No saved letters yet."}
                 </div>
               ) : (
-                <div style={{maxWidth:880,margin:"0 auto",background:"#fff",borderRadius:18,boxShadow:"0 6px 24px rgba(2,6,23,0.06)",border:"1px solid #f0ede5",overflow:"hidden"}}>
+                <div style={{maxWidth:880,margin:"0 auto",background:"var(--card)",borderRadius:18,boxShadow:"0 6px 24px rgba(2,6,23,0.06)",border:"1px solid var(--hair2)",overflow:"hidden"}}>
                   <table style={{width:"100%",borderCollapse:"collapse"}}>
                     <thead>
-                      <tr style={{borderBottom:"1px solid #f0ede5"}}>
+                      <tr style={{borderBottom:"1px solid var(--hair2)"}}>
                         {["Client","Rep","Type","Last Updated",""].map((h,hi)=>(
-                          <th key={h} style={{padding:"16px 14px",textAlign:hi===4?"right":"left",fontSize:12.5,fontWeight:700,color:"#a09a8c",textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
+                          <th key={h} style={{padding:"16px 14px",textAlign:hi===4?"right":"left",fontSize:12.5,fontWeight:700,color:"var(--faint)",textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {savedLetters.map((l,li)=>(
-                        <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid #f0ede5",background:currentLetterId===l.id?"#f5f3ff":"#fff"}}>
-                          <td style={{padding:"16px 14px",fontWeight:700,color:"#182230",fontSize:16}}>{l.client_name}</td>
-                          <td style={{padding:"16px 14px",color:"#4a5462",fontSize:15}}>{l.rep_name}</td>
-                          <td style={{padding:"16px 14px",color:"#1e3a5f",fontSize:14,fontWeight:600}}>
+                        <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid var(--hair2)",background:currentLetterId===l.id?"#f5f3ff":"#fff"}}>
+                          <td style={{padding:"16px 14px",fontWeight:700,color:"var(--ink)",fontSize:16}}>{l.client_name}</td>
+                          <td style={{padding:"16px 14px",color:"var(--sec)",fontSize:15}}>{l.rep_name}</td>
+                          <td style={{padding:"16px 14px",color:"var(--navy)",fontSize:14,fontWeight:600}}>
                             {tabLabel[l.doc_tab]||l.doc_tab}
                           </td>
-                          <td style={{padding:"16px 14px",color:"#a09a8c",fontSize:14}}>{fmtDate(l.updated_at)}</td>
+                          <td style={{padding:"16px 14px",color:"var(--faint)",fontSize:14}}>{fmtDate(l.updated_at)}</td>
                           <td style={{padding:"16px 14px"}}>
                             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                               <button onClick={()=>loadLetter(l.id)}
-                                style={{background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 3px 10px rgba(26,37,64,0.3)"}}>
+                                style={{background:"var(--navycard)",color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 3px 10px rgba(26,37,64,0.3)"}}>
                                 Load
                               </button>
                               <button onClick={()=>deleteLetter(l.id)}
-                                style={{background:"#fff",border:"1px solid #d9a99c",color:"#a3341f",borderRadius:8,padding:"8px 14px",fontSize:13.5,fontWeight:600,cursor:"pointer"}}>
+                                style={{background:"var(--card)",border:"1px solid #d9a99c",color:"var(--err-fg)",borderRadius:8,padding:"8px 14px",fontSize:13.5,fontWeight:600,cursor:"pointer"}}>
                                 Delete
                               </button>
                             </div>
