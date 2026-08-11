@@ -176,6 +176,43 @@ async function ensureSchema(pool) {
     ON CONFLICT (opportunity_id) DO NOTHING;
   `).catch(err => console.error('sf_wins seed error:', err.message));
 
+  // Salesforce Financials (Financials__c) — the authoritative record of money.
+  //
+  // Every sale creates a contract and a financial record against the same
+  // opportunity, so the two should reconcile. When they disagree the financial
+  // record wins, because the failure mode runs the other way: a financial can be
+  // attached to the wrong opportunity (Central Wesleyan's contract sat on the
+  // closed-lost one of two), and any total that qualifies revenue by the
+  // opportunity's stage then drops real money on the floor. The financial record
+  // itself is never "lost" — it exists because a contract was signed.
+  //
+  // Opportunity fields are carried along not to filter revenue but to check it:
+  // the stage, the won flag and the account are what the data-quality panel
+  // compares. Nothing here should ever gate a total on opportunity_stage.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sf_financials (
+      financial_id           TEXT PRIMARY KEY,
+      name                   TEXT,
+      purpose                TEXT,
+      amount                 NUMERIC DEFAULT 0,
+      upfront                NUMERIC DEFAULT 0,
+      implementation         NUMERIC DEFAULT 0,
+      created_date           TIMESTAMPTZ,
+      opportunity_id         TEXT,
+      opportunity_name       TEXT,
+      opportunity_stage      TEXT,
+      opportunity_is_won     BOOLEAN,
+      opportunity_account_id TEXT,
+      non_security           BOOLEAN DEFAULT FALSE,
+      account_id             TEXT,
+      organization           TEXT,
+      domain                 TEXT,
+      booking_id             INTEGER,
+      created_at             TIMESTAMPTZ DEFAULT NOW(),
+      updated_at             TIMESTAMPTZ DEFAULT NOW()
+    );
+  `).catch(err => console.error('sf_financials schema error:', err.message));
+
   // Salesforce grant Applications (Applications__c). An organization usually has
   // several — one per grant program/year — so these are tracked separately from
   // wins (which are the sales-side count of organizations/contracts). status_bucket
@@ -854,37 +891,35 @@ const bareDomain = (s) => (s || '').trim().toLowerCase()
 // double-count). All of an org's grants land on one booking (the most recent),
 // so an org that booked twice is still one win.
 // ─────────────────────────────────────────────────────────────
-async function recordWin(pool, w) {
-  const opp = (w.opportunity_id || '').toString().trim();
-  if (!opp) return { matched: false, reason: 'missing opportunity_id' };
-  const domain = bareDomain(w.domain);
-  const org = (w.organization || '').trim();
-  const amount = Number(w.amount) || 0;
-  const wonAt = w.close_date || null;
-
-  // 1) booking that already counts this opportunity → update in place (idempotent).
-  let r = await pool.query(`SELECT id, won_opportunities FROM bookings WHERE won_opportunities ? $1 LIMIT 1`, [opp]);
-  let target = r.rows[0];
-  // 2) domain match (precise) — same registrable domain on the booking email.
-  if (!target && domain) {
-    r = await pool.query(
-      `SELECT id, won_opportunities FROM bookings
+/**
+ * Finds the booking an organization's Salesforce record belongs to.
+ *
+ * Domain first (precise — the same registrable domain on the booking email), then
+ * the account name, normalized and BIDIRECTIONAL so a longer, more decorated
+ * Salesforce name ("Killian Hill Baptist Church - Christian School - GA") still
+ * matches a plainer booking org ("Killian Hill Baptist Church"). Exact normalized
+ * names always match; a substring match only counts when BOTH names are at least 6
+ * alphanumerics, to keep short strings from matching each other by accident.
+ *
+ * Shared by wins and financials so an org lands on the same booking either way —
+ * two matchers would eventually disagree, and the disagreement would show up as
+ * revenue counted twice or attributed to nobody.
+ */
+async function matchBookingByOrg(pool, domain, org, columns = 'id') {
+  if (domain) {
+    const { rows } = await pool.query(
+      `SELECT ${columns} FROM bookings
          WHERE regexp_replace(lower(split_part(email,'@',2)), '^www\\.', '') = $1
          ORDER BY booked_on DESC NULLS LAST, id DESC
          LIMIT 1`,
       [domain]
     );
-    target = r.rows[0];
+    if (rows[0]) return rows[0];
   }
-  // 3) org-name match — normalized and BIDIRECTIONAL, so a longer, more decorated
-  // Salesforce account name ("Killian Hill Baptist Church - Christian School - GA")
-  // still matches a plainer booking org ("Killian Hill Baptist Church"). Exact
-  // normalized names always match; a substring match only counts when BOTH names are
-  // long enough (>= 6 alphanumerics) to avoid tiny-string false positives.
-  if (!target && org) {
-    r = await pool.query(
+  if (org) {
+    const { rows } = await pool.query(
       `WITH q AS (SELECT regexp_replace(lower($1), '[^a-z0-9]', '', 'g') AS t)
-       SELECT b.id, b.won_opportunities
+       SELECT ${columns.split(',').map(c => `b.${c.trim()}`).join(', ')}
          FROM bookings b, q
         WHERE q.t <> ''
           AND ( regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g') = q.t
@@ -896,8 +931,77 @@ async function recordWin(pool, w) {
         LIMIT 1`,
       [org]
     );
-    target = r.rows[0];
+    if (rows[0]) return rows[0];
   }
+  return null;
+}
+
+/**
+ * One financial record from Salesforce.
+ *
+ * Deliberately stores every record the sync delivers, including ones that will not
+ * count: a financial whose purpose is not a new contract, one flagged non-security,
+ * one with no opportunity at all. Filtering at write time would make those records
+ * invisible, and the whole point of this change is that a record excluded from the
+ * total should be visible AS excluded rather than absent. The counting rule lives
+ * in COUNTABLE_FINANCIAL, once, where it can be read.
+ */
+async function recordFinancial(pool, f) {
+  const id = (f.financial_id || '').toString().trim();
+  if (!id) return { stored: false, reason: 'missing financial_id' };
+  const domain = bareDomain(f.domain);
+  const org = (f.organization || '').trim();
+  const booking = await matchBookingByOrg(pool, domain, org);
+
+  await pool.query(
+    `INSERT INTO sf_financials (
+       financial_id, name, purpose, amount, upfront, implementation, created_date,
+       opportunity_id, opportunity_name, opportunity_stage, opportunity_is_won,
+       opportunity_account_id, non_security, account_id, organization, domain, booking_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::timestamptz,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     ON CONFLICT (financial_id) DO UPDATE SET
+       -- A missing value must not erase a known one, for the same reason as sf_wins:
+       -- Account.Website is null on plenty of accounts, and overwriting would break
+       -- the booking match that depends on it. Money and status always take the
+       -- newest value, because those are what the sync exists to keep current.
+       name = COALESCE(EXCLUDED.name, sf_financials.name),
+       purpose = COALESCE(EXCLUDED.purpose, sf_financials.purpose),
+       amount = EXCLUDED.amount,
+       upfront = EXCLUDED.upfront,
+       implementation = EXCLUDED.implementation,
+       created_date = COALESCE(EXCLUDED.created_date, sf_financials.created_date),
+       opportunity_id = EXCLUDED.opportunity_id,
+       opportunity_name = COALESCE(EXCLUDED.opportunity_name, sf_financials.opportunity_name),
+       opportunity_stage = EXCLUDED.opportunity_stage,
+       opportunity_is_won = EXCLUDED.opportunity_is_won,
+       opportunity_account_id = COALESCE(EXCLUDED.opportunity_account_id, sf_financials.opportunity_account_id),
+       non_security = EXCLUDED.non_security,
+       account_id = COALESCE(EXCLUDED.account_id, sf_financials.account_id),
+       organization = COALESCE(EXCLUDED.organization, sf_financials.organization),
+       domain = COALESCE(EXCLUDED.domain, sf_financials.domain),
+       booking_id = COALESCE(EXCLUDED.booking_id, sf_financials.booking_id),
+       updated_at = NOW()`,
+    [id, f.name || null, f.purpose || null, Number(f.amount) || 0,
+     Number(f.upfront) || 0, Number(f.implementation) || 0, f.created_date || null,
+     f.opportunity_id || null, f.opportunity_name || null, f.opportunity_stage || null,
+     typeof f.opportunity_is_won === 'boolean' ? f.opportunity_is_won : null,
+     f.opportunity_account_id || null, f.non_security === true,
+     f.account_id || null, org || null, domain || null, booking?.id ?? null]
+  );
+  return { stored: true, id, booking_id: booking?.id ?? null };
+}
+
+async function recordWin(pool, w) {
+  const opp = (w.opportunity_id || '').toString().trim();
+  if (!opp) return { matched: false, reason: 'missing opportunity_id' };
+  const domain = bareDomain(w.domain);
+  const org = (w.organization || '').trim();
+  const amount = Number(w.amount) || 0;
+  const wonAt = w.close_date || null;
+
+  // 1) booking that already counts this opportunity → update in place (idempotent).
+  let r = await pool.query(`SELECT id, won_opportunities FROM bookings WHERE won_opportunities ? $1 LIMIT 1`, [opp]);
+  let target = r.rows[0] || await matchBookingByOrg(pool, domain, org, 'id, won_opportunities');
   // Persist the win itself — EVERY win lands in sf_wins whether or not it maps to a
   // booking (booking_id stays NULL when untracked). Idempotent per opportunity;
   // re-firing refreshes the fields. Once linked to a booking it stays linked unless
@@ -1038,7 +1142,7 @@ async function recordApplication(pool, a) {
 // Shared with the scheduled Salesforce connector, so a pulled record travels the
 // exact same matching, bucketing and guard logic as a pushed one — one code path,
 // one set of rules, regardless of how the record arrived.
-export { recordWin, recordApplication, rebuildBookingWins };
+export { recordWin, recordFinancial, recordApplication, rebuildBookingWins };
 
 // ─────────────────────────────────────────────────────────────
 // 8. Routes
@@ -1048,6 +1152,51 @@ export { recordWin, recordApplication, rebuildBookingWins };
 // still a row in the table and still appears in the list — it is removed from the
 // arithmetic, not from the record.
 const COUNTABLE = `exclusion_reason IS NULL`;
+
+// ─────────────────────────────────────────────────────────────
+// Revenue comes from FINANCIAL RECORDS, not from opportunities. Do not change this
+// back without reading the rest of this comment.
+//
+// Every sale creates a contract and a financial record against the same
+// opportunity. Qualifying revenue by the OPPORTUNITY's stage assumes those three
+// always agree, and they do not: Central Wesleyan had two opportunities and its
+// contract sat on the closed-lost one, so its revenue vanished from every total
+// that filtered on a won stage. Federal Credit Union was mis-staged the same way.
+// That is roughly $200k of real, signed business that the dashboard denied while
+// Salesforce reported it — and nothing surfaced the disagreement, which is why it
+// took a meeting months later to notice.
+//
+// A financial record is never "lost". It exists because a contract was signed. So
+// inclusion is decided by the financial record itself, and the opportunity is kept
+// only to CHECK the data, never to qualify it. There is deliberately no
+// opportunity_stage or opportunity_is_won condition below, and adding one would
+// reintroduce the exact bug.
+//
+// These four conditions mirror the Salesforce report "All Sec Financials Only",
+// which is the number leadership works from ($1,838,000 over 98 records at the time
+// of writing). Each is stated separately so the data-quality panel can report what
+// every one of them removed, rather than a record simply going missing:
+//
+//   purpose        the report filters Purpose for Creating Financial = New Contract
+//                  Signed. Renewals and amendments create financials too, and they
+//                  are not new business.
+//   non_security   Brad's flag for work outside the security grant business. Stored
+//                  as a real boolean, so a record whose box was never touched reads
+//                  false and still counts as security work.
+//   opportunity    the report is built on "Financials with Opportunity", so a
+//                  financial with no opportunity is already outside its total. It is
+//                  still stored, still counted by the quality panel, and still shown
+//                  — excluded, not invisible.
+//   created_date   the report starts at 1 Nov 2024. Earlier records predate the
+//                  security grant business.
+const FINANCIAL_PURPOSE = process.env.SF_FINANCIAL_PURPOSE || 'New Contract Signed';
+const FINANCIALS_SINCE = process.env.SF_FINANCIALS_SINCE || '2024-11-01';
+const COUNTABLE_FINANCIAL = `
+      purpose = $1
+  AND non_security IS NOT TRUE
+  AND opportunity_id IS NOT NULL
+  AND created_date >= $2::timestamptz`;
+const FINANCIAL_ARGS = [FINANCIAL_PURPOSE, FINANCIALS_SINCE];
 
 export function registerMarketing(app, pool) {
   if (!pool) { console.warn('[marketing] no DB pool — marketing endpoints disabled'); return; }
@@ -1291,8 +1440,34 @@ export function registerMarketing(app, pool) {
           COUNT(DISTINCT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'),''), opportunity_id))::int AS sf_org_count
         FROM sf_wins`);
       const sw = wrows[0];
-      const hasSf = sw.sf_count > 0;
-      const sfTotalRev = Number(sw.sf_revenue);
+
+      // The revenue layer proper. See COUNTABLE_FINANCIAL above for why this is
+      // sourced from financial records rather than from won opportunities.
+      const { rows: [fin] } = await pool.query(`
+        SELECT COUNT(*)::int AS count,
+               COALESCE(SUM(amount),0)::numeric AS revenue,
+               COUNT(*) FILTER (WHERE booking_id IS NOT NULL)::int AS attr_count,
+               COALESCE(SUM(amount) FILTER (WHERE booking_id IS NOT NULL),0)::numeric AS attr_revenue,
+               COUNT(*) FILTER (WHERE booking_id IS NULL)::int AS untracked_count,
+               COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL),0)::numeric AS untracked_revenue,
+               COUNT(DISTINCT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'),''),
+                                       financial_id))::int AS org_count
+          FROM sf_financials WHERE ${COUNTABLE_FINANCIAL}`, FINANCIAL_ARGS);
+
+      // Until the financials sync has delivered anything, the opportunity figures
+      // still answer — the same fallback the Salesforce layer already used before
+      // it was populated. The moment financials arrive the headline moves to them,
+      // and the quality panel shows both totals side by side either way.
+      const hasFin = fin.count > 0;
+      const layer = hasFin
+        ? { count: fin.count, revenue: Number(fin.revenue), org_count: fin.org_count,
+            attr_count: fin.attr_count, attr_revenue: Number(fin.attr_revenue),
+            untracked_count: fin.untracked_count, untracked_revenue: Number(fin.untracked_revenue) }
+        : { count: sw.sf_count, revenue: Number(sw.sf_revenue), org_count: sw.sf_org_count,
+            attr_count: sw.sf_attr_count, attr_revenue: Number(sw.sf_attr_revenue),
+            untracked_count: sw.sf_untracked_count, untracked_revenue: Number(sw.sf_untracked_revenue) };
+      const hasSf = layer.count > 0;
+      const sfTotalRev = layer.revenue;
 
       res.json({
         total_bookings: s.total_bookings,
@@ -1309,13 +1484,15 @@ export function registerMarketing(app, pool) {
         // Salesforce layer. Headline = total SF revenue; falls back to the
         // funnel-attributed number until sf_wins is populated by the backfill/Zap.
         won_revenue_total: hasSf ? sfTotalRev : Number(s.won_revenue),
-        won_count_total: sw.sf_count,
-        won_org_count: sw.sf_org_count,
-        attributed_revenue: Number(sw.sf_attr_revenue),
-        attributed_count: sw.sf_attr_count,
-        untracked_revenue: Number(sw.sf_untracked_revenue),
-        untracked_count: sw.sf_untracked_count,
-        attribution_coverage: sfTotalRev > 0 ? Number(sw.sf_attr_revenue) / sfTotalRev : 0,
+        won_count_total: layer.count,
+        won_org_count: layer.org_count,
+        attributed_revenue: layer.attr_revenue,
+        attributed_count: layer.attr_count,
+        untracked_revenue: layer.untracked_revenue,
+        untracked_count: layer.untracked_count,
+        attribution_coverage: sfTotalRev > 0 ? layer.attr_revenue / sfTotalRev : 0,
+        // Which store the headline came from, so the UI never has to guess.
+        revenue_source: hasFin ? 'financials' : 'opportunities',
         // Excluded from every figure above, broken out by reason so the dashboard can
         // say what it left out and why.
         excluded: exrows.map(r => ({
@@ -1449,14 +1626,23 @@ export function registerMarketing(app, pool) {
       // Periods with no wins are filled with zeros (generate_series) — a month with
       // nothing sold has to show as a gap in the trend, not disappear and make the
       // timeline read as continuous.
+      // Same source as the headline, or the chart tells a different story from the
+      // number above it. Financials are dated by when the record was created, which
+      // is what the Salesforce report groups on.
+      const { rows: [{ n }] } = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM sf_financials WHERE ${COUNTABLE_FINANCIAL}`, FINANCIAL_ARGS);
+      const fromFinancials = n > 0;
+      const source = fromFinancials
+        ? `SELECT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'), ''), financial_id) AS org_key,
+                  date_trunc('${g}', created_date) AS period, amount
+             FROM sf_financials
+            WHERE created_date IS NOT NULL AND ${COUNTABLE_FINANCIAL}`
+        : `SELECT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'), ''), opportunity_id) AS org_key,
+                  date_trunc('${g}', close_date) AS period, amount
+             FROM sf_wins
+            WHERE close_date IS NOT NULL`;
       const { rows } = await pool.query(`
-        WITH w AS (
-          SELECT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'), ''), opportunity_id) AS org_key,
-                 date_trunc('${g}', close_date) AS period,
-                 amount
-            FROM sf_wins
-           WHERE close_date IS NOT NULL
-        ),
+        WITH w AS (${source}),
         firsts AS (SELECT org_key, MIN(period) AS first_period FROM w GROUP BY 1),
         bounds AS (SELECT MIN(period) AS lo, MAX(period) AS hi FROM w),
         periods AS (
@@ -1470,7 +1656,7 @@ export function registerMarketing(app, pool) {
           FROM periods p
           LEFT JOIN w ON w.period = p.period
          GROUP BY p.period
-         ORDER BY p.period`);
+         ORDER BY p.period`, fromFinancials ? FINANCIAL_ARGS : []);
       res.json(rows.map(r => ({
         period: r.period,
         contracts: r.contracts,
@@ -1510,6 +1696,111 @@ export function registerMarketing(app, pool) {
         [search, channel, campaign]
       );
       res.json(rows.map(r => ({ ...r, fee: Number(r.fee), won_amount: Number(r.won_amount) })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Where the two revenue stories disagree.
+  //
+  // The $200k gap was found in a meeting, months after it opened, because nothing
+  // ever compared the two totals. This puts the comparison on the dashboard and
+  // names the records behind it. Every flag here is a real failure that already
+  // happened, or the direct neighbour of one.
+  app.get('/api/marketing/revenue-quality', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const q = (sql, args = FINANCIAL_ARGS) => pool.query(sql, args).then(r => r.rows);
+
+      const [totals] = await q(`
+        SELECT
+          (SELECT COALESCE(SUM(amount),0)::numeric FROM sf_financials WHERE ${COUNTABLE_FINANCIAL}) AS financial_total,
+          (SELECT COUNT(*)::int         FROM sf_financials WHERE ${COUNTABLE_FINANCIAL}) AS financial_count,
+          (SELECT COALESCE(SUM(amount),0)::numeric FROM sf_wins) AS opportunity_total,
+          (SELECT COUNT(*)::int         FROM sf_wins)            AS opportunity_count`);
+
+      // What each filter removed, stated rather than implied. A record that does not
+      // count should be visible as excluded; silence is what let the gap survive.
+      const [excluded] = await q(`
+        SELECT
+          COUNT(*) FILTER (WHERE purpose IS DISTINCT FROM $1)::int AS other_purpose,
+          COALESCE(SUM(amount) FILTER (WHERE purpose IS DISTINCT FROM $1),0)::numeric AS other_purpose_amount,
+          COUNT(*) FILTER (WHERE non_security IS TRUE)::int AS non_security,
+          COALESCE(SUM(amount) FILTER (WHERE non_security IS TRUE),0)::numeric AS non_security_amount,
+          COUNT(*) FILTER (WHERE created_date < $2::timestamptz)::int AS before_start,
+          COALESCE(SUM(amount) FILTER (WHERE created_date < $2::timestamptz),0)::numeric AS before_start_amount
+        FROM sf_financials`);
+
+      // 1. The Central Wesleyan failure itself: money earned, sitting on a lost
+      //    opportunity. Counted here, and deliberately still counted in the total.
+      const closedLost = await q(`
+        SELECT financial_id, name, organization, amount, opportunity_id, opportunity_name, opportunity_stage
+          FROM sf_financials
+         WHERE ${COUNTABLE_FINANCIAL}
+           AND (opportunity_is_won IS FALSE OR opportunity_stage ILIKE '%lost%')
+         ORDER BY amount DESC`);
+
+      // 2. No opportunity to check against, or one belonging to a different account.
+      const orphaned = await q(`
+        SELECT financial_id, name, organization, amount, account_id, opportunity_id, opportunity_account_id,
+               CASE WHEN opportunity_id IS NULL THEN 'no linked opportunity'
+                    ELSE 'opportunity belongs to another account' END AS problem
+          FROM sf_financials
+         WHERE purpose = $1
+           AND non_security IS NOT TRUE
+           AND created_date >= $2::timestamptz
+           AND ( opportunity_id IS NULL
+              OR (account_id IS NOT NULL AND opportunity_account_id IS NOT NULL
+                  AND account_id <> opportunity_account_id) )
+         ORDER BY amount DESC`);
+
+      // 3. One account's financials spread over several opportunities — the shape
+      //    that produced the original mis-link, whether or not it has cost anything
+      //    yet. Worth seeing before it does.
+      const split = await q(`
+        SELECT organization,
+               COUNT(DISTINCT opportunity_id)::int AS opportunities,
+               COUNT(*)::int AS financials,
+               COALESCE(SUM(amount),0)::numeric AS amount,
+               ARRAY_AGG(DISTINCT COALESCE(opportunity_stage,'(no stage)')) AS stages
+          FROM sf_financials
+         WHERE ${COUNTABLE_FINANCIAL} AND organization IS NOT NULL
+         GROUP BY organization
+        HAVING COUNT(DISTINCT opportunity_id) > 1
+         ORDER BY amount DESC`);
+
+      const financialTotal = Number(totals.financial_total);
+      const opportunityTotal = Number(totals.opportunity_total);
+      const num = (rows, ...keys) => rows.map(r => {
+        for (const k of keys) r[k] = Number(r[k]);
+        return r;
+      });
+
+      res.json({
+        source: totals.financial_count > 0 ? 'financials' : 'opportunities',
+        financial_total: financialTotal,
+        financial_count: totals.financial_count,
+        opportunity_total: opportunityTotal,
+        opportunity_count: totals.opportunity_count,
+        // Positive means the opportunity-based view is under-reporting, which is the
+        // direction the original bug ran in.
+        delta: financialTotal - opportunityTotal,
+        filters: {
+          purpose: FINANCIAL_PURPOSE,
+          since: FINANCIALS_SINCE,
+          excludes_non_security: true,
+          excludes_missing_opportunity: true,
+          filters_on_opportunity_stage: false,
+        },
+        excluded: {
+          other_purpose: { count: excluded.other_purpose, amount: Number(excluded.other_purpose_amount) },
+          non_security: { count: excluded.non_security, amount: Number(excluded.non_security_amount) },
+          before_start: { count: excluded.before_start, amount: Number(excluded.before_start_amount) },
+        },
+        flags: {
+          closed_lost_opportunity: num(closedLost, 'amount'),
+          orphaned_or_mismatched: num(orphaned, 'amount'),
+          split_across_opportunities: num(split, 'amount'),
+        },
+      });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
