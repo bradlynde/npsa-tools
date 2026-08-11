@@ -137,6 +137,12 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS calendly_lookup_at TIMESTAMPTZ;
   `).catch(err => console.error('bookings lookup-column error:', err.message));
 
+  // Added after sf_financials existed in prod.
+  await pool.query(`
+    ALTER TABLE sf_financials ADD COLUMN IF NOT EXISTS contract_id     TEXT;
+    ALTER TABLE sf_financials ADD COLUMN IF NOT EXISTS contract_number TEXT;
+  `).catch(err => console.error('sf_financials contract-columns error:', err.message));
+
   // exclusion_reason supersedes the unqualified flag: one booking can be set aside
   // for more than one reason, and "which reason" is worth knowing — a run of double
   // bookings is a scheduling problem, a run of unqualified is a targeting problem.
@@ -207,6 +213,12 @@ async function ensureSchema(pool) {
       account_id             TEXT,
       organization           TEXT,
       domain                 TEXT,
+      -- Financials__c has its own Contract lookup, and the contract number is what
+      -- a person searches Salesforce by. Carried so a flagged record can be opened
+      -- rather than hunted for: "Central Wesleyan, $137,500" identifies the problem,
+      -- "contract 00000891" identifies the record.
+      contract_id            TEXT,
+      contract_number        TEXT,
       booking_id             INTEGER,
       created_at             TIMESTAMPTZ DEFAULT NOW(),
       updated_at             TIMESTAMPTZ DEFAULT NOW()
@@ -957,8 +969,9 @@ async function recordFinancial(pool, f) {
     `INSERT INTO sf_financials (
        financial_id, name, purpose, amount, upfront, implementation, created_date,
        opportunity_id, opportunity_name, opportunity_stage, opportunity_is_won,
-       opportunity_account_id, non_security, account_id, organization, domain, booking_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::timestamptz,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       opportunity_account_id, non_security, account_id, organization, domain,
+       contract_id, contract_number, booking_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::timestamptz,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      ON CONFLICT (financial_id) DO UPDATE SET
        -- A missing value must not erase a known one, for the same reason as sf_wins:
        -- Account.Website is null on plenty of accounts, and overwriting would break
@@ -979,6 +992,8 @@ async function recordFinancial(pool, f) {
        account_id = COALESCE(EXCLUDED.account_id, sf_financials.account_id),
        organization = COALESCE(EXCLUDED.organization, sf_financials.organization),
        domain = COALESCE(EXCLUDED.domain, sf_financials.domain),
+       contract_id = COALESCE(EXCLUDED.contract_id, sf_financials.contract_id),
+       contract_number = COALESCE(EXCLUDED.contract_number, sf_financials.contract_number),
        booking_id = COALESCE(EXCLUDED.booking_id, sf_financials.booking_id),
        updated_at = NOW()`,
     [id, f.name || null, f.purpose || null, Number(f.amount) || 0,
@@ -986,7 +1001,8 @@ async function recordFinancial(pool, f) {
      f.opportunity_id || null, f.opportunity_name || null, f.opportunity_stage || null,
      typeof f.opportunity_is_won === 'boolean' ? f.opportunity_is_won : null,
      f.opportunity_account_id || null, f.non_security === true,
-     f.account_id || null, org || null, domain || null, booking?.id ?? null]
+     f.account_id || null, org || null, domain || null,
+     f.contract_id || null, f.contract_number || null, booking?.id ?? null]
   );
   return { stored: true, id, booking_id: booking?.id ?? null };
 }
@@ -1732,7 +1748,8 @@ export function registerMarketing(app, pool) {
       // 1. The Central Wesleyan failure itself: money earned, sitting on a lost
       //    opportunity. Counted here, and deliberately still counted in the total.
       const closedLost = await q(`
-        SELECT financial_id, name, organization, amount, opportunity_id, opportunity_name, opportunity_stage
+        SELECT financial_id, name, organization, amount, contract_number,
+               opportunity_id, opportunity_name, opportunity_stage
           FROM sf_financials
          WHERE ${COUNTABLE_FINANCIAL}
            AND (opportunity_is_won IS FALSE OR opportunity_stage ILIKE '%lost%')
@@ -1740,7 +1757,8 @@ export function registerMarketing(app, pool) {
 
       // 2. No opportunity to check against, or one belonging to a different account.
       const orphaned = await q(`
-        SELECT financial_id, name, organization, amount, account_id, opportunity_id, opportunity_account_id,
+        SELECT financial_id, name, organization, amount, contract_number,
+               account_id, opportunity_id, opportunity_account_id,
                CASE WHEN opportunity_id IS NULL THEN 'no linked opportunity'
                     ELSE 'opportunity belongs to another account' END AS problem
           FROM sf_financials
