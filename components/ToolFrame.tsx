@@ -45,10 +45,41 @@ export default function ToolFrame({
   const base = LOE_URL.replace(/\/+$/, "");
   const src = view ? `${base}/?view=${encodeURIComponent(view)}` : base;
 
+  /*
+   * The theme has to be relayed.
+   *
+   * The framed app is a different origin, so it cannot read the `npsa-theme` we
+   * keep in localStorage, and without this it renders light inside a dark shell —
+   * a bright rectangle under a dark top bar.
+   *
+   * Sent on load and again whenever the class on <body> changes, which is what
+   * the toggle in TopBar actually does. A MutationObserver rather than a shared
+   * store because the toggle owns that class and nothing else needs to know.
+   */
+  useEffect(() => {
+    const post = () => {
+      frame.current?.contentWindow?.postMessage(
+        { type: "npsa:theme", mode: document.body.classList.contains("dark") ? "dark" : "light" },
+        base,
+      );
+    };
+    const ob = new MutationObserver(post);
+    ob.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    // The frame may already be up (a re-render), so send once now as well as on load.
+    post();
+    return () => ob.disconnect();
+  }, [base]);
+
   return (
     <iframe
       ref={frame}
       src={src}
+      onLoad={() =>
+        frame.current?.contentWindow?.postMessage(
+          { type: "npsa:theme", mode: document.body.classList.contains("dark") ? "dark" : "light" },
+          base,
+        )
+      }
       style={{ width: "100%", height, border: "none", display: "block" }}
       title={title}
     />
