@@ -14,6 +14,7 @@ const READABLE = new Set([
   "sync", // sync/status
   "bookings",
   "untracked-wins",
+  "revenue-quality",
 ]);
 
 // Writes the dashboard actually performs, and nothing more. Ingest and the
