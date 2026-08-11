@@ -14,6 +14,7 @@ import {
   fmtInt,
   fmtMoney,
 } from "../../components/ui";
+import { DeadlinesCard, DeadlinesModal, useDeadlines } from "../../components/DeadlinesPanel";
 type LetterStats = {
   total: number;
   total_fees: number;
@@ -170,6 +171,8 @@ export default function ToolboxPage() {
   const [letters, setLetters] = useState<LetterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDeadlines, setShowDeadlines] = useState(false);
+  const deadlines = useDeadlines();
 
   useEffect(() => {
     let alive = true;
@@ -292,6 +295,18 @@ export default function ToolboxPage() {
             description="Paste a Calendly invite and generate AI-powered prep notes."
             onClick={() => router.push("/loe?view=precall")}
           />
+          {/*
+            Sits under the Pre-Call card because that is what it feeds, but it
+            earns its place here rather than inside the generator: "is anything
+            open right now?" is worth answering before a call is even booked.
+          */}
+          <DeadlinesCard
+            onClick={() => setShowDeadlines(true)}
+            open={deadlines.open}
+            total={deadlines.rows?.length || 0}
+            loading={deadlines.loading}
+            error={deadlines.error}
+          />
 
           <Eyebrow style={{ margin: "8px 0 -4px" }}>settings</Eyebrow>
           <ActionCard
@@ -398,6 +413,14 @@ export default function ToolboxPage() {
           </Card>
         </div>
       </div>
+
+      {showDeadlines && deadlines.rows && (
+        <DeadlinesModal
+          rows={deadlines.rows}
+          open={deadlines.open}
+          onClose={() => setShowDeadlines(false)}
+        />
+      )}
     </Page>
   );
 }
