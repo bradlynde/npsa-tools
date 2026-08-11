@@ -149,6 +149,36 @@ const checks = {
     outOfOrder(hostileDoc, 'tblPr') === 0 && outOfOrder(hostileDoc, 'tcBorders') === 0
     && outOfOrder(hostileDoc, 'tblBorders') === 0 && outOfOrder(hostileDoc, 'tblCellMar') === 0,
 
+  /*
+   * Cardinality, which the ordering checks are structurally blind to.
+   *
+   * html-to-docx writes w:tblGrid TWICE per table. §17.4.49 allows exactly one, so
+   * a three-column table declared six columns and Word refused the document. The
+   * reorder passes sort a container's children and are perfectly happy to sort two
+   * of something, so no amount of ordering work was ever going to find this — it
+   * took diffing our output against a file built by a different tool that opened.
+   */
+  'exactly one tblGrid per table': [...hostileDoc.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)]
+    .every((m) => (m[0].match(/<w:tblGrid>/g) || []).length === 1),
+  'the grid declares as many columns as the rows have cells':
+    [...hostileDoc.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)].every((m) => {
+      const cols = (m[0].match(/<w:gridCol\b/g) || []).length;
+      return [...m[0].matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)]
+        .every((r) => (r[0].match(/<w:tc>/g) || []).length === cols);
+    }),
+
+  // ── packaging, which no XML check can see ────────────────────────────────
+  // OPC puts the content-types stream first (Part 2 §10.1.2) and Word-produced
+  // files carry no directory entries. python-docx reads either happily, so this
+  // only showed up against a package built by a different tool.
+  'content types stream is the first part':
+    Object.keys(hostileZip.files).filter((n) => !hostileZip.files[n].dir)[0] === '[Content_Types].xml',
+  'no directory entries in the archive':
+    !Object.keys(hostileZip.files).some((n) => hostileZip.files[n].dir),
+  'core property dates carry no fractional seconds':
+    !/<dcterms:(created|modified)[^>]*>[^<]*\.\d+/.test(
+      hostileParts.find(([n]) => n === 'docProps/core.xml')?.[1] || ''),
+
   // Not schema-invalid — not parseable at all. Same dialog, different cause.
   'no XML-illegal characters survive into any part':
     hostileParts.every(([, xml]) => illegalChars(xml) === 0),

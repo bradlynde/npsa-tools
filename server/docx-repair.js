@@ -211,14 +211,75 @@ export async function repairDocx(buffer, { brand = false } = {}) {
     zip.file(name, tidy(await zip.file(name).async("string")));
   }
 
-  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  return (await repack(zip)).generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
-/** Both repairs, in the order they have to happen. */
+/**
+ * Drop the duplicate w:tblGrid that html-to-docx writes into every table.
+ *
+ * A w:tbl may contain exactly one w:tblGrid (§17.4.49). The library emits it
+ * twice, so a three-column table declares six columns while each row holds three
+ * cells. Word rejects the document; every lenient reader takes the first grid and
+ * carries on, which is why this survived so long.
+ *
+ * This is a cardinality error rather than an ordering one, so the reorder passes
+ * above were never going to catch it — they sort a container's children and are
+ * perfectly happy to sort two of something.
+ */
+function dedupeTblGrid(xml) {
+  return xml.replace(/<w:tbl>[\s\S]*?<\/w:tbl>/g, (tbl) => {
+    let seen = false;
+    return tbl.replace(/<w:tblGrid>[\s\S]*?<\/w:tblGrid>/g, (grid) => {
+      if (seen) return "";
+      seen = true;
+      return grid;
+    });
+  });
+}
+
+/**
+ * Trim fractional seconds from the core properties dates.
+ *
+ * html-to-docx builds these with Date#toISOString, which always writes
+ * milliseconds. Word's own files never carry them. W3CDTF arguably permits the
+ * fraction, so this may well be harmless — but it is a free difference against
+ * a file that is known to open, and the point of this pass is to leave none.
+ */
+function normalizeCoreDates(xml) {
+  return xml.replace(
+    /(<dcterms:(?:created|modified)[^>]*>)([^<]+)(<\/dcterms:)/g,
+    (_, open, val, close) => `${open}${val.replace(/\.\d+(?=Z|[+-]\d{2}:?\d{2}|$)/, "")}${close}`,
+  );
+}
+
+/** Every content repair, in the order they have to happen. */
 function tidy(xml) {
   let out = stripXmlIllegal(xml);
+  out = dedupeTblGrid(out);
+  out = normalizeCoreDates(out);
   for (const [tag, order] of Object.entries(ORDERS)) out = reorderBlocks(out, tag, order);
   return out;
 }
 
-export const __test = { reorderBlocks, splitChildren, stripXmlIllegal, tidy, ORDERS, ALIAS };
+/**
+ * Repack so the package matches what Word itself writes.
+ *
+ * OPC requires the content-types stream to be the first part in the package
+ * (ECMA-376 Part 2 §10.1.2); html-to-docx writes it last. The archive also
+ * carries explicit directory entries, which a Word-produced file never has.
+ * Neither is something a strict XML parser would complain about — python-docx
+ * reads the file happily — so both stayed invisible until a package built by a
+ * different tool opened where ours did not.
+ */
+async function repack(zip) {
+  const out = new JSZip();
+  const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir);
+  const ordered = ["[Content_Types].xml", ...names.filter((n) => n !== "[Content_Types].xml")]
+    .filter((n) => names.includes(n));
+  for (const name of ordered) {
+    out.file(name, await zip.file(name).async("nodebuffer"), { createFolders: false });
+  }
+  return out;
+}
+
+export const __test = { reorderBlocks, splitChildren, stripXmlIllegal, dedupeTblGrid, normalizeCoreDates, tidy, ORDERS, ALIAS };
