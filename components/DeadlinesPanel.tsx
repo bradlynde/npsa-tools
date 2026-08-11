@@ -7,9 +7,11 @@ import { Card, Eyebrow, StatusPill } from "./ui";
  * The curated NSGP deadline table, on the toolbox landing page.
  *
  * The question worth answering here is "is anything open right now?", which is
- * why the strip leads with that count rather than with how many rows the table
- * holds. A rep should be able to see there is money closing this month without
- * opening the generator, and without having a call booked at all.
+ * why the card on the page leads with that count. A rep should be able to see
+ * there is money closing this month without opening the generator, and without
+ * having a call booked at all. That card is an ActionCard in the toolbox page, so
+ * it stays on the same styling as every other tool; this file owns the data and
+ * the panel.
  *
  * Read-only by design. The table is maintained in the Sales Toolbox app, which
  * owns the data; showing an editable copy here would create a second place a
@@ -79,47 +81,6 @@ export function useDeadlines() {
   return { rows, open, error, loading: rows === null && !error };
 }
 
-/** The strip that sits under the Pre-Call card. */
-export function DeadlinesCard({
-  onClick,
-  open,
-  total,
-  loading,
-  error,
-}: {
-  onClick: () => void;
-  open: DeadlineRow[];
-  total: number;
-  loading: boolean;
-  error: string | null;
-}) {
-  const label = error
-    ? "table unavailable"
-    : loading
-      ? "loading…"
-      : `${total} cycles on record`;
-
-  return (
-    <Card hover onClick={onClick} style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: 15, color: "var(--fg)", marginBottom: 2 }}>
-          NSGP Deadlines
-        </div>
-        <div style={{ fontSize: 13, color: "var(--sec)", lineHeight: 1.5 }}>
-          {error ? "Could not reach the Sales Toolbox backend." : "Federal and state grant windows, by jurisdiction."}
-        </div>
-      </div>
-      <Eyebrow style={{ whiteSpace: "nowrap" }}>{label}</Eyebrow>
-      {/* A zero is a real answer and stays visible rather than collapsing. */}
-      {!loading && !error && (
-        <StatusPill tone={open.length ? "done" : "queued"}>
-          {open.length ? `${open.length} open now` : "none open"}
-        </StatusPill>
-      )}
-    </Card>
-  );
-}
-
 /** The popout. */
 export function DeadlinesModal({
   rows,
@@ -153,17 +114,54 @@ export function DeadlinesModal({
       style={{
         position: "fixed", inset: 0, zIndex: 80, background: "rgba(12,16,24,.5)",
         display: "flex", alignItems: "flex-start", justifyContent: "center",
-        padding: "48px 16px", overflowY: "auto",
+        overflowY: "auto",
       }}
     >
+      {/*
+        Same 1280 / 40px geometry as <Page>, so the panel lands on the page's own
+        column rather than floating at some width of its own. The cards behind it
+        line up with its edges.
+      */}
+      <div
+        style={{
+          width: "100%", maxWidth: 1280, margin: "0 auto",
+          padding: "48px 40px", boxSizing: "border-box",
+        }}
+      >
       <Card
         onClick={() => {}}
-        style={{ maxWidth: 900, width: "100%", padding: "24px 26px" }}
+        style={{ width: "100%", padding: "24px 26px" }}
       >
         <div onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
             <div style={{ fontSize: 19, fontWeight: 600, color: "var(--fg)" }}>NSGP Deadlines</div>
             <Eyebrow style={{ marginLeft: "auto" }}>esc to close</Eyebrow>
+            {/* Escape is not discoverable, so there is a button too. */}
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              style={{
+                width: 30, height: 30, flexShrink: 0, display: "flex",
+                alignItems: "center", justifyContent: "center",
+                background: "transparent", border: "1px solid var(--bd2)",
+                borderRadius: 9, color: "var(--sec)", cursor: "pointer",
+                lineHeight: 1, padding: 0,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "var(--bg)";
+                e.currentTarget.style.color = "var(--fg)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = "var(--sec)";
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2.4" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
           <div style={{ fontSize: 13, color: "var(--sec)", lineHeight: 1.6, marginBottom: 18 }}>
             Seeded from the grant-knowledge folder in Drive, then checked against each agency&rsquo;s
@@ -249,6 +247,7 @@ export function DeadlinesModal({
           </div>
         </div>
       </Card>
+      </div>
     </div>
   );
 }
