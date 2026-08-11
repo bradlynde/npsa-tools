@@ -153,10 +153,12 @@ export type RevenueQuality = {
   flags: {
     closed_lost_opportunity: {
       financial_id: string; name: string | null; organization: string | null;
-      amount: number; opportunity_name: string | null; opportunity_stage: string | null;
+      amount: number; contract_number: string | null;
+      opportunity_name: string | null; opportunity_stage: string | null;
     }[];
     orphaned_or_mismatched: {
-      financial_id: string; organization: string | null; amount: number; problem: string;
+      financial_id: string; organization: string | null; amount: number;
+      contract_number: string | null; problem: string;
     }[];
     split_across_opportunities: {
       organization: string; opportunities: number; financials: number; amount: number; stages: string[];

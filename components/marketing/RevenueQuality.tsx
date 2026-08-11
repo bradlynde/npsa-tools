@@ -15,6 +15,9 @@ import type { RevenueQuality as RQ } from "../../lib/marketing";
  * It stays visible when everything reconciles. A check that only appears when it
  * fails teaches nobody to look for it.
  */
+/** What someone searches Salesforce by. Omitted rather than shown empty. */
+const contractRef = (n: string | null) => (n ? `contract ${n}` : "");
+
 export default function RevenueQuality({ data }: { data: RQ | null }) {
   const [open, setOpen] = useState<string | null>(null);
   if (!data) return null;
@@ -28,7 +31,8 @@ export default function RevenueQuality({ data }: { data: RQ | null }) {
       // The Central Wesleyan failure by name, so the panel explains itself.
       why: "Counted — the contract is real. But the opportunity says the deal was lost, so one of the two is wrong in Salesforce.",
       render: (r: RQ["flags"]["closed_lost_opportunity"][number]) =>
-        `${r.organization || r.name || r.financial_id} · ${fmtMoney(r.amount)} · ${r.opportunity_stage || "no stage"}`,
+        [r.organization || r.name || r.financial_id, contractRef(r.contract_number),
+         fmtMoney(r.amount), r.opportunity_stage || "no stage"].filter(Boolean).join(" · "),
     },
     {
       key: "orphan",
@@ -36,7 +40,8 @@ export default function RevenueQuality({ data }: { data: RQ | null }) {
       title: "with no opportunity, or the wrong one",
       why: "Not counted. The Salesforce report is built on financials that have an opportunity, so these sit outside the total until the link is fixed.",
       render: (r: RQ["flags"]["orphaned_or_mismatched"][number]) =>
-        `${r.organization || r.financial_id} · ${fmtMoney(r.amount)} · ${r.problem}`,
+        [r.organization || r.financial_id, contractRef(r.contract_number),
+         fmtMoney(r.amount), r.problem].filter(Boolean).join(" · "),
     },
     {
       key: "split",
