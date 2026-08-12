@@ -269,9 +269,69 @@ export async function applyFinancials(pool, records) {
   return { rows_seen: records.length, ...prune };
 }
 
+/**
+ * Reads a Salesforce field however the transport chose to present it.
+ *
+ * A relationship field is `Opportunity__r.StageName` in the API's own JSON, but
+ * anything that flattens on the way here renames it — `Opportunity__r StageName`,
+ * `Opportunity__r__StageName`, `Opportunity__rStageName`. Which one arrives is a
+ * property of the tool in the middle, not of Salesforce, and it is not worth a
+ * deploy to find out: accept all of them and let the echo endpoint say which it was.
+ */
+const sfField = (rec, path) => {
+  const parts = path.split('.');
+  const nested = parts.reduce((o, k) => (o == null ? undefined : o[k]), rec);
+  const candidates = [nested, ...['__', ' ', '.', ''].map(sep => rec[parts.join(sep)])];
+  const hit = candidates.find(v => v !== undefined && v !== null && v !== '');
+  return hit === undefined ? null : hit;
+};
+
+// Zapier stringifies as it flattens, so a boolean can arrive as "true" and a
+// currency as "39500". Salesforce's own JSON sends them typed.
+const sfBool = (v) => (typeof v === 'boolean' ? v : /^true$/i.test(String(v ?? '')));
+const sfNum = (v) => (Number(String(v ?? '').replace(/[$,]/g, '')) || 0);
+
+/**
+ * Financial records in Salesforce's own shape, mapped here rather than in the Zap.
+ *
+ * The mapping used to live in a Zapier Code step, which received each field as a
+ * separate comma-joined string and zipped them back into records. Account names
+ * contain commas, so one name added an element and shifted every field after it by
+ * one — records ended up carrying the previous record's account, and 68 of 98 were
+ * flagged as mis-linked when nothing in Salesforce was wrong at all. There is no
+ * safe delimiter when the data is free text, so the reconstruction moves here where
+ * records stay whole objects and the mapping is in version control.
+ */
+export async function applyFinancialsRaw(pool, records) {
+  refuseIfEmpty(records, 'financial records');
+  return applyFinancials(pool, records.map(r => ({
+    financial_id: sfField(r, 'Id'),
+    name: sfField(r, 'Name'),
+    purpose: sfField(r, 'Purpose_for_Creating_Financial__c'),
+    amount: sfNum(sfField(r, 'Security_Total_Potential_Value__c')),
+    upfront: sfNum(sfField(r, 'Security_Upfrton__c')),
+    implementation: sfNum(sfField(r, 'Security_Potential_Implementatoin_Fees__c')),
+    created_date: sfField(r, 'CreatedDate'),
+    account_id: sfField(r, 'Account__c'),
+    organization: sfField(r, 'Account__r.Name'),
+    domain: sfField(r, 'Account__r.Website'),
+    contract_id: sfField(r, 'Contract__c'),
+    contract_number: sfField(r, 'Contract__r.ContractNumber'),
+    opportunity_id: sfField(r, 'Opportunity__c'),
+    opportunity_name: sfField(r, 'Opportunity__r.Name'),
+    opportunity_stage: sfField(r, 'Opportunity__r.StageName'),
+    opportunity_is_won: sfBool(sfField(r, 'Opportunity__r.IsWon')),
+    opportunity_account_id: sfField(r, 'Opportunity__r.AccountId'),
+    non_security: sfBool(sfField(r, 'Opportunity__r.Check_if_NOT_Security_Opportunity__c')),
+  })));
+}
+
 export const APPLIERS = {
   salesforce_wins: applyWins,
   salesforce_financials: applyFinancials,
+  // Salesforce's own field names, mapped server-side. Preferred over the mapped
+  // form: the mapping is testable here and cannot be silently misaligned in transit.
+  salesforce_financials_raw: applyFinancialsRaw,
   salesforce_applications: applyApplications,
 };
 
@@ -523,6 +583,39 @@ export function registerSalesforceConnector(app, pool) {
     // the failure history work identically no matter which transport delivered it.
     const result = await runSource(pool, source, () => APPLIERS[source](pool, records));
     res.status(result.ok ? 200 : 409).json(result);
+  });
+
+  // Says what arrived, and answers 200 so a sender can actually read the reply.
+  //
+  // A 400 carries the same diagnosis, but Zapier's test harness surfaces the body
+  // of a success and swallows the body of an error — so the one message that
+  // explains the failure is the one nobody can see. Two separate debugging loops
+  // have now been spent on that. Point the webhook here, read the response, point
+  // it back.
+  //
+  // Writes nothing, reads nothing, and truncates to one record: this is for
+  // checking shape, not for moving data.
+  app.post('/api/marketing/sync/echo', express.json({ limit: '10mb' }), (req, res) => {
+    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const body = req.body || {};
+    const records = Array.isArray(body.records) ? body.records : null;
+    const first = records?.[0];
+    res.json({
+      ok: true,
+      note: 'diagnostic only — nothing was stored',
+      content_type: req.headers['content-type'] || null,
+      body_keys: Object.keys(body),
+      source: body.source ?? null,
+      source_valid: Boolean(APPLIERS[body.source]),
+      records_type: records ? `array(${records.length})` : typeof body.records,
+      // Which field names actually survived the trip. The whole reason the last
+      // attempt failed was a disagreement about this, invisible from both ends.
+      first_record_keys: first && typeof first === 'object' ? Object.keys(first) : null,
+      first_record: first ?? null,
+      accepted_sources: Object.keys(APPLIERS),
+    });
   });
 
   // Manual kick — same shared secret as the ingest endpoints.
