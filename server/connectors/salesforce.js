@@ -491,11 +491,31 @@ export function registerSalesforceConnector(app, pool) {
     }
     const source = req.body?.source;
     const records = req.body?.records;
+
+    // What the sender actually sent. A rejection that only restates the rule leaves
+    // the caller guessing at the difference between "I sent the wrong value" and "my
+    // body never arrived as JSON at all" — and those have completely different fixes.
+    // Zapier's plain POST action flattens its Data fields, so an array of records
+    // arrives mangled or not at all; its Custom Request action sends a raw body and
+    // works. Ten rounds went into discovering that from an error that could have said
+    // it, so this reports the content type and the keys that survived.
+    const diagnose = (error) => res.status(400).json({
+      error,
+      received_source: source ?? null,
+      received_keys: Object.keys(req.body || {}),
+      received_content_type: req.headers['content-type'] || null,
+      records_type: Array.isArray(records) ? `array(${records.length})` : typeof records,
+      expected: '{"source":"salesforce_financials","records":[{...}]}',
+      hint: Object.keys(req.body || {}).length === 0
+        ? 'nothing was parsed from the body — send a raw JSON string with Content-Type: application/json (in Zapier, Webhooks → Custom Request, not POST)'
+        : 'the body parsed, but the fields above are not the ones expected',
+    });
+
     if (!APPLIERS[source]) {
-      return res.status(400).json({ error: `source must be one of: ${Object.keys(APPLIERS).join(', ')}` });
+      return diagnose(`source must be one of: ${Object.keys(APPLIERS).join(', ')}`);
     }
     if (!Array.isArray(records)) {
-      return res.status(400).json({ error: 'records must be an array (the complete current set for this source)' });
+      return diagnose('records must be an array (the complete current set for this source)');
     }
     _schemaReady = _schemaReady || ensureSyncSchema(pool);
     await _schemaReady;
