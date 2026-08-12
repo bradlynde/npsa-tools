@@ -21,13 +21,11 @@ import TimeSeriesChart from "../components/marketing/TimeSeriesChart";
 import SalesBand from "../components/marketing/SalesBand";
 import CampaignTable from "../components/marketing/CampaignTable";
 import BookingsTable from "../components/marketing/BookingsTable";
-import RevenueQuality from "../components/marketing/RevenueQuality";
 import {
   fetchStats,
   fetchApplicationStats,
   fetchSalesTimeseries,
   fetchSyncStatus,
-  fetchRevenueQuality,
   fetchFunnel,
   fetchTimeseries,
   fetchBookings,
@@ -52,7 +50,6 @@ import {
   type SalesGranularity,
   type SalesPoint,
   type SyncStatus,
-  type RevenueQuality as RevenueQualityData,
 } from "../lib/marketing";
 
 const RANGES: { key: Range; label: string }[] = [
@@ -76,7 +73,6 @@ export default function DashboardPage() {
   const [salesSeries, setSalesSeries] = useState<SalesPoint[]>([]);
   const [salesGran, setSalesGran] = useState<SalesGranularity>("month");
   const [sync, setSync] = useState<SyncStatus | null>(null);
-  const [revenueQuality, setRevenueQuality] = useState<RevenueQualityData | null>(null);
   const [weekly, setWeekly] = useState<TimeseriesRow[]>([]);
   const [monthly, setMonthly] = useState<TimeseriesRow[]>([]);
   const [allBookings, setAllBookings] = useState<BookingRow[]>([]);
@@ -97,22 +93,19 @@ export default function DashboardPage() {
   };
 
   const loadMarketing = useCallback(async () => {
-    const [s, f, w, b, a, sy, rq] = await Promise.allSettled([
+    const [s, f, w, b, a, sy] = await Promise.allSettled([
       fetchStats(),
       fetchFunnel(),
       fetchTimeseries("week"),
       fetchBookings(),
       fetchApplicationStats(),
       fetchSyncStatus(),
-      fetchRevenueQuality(),
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (f.status === "fulfilled") setFunnelAll(f.value);
     // Applications live in a newer backend; absence just hides that band.
     if (a.status === "fulfilled") setApps(a.value);
     if (sy.status === "fulfilled") setSync(sy.value);
-    // Absent on a backend that predates the financials layer; the panel just hides.
-    if (rq.status === "fulfilled") setRevenueQuality(rq.value);
     if (w.status === "fulfilled") setWeekly(w.value);
     else setMktError((w.reason as Error)?.message || "Could not load marketing data");
     if (b.status === "fulfilled") {
@@ -332,10 +325,6 @@ export default function DashboardPage() {
           sync={sync}
         />
       )}
-
-      {/* Revenue is summed from financial records, so the check that they still
-          agree with the opportunities belongs next to the figure it validates. */}
-      <RevenueQuality data={revenueQuality} />
 
       {/* The range selector scopes the marketing figures only — the Salesforce
           band above is all-time — so it belongs to this section, not the page. */}
