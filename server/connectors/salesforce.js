@@ -549,8 +549,24 @@ export function registerSalesforceConnector(app, pool) {
     if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
       return res.status(401).json({ error: 'unauthorized' });
     }
-    const source = req.body?.source;
-    const records = req.body?.records;
+    // The source can ride in the query string, and the records can arrive still
+    // wrapped in whatever the transport put around them.
+    //
+    // This exists so a sender never has to MAP the payload field by field. Zapier
+    // can only carry a record set between steps as parallel comma-joined strings —
+    // one account name containing a comma shifts every record after it, which is
+    // how 68 financials were reported as mis-linked when none were. Its raw
+    // pass-through avoids the mapping layer completely, but then the body is
+    // whatever the previous step produced and nothing can be added to it. So the
+    // source comes from the URL instead, and the records are looked for in the
+    // shapes that pass-through actually produces: Salesforce's own query response,
+    // or that response inside Zapier's raw-request envelope.
+    const source = req.body?.source || req.query?.source;
+    const records = [
+      req.body?.records,
+      req.body?.results?.[0]?.body?.records,
+      req.body?.body?.records,
+    ].find(Array.isArray) ?? req.body?.records;
 
     // What the sender actually sent. A rejection that only restates the rule leaves
     // the caller guessing at the difference between "I sent the wrong value" and "my
@@ -562,6 +578,7 @@ export function registerSalesforceConnector(app, pool) {
     const diagnose = (error) => res.status(400).json({
       error,
       received_source: source ?? null,
+      source_in_query_string: req.query?.source ?? null,
       received_keys: Object.keys(req.body || {}),
       received_content_type: req.headers['content-type'] || null,
       records_type: Array.isArray(records) ? `array(${records.length})` : typeof records,
