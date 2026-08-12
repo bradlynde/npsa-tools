@@ -128,44 +128,6 @@ export type UntrackedWin = {
   close_date: string | null;
 };
 
-/**
- * Where the two revenue stories disagree.
- *
- * Revenue is summed from financial records; the opportunity total is kept beside
- * it purely so a divergence is visible here rather than discovered in a meeting.
- */
-export type RevenueQuality = {
-  source: 'financials' | 'opportunities';
-  financial_total: number;
-  financial_count: number;
-  opportunity_total: number;
-  opportunity_count: number;
-  /** Positive means the opportunity view is under-reporting — the original bug's direction. */
-  delta: number;
-  filters: {
-    purpose: string;
-    since: string;
-    excludes_non_security: boolean;
-    excludes_missing_opportunity: boolean;
-    filters_on_opportunity_stage: boolean;
-  };
-  excluded: Record<string, { count: number; amount: number }>;
-  flags: {
-    closed_lost_opportunity: {
-      financial_id: string; name: string | null; organization: string | null;
-      amount: number; contract_number: string | null;
-      opportunity_name: string | null; opportunity_stage: string | null;
-    }[];
-    orphaned_or_mismatched: {
-      financial_id: string; organization: string | null; amount: number;
-      contract_number: string | null; problem: string;
-    }[];
-    split_across_opportunities: {
-      organization: string; opportunities: number; financials: number; amount: number; stages: string[];
-    }[];
-  };
-};
-
 /** Grant applications — the client-side of the business, from Salesforce. */
 export type ApplicationStats = {
   total: number;
@@ -249,7 +211,6 @@ export const fetchTimeseries = (gran: Granularity = 'week') =>
 export const fetchChannels = () => get<ChannelRow[]>('by-channel');
 export const fetchCampaigns = () => get<CampaignRow[]>('by-campaign');
 export const fetchUntrackedWins = () => get<UntrackedWin[]>('untracked-wins');
-export const fetchRevenueQuality = () => get<RevenueQuality>('revenue-quality');
 export const fetchBookings = (search = '') =>
   get<BookingRow[]>(`bookings${search ? `?search=${encodeURIComponent(search)}` : ''}`);
 

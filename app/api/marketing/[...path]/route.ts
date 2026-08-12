@@ -14,6 +14,9 @@ const READABLE = new Set([
   "sync", // sync/status
   "bookings",
   "untracked-wins",
+  // No longer rendered. The panel that showed this came off once the two totals
+  // were reconciled in Salesforce, but the endpoint is how you re-check that they
+  // still agree — open it directly rather than reading it off the dashboard.
   "revenue-quality",
 ]);
 
