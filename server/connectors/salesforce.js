@@ -624,8 +624,11 @@ export function registerSalesforceConnector(app, pool) {
       note: 'diagnostic only — nothing was stored',
       content_type: req.headers['content-type'] || null,
       body_keys: Object.keys(body),
-      source: body.source ?? null,
-      source_valid: Boolean(APPLIERS[body.source]),
+      // Read the same way /sync/push reads it, or this reports a null source for a
+      // request that would actually have been accepted — which is worse than silence.
+      source: body.source ?? req.query?.source ?? null,
+      source_valid: Boolean(APPLIERS[body.source ?? req.query?.source]),
+      source_from: body.source ? 'body' : (req.query?.source ? 'query string' : null),
       records_type: records ? `array(${records.length})` : typeof body.records,
       // Which field names actually survived the trip. The whole reason the last
       // attempt failed was a disagreement about this, invisible from both ends.
