@@ -185,11 +185,6 @@ export default function DashboardPage() {
   // Re-run once the data lands, not just on mount — otherwise the counters
   // finish rolling against zeroes and the numbers appear with no animation.
   const roll = useRoll(mktLoading ? "loading" : `${range}-${weekly.length}`);
-  // Held rate is attendance, so it is measured only over meetings that have
-  // actually happened. Dividing by every booking counts a meeting scheduled for
-  // next week as one that failed to happen, and then lets the rate climb by
-  // itself as those dates pass.
-  const heldRate = totals.resolved ? (totals.held / totals.resolved) * 100 : 0;
   const upcoming = Math.max(0, totals.booked - totals.resolved);
   const loeRate = totals.held ? Math.round((totals.loes / totals.held) * 100) : 0;
   const bookingDelta = totals.booked - prior.booked;
@@ -206,12 +201,12 @@ export default function DashboardPage() {
           : "no prior period to compare",
       accent: false,
     },
-    {
-      label: `held rate · ${rangeTag}`,
-      value: fmtPct(heldRate * roll),
-      note: `${totals.held} of ${totals.resolved} meetings held so far`,
-      accent: false,
-    },
+    // No held-rate tile. The Held box ticks itself once a meeting has passed and was
+    // not cancelled, which makes it a useful marker in the bookings list — that one
+    // is done — but a hopeless basis for a rate. It derives from Calendly's no_show,
+    // which only a person sets and nobody here does, so the box is ticked for every
+    // past meeting and the rate read 100% of 232 with no input that could lower it.
+    // Attendance is not measured anywhere, so it is not reported as though it were.
     {
       label: `loes sent · ${rangeTag}`,
       value: fmtInt(totals.loes * roll),
