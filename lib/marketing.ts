@@ -159,7 +159,9 @@ export type SalesPoint = {
 };
 
 export type SyncRun = {
+  source?: string | null;
   ok?: boolean | null;
+  started_at?: string | null;
   finished_at?: string | null;
   rows_seen?: number | null;
   error?: string | null;
