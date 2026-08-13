@@ -1,9 +1,0 @@
-import { NextRequest } from "next/server";
-import { proxyAuth } from "../../../../lib/authProxy";
-
-/** Legacy password login. Goes away once everyone signs in by email. */
-export const dynamic = "force-dynamic";
-
-export async function POST(req: NextRequest) {
-  return proxyAuth(req, "/login");
-}
