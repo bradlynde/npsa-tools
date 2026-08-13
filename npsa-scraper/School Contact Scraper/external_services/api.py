@@ -48,7 +48,7 @@ from pipeline import StreamingPipeline
 from assets.shared.models import Contact
 
 # Import authentication module
-from external_services.auth import require_auth, verify_password, generate_token
+from external_services.auth import require_auth
 from external_services.notify import send_run_complete_email, send_test_notification_email
 from external_services import queue_store
 from external_services import db
@@ -2470,86 +2470,9 @@ def debug_volume():
         return jsonify({"error": str(e)}), 500
 
 
-# Rate limiting for login endpoint (simple in-memory implementation)
-login_attempts = {}
-LOGIN_RATE_LIMIT = 5  # Max attempts per IP
-LOGIN_RATE_WINDOW = 300  # 5 minutes in seconds
-
-def check_rate_limit(ip_address: str) -> bool:
-    """Check if IP has exceeded rate limit"""
-    current_time = time.time()
-    if ip_address not in login_attempts:
-        login_attempts[ip_address] = []
-    
-    # Clean old attempts
-    login_attempts[ip_address] = [
-        attempt_time for attempt_time in login_attempts[ip_address]
-        if current_time - attempt_time < LOGIN_RATE_WINDOW
-    ]
-    
-    # Check if limit exceeded
-    if len(login_attempts[ip_address]) >= LOGIN_RATE_LIMIT:
-        return False
-    
-    # Record this attempt
-    login_attempts[ip_address].append(current_time)
-    return True
-
-
-@app.route("/login", methods=["POST", "OPTIONS"])
-def login():
-    """Login endpoint - authenticate user and return JWT token"""
-    if request.method == "OPTIONS":
-        response = jsonify({})
-        response.headers.add("Access-Control-Allow-Origin", ALLOWED_ORIGIN if ALLOWED_ORIGIN != "*" else "*")
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
-        return response, 200
-    
-    try:
-        # Rate limiting
-        client_ip = request.remote_addr or "unknown"
-        if not check_rate_limit(client_ip):
-            return jsonify({
-                "status": "error",
-                "error": "Too many login attempts. Please try again later."
-            }), 429
-        
-        data = request.get_json() or {}
-        username = data.get("username", "").strip()
-        password = data.get("password", "")
-        
-        if not username or not password:
-            return jsonify({
-                "status": "error",
-                "error": "Username and password are required"
-            }), 400
-        
-        # Verify credentials
-        if not verify_password(username, password):
-            return jsonify({
-                "status": "error",
-                "error": "Invalid username or password"
-            }), 401
-        
-        # Generate token
-        token = generate_token(username)
-        
-        response = jsonify({
-            "status": "success",
-            "token": token,
-            "username": username
-        })
-        response.headers.add("Access-Control-Allow-Origin", ALLOWED_ORIGIN if ALLOWED_ORIGIN != "*" else "*")
-        return response, 200
-        
-    except Exception as e:
-        error_response = jsonify({
-            "status": "error",
-            "error": str(e)
-        })
-        error_response.headers.add("Access-Control-Allow-Origin", ALLOWED_ORIGIN if ALLOWED_ORIGIN != "*" else "*")
-        return error_response, 500
+# Sign-in lives in the auth service, not here. This app only verifies the
+# tokens it issues — see require_auth — which is why there is no /login
+# route and no user list. Reintroducing either would be a second way in.
 
 
 @app.route("/run-pipeline", methods=["POST", "OPTIONS"])

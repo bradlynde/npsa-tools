@@ -1,12 +1,14 @@
 """
-Authentication module for School Scraper API
-Handles user authentication, JWT token generation, and password hashing
+Token verification for the School Scraper API.
+
+Signing in happens in the auth service; this module only checks the tokens it
+issues, using the shared JWT_SECRET. There is deliberately no user list and no
+way to mint a token here — that would be a second set of credentials to keep
+safe, and a second way into the toolbox.
 """
 
 import jwt
-import bcrypt
 import os
-from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify
 
@@ -15,65 +17,6 @@ JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET:
     raise ValueError("JWT_SECRET environment variable must be set. This is required for security.")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24
-
-def _load_users() -> dict:
-    """Load user credentials from AUTH_USERS env var.
-    Format: 'Username:password,Username2:password2'
-    Passwords are hashed with bcrypt on load.
-    """
-    raw = os.getenv("AUTH_USERS", "")
-    if not raw:
-        from school_run_log import log_warn
-        log_warn("AUTH_USERS not set - no users can log in")
-        return {}
-    users = {}
-    for entry in raw.split(","):
-        entry = entry.strip()
-        if ":" not in entry:
-            continue
-        username, password = entry.split(":", 1)
-        username = username.strip()
-        password = password.strip()
-        if username and password:
-            users[username] = {
-                "password_hash": bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()),
-                "username": username,
-            }
-    if users:
-        from school_run_log import log_warn
-        log_warn(f"Auth: {len(users)} user(s) loaded")
-    else:
-        from school_run_log import log_warn
-        log_warn("AUTH_USERS set but no valid entries parsed")
-    return users
-
-
-USERS = _load_users()
-
-
-def verify_password(username: str, password: str) -> bool:
-    """Verify user password against stored hash"""
-    if username not in USERS:
-        return False
-
-    stored_hash = USERS[username]["password_hash"]
-    # Handle both bytes and string formats
-    if isinstance(stored_hash, str):
-        stored_hash = stored_hash.encode('utf-8')
-
-    return bcrypt.checkpw(password.encode('utf-8'), stored_hash)
-
-
-def generate_token(username: str) -> str:
-    """Generate JWT token for authenticated user"""
-    payload = {
-        "username": username,
-        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
-        "iat": datetime.utcnow()
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
 
 def verify_token(token: str) -> dict:
     """Verify JWT token and return payload if valid"""
