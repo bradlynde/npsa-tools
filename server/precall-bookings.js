@@ -151,7 +151,99 @@ function shapeBooking(ev, invitee, guests) {
  * by start time, so the cap drops the furthest-out meetings rather than the next
  * one on the calendar.
  */
-export async function listUpcomingBookings({ limit = 40, eventType = null } = {}) {
+/*
+ * Which event types are client consultations.
+ *
+ * The picker used to list every active booking on the org calendar. Most of what
+ * is on it is not a client call: the recurring "NPSA - (Stuart & Chad) Availability"
+ * holds are `collective` event types with no profile, and Lynde Consulting's older
+ * telecom event types are still live. Generating from one produced a briefing
+ * hosted by whoever owned the hold, and a follow-up offering that person's personal
+ * Calendly page — which is how Stuart's own link reached client-facing notes.
+ *
+ * Two kinds of event type count, and they have nothing structural in common:
+ *
+ *   - The Consultants round robin ("30min NPSA Consultation"). Found by rule:
+ *     pooling_type round_robin, hung off a Team profile. A new round robin is
+ *     picked up without anyone editing this file.
+ *
+ *   - Brad's own "NPSA 30 Minute Introduction Zoom Call", which is a plain solo
+ *     event type on his personal profile. Nothing distinguishes it from the
+ *     telecom event types sitting beside it except what it is FOR, so it has to
+ *     be named. That is a business fact, not a derivable one.
+ *
+ * Named by scheduling-URL path rather than by event-type URI: the path is legible
+ * to whoever maintains this, and it is what Stuart would paste when adding one.
+ * CALENDLY_CONSULT_EVENT_TYPES overrides the list (paths or full URIs, comma
+ * separated) without a deploy.
+ */
+const DEFAULT_CONSULT_PATHS = [
+  'npsa-consultation/intro',                        // Consultants round robin
+  'brad-15/npsa-30-minute-introduction-zoom-call',  // Brad's intro call
+];
+
+const pathOf = (url) => String(url || '').replace(/^https?:\/\/calendly\.com\//i, '').replace(/\/+$/, '');
+
+let _consults = null;
+
+export async function consultationEventTypes() {
+  if (_consults) return _consults;
+
+  const named = (process.env.CALENDLY_CONSULT_EVENT_TYPES || DEFAULT_CONSULT_PATHS.join(','))
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  const me = await calendlyGet('/users/me');
+  const org = me.resource.current_organization;
+  const all = [];
+  let next = `${CAL_API}/event_types?organization=${encodeURIComponent(org)}&active=true&count=100`;
+  while (next) {
+    const page = await calendlyGet(next);
+    all.push(...(page.collection || []));
+    next = page.pagination?.next_page || null;
+  }
+
+  const isNamed = (t) => named.includes(t.uri) || named.includes(pathOf(t.scheduling_url));
+  const isTeamRoundRobin = (t) => t.pooling_type === 'round_robin' && t.profile?.type === 'Team';
+
+  _consults = all.filter(t => isNamed(t) || isTeamRoundRobin(t)).map(t => ({
+    uri: t.uri,
+    name: t.name,
+    schedulingUrl: t.scheduling_url || null,
+    roundRobin: isTeamRoundRobin(t),
+  }));
+
+  const missing = named.filter(n => !_consults.some(c => c.uri === n || pathOf(c.schedulingUrl) === n));
+  if (missing.length) {
+    // A named event type that no longer resolves silently stops appearing in the
+    // picker, and the rep just sees fewer meetings than they booked.
+    console.error('[precall-bookings] consultation event type(s) not found:', missing.join(', '));
+  }
+  if (!_consults.length) {
+    console.error('[precall-bookings] no consultation event types matched — ' +
+      'set CALENDLY_CONSULT_EVENT_TYPES, or the picker will be empty');
+  }
+  return _consults;
+}
+
+/**
+ * The link a follow-up should offer.
+ *
+ * The team round robin, never an individual's page — a personal link books that
+ * one person and skips the rotation. Still the round robin for a call that came
+ * in through Brad's own intro link: the follow-up is an invitation to book NPSA,
+ * and the team is what the client should land on.
+ */
+export async function roundRobinSchedulingUrl() {
+  try {
+    const types = await consultationEventTypes();
+    return types.find(t => t.roundRobin)?.schedulingUrl || null;
+  } catch (e) {
+    console.error('[precall-bookings] round-robin lookup failed:', e.message);
+    return null;
+  }
+}
+
+export async function listUpcomingBookings({ limit = 40, eventType = null, allEventTypes = false } = {}) {
   const me = await calendlyGet('/users/me');
   const org = me.resource.current_organization;
 
@@ -167,8 +259,15 @@ export async function listUpcomingBookings({ limit = 40, eventType = null } = {}
 
   // Calendly's list-events endpoint accepts an event_type parameter and silently
   // ignores it, so a request that looks filtered comes back unfiltered. Filter here.
-  const wanted = (eventType ? events.filter(e => e.event_type === eventType) : events)
-    .slice(0, limit);
+  let wanted = events;
+  if (eventType) {
+    wanted = events.filter(e => e.event_type === eventType);
+  } else if (!allEventTypes) {
+    // Client consultations only. Without this the picker lists internal holds.
+    const ok = (await consultationEventTypes()).map(t => t.uri);
+    if (ok.length) wanted = events.filter(e => ok.includes(e.event_type));
+  }
+  wanted = wanted.slice(0, limit);
 
   const settled = await Promise.allSettled(wanted.map(async (ev) => {
     const invitees = (await calendlyGet(`${ev.uri}/invitees`)).collection || [];
@@ -194,16 +293,19 @@ export async function getBooking(eventUri) {
   const invitees = (await calendlyGet(`${eventUri}/invitees`)).collection || [];
   const booking = shapeBooking(ev, invitees[0], collectGuests(ev, invitees));
 
-  // The host's own scheduling link, so a follow-up email offers the rep who ran
-  // the call rather than Brad's link regardless of whose meeting it was. Worth one
-  // extra call here, where a single booking is being read; the list view skips it.
-  const hostUri = (ev.event_memberships || [])[0]?.user;
-  if (hostUri) {
-    try {
-      const u = (await calendlyGet(hostUri)).resource;
-      booking.host.schedulingUrl = u?.scheduling_url || null;
-    } catch { /* the link is a nicety; the briefing does not depend on it */ }
-  }
+  /*
+   * The link a follow-up offers is the team round robin, not the host's own page.
+   *
+   * This used to read the host user's personal scheduling_url so the email offered
+   * the rep who ran the call. That is the right instinct and the wrong field: a
+   * personal page books that one person, bypassing the rotation the team actually
+   * runs on, and on an internal hold the "host" is whoever owns the hold — which
+   * is how Stuart's own Calendly link ended up in client-facing notes.
+   *
+   * The host's name and email still come from the booking, so the briefing still
+   * names the rep who is taking the call. Only the booking link changed.
+   */
+  booking.host.schedulingUrl = await roundRobinSchedulingUrl();
   return booking;
 }
 
