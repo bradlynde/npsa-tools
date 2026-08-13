@@ -153,6 +153,23 @@ async function ensureSchema(pool) {
      WHERE unqualified = TRUE AND exclusion_reason IS NULL;
   `).catch(err => console.error('bookings exclusion-migration error:', err.message));
 
+  // Retire the attendance Calendly guessed for us.
+  //
+  // held used to be filled from Calendly's `no_show`, which a person sets by hand
+  // there and nobody on this team ever did. Its absence was read as "they turned
+  // up", so every past meeting was recorded as held and the rate sat at 100% of
+  // 232 — a figure with no way to move. Those TRUEs are not observations and
+  // leaving them would pin the rate at 100% no matter what anyone ticks from here.
+  //
+  // held = FALSE from the same source IS an observation: somebody opened Calendly
+  // and marked a no-show. That is the same act as unticking the box, so it stays.
+  // Only the manufactured TRUEs go, which also makes this safe to re-run — after
+  // the first pass nothing matches, and nothing writes held_source='calendly' again.
+  await pool.query(`
+    UPDATE bookings SET held = NULL, held_source = NULL
+     WHERE held_source = 'calendly' AND held IS TRUE;
+  `).catch(err => console.error('bookings held-migration error:', err.message));
+
   // Source of truth for EVERY Salesforce win — matched to a booking or not.
   // booking_id is NULL for untracked / pre-funnel wins (closed before the booking
   // funnel existed, or a deal that never came through a tracked booking). Totals
@@ -414,28 +431,27 @@ const EXCLUSION_LABELS = {
 };
 export { EXCLUSION_REASONS, EXCLUSION_LABELS };
 
-// Asks Calendly two separate questions about one event:
-//   cancelled — was the meeting called off? Answerable at any time, and the answer
-//               that matters most is about a meeting still in the future.
-//   held      — did the invitee actually turn up? Only meaningful once it has passed.
-//
-// These used to be conflated: a cancellation was recorded as "not held", and the
-// check only ran for meetings already in the past. So a meeting cancelled today for
-// next month stayed on the dashboard as an upcoming appointment until its date came
-// round — which is exactly the case this is being asked to fix.
-//
+// Asks Calendly two questions about one event:
+//   cancelled  — was the meeting called off? Answerable at any time, and the answer
+//                that matters most is about a meeting still in the future.
 //   oldInvitee — the invitee this one replaced, when the booking is a reschedule.
 //                Calendly only records the link on the invitee, so answering it
-//                costs the same second API call attendance does.
+//                costs a second API call.
 //
-// checkAttendance skips the second API call for events that have not happened yet;
-// checkReschedule asks for it anyway while the link is still unknown, because a
-// move usually lands on a date in the future and would otherwise go unnoticed until
-// after the meeting.
+// It no longer asks whether the meeting was HELD. Calendly reports attendance as
+// `no_show`, which is set only when a person ticks it there — so its absence meant
+// "nobody said otherwise", and reading that as "they turned up" marked every past
+// meeting held. The rate sat at 100% of 232 for months, which is not a measurement.
+// Attendance is now whatever the Held checkbox says and nothing else; see the note
+// where held is resolved in enrichBooking.
+//
+// checkReschedule buys the second call while the reschedule link is still unknown,
+// because a move usually lands on a date in the future and would otherwise go
+// unnoticed until after the meeting.
 //
 // Returns null for anything it cannot determine, so a missing token or a Calendly
 // outage leaves existing values untouched rather than overwriting them.
-async function calendlyStatus(eventUri, { checkAttendance = false, checkReschedule = false } = {}) {
+async function calendlyStatus(eventUri, { checkReschedule = false } = {}) {
   const unknown = { cancelled: null, held: null, source: null, oldInvitee: null };
   const key = process.env.CALENDLY_API_TOKEN;
   if (!key || !eventUri) return unknown;
@@ -454,13 +470,11 @@ async function calendlyStatus(eventUri, { checkAttendance = false, checkReschedu
     // so this path stays a single API call.
     if (status === 'canceled') return { ...unknown, cancelled: true };
     if (status !== 'active') return unknown;
-    if (!checkAttendance && !checkReschedule) return { ...unknown, cancelled: false };
+    if (!checkReschedule) return { ...unknown, cancelled: false };
     const inv = await fetch(`${eventUri}/invitees`, { headers: { Authorization: `Bearer ${key}` } });
     if (!inv.ok) return { ...unknown, cancelled: false };
     const first = ((await inv.json()).collection || [])[0];
-    const oldInvitee = (checkReschedule && first?.old_invitee) || null;
-    if (!checkAttendance || !first) return { ...unknown, cancelled: false, oldInvitee };
-    return { cancelled: false, held: !first.no_show, source: 'calendly', oldInvitee };
+    return { ...unknown, cancelled: false, oldInvitee: first?.old_invitee || null };
   } catch {
     return unknown;
   }
@@ -628,7 +642,7 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
       }
       if (dryRun) continue;   // ingested counts writes, and a dry run makes none
       const id = await upsertBooking(pool, booking);
-      await enrichBooking(pool, id);   // sets channel, held, and cancelled from Calendly
+      await enrichBooking(pool, id);   // sets channel, and cancelled/reschedule from Calendly
       result.ingested++;
     } catch (e) {
       result.failed++;
@@ -757,9 +771,7 @@ async function enrichBooking(pool, id) {
     }
   }
 
-  const past = row.meeting_date && new Date(row.meeting_date) < new Date();
   const st = await calendlyStatus(eventUri, {
-    checkAttendance: Boolean(past),
     // Asked until it is answered, then never again: an invitee's old_invitee is
     // fixed at creation, so a row that already knows its origin costs no calls.
     checkReschedule: row.rescheduled_from == null,
@@ -771,9 +783,18 @@ async function enrichBooking(pool, id) {
   else if (st.cancelled === false) { cancelled = false; cancelledAt = null; } // rebooked/reinstated
   // st.cancelled === null means Calendly could not answer — leave what we have.
 
+  // Attendance has exactly one author: the Held checkbox.
+  //
+  // Calendly used to fill this in, and the value it gave was worthless. Its
+  // `no_show` flag is set only when a person marks it there, and nobody on this
+  // team does, so every past meeting came back held=true and the rate read 100%
+  // of 232 — a number that could not go down and therefore measured nothing.
+  //
+  // Leaving held NULL until somebody answers is the honest alternative: an
+  // unmarked meeting is unresolved, not unattended, and the rate divides by
+  // resolved meetings only. The tile renders that emptiness rather than 0%.
   let held = row.held, heldSource = row.held_source;
   if (typeof override.held === 'boolean') { held = override.held; heldSource = 'manual'; }
-  else if (st.held !== null) { held = st.held; heldSource = st.source; }
 
   // --- Reschedule link ---
   // Ingest matches on the invitee URI, which a reschedule always changes, so the
@@ -1387,8 +1408,17 @@ export function registerMarketing(app, pool) {
       }
       // Stale-only refresh: normally a small set, run synchronously so a UI reload
       // sees fresh data.
+      //
+      // This used to include every past meeting with no recorded outcome, on the
+      // basis that Calendly might yet answer for it. Calendly no longer answers
+      // attendance at all, so that set only grows — it would match every unmarked
+      // meeting for ever, always exceed the 25-row threshold below, and turn a
+      // button meant to refresh in place into one that permanently says "running
+      // in the background".
       const { rows } = await pool.query(
-        `SELECT id FROM bookings WHERE enriched_at IS NULL OR (meeting_date < NOW() AND held IS NULL)`
+        `SELECT id FROM bookings
+          WHERE enriched_at IS NULL
+             OR meeting_date > NOW() - interval '7 days'`
       );
       // Except when it is not small. Every unresolved booking now also costs a
       // lookup to identify it, so a backlog that used to finish inside the request
@@ -1962,18 +1992,23 @@ export function registerMarketing(app, pool) {
     if (_enrichRunning) return;
     _enrichRunning = true;
     try {
-      // Two changes of shape from "recent events only". A row with no event_uri was
-      // skipped entirely, which is exactly backwards: those are the rows that need
-      // identifying before they can be asked anything. And a past meeting with no
-      // recorded outcome is worth another look however old it is, since until now
-      // nothing ever came back for it — bounded because resolving it, or setting it
-      // aside, drops it straight out of this set.
+      // A row with no event_uri is included rather than skipped, which was exactly
+      // backwards: those are the rows that need identifying before they can be
+      // asked anything.
+      //
+      // What is NOT included any more is "a past meeting with no recorded outcome,
+      // however old". That clause was bounded only because Calendly would sooner or
+      // later answer for the row and drop it out of the set. Attendance is now a
+      // human answer, so nothing here can ever resolve it — the clause would match
+      // every unmarked meeting for ever and re-ask Calendly a question it has no
+      // opinion on, twice a day, growing with the table. The questions still worth
+      // asking (was it cancelled, was it moved) are about meetings near their date,
+      // which the seven-day window already covers.
       const { rows } = await pool.query(
         `SELECT id FROM bookings
           WHERE (event_uri IS NOT NULL OR (email IS NOT NULL AND meeting_date IS NOT NULL))
             AND (meeting_date IS NULL
-                 OR meeting_date > NOW() - interval '7 days'
-                 OR (held IS NULL AND exclusion_reason IS NULL))`);
+                 OR meeting_date > NOW() - interval '7 days')`);
       for (const r of rows) {
         try { await enrichBooking(pool, r.id); } catch (e) { console.error('sweep enrich error:', e.message); }
       }
