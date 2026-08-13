@@ -1255,6 +1255,22 @@ def update_run(run_id: str, **fields) -> None:
     )
 
 
+def claim_run_notification(run_id: str) -> bool:
+    """Flip notify_sent false -> true, returning True only for the caller that won.
+
+    Completion runs on whichever replica finishes the work, and more than one can
+    reach that point for the same run. A read-then-write check races; a
+    conditional UPDATE lets the database decide, so the email goes exactly once.
+    """
+    row = _execute(
+        "UPDATE pipeline_runs SET notify_sent = TRUE "
+        "WHERE run_id = %s AND notify_sent IS NOT TRUE RETURNING run_id",
+        (run_id,),
+        fetch="one",
+    )
+    return row is not None
+
+
 def update_run_json_append(run_id: str, field: str, value: Any) -> None:
     """Append a value to a JSONB array field (county_times, county_contacts, etc.)."""
     _execute(

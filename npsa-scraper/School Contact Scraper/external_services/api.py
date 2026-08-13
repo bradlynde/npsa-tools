@@ -521,6 +521,36 @@ def _school_aggregation_recovery_loop() -> None:
             traceback.print_exc()
 
 
+def _claim_run_notification(run_id: str) -> bool:
+    """True exactly once per run, for whichever replica gets there first.
+
+    pipeline_runs is per-process, so a flag there only stops this process from
+    sending twice — two replicas both finishing the same run would each believe
+    they were first. The notify_sent column exists for this; let Postgres
+    arbitrate. Falls back to the in-process flag only when there is no database.
+    """
+    if queue_store.is_enabled():
+        try:
+            return queue_store.claim_run_notification(run_id)
+        except Exception as e:
+            log_warn(f"Notification claim failed for {run_id}, falling back: {e}")
+    run = pipeline_runs.get(run_id)
+    if run is None or run.get("notify_sent"):
+        return False
+    run["notify_sent"] = True
+    return True
+
+
+def _final_csv_for(run_id: str) -> Optional[str]:
+    """Path to the run's finished CSV, if one was written and still exists."""
+    try:
+        metadata = load_run_metadata(run_id) or {}
+    except Exception:
+        return None
+    path = metadata.get("final_csv_path")
+    return path if path and os.path.exists(path) else None
+
+
 def _synthetic_pipeline_status_from_dispatch(run_id: str) -> Optional[dict]:
     """When polling hits a replica that did not start the run, rebuild status from queue_store."""
     if not validate_run_id(run_id):
@@ -1671,13 +1701,18 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
                     pipeline_runs[run_id]["completedAt"] = time.time()
                     # Final data saved - clean up ephemeral run data
                     cleanup_ephemeral_run(run_id)
-                    if not pipeline_runs[run_id].get("notify_sent"):
-                        duration = time.time() - pipeline_runs[run_id].get("startTime", time.time())
-                        send_run_complete_email(
-                            run_id, state, len(counties), len(counties), 0, 0, duration
-                        )
-                        pipeline_runs[run_id]["notify_sent"] = True
-            
+
+            # Notify now, not inside finalize_completion. That thread sleeps two
+            # minutes before flipping the status, and it is a daemon — a replica
+            # restart inside that window used to drop the email for a run that had
+            # genuinely finished. The cooldown governs the UI transition; the work
+            # is already done here.
+            if _claim_run_notification(run_id):
+                duration = time.time() - pipeline_runs[run_id].get("startTime", time.time())
+                send_run_complete_email(
+                    run_id, state, len(counties), len(counties), 0, 0, duration
+                )
+
             finalize_thread = threading.Thread(target=finalize_completion, daemon=True)
             finalize_thread.start()
             pipeline_runs[run_id]["totalContacts"] = 0
@@ -1839,23 +1874,29 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
                 if not metadata.get("display_name"):
                     metadata["display_name"] = _run_display_name(state, "school")
                 save_run_metadata(run_id, metadata)
-                if not pipeline_runs[run_id].get("notify_sent"):
-                    duration = time.time() - pipeline_runs[run_id].get("startTime", time.time())
-                    send_run_complete_email(
-                        run_id,
-                        state,
-                        len(counties),
-                        len(counties),
-                        pipeline_runs[run_id].get("totalContacts", 0),
-                        pipeline_runs[run_id].get("totalContactsWithEmails", 0),
-                        duration,
-                    )
-                    pipeline_runs[run_id]["notify_sent"] = True
-        
+
         # Clean up ephemeral run data only after final CSV successfully saved to volume
         if final_data_saved_to_volume:
             cleanup_ephemeral_run(run_id)
-        
+
+        # Notify now, not inside finalize_completion. That thread sleeps two
+        # minutes before flipping the status, and it is a daemon — a replica
+        # restart inside that window used to drop the email for a run that had
+        # genuinely finished. The cooldown governs the UI transition; the work
+        # is already done here.
+        if _claim_run_notification(run_id):
+            duration = time.time() - pipeline_runs[run_id].get("startTime", time.time())
+            send_run_complete_email(
+                run_id,
+                state,
+                len(counties),
+                len(counties),
+                pipeline_runs[run_id].get("totalContacts", 0),
+                pipeline_runs[run_id].get("totalContactsWithEmails", 0),
+                duration,
+                csv_path=_final_csv_for(run_id),
+            )
+
         finalize_thread = threading.Thread(target=finalize_completion, daemon=True)
         finalize_thread.start()
         
@@ -2247,19 +2288,25 @@ def run_streaming_pipeline(
                             pipeline_runs[run_id]["status"] = "completed"
                             pipeline_runs[run_id]["statusMessage"] = f"Pipeline completed: {len(completed_counties)}/{total_counties} counties processed"
                             pipeline_runs[run_id]["completedAt"] = time.time()
-                            if not pipeline_runs[run_id].get("notify_sent"):
-                                duration = time.time() - pipeline_runs[run_id].get("startTime", time.time())
-                                send_run_complete_email(
-                                    run_id,
-                                    state,
-                                    len(completed_counties),
-                                    total_counties,
-                                    pipeline_runs[run_id].get("totalContacts", 0),
-                                    pipeline_runs[run_id].get("totalContactsWithEmails", 0),
-                                    duration,
-                                )
-                                pipeline_runs[run_id]["notify_sent"] = True
-                    
+
+                    # Notify now, not inside finalize_completion. That thread sleeps two
+                    # minutes before flipping the status, and it is a daemon — a replica
+                    # restart inside that window used to drop the email for a run that had
+                    # genuinely finished. The cooldown governs the UI transition; the work
+                    # is already done here.
+                    if _claim_run_notification(run_id):
+                        duration = time.time() - pipeline_runs[run_id].get("startTime", time.time())
+                        send_run_complete_email(
+                            run_id,
+                            state,
+                            len(completed_counties),
+                            total_counties,
+                            pipeline_runs[run_id].get("totalContacts", 0),
+                            pipeline_runs[run_id].get("totalContactsWithEmails", 0),
+                            duration,
+                            csv_path=_final_csv_for(run_id),
+                        )
+
                     finalize_thread = threading.Thread(target=finalize_completion, daemon=True)
                     finalize_thread.start()
                     
