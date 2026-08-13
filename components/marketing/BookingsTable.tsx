@@ -7,10 +7,12 @@ import {
   EXCLUSION_LABELS,
   attributionNote,
   channelLabel,
+  fetchCampaignOptions,
   hostName,
   patchBooking,
   type BookingPatch,
   type BookingRow,
+  type CampaignOptions,
 } from "../../lib/marketing";
 
 // Channel is a fixed width — its longest label is "Direct / Other", and letting
@@ -64,6 +66,23 @@ export default function BookingsTable({
   const [saving, setSaving] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The campaign picker is opened one row at a time, because filling it costs
+  // several Instantly searches for that booking alone. Almost every row already
+  // knows its campaign and is never asked.
+  const [pickerFor, setPickerFor] = useState<number | null>(null);
+  const [options, setOptions] = useState<CampaignOptions | null>(null);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+
+  const openPicker = async (id: number) => {
+    setPickerFor(id);
+    setOptions(null);
+    setOptionsError(null);
+    try {
+      setOptions(await fetchCampaignOptions(id));
+    } catch (e) {
+      setOptionsError((e as Error).message);
+    }
+  };
 
   const apply = async (row: BookingRow, patch: BookingPatch, optimistic: Partial<BookingRow>) => {
     const before: Partial<BookingRow> = {};
@@ -271,26 +290,109 @@ export default function BookingsTable({
                       ))}
                     </select>
 
-                    {/* Hovering says which rule supplied this campaign. A campaign
-                        read off the booking link and one inferred from a colleague
-                        at the same email domain look identical otherwise. */}
-                    <span
-                      title={
-                        r.instantly_campaign
-                          ? `${r.instantly_campaign}\n${attributionNote(r.attribution_source)}`
-                          : attributionNote(r.attribution_source)
-                      }
-                      style={{
-                        color: muted,
-                        fontSize: 13,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        textDecoration: excluded ? "line-through" : "none",
-                      }}
-                    >
-                      {r.instantly_campaign || "—"}
-                    </span>
+                    {/* Detection gets most of these and gives up silently on the rest,
+                        which used to mean looking the church up by hand. Clicking asks
+                        Instantly which campaigns could account for this booking and why,
+                        so the choice is made from evidence rather than memory.
+
+                        Hovering the text still says which rule supplied a campaign: one
+                        read off the booking link and one inferred from a colleague at the
+                        same domain look identical otherwise. */}
+                    {pickerFor === r.id ? (
+                      <select
+                        autoFocus
+                        value={r.instantly_campaign || ""}
+                        disabled={saving === r.id}
+                        onBlur={() => setPickerFor(null)}
+                        onChange={(e) => {
+                          const chosen = e.target.value;
+                          setPickerFor(null);
+                          apply(
+                            r,
+                            { campaign: chosen },
+                            {
+                              instantly_campaign: chosen || null,
+                              // The server settles the channel the same way; mirroring it
+                              // here stops the row flickering back for one render.
+                              attribution_channel: chosen ? "instantly" : r.attribution_channel,
+                            }
+                          );
+                        }}
+                        title={
+                          options && !options.configured
+                            ? "Instantly is not configured, so nothing could be suggested"
+                            : "Pick the campaign this booking came from"
+                        }
+                        style={{
+                          font: "inherit",
+                          fontSize: 12.5,
+                          color: muted,
+                          background: "transparent",
+                          border: "1px solid var(--bd2)",
+                          borderRadius: 999,
+                          padding: "3px 6px",
+                          cursor: "pointer",
+                          maxWidth: "100%",
+                        }}
+                      >
+                        <option value="">— leave it to detection —</option>
+                        {!options && !optionsError && <option disabled>searching Instantly…</option>}
+                        {optionsError && <option disabled>could not reach Instantly</option>}
+                        {options && options.suggestions.length > 0 && (
+                          <optgroup label="Suggested">
+                            {options.suggestions.map((s) => (
+                              <option
+                                key={s.campaign_id}
+                                value={s.campaign}
+                                // The examples are what let somebody confirm a suggestion
+                                // rather than trust it.
+                                title={s.examples
+                                  .map((x) => [x.name, x.email, x.company].filter(Boolean).join(" · "))
+                                  .join("\n")}
+                              >
+                                {s.campaign} — {s.lead_count} lead{s.lead_count === 1 ? "" : "s"} ·{" "}
+                                {s.why.join(", ")}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {options && (
+                          <optgroup label="All campaigns">
+                            {options.all.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </select>
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openPicker(r.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") openPicker(r.id);
+                        }}
+                        title={
+                          r.instantly_campaign
+                            ? `${r.instantly_campaign}\n${attributionNote(r.attribution_source)}\n\nClick to change`
+                            : `${attributionNote(r.attribution_source)}\n\nClick to find the campaign`
+                        }
+                        style={{
+                          color: muted,
+                          fontSize: 13,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          textDecoration: excluded ? "line-through" : "none",
+                          cursor: "pointer",
+                          borderBottom: isHover ? "1px dotted var(--bd2)" : "1px dotted transparent",
+                        }}
+                      >
+                        {r.instantly_campaign || "—"}
+                      </span>
+                    )}
 
                     {/* Who took the meeting sits under its date — wanted often enough
                         to show, not often enough to spend a column on. */}

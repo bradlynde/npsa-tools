@@ -223,7 +223,44 @@ export type BookingPatch = {
   exclusion?: string;
   /** '' clears a manual channel override and restores the detected one. */
   channel?: string;
+  /**
+   * Names the Instantly campaign behind this booking. Settles the channel too, and
+   * clears any channel override; '' hands the booking back to automatic detection.
+   */
+  campaign?: string;
 };
+
+/**
+ * What somebody needs in order to name the campaign themselves.
+ *
+ * `suggestions` are campaigns that could account for the booking, with the evidence
+ * for each — the same searches automatic detection runs, kept rather than reduced to
+ * a single winner. `all` is every campaign, for when none of them fit.
+ */
+export type CampaignOptions = {
+  current: string | null;
+  source: string | null;
+  suggestions: {
+    campaign: string;
+    campaign_id: string;
+    /** Why it was suggested: same email domain, similar organisation, same last name. */
+    why: string[];
+    lead_count: number;
+    examples: { name: string | null; email: string | null; company: string | null }[];
+  }[];
+  all: string[];
+  /** Campaign ids the campaign list could not name — stale cache or archived. */
+  unnamed_campaign_ids: string[];
+  /** False means Instantly was never asked, which an empty list otherwise hides. */
+  configured: boolean;
+};
+
+/**
+ * Asked per booking, when the picker opens — each answer costs several Instantly
+ * searches, and almost every row already knows its campaign and will never be asked.
+ */
+export const fetchCampaignOptions = (id: number) =>
+  get<CampaignOptions>(`bookings/${id}/campaign-options`);
 
 /** Applies a manual override to one booking. */
 export async function patchBooking(id: number, patch: BookingPatch): Promise<void> {
