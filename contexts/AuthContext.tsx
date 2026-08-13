@@ -15,6 +15,8 @@ interface AuthContextType {
   username: string | null;
   token: string | null;
   login: (username: string, password: string) => Promise<boolean>;
+  requestCode: (email: string) => Promise<void>;
+  verifyCode: (email: string, code: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
   authApiUrl: string; // Exposed for debugging
@@ -131,6 +133,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const authApiUrl = getAuthApiUrl();
 
+  /**
+   * Posts to a same-origin auth route, falling back to the service directly if
+   * that route is missing or can't reach it — the same reasoning as `login`
+   * below, which this replaces once everyone has moved across.
+   */
+  const postAuth = async (path: string, payload: unknown): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      let response = await fetch(`/api/auth/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      }).catch(() => null);
+
+      if (!response || response.status === 404 || response.status === 502) {
+        response = await fetch(`${authApiUrl}/auth/${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      }
+      return response;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  /**
+   * Ask for a sign-in code. Resolves whether or not the address belongs to
+   * anyone — the service answers identically either way on purpose, so there is
+   * nothing here to report back.
+   */
+  const requestCode = async (email: string): Promise<void> => {
+    let res: Response;
+    try {
+      res = await postAuth("request-code", { email: email.trim().toLowerCase() });
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        throw new Error("The sign-in service didn’t respond in time. Try again in a moment.");
+      }
+      throw new Error("Can’t reach the sign-in service. It may be starting up — try again shortly.");
+    }
+    // 422 is the service rejecting the address as malformed; everything else
+    // that isn't OK is ours, not the user's.
+    if (res.status === 422) throw new Error("That doesn’t look like a valid email address.");
+    if (!res.ok) throw new Error("Couldn’t send a code just now. Try again in a moment.");
+  };
+
+  const verifyCode = async (email: string, code: string): Promise<boolean> => {
+    let res: Response;
+    try {
+      res = await postAuth("verify-code", {
+        email: email.trim().toLowerCase(),
+        code: code.trim(),
+      });
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        throw new Error("The sign-in service didn’t respond in time. Try again in a moment.");
+      }
+      throw new Error("Can’t reach the sign-in service. It may be starting up — try again shortly.");
+    }
+
+    if (res.status === 429) {
+      throw new Error("Too many attempts. Wait a few minutes and request a new code.");
+    }
+    if (!res.ok) return false; // wrong, expired, or already used — all the same to us
+
+    const data = await res.json().catch(() => null);
+    if (!data || data.status !== "success" || !data.token) return false;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("auth_token", data.token);
+      localStorage.setItem("auth_username", data.username);
+      updateLastActivity();
+    }
+    setToken(data.token);
+    setUsername(data.username);
+    setIsAuthenticated(true);
+    return true;
+  };
+
   const login = async (username: string, password: string): Promise<boolean> => {
     const apiUrl = authApiUrl;
     try {
@@ -222,7 +308,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, username, token, login, logout, loading, authApiUrl }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        username,
+        token,
+        login,
+        requestCode,
+        verifyCode,
+        logout,
+        loading,
+        authApiUrl,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

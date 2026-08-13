@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { proxyAuth } from "../../../../lib/authProxy";
 
-/** Legacy password login. Goes away once everyone signs in by email. */
+/** Ask the auth service to email a sign-in code. Always answers 200. */
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  return proxyAuth(req, "/login");
+  return proxyAuth(req, "/auth/request-code");
 }
