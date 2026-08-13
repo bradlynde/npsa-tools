@@ -23,6 +23,7 @@ import {
   type SalesGranularity,
   type SalesPoint,
   type Stats,
+  type SyncRun,
   type SyncStatus,
 } from "../../lib/marketing";
 
@@ -49,11 +50,52 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+/**
+ * A failed run stops describing the present, in two ways.
+ *
+ * `sync/status` returns the newest run PER SOURCE. So a source that fails once and
+ * is then retired keeps that failed row for ever: nothing supersedes it, because
+ * nothing writes to it again. This banner reported "any source's newest run
+ * failed" as "the last sync failed", with no test of whether it was still true —
+ * and stayed red for as long as the row existed.
+ *
+ * A run is spent once either is true:
+ *
+ *  - **It is old.** Every source here runs daily, so a run from days ago says
+ *    nothing about today's figures.
+ *  - **Something newer already did its job.** Financials arrive as either
+ *    `salesforce_financials` (mapped field names) or `salesforce_financials_raw`
+ *    (Salesforce's own, mapped server-side instead). One dataset, two delivery
+ *    routes, so a success on either settles a failure on the other.
+ *
+ * That second case is the one that went wrong: the mapped route failed at 16:35
+ * with an empty payload, the raw route delivered 120 records at 06:00 the next
+ * morning, and the dashboard still called the sync failed.
+ */
+const FRESH_MS = 36 * 3600 * 1000;
+/** Two routes for one dataset share a family, so either can settle the other. */
+const sourceFamily = (source?: string | null) => (source || "").replace(/_raw$/, "");
+const runAt = (r: SyncRun) => new Date(r.finished_at || r.started_at || 0).getTime();
+
 /** Whether the Salesforce data behind these figures actually landed, and when. */
 function SyncLine({ status }: { status: SyncStatus | null }) {
   if (!status) return null;
   const runs = status.runs || [];
-  const failed = runs.filter((r) => r.ok === false);
+  const current = runs.filter((r) => Date.now() - runAt(r) < FRESH_MS);
+
+  // Newest success per dataset, so a later success can settle an earlier failure.
+  const settled = new Map<string, number>();
+  for (const r of current) {
+    if (!r.ok) continue;
+    const key = sourceFamily(r.source);
+    settled.set(key, Math.max(settled.get(key) ?? 0, runAt(r)));
+  }
+  const failed = current
+    .filter((r) => r.ok === false && runAt(r) > (settled.get(sourceFamily(r.source)) ?? 0))
+    .sort((a, b) => runAt(b) - runAt(a));
+
+  // "When did anything last land" is asked of every run, spent or not — a wholly
+  // stale board should still say when it went stale rather than claim nothing ran.
   const newest = runs.reduce(
     (max, r) => (r.finished_at && r.finished_at > max ? r.finished_at : max),
     ""
@@ -62,21 +104,27 @@ function SyncLine({ status }: { status: SyncStatus | null }) {
 
   let tone = "var(--mute)";
   let text: string;
+  let reported: SyncRun | undefined;
   if (!runs.length) {
     text = status.pull_configured
       ? "Salesforce sync has not run yet"
       : "Salesforce sync not configured — figures are from the last manual load";
   } else if (failed.length) {
+    reported = failed[0];
     tone = "var(--err-fg)";
-    text = `Last Salesforce sync failed — ${failed[0].error || "unknown error"}`;
+    text = `Last Salesforce sync failed — ${reported.error || "unknown error"}`;
   } else if (!newest) {
     text = "Salesforce sync started but has not finished";
   } else {
-    const seen = runs.reduce((s, r) => s + (r.rows_seen || 0), 0);
+    reported = runs.find((r) => r.finished_at === newest);
+    const seen = (current.length ? current : runs).reduce((s, r) => s + (r.rows_seen || 0), 0);
     tone = stale ? "var(--warn-fg)" : "var(--ok-fg)";
     text = `Synced from Salesforce ${timeAgo(newest)} · ${seen.toLocaleString()} records`;
   }
-  const note = runs.map((r) => r.note).filter(Boolean)[0];
+  // The note belongs to the run being reported. Taking the first note from any run
+  // sat a fortnight-old Calendly backfill's "scanned 103" beside a financials error,
+  // reading as one sentence about one event.
+  const note = reported?.note || null;
 
   return (
     <div
