@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import pg from 'pg';
 import HTMLtoDOCX from 'html-to-docx';
 import { registerMarketing } from './marketing.js';
-import { listUpcomingBookings, getBooking } from './precall-bookings.js';
+import { listUpcomingBookings, getBooking, roundRobinSchedulingUrl } from './precall-bookings.js';
 import {
   buildMeetingDetails, buildAttendees, buildVideoConference,
   writeInLines, substituteBlocks, fillEmptySections, formatCentral, NPSA_TITLES,
@@ -347,10 +347,18 @@ app.post('/api/precall/followup', async (req, res) => {
   const contactEmail = attendee0.email || legacyCE || '';
   const firstName = contactName.split(' ')[0] || 'there';
 
-  // Whose email this is. Read from the booking rather than assumed, for the same
-  // reason the attendee list is: the rep who ran the call is often not Brad.
+  /*
+   * Whose email this is. Read from the booking rather than assumed, for the same
+   * reason the attendee list is: the rep who ran the call is often not Brad.
+   *
+   * The scheduling link is deliberately NOT the sender's. Clients book the team
+   * through one round robin, so that is what a follow-up offers — an individual's
+   * page books that person and skips the rotation. The default no longer carries
+   * a personal link either, for the same reason.
+   */
   let sender = { name: 'Brad Lynde', email: 'brad@lyndeconsulting.com',
-                 title: 'Managing Partner, NPSA', schedulingUrl: 'https://calendly.com/bradlynde' };
+                 title: 'Managing Partner, NPSA', schedulingUrl: null };
+  sender.schedulingUrl = await roundRobinSchedulingUrl();
   if (eventUri) {
     try {
       const b = await getBooking(eventUri);
@@ -359,7 +367,7 @@ app.post('/api/precall/followup', async (req, res) => {
           name: b.host.name || sender.name,
           email: b.host.email || '',
           title: NPSA_TITLES[String(b.host.email || '').toLowerCase()] || 'NPSA',
-          schedulingUrl: b.host.schedulingUrl || null,
+          schedulingUrl: b.host.schedulingUrl || sender.schedulingUrl,
         };
       }
     } catch (e) { console.error('Follow-up host lookup failed:', e.message); }
