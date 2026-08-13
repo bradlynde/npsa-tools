@@ -392,6 +392,97 @@ async function instantlyFindLeadByDomain(domain) {
   return matches[0] || null;
 }
 
+/**
+ * Every Instantly campaign that could plausibly account for this booking, with the
+ * evidence for each — for a person to choose between, not for the app to apply.
+ *
+ * The automatic chain above asks the same questions but insists on one winner, and
+ * gives up silently when nothing matches cleanly. Its org test needs the company
+ * name to contain the booking's organisation or vice versa, which church names
+ * rarely survive: "First Lutheran Church" and "First Lutheran Church of Cedar
+ * Falls" pass, "FLC Cedar Falls" does not. That is what leaves a booking reading
+ * "Instantly – campaign unknown" while somebody works it out by hand from the
+ * church name and the person who booked.
+ *
+ * So the searches are run wider and every hit is kept rather than reduced to a
+ * winner. A half-matching name is worth showing and not worth assigning — narrowing
+ * is cheap for a machine, judging is cheap for a person, and this hands each the
+ * half it is good at.
+ */
+async function instantlySearchLeads(term, limit = 50) {
+  if (!process.env.INSTANTLY_API_KEY || !term) return [];
+  const data = await instantlyApi('/leads/list', {
+    method: 'POST',
+    body: JSON.stringify({ search: String(term).trim(), limit }),
+  });
+  return ((data && (data.items || data.leads)) || [])
+    .map((l) => ({ ...l, campaign: l.campaign || l.campaign_id || null }))
+    .filter((l) => l.campaign);
+}
+
+const normName = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+async function instantlyCampaignCandidates(row) {
+  const email = (row.email || '').trim().toLowerCase();
+  const domain = (email.split('@')[1] || '').replace(/^www\./, '');
+  const lastName = (row.name || '').trim().split(/\s+/).pop() || '';
+  const org = (row.organization || '').trim();
+
+  // Each probe carries its own test, because Instantly's search is fuzzy across
+  // several fields — searching a domain returns people whose NAME contains it.
+  const probes = [
+    email && { term: email, why: 'same email address',
+      hit: (l) => (l.email || '').trim().toLowerCase() === email },
+    domain && !FREEMAIL.has(domain) && { term: domain, why: 'same email domain',
+      hit: (l) => [(l.email || '').split('@')[1], l.company_domain]
+        .some((d) => (d || '').toLowerCase().replace(/^www\./, '') === domain) },
+    org && { term: org, why: 'similar organisation',
+      hit: (l) => {
+        const c = normName(l.company_name), t = normName(org);
+        return Boolean(c && t && (c.includes(t) || t.includes(c)));
+      } },
+    lastName && { term: lastName, why: 'same last name',
+      hit: (l) => normName(l.last_name) === normName(lastName) },
+  ].filter(Boolean);
+
+  const byCampaign = new Map();
+  for (const probe of probes) {
+    let leads = [];
+    // One failing probe must not lose the others — a partial answer beats none.
+    try { leads = await instantlySearchLeads(probe.term); } catch { continue; }
+    for (const lead of leads) {
+      if (!probe.hit(lead)) continue;
+      const entry = byCampaign.get(lead.campaign)
+        || { campaign_id: lead.campaign, why: new Set(), leads: new Map() };
+      entry.why.add(probe.why);
+      entry.leads.set(lead.id || `${lead.email}|${lead.campaign}`, {
+        name: [lead.first_name, lead.last_name].filter(Boolean).join(' ') || null,
+        email: lead.email || null,
+        company: lead.company_name || null,
+      });
+      byCampaign.set(lead.campaign, entry);
+    }
+  }
+
+  const map = await instantlyCampaignMap();
+  const named = [], unnamed = [];
+  for (const e of byCampaign.values()) {
+    const shaped = {
+      campaign: map[e.campaign_id] || null,
+      campaign_id: e.campaign_id,
+      why: [...e.why],
+      lead_count: e.leads.size,
+      examples: [...e.leads.values()].slice(0, 3),
+    };
+    (shaped.campaign ? named : unnamed).push(shaped);
+  }
+  named.sort((a, b) => b.lead_count - a.lead_count || a.campaign.localeCompare(b.campaign));
+  // A campaign the map cannot name is reported rather than dropped: it means the
+  // campaign list is stale or the campaign was archived, and that is a reason
+  // attribution fails silently everywhere else too.
+  return { suggestions: named, unnamed_campaign_ids: unnamed.map((u) => u.campaign_id) };
+}
+
 // Exported for scripts/test-instantly-match.js (kept out of the app's behaviour).
 export { instantlyCampaignMap, instantlyLeadsForEmail, instantlyFindLead };
 
@@ -721,6 +812,15 @@ async function enrichBooking(pool, id) {
     channel = override.channel;
     source = 'manual';
     if (override.channel !== 'instantly') campaign = null;
+  }
+  // Naming the campaign is the stronger statement, so it is applied last and settles
+  // the channel with it: a booking cannot be from an Instantly campaign and from
+  // some other channel at once. Without this an earlier channel override would win
+  // and quietly discard the campaign somebody had just gone and looked up.
+  if (typeof override.campaign === 'string' && override.campaign) {
+    campaign = override.campaign;
+    channel = 'instantly';
+    source = 'manual';
   }
 
   // --- Cancelled + held (one Calendly lookup answers both) ---
@@ -1922,13 +2022,47 @@ export function registerMarketing(app, pool) {
   });
 
   // Manual override toggles (Held / Won / Unqualified).
+  // What somebody needs in order to name the campaign themselves: the campaigns that
+  // could account for this booking with the evidence for each, and the full list to
+  // fall back on when none of them fit.
+  //
+  // Asked per booking, when the picker opens, rather than for the whole table — each
+  // answer costs several Instantly searches, and almost every row already knows its
+  // campaign and will never be asked.
+  app.get('/api/marketing/bookings/:id/campaign-options', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, email, name, organization, instantly_campaign, attribution_source
+           FROM bookings WHERE id = $1`, [req.params.id]);
+      const row = rows[0];
+      if (!row) return res.status(404).json({ error: 'not found' });
+
+      const map = await instantlyCampaignMap();
+      const all = [...new Set(Object.values(map).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
+      const { suggestions, unnamed_campaign_ids } = await instantlyCampaignCandidates(row);
+
+      res.json({
+        current: row.instantly_campaign || null,
+        source: row.attribution_source || null,
+        suggestions,
+        all,
+        // Both of these explain an empty suggestion list, which otherwise looks the
+        // same whether Instantly has nothing or this app cannot ask it anything.
+        unnamed_campaign_ids,
+        configured: Boolean(process.env.INSTANTLY_API_KEY),
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // These live in manual_override, which nothing outside this tool reads or writes:
   // marking a booking here never touches Calendly, Instantly or Salesforce, and a
   // re-sync from any of them cannot undo it.
   app.patch('/api/marketing/bookings/:id', async (req, res) => {
     if (!pool) return guard(res);
     try {
-      const { held, became_client, exclusion, channel } = req.body || {};
+      const { held, became_client, exclusion, channel, campaign } = req.body || {};
       // '' clears the reason and puts the booking back in the totals; anything not on
       // the list is ignored rather than stored, so a typo cannot invent a new reason.
       if (exclusion !== undefined && exclusion !== '' && !EXCLUSION_REASONS.includes(exclusion)) {
@@ -1939,6 +2073,13 @@ export function registerMarketing(app, pool) {
       const ov = { ...(cur.rows[0].manual_override || {}) };
       if (typeof channel === 'string') {
         if (channel === '') delete ov.channel; else ov.channel = channel;
+      }
+      // '' hands the booking back to automatic detection, same as channel. Naming a
+      // campaign also clears any channel override, because the campaign implies the
+      // channel and leaving a stale one behind would only fight it on the next pass.
+      if (typeof campaign === 'string') {
+        if (campaign === '') delete ov.campaign;
+        else { ov.campaign = campaign; delete ov.channel; }
       }
       if (typeof held === 'boolean') ov.held = held;
       if (typeof became_client === 'boolean') ov.became_client = became_client;
