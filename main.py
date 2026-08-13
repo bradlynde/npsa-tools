@@ -6,8 +6,8 @@ code, POST it back to /auth/verify-code, get a JWT. The token is identical in
 shape to the one the old password login issued, so every backend that verifies
 it — the toolbox proxy, the scrapers, the LOE app — is unaffected.
 
-/login is the legacy password route. It stays only until everyone has signed in
-by email, then it and the password_hash column go.
+There is no password route. There is no way to sign in without receiving mail
+at an address in the users table, which is the point.
 """
 
 import logging
@@ -15,7 +15,6 @@ import os
 import time
 from datetime import datetime, timedelta
 
-import bcrypt
 import jwt
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +24,6 @@ from database import (
     codes_sent_recently,
     create_login_code,
     get_user_by_email,
-    get_user_by_username,
     init_db,
     purge_expired_codes,
     verify_login_code,
@@ -86,11 +84,6 @@ def _issue_token(username: str) -> str:
         "iat": datetime.utcnow(),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
 
 
 class LoginResponse(BaseModel):
@@ -178,22 +171,3 @@ async def verify_code(req: VerifyCodeRequest, request: Request):
 
     log.info("Signed in %s (%s)", user["username"], email)
     return LoginResponse(status="success", token=_issue_token(user["username"]), username=user["username"])
-
-
-@app.post("/login", response_model=LoginResponse, deprecated=True)
-async def login(req: LoginRequest):
-    """Legacy password login. Remove once everyone has signed in by email."""
-    user = get_user_by_username(req.username)
-    if not user or not user.get("password_hash"):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-
-    stored_hash = user["password_hash"]
-    if isinstance(stored_hash, str):
-        stored_hash = stored_hash.encode("utf-8")
-    elif not isinstance(stored_hash, bytes):
-        # PostgreSQL BYTEA returns memoryview; bcrypt needs bytes
-        stored_hash = bytes(stored_hash)
-    if not bcrypt.checkpw(req.password.encode("utf-8"), stored_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-
-    return LoginResponse(status="success", token=_issue_token(req.username), username=req.username)

@@ -5,10 +5,10 @@ Login is passwordless: a short-lived numeric code is emailed to a known
 address and exchanged for a JWT. There is no password to store, leak, rotate,
 or read over the phone.
 
-The `password_hash` column stays for now so the legacy /login keeps working
-while everyone moves across, but nothing here writes one any more — new people
-are email-only from the start. Once the team has signed in by email, drop the
-column and the /login route together.
+Nothing reads or writes `password_hash` any more; the password route is gone.
+The column itself is left in place deliberately — while it holds the old
+hashes, reverting the commit that removed the route restores a working
+fallback. Once everyone has signed in by email, drop it (see the README).
 
 All timestamps are decided by Postgres (`NOW()`), not by the app, so expiry
 never depends on the service and the database agreeing about the clock.
@@ -91,8 +91,7 @@ def init_db():
             conn.commit()
 
             # Attach an address to whoever is already here, and add anyone new.
-            # Existing password hashes are left alone so the legacy login keeps
-            # working through the transition; new people never get one.
+            # Nobody is ever given a password; email is the only identity.
             for username, email in SEED_USERS:
                 cur.execute(
                     """
@@ -102,18 +101,6 @@ def init_db():
                     (username, normalize_email(email)),
                 )
             conn.commit()
-
-
-def get_user_by_username(username: str) -> dict | None:
-    """Used by the legacy password login only."""
-    with get_conn() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                "SELECT id, username, email, password_hash FROM users WHERE username = %s",
-                (username,),
-            )
-            row = cur.fetchone()
-            return dict(row) if row else None
 
 
 def get_user_by_email(email: str) -> dict | None:

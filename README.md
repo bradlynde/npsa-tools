@@ -13,7 +13,6 @@ password to store, leak, rotate, or read out over the phone.
 |---|---|---|
 | POST | `/auth/request-code` | `{ email }` → emails a code. **Always returns 200.** |
 | POST | `/auth/verify-code` | `{ email, code }` → `{ status, token, username }` |
-| POST | `/login` | Legacy password login. Deprecated — see *Retiring passwords*. |
 | GET | `/health` | Health check |
 
 `/auth/request-code` answers identically whether the address is known,
@@ -57,25 +56,39 @@ Edit `SEED_USERS` in `database.py` and redeploy. Each entry is
 Removing someone means deleting their row; taking them out of `SEED_USERS`
 alone does not (nothing here deletes users, on purpose).
 
-## Retiring passwords
+## Passwords are gone
 
-`/login` and the `password_hash` column exist only so nobody is locked out
-mid-transition. Existing hashes were left untouched; **new users never get
-one** and can only sign in by email.
+There is no password route and no password check. The only way in is to receive
+mail at an address in `SEED_USERS`.
 
-Once everyone has signed in by email:
+The `password_hash` column is still on the table, holding the old hashes, and
+nothing reads it. That is deliberate and temporary: while those hashes exist,
+reverting the commit that removed `/login` restores a working fallback. It is
+the escape hatch if an address in the seed list turns out to be wrong.
 
-1. Delete the `/login` route and `get_user_by_username`.
-2. `ALTER TABLE users DROP COLUMN password_hash;`
-3. Drop the `AUTH_USERS`-based login on the school-scraper service, if still
-   present.
+Once everyone has signed in by email at least once, close it:
+
+```sql
+ALTER TABLE users DROP COLUMN password_hash;
+```
+
+Do that only when you're sure, because it cannot be undone.
 
 ### A note on the old passwords
 
-Until this change, the seed list held plaintext passwords in this repository —
+Until recently the seed list held plaintext passwords in this repository —
 `admin`, and `user1` through `user6`. They are in git history and cannot be
 removed from it. Treat them as permanently compromised: they must not be reused
 on any other system.
+
+### The other login
+
+The school-scraper service used to expose its own `/login`, backed by an
+`AUTH_USERS` environment variable, minting tokens with the same shared secret —
+a second way into the toolbox that this service could not close. That route has
+been removed; the scraper now only verifies tokens issued here. If an
+`AUTH_USERS` variable is still set on any Railway service, it is dead config and
+should be deleted.
 
 ## Token lifetime
 
