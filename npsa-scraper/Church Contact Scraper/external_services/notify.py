@@ -1,28 +1,49 @@
 """
 Run-completion email notifications via Resend HTTP API (https://api.resend.com/emails).
 
-Required: RESEND_API_KEY, NOTIFY_EMAIL
-Optional: NOTIFY_FROM (default onboarding@resend.dev), NOTIFY_ON_RUN_COMPLETE=false to disable.
+Required: RESEND_API_KEY.
+Optional: NOTIFY_EMAIL (comma-separated; defaults below), NOTIFY_FROM
+(default onboarding@resend.dev), NOTIFY_ON_RUN_COMPLETE=false to disable.
+
+The finished CSV is attached when one is available and small enough. Past
+MAX_ATTACHMENT_BYTES the mail still goes, saying where to download instead —
+a run that produced a lot of contacts is exactly when you want to be told.
 """
 
 from __future__ import annotations
 
+import base64
 import html
 import os
 from typing import Any, Optional
 
 import requests
+
 from church_run_log import log_warn, log_err
 
 RESEND_API_URL = "https://api.resend.com/emails"
 SCRAPER_SUBJECT_TAG = "Church Scraper"
+
+# Whoever should get run notifications when NOTIFY_EMAIL is not set. Override
+# with the env var — comma-separated for more than one — rather than editing
+# this, so changing the recipient doesn't need a deploy.
+DEFAULT_NOTIFY_EMAIL = "stuart@nonprofitsecurityadvisors.com"
+
+# Resend caps total message size, and base64 inflates by 4/3. This sits well
+# under that ceiling; a CSV bigger than this is more useful as a download.
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+
+def _recipients() -> list[str]:
+    raw = os.getenv("NOTIFY_EMAIL", "").strip() or DEFAULT_NOTIFY_EMAIL
+    return [addr.strip() for addr in raw.split(",") if addr.strip()]
 
 
 def _is_enabled() -> bool:
     """True if Resend + recipient are configured and notifications are not explicitly disabled."""
     if os.getenv("NOTIFY_ON_RUN_COMPLETE", "true").lower() in ("false", "0", "no"):
         return False
-    return bool(os.getenv("RESEND_API_KEY", "").strip() and os.getenv("NOTIFY_EMAIL", "").strip())
+    return bool(os.getenv("RESEND_API_KEY", "").strip() and _recipients())
 
 
 def _text_to_html(text: str) -> str:
@@ -33,13 +54,50 @@ def _text_to_html(text: str) -> str:
     )
 
 
-def _send_resend_html(subject: str, html_body: str) -> None:
+def _read_attachment(csv_path: Optional[str]) -> tuple[Optional[dict[str, str]], Optional[str]]:
+    """Return (resend_attachment, reason_it_was_skipped). Never raises."""
+    if not csv_path:
+        return None, None
+    try:
+        size = os.path.getsize(csv_path)
+    except OSError as e:
+        return None, f"the file could not be read ({e.__class__.__name__})"
+    if size > MAX_ATTACHMENT_BYTES:
+        mb = size / (1024 * 1024)
+        return None, f"it is {mb:.1f} MB, too large to attach"
+    try:
+        with open(csv_path, "rb") as fh:
+            data = fh.read()
+    except OSError as e:
+        return None, f"the file could not be read ({e.__class__.__name__})"
+    return (
+        {
+            "filename": os.path.basename(csv_path),
+            "content": base64.b64encode(data).decode("ascii"),
+        },
+        None,
+    )
+
+
+def _send_resend_html(
+    subject: str,
+    html_body: str,
+    attachment: Optional[dict[str, str]] = None,
+) -> None:
     """POST to Resend. Raises on configuration or API errors."""
     api_key = os.getenv("RESEND_API_KEY", "").strip()
-    to_email = os.getenv("NOTIFY_EMAIL", "").strip()
+    to_emails = _recipients()
     from_addr = os.getenv("NOTIFY_FROM", "onboarding@resend.dev").strip()
-    if not api_key or not to_email:
+    if not api_key or not to_emails:
         raise ValueError("Missing RESEND_API_KEY or NOTIFY_EMAIL")
+    payload: dict[str, Any] = {
+        "from": from_addr,
+        "to": to_emails,
+        "subject": subject,
+        "html": html_body,
+    }
+    if attachment:
+        payload["attachments"] = [attachment]
     try:
         r = requests.post(
             RESEND_API_URL,
@@ -47,13 +105,8 @@ def _send_resend_html(subject: str, html_body: str) -> None:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "from": from_addr,
-                "to": [to_email],
-                "subject": subject,
-                "html": html_body,
-            },
-            timeout=30,
+            json=payload,
+            timeout=60,
         )
     except requests.RequestException as e:
         raise RuntimeError(f"Resend request failed: {e}") from e
@@ -96,10 +149,16 @@ def send_run_complete_email(
     total_contacts: int = 0,
     total_with_emails: int = 0,
     duration_seconds: Optional[float] = None,
+    csv_path: Optional[str] = None,
 ) -> None:
     """
-    Send a single run-completion notification. No-op if not configured or send fails.
-    Call only when transitioning a run to "completed"; use notify_sent at the call site.
+    Send a single run-completion notification, with the finished CSV attached
+    when one is available and small enough. No-op if not configured or if the
+    send fails — a scrape that worked must not be reported as failed because
+    the mail didn't go.
+
+    Call only when transitioning a run to "completed"; claim the send at the
+    call site so two replicas can't both deliver it.
     """
     if not _is_enabled():
         log_warn(f"Notify disabled for {state} ({run_id})")
@@ -116,9 +175,27 @@ def send_run_complete_email(
             mins = int(duration_seconds // 60)
             secs = int(duration_seconds % 60)
             lines.append(f"Duration: {mins}m {secs}s")
+
+        attachment, skipped_because = _read_attachment(csv_path)
+        if attachment:
+            lines.append("")
+            lines.append(f"Attached: {attachment['filename']}")
+        elif skipped_because:
+            lines.append("")
+            lines.append(f"The CSV is not attached because {skipped_because}.")
+            lines.append("Download it from the Scraper tab in NPSA Tools.")
+        elif total_contacts:
+            # Contacts were found but no file reached us — worth saying plainly
+            # rather than leaving someone waiting for an attachment.
+            lines.append("")
+            lines.append("The CSV wasn't available to attach. Download it from the Scraper tab.")
+
         body_text = "\n".join(lines)
         subject = f"[{SCRAPER_SUBJECT_TAG}] Run complete: {state}"
-        _send_resend_html(subject, _text_to_html(body_text))
-        log_warn(f"Notify sent: {state} ({counties_processed}/{total_counties} counties, {total_contacts} contacts)")
+        _send_resend_html(subject, _text_to_html(body_text), attachment)
+        log_warn(
+            f"Notify sent: {state} ({counties_processed}/{total_counties} counties, "
+            f"{total_contacts} contacts)"
+        )
     except Exception as e:
         log_err(f"Notify failed: {e} ({state})")

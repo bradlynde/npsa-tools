@@ -153,6 +153,12 @@ _SQLITE_SCHEMA = [
         created_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS run_notifications (
+        run_id TEXT PRIMARY KEY,
+        claimed_at TEXT NOT NULL
+    )
+    """,
 ]
 
 _PG_SCHEMA = [
@@ -266,6 +272,12 @@ _PG_SCHEMA = [
         created_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS run_notifications (
+        run_id TEXT PRIMARY KEY,
+        claimed_at TEXT NOT NULL
+    )
+    """,
 ]
 
 
@@ -333,6 +345,43 @@ def enqueue(state: str, scraper_type: str, display_name: str) -> dict[str, Any]:
         finally:
             conn.close()
     return {"job_id": job_id, "position": int(pos)}
+
+
+def claim_run_notification(run_id: str) -> bool:
+    """True only for the caller that wins the right to notify about this run.
+
+    Completion is reached on whichever replica finishes the work, and more than
+    one can get there for the same run. A read-then-write check races; inserting
+    a row and letting the primary key reject the loser does not.
+
+    A dedicated table rather than a flag on an existing row: a run reaches
+    completion through both the sequential and the distributed path, and only the
+    latter has a county_dispatch row to hang a flag on.
+    """
+    now = datetime.now().isoformat()
+    p = _p()
+    with _lock:
+        conn = _conn()
+        try:
+            if db.is_postgres():
+                row = conn.execute(
+                    f"INSERT INTO run_notifications (run_id, claimed_at) VALUES ({p}, {p}) "
+                    f"ON CONFLICT (run_id) DO NOTHING RETURNING run_id",
+                    (run_id, now),
+                ).fetchone()
+                won = row is not None
+            else:
+                # SQLite RETURNING needs 3.35+; rowcount says the same thing here.
+                cur = conn.execute(
+                    f"INSERT OR IGNORE INTO run_notifications (run_id, claimed_at) "
+                    f"VALUES ({p}, {p})",
+                    (run_id, now),
+                )
+                won = cur.rowcount > 0
+            conn.commit()
+            return won
+        finally:
+            conn.close()
 
 
 def list_jobs(scraper_type: str, limit: int = 100) -> list[dict[str, Any]]:
