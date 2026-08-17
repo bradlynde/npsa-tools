@@ -16,19 +16,38 @@ import {
 } from "../../lib/marketing";
 
 // Channel is a fixed width — its longest label is "Direct / Other", and letting
-// it flex stole room from the two columns people actually read. Meeting, Held
-// and LOE are sized to their content so the text columns get the remainder.
-const COLS = "2.4fr 132px 1.9fr 88px 46px 46px 128px";
+// it flex stole room from the two columns people actually read. Booked, Meeting,
+// Held and LOE are sized to their content so the text columns get the remainder.
+const COLS = "2.4fr 132px 1.9fr 76px 88px 46px 46px 128px";
 
 /** `inset` matches the border+padding of the control sitting under the header,
  *  so the label lines up with its column's text rather than the cell edge. */
 const shortDate = (d: string) =>
   new Date(d).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" });
 
+const longDate = (d: string) =>
+  new Date(d).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+/** A booked date on its own says little. The gap to the meeting is the part worth
+ *  reading, and it is not something you want to work out by subtracting in your head. */
+const leadTime = (booked: string, meeting: string | null) => {
+  if (!meeting) return null;
+  const days = Math.round((new Date(meeting).getTime() - new Date(booked).getTime()) / 86400000);
+  if (days < 0) return null; // a backfilled row, not a meeting booked after it happened
+  if (days === 0) return "Booked and held the same day";
+  return `Booked ${days} day${days === 1 ? "" : "s"} ahead`;
+};
+
 const HEAD: { label: string; align: "left" | "center" | "right"; inset?: number }[] = [
   { label: "ORG / NAME", align: "left" },
   { label: "CHANNEL", align: "left", inset: 7 },
   { label: "CAMPAIGN", align: "left" },
+  { label: "BOOKED", align: "left" },
   { label: "MEETING", align: "left" },
   { label: "HELD", align: "center" },
   { label: "LOE", align: "center" },
@@ -159,7 +178,7 @@ export default function BookingsTable({
         <Note>{search ? "No bookings match that search." : `No bookings in the ${rangeTag}.`}</Note>
       ) : (
         <div style={{ overflowX: "auto" }} className="table-responsive">
-          <div style={{ minWidth: 840 }}>
+          <div style={{ minWidth: 916 }}>
             <div
               style={{
                 display: "grid",
@@ -393,6 +412,39 @@ export default function BookingsTable({
                         {r.instantly_campaign || "—"}
                       </span>
                     )}
+
+                    {/* When the meeting was made, which is not when it happens. Sitting
+                        next to the meeting date makes the gap between them readable at a
+                        glance, and it is the date that lines up with a campaign's sends
+                        when attribution is being chased down by hand. */}
+                    <div
+                      style={{
+                        minWidth: 0,
+                        fontSize: 12.5,
+                        color: "var(--faint)",
+                        fontVariantNumeric: "tabular-nums",
+                        textDecoration: excluded ? "line-through" : "none",
+                        cursor: r.booked_on ? "help" : undefined,
+                      }}
+                      title={
+                        r.booked_on
+                          ? [
+                              longDate(r.booked_on),
+                              leadTime(r.booked_on, r.meeting_date),
+                              // Calendly issues a reschedule as a new booking, so this
+                              // date is when the meeting was last moved. The date it was
+                              // first booked is not carried onto the replacement.
+                              r.rescheduled_from
+                                ? "This is when the meeting was moved — the original booking date is not kept"
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join("\n")
+                          : "Calendly gave no booking date for this one"
+                      }
+                    >
+                      {r.booked_on ? shortDate(r.booked_on) : "—"}
+                    </div>
 
                     {/* Who took the meeting sits under its date — wanted often enough
                         to show, not often enough to spend a column on. */}
