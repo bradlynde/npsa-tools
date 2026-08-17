@@ -5,10 +5,10 @@ Login is passwordless: a short-lived numeric code is emailed to a known
 address and exchanged for a JWT. There is no password to store, leak, rotate,
 or read over the phone.
 
-Nothing reads or writes `password_hash` any more; the password route is gone.
-The column itself is left in place deliberately — while it holds the old
-hashes, reverting the commit that removed the route restores a working
-fallback. Once everyone has signed in by email, drop it (see the README).
+There is no password column. It is dropped on startup if a database still has
+one, which is deliberately done here rather than by hand: init_db() used to
+run an ALTER against password_hash on every boot, so dropping it manually
+first would have crash-looped the service on the next deploy.
 
 All timestamps are decided by Postgres (`NOW()`), not by the app, so expiry
 never depends on the service and the database agreeing about the clock.
@@ -62,14 +62,14 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash BYTEA,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            # Pre-existing deployments have this table without an email column,
-            # and with password_hash NOT NULL. Both have to give.
+            # Pre-existing deployments lack the email column and still carry
+            # password_hash. IF EXISTS/IF NOT EXISTS so this is safe to run on a
+            # database at any of those stages, including this one twice.
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
-            cur.execute("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL")
+            cur.execute("ALTER TABLE users DROP COLUMN IF EXISTS password_hash")
             cur.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS users_email_key ON users (LOWER(email))"
             )
