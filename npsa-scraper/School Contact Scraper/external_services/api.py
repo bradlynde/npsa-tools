@@ -2807,16 +2807,20 @@ def pipeline_status(run_id):
 # Error handler for 405 Method Not Allowed
 @app.errorhandler(405)
 def method_not_allowed(e):
+    # Ask the router what this path accepts. It used to answer "GET" for
+    # everything except /run-pipeline, so every POST route reported the wrong
+    # method and sent anyone debugging one down a blind alley.
+    allowed = sorted(getattr(e, "valid_methods", None) or [])
     response = jsonify({
         "status": "error",
         "error": f"Method not allowed: {request.method}",
         "path": request.path,
         "received_method": request.method,
-        "allowed_methods": ["POST", "OPTIONS"] if "/run-pipeline" in request.path else ["GET"]
+        "allowed_methods": allowed,
     })
     response.headers.add("Access-Control-Allow-Origin", ALLOWED_ORIGIN if ALLOWED_ORIGIN != "*" else "*")
-    if "/run-pipeline" in request.path:
-        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+    if allowed:
+        response.headers.add("Access-Control-Allow-Methods", ", ".join(allowed))
         response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
     return response, 405
 
