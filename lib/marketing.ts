@@ -118,6 +118,12 @@ export type Stats = {
   excluded?: { reason: string; label: string; total: number; this_week: number }[];
   excluded_total?: number;
   excluded_this_week?: number;
+  /**
+   * Signed business the revenue figures leave out because the financial record's
+   * Purpose was never set in Salesforce. Zero whenever the data is clean — see
+   * UncountedLine for why only a blank Purpose counts as missing.
+   */
+  revenue_unset_purpose?: { count: number; amount: number };
 };
 
 export type UntrackedWin = {
