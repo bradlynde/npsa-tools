@@ -1585,6 +1585,26 @@ export function registerMarketing(app, pool) {
       const hasSf = layer.count > 0;
       const sfTotalRev = layer.revenue;
 
+      // A financial whose Purpose was never set is excluded from every figure above,
+      // and that is nearly always the field not being filled in rather than a
+      // deliberate classification. Peninsula Covenant and Vintage Faith both sat
+      // outside the total this way -- $24,000 between them -- while the Salesforce
+      // report, which does not filter on Purpose, showed them. Two numbers that are
+      // supposed to agree quietly stopped agreeing, and nothing said so.
+      //
+      // Only a BLANK purpose is reported. A record deliberately marked as something
+      // else ("Adding Legacy Contract and Financial", 111 of them) is meant to be
+      // outside the total; warning about those would make this a permanent line that
+      // nobody reads, which is the same as not having it.
+      const { rows: [unset] } = await pool.query(`
+        SELECT COUNT(*)::int AS count,
+               COALESCE(SUM(amount),0)::numeric AS amount
+          FROM sf_financials
+         WHERE NULLIF(btrim(purpose), '') IS NULL
+           AND non_security IS NOT TRUE
+           AND opportunity_id IS NOT NULL
+           AND created_date >= $1::timestamptz`, [FINANCIALS_SINCE]);
+
       res.json({
         total_bookings: s.total_bookings,
         bookings_this_week: s.bookings_this_week,
@@ -1619,6 +1639,10 @@ export function registerMarketing(app, pool) {
         })),
         excluded_total: exrows.reduce((a, r) => a + r.total, 0),
         excluded_this_week: exrows.reduce((a, r) => a + r.this_week, 0),
+        // Signed business the revenue figures are leaving out because nobody set the
+        // Purpose on its financial record. Zero whenever the data is clean, which is
+        // the point of reporting it this way: silent until it has something to say.
+        revenue_unset_purpose: { count: unset.count, amount: Number(unset.amount) },
       });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
