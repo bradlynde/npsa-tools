@@ -93,17 +93,20 @@ const titleFromSlug = (slug) =>
 // keeps a campaign launched this morning legible this morning; mapping it adds
 // the exact wording, and mapping it BY ID keeps that wording correct after a
 // rename. Each step down is worse than the one above it, never wrong outright.
-async function slugToName(slug) {
+async function slugToCampaign(slug) {
   const key = (slug || '').trim().toLowerCase();
-  if (!key) return slug || null;
+  if (!key) return { id: null, name: slug || null };
   // Instantly first, always, so this path and the reverse-match path spell the
   // same campaign the same way. Everything below it is a degradation.
-  const id = CAMPAIGN_SLUG_IDS[key];
+  const id = CAMPAIGN_SLUG_IDS[key] || null;
   if (id) {
     const map = await instantlyCampaignMap();
-    if (map[id]) return map[id];
+    if (map[id]) return { id, name: map[id] };
   }
-  return CAMPAIGN_SLUG_FALLBACK[key] || titleFromSlug(key);
+  // The id is still returned when the name could not be resolved: grouping keys on
+  // the id, so a booking taken during an Instantly outage still lands in the right
+  // row even though the name it displays came from the fallback.
+  return { id, name: CAMPAIGN_SLUG_FALLBACK[key] || titleFromSlug(key) };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -148,6 +151,11 @@ async function ensureSchema(pool) {
   `).catch(err => console.error('bookings schema error:', err.message));
   // Wins from Salesforce Closed-Won (added after the table already existed in prod).
   await pool.query(`
+    -- The campaign NAME was the only thing stored, so renaming a campaign in
+    -- Instantly stranded every earlier booking under the old name for good: three
+    -- dead names held 63 bookings between them. The id is what actually identifies
+    -- a campaign, and grouping keys on it.
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS instantly_campaign_id TEXT;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won               BOOLEAN DEFAULT FALSE;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_amount        NUMERIC DEFAULT 0;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_at            TIMESTAMPTZ;
@@ -826,27 +834,35 @@ async function enrichBooking(pool, id) {
   const override = row.manual_override || {};
 
   // --- Instantly campaign ---
-  let campaign = null, source = 'none';
+  let campaign = null, campaignId = null, source = 'none';
   if ((row.utm_source || '').toLowerCase() === 'instantly' && row.utm_campaign) {
-    campaign = await slugToName(row.utm_campaign); source = 'utm';
+    ({ id: campaignId, name: campaign } = await slugToCampaign(row.utm_campaign));
+    source = 'utm';
   } else {
+    // Each branch records the id it matched on as well as the name, because the id
+    // is what the campaign actually is. A name resolving to null here used to end
+    // the chain silently -- a lead in a campaign the workspace no longer lists
+    // looked exactly like a lead in no campaign at all.
     const lead = await instantlyFindLead(row.email);
     if (lead?.campaign) {
       const map = await instantlyCampaignMap();
+      campaignId = lead.campaign;
       campaign = map[lead.campaign] || null; source = 'reverse_email';
     }
-    if (!campaign) {
+    if (!campaignId) {
       const last = (row.name || '').trim().split(/\s+/).pop();
       const lead2 = await instantlyFindLeadByNameOrg(last, row.organization);
       if (lead2?.campaign) {
         const map = await instantlyCampaignMap();
+        campaignId = lead2.campaign;
         campaign = map[lead2.campaign] || null; source = 'reverse_name_org';
       }
     }
-    if (!campaign) {
+    if (!campaignId) {
       const lead3 = await instantlyFindLeadByDomain((row.email || '').split('@')[1]);
       if (lead3?.campaign) {
         const map = await instantlyCampaignMap();
+        campaignId = lead3.campaign;
         campaign = map[lead3.campaign] || null; source = 'reverse_domain';
       }
     }
@@ -860,7 +876,7 @@ async function enrichBooking(pool, id) {
   if (override.channel) {
     channel = override.channel;
     source = 'manual';
-    if (override.channel !== 'instantly') campaign = null;
+    if (override.channel !== 'instantly') { campaign = null; campaignId = null; }
   }
   // Naming the campaign is the stronger statement, so it is applied last and settles
   // the channel with it: a booking cannot be from an Instantly campaign and from
@@ -870,6 +886,11 @@ async function enrichBooking(pool, id) {
     campaign = override.campaign;
     channel = 'instantly';
     source = 'manual';
+    // The picker sends a name, so look its id back up. Without this a booking
+    // somebody corrected by hand would be the one row that could not group with
+    // the campaign they corrected it TO, the moment that campaign is renamed.
+    const map = await instantlyCampaignMap();
+    campaignId = Object.keys(map).find((k) => map[k] === campaign) || null;
   }
 
   // --- Cancelled + held (one Calendly lookup answers both) ---
@@ -1000,7 +1021,7 @@ async function enrichBooking(pool, id) {
 
   await pool.query(
     `UPDATE bookings SET
-       instantly_campaign=$1, attribution_channel=$2, attribution_source=$3,
+       instantly_campaign=$1, instantly_campaign_id=$17, attribution_channel=$2, attribution_source=$3,
        held=$4, held_source=$5, became_client=$6, client_letter_id=$7, fee=$8,
        exclusion_reason=$9, cancelled=$10, cancelled_at=$11, rescheduled_from=$12,
        event_uri=$13, calendly_uri=COALESCE($14, calendly_uri), calendly_lookup_at=$15,
@@ -1008,7 +1029,7 @@ async function enrichBooking(pool, id) {
      WHERE id=$16`,
     [campaign, channel, source, held, heldSource, becameClient, letterId, fee,
      exclusionReason, cancelled, cancelledAt, rescheduledFrom,
-     eventUri, inviteeUri, lookupAt, id]
+     eventUri, inviteeUri, lookupAt, id, campaignId]
   );
 }
 
@@ -1737,11 +1758,20 @@ export function registerMarketing(app, pool) {
   app.get('/api/marketing/by-campaign', async (req, res) => {
     if (!pool) return guard(res);
     try {
-      // Instantly bookings group by campaign name; everything else is attributed
-      // to its self-reported source instead of piling into one "(untagged)" row.
+      // Grouped on the campaign ID, not its name. Names drift: renaming a campaign
+      // in Instantly used to strand every earlier booking under the old name, and
+      // three dead names were holding 63 bookings between them when this was found.
+      //
+      // The fold happens here rather than in SQL so a row that has an id and a row
+      // that only has a name can still land together. Rows enriched before the id
+      // column existed have no id, so keying on the id in SQL would have split every
+      // campaign in two for as long as the backfill took to catch up -- worse
+      // before better, on the exact table this is meant to fix.
+      const map = await instantlyCampaignMap();
       const { rows } = await pool.query(`
-        SELECT CASE
-                 WHEN instantly_campaign IS NOT NULL THEN instantly_campaign
+        SELECT instantly_campaign_id AS cid,
+               instantly_campaign     AS cname,
+               CASE
                  WHEN attribution_channel = 'instantly'   THEN 'Instantly – campaign unknown'
                  WHEN attribution_channel = 'google_ads'  THEN 'Google Ads'
                  WHEN attribution_channel = 'search'      THEN 'Organic Search'
@@ -1753,14 +1783,31 @@ export function registerMarketing(app, pool) {
                  WHEN attribution_channel = 'past_engaged_prospect' THEN 'Past Engaged Prospect'
                  WHEN COALESCE(NULLIF(attribution_channel,''),'direct') = 'direct' THEN 'Direct / Other'
                  ELSE initcap(attribution_channel)
-               END AS campaign,
-               (instantly_campaign IS NOT NULL) AS is_campaign,
+               END AS channel_label,
                COUNT(*)::int AS booked,
                COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees
-        FROM bookings WHERE ${COUNTABLE} GROUP BY 1, 2 ORDER BY booked DESC`);
-      res.json(rows.map(r => ({ ...r, fees: Number(r.fees) })));
+          FROM bookings WHERE ${COUNTABLE}
+         GROUP BY 1, 2, 3`);
+
+      const out = new Map();
+      for (const r of rows) {
+        const isCampaign = Boolean(r.cid || r.cname);
+        // Instantly's current name wins over whatever was stored when the booking
+        // was enriched; the stored name is the fallback for a campaign the
+        // workspace no longer returns (archived, or deleted outright).
+        const label = isCampaign
+          ? ((r.cid && map[r.cid]) || r.cname || 'Instantly – campaign unknown')
+          : r.channel_label;
+        const key = `${isCampaign ? 'c' : 'x'}:${label}`;
+        const cur = out.get(key) || { campaign: label, is_campaign: isCampaign,
+                                      booked: 0, held: 0, clients: 0, fees: 0 };
+        cur.booked += r.booked; cur.held += r.held;
+        cur.clients += r.clients; cur.fees += Number(r.fees);
+        out.set(key, cur);
+      }
+      res.json([...out.values()].sort((a, b) => b.booked - a.booked));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
