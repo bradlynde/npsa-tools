@@ -12,22 +12,63 @@
 // ingestion or the dashboard — the row just stays unenriched).
 
 // ─────────────────────────────────────────────────────────────
-// 1. Campaign slug ⇄ name map (edit when campaigns are added)
+// 1. Campaign slug → Instantly campaign ID
 // ─────────────────────────────────────────────────────────────
-const CAMPAIGN_SLUGS = {
-  'broader-church-p1': 'Broader Church Campaign – Phase 1',
-  'broader-church-p2': 'Broader Church Campaign – Phase 2',
-  'broader-church-p3': 'Broader Church Campaign – Phase 3',
-  'il-outreach-uncontacted': 'IL Outreach – Uncontacted',
-  'il-outreach-contacted': 'IL Outreach – Contacted',
-  'tx-nsgp-church': 'TX NSGP – Church',
-  'tx-fy26-deadline': 'TX Campaign – FY2026 Deadline Push',
-  'christian-schools': 'Christian Schools Campaign',
-  'facility-security': 'Facility and Security Campaign',
-  'ca-csnsgp-fy26': 'CA Outreach – CSNSGP FY26',
-  'xp-campaign': 'XP Campaign',
-  'iowa-schools': 'Iowa Schools',
-  'remarket-fy27': 'Remarket FY27 – Non-Repliers',
+// Booking links carry a short slug in utm_campaign. This maps that slug to the
+// campaign's Instantly ID; the NAME is always resolved from Instantly.
+//
+// It used to map the slug straight to a hand-typed name, and that put the same
+// campaign in the table twice. A booking that arrived with a UTM tag got the
+// hand-typed name; one recovered by reverse lookup got Instantly's own name, via
+// instantlyCampaignMap(). The two were never going to agree:
+//
+//   hand-typed                            Instantly
+//   Broader Church Campaign – Phase 3     Broader Church Campaign - Phase 3 (May 2026)
+//   CA Outreach – CSNSGP FY26             CA Outreach - CSNSGP FY26
+//   XP Campaign                           XP Campaign 11.5.2025
+//
+// Eight of the thirteen entries were typed with an EN DASH (U+2013) where all
+// nine hyphenated Instantly names use a plain hyphen, so those could not match
+// even in principle — one campaign, two rows, for as long as both paths ran.
+// Several were also simply out of date, which no amount of dash-fixing helps.
+//
+// An ID does not drift. Rename a campaign in Instantly and the name follows on
+// the next lookup, on the UTM path and the reverse-match path alike, because
+// both now read it from the same place.
+const CAMPAIGN_SLUG_IDS = {
+  'broader-church-p1':       'a2a95058-21b8-41c4-8c39-a340976e66d3',
+  'broader-church-p2':       'e95713bc-1d2d-4d8b-8475-c1a77771ba8c',
+  'broader-church-p3':       '36208b29-d2b3-43d1-80d4-3f708a71f4f7',
+  'il-outreach-uncontacted': 'e16e3d42-d3bc-40ce-88e8-756b2aa79ee8',
+  'il-outreach-contacted':   '91d40546-b245-4b04-9de5-a8c863a20f3a',
+  'tx-nsgp-church':          '7aaa795e-b7c8-462b-8d32-d3603b22cf3d',
+  'tx-fy26-deadline':        '3a969ab7-44ad-4768-a82b-12f5e2596662',
+  'christian-schools':       '5512076f-4e51-4c44-b032-2cc11dff2d66',
+  'facility-security':       '5389e537-6c16-42fd-937d-b0d464703bbc',
+  'ca-csnsgp-fy26':          '28c9205e-23fe-4e10-b5fc-839cb2e9f0ab',
+  'xp-campaign':             '26dde45b-476d-4571-a3e5-652d006aeb82',
+  'iowa-schools':            '26c27e7d-1651-4d39-8206-c2c2cdb63392',
+  'remarket-fy27':           '8552c05f-c927-48ee-b654-66f33e1c5cf1',
+};
+
+// Last resort, and only when Instantly cannot be reached at all: the names as
+// Instantly held them when this was written. Spelled with the hyphens Instantly
+// actually uses, so an outage degrades to a name that still GROUPS with the live
+// one rather than inventing a fourteenth variant of it.
+const CAMPAIGN_SLUG_FALLBACK = {
+  'broader-church-p1':       'Broader Church Campaign - Phase 1',
+  'broader-church-p2':       'Broader Church Campaign - Phase 2',
+  'broader-church-p3':       'Broader Church Campaign - Phase 3 (May 2026)',
+  'il-outreach-uncontacted': 'IL Outreach - Uncontacted',
+  'il-outreach-contacted':   'IL Outreach - Contacted',
+  'tx-nsgp-church':          'TX NSGP - Church - Campaign - 11.11.2025',
+  'tx-fy26-deadline':        'TX Campaign - FY2026 Deadline Push',
+  'christian-schools':       'Christian Schools Campaign',
+  'facility-security':       'Facility and Security Campaign',
+  'ca-csnsgp-fy26':          'CA Outreach - CSNSGP FY26',
+  'xp-campaign':             'XP Campaign 11.5.2025',
+  'iowa-schools':            'Iowa Schools',
+  'remarket-fy27':           'Remarket FY27 - Non-Repliers',
 };
 
 // Tokens that stay upper-case when a slug is titled: the grant programs, and any
@@ -46,16 +87,24 @@ const titleFromSlug = (slug) =>
     })
     .join(' ');
 
-// CAMPAIGN_SLUGS is an OVERRIDE, not a requirement. Anything unmapped used to
-// render as the raw slug — "remarket-fy27" sat in the campaign column looking
-// like a bug — which meant every new campaign needed a deploy before it read
-// properly. Titling the slug instead means a campaign launched this morning is
-// legible this morning, and the map is only for names that need exact wording.
-const slugToName = (slug) => {
+// Neither map is a requirement. An unmapped slug used to render raw —
+// "remarket-fy27" sat in the campaign column looking like a bug — which meant
+// every new campaign needed a deploy before it read properly. Titling the slug
+// keeps a campaign launched this morning legible this morning; mapping it adds
+// the exact wording, and mapping it BY ID keeps that wording correct after a
+// rename. Each step down is worse than the one above it, never wrong outright.
+async function slugToName(slug) {
   const key = (slug || '').trim().toLowerCase();
   if (!key) return slug || null;
-  return CAMPAIGN_SLUGS[key] || titleFromSlug(key);
-};
+  // Instantly first, always, so this path and the reverse-match path spell the
+  // same campaign the same way. Everything below it is a degradation.
+  const id = CAMPAIGN_SLUG_IDS[key];
+  if (id) {
+    const map = await instantlyCampaignMap();
+    if (map[id]) return map[id];
+  }
+  return CAMPAIGN_SLUG_FALLBACK[key] || titleFromSlug(key);
+}
 
 // ─────────────────────────────────────────────────────────────
 // 2. Schema (same CREATE IF NOT EXISTS pattern as letters/reps)
@@ -779,7 +828,7 @@ async function enrichBooking(pool, id) {
   // --- Instantly campaign ---
   let campaign = null, source = 'none';
   if ((row.utm_source || '').toLowerCase() === 'instantly' && row.utm_campaign) {
-    campaign = slugToName(row.utm_campaign); source = 'utm';
+    campaign = await slugToName(row.utm_campaign); source = 'utm';
   } else {
     const lead = await instantlyFindLead(row.email);
     if (lead?.campaign) {
