@@ -150,6 +150,62 @@ function SyncLine({ status }: { status: SyncStatus | null }) {
 }
 
 /**
+ * Signed business the figures below are leaving out.
+ *
+ * Peninsula Covenant Church was signed, its financial record created, and the
+ * revenue total went on excluding it — as it had been excluding Vintage Faith
+ * Church for a week. $24,000 between them. The sync was fine and both records
+ * were stored; they were never counted, because their Purpose was blank and the
+ * total only counts "New Contract Signed". The Salesforce report leadership
+ * reads does not filter on Purpose, so it showed them. Nothing reconciled the
+ * two, so it took somebody noticing one specific church was missing.
+ *
+ * Only a BLANK purpose is reported, never one deliberately set to something
+ * else. A line that is always on is a line nobody reads, so this renders
+ * nothing at all when the data is clean — which is its normal state.
+ */
+function UncountedLine({ stats }: { stats: Stats }) {
+  const u = stats.revenue_unset_purpose;
+  if (!u || u.count < 1) return null;
+  const n = u.count;
+  return (
+    <div
+      title={
+        "These financial records exist in Salesforce and are signed business, but " +
+        "Purpose for Creating Financial is blank, so every revenue figure below " +
+        "leaves them out.\n\nSet it to \u201cNew Contract Signed\u201d on each record " +
+        "and they will be counted from the next sync."
+      }
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        margin: "-6px 0 14px",
+        fontSize: 12.5,
+        color: "var(--warn-fg)",
+        cursor: "help",
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: "var(--warn-fg)",
+          flexShrink: 0,
+        }}
+        aria-hidden="true"
+      />
+      <span>
+        {/* Lead with the money: it is what makes the figures below wrong. */}
+        {fmtMoney(u.amount)} signed but not counted — {n} financial{" "}
+        {n === 1 ? "record has" : "records have"} no Purpose set in Salesforce
+      </span>
+    </div>
+  );
+}
+
+/**
  * The sales side of the business: organisations won, what they're worth, and the
  * grant applications those contracts produce. All-time, straight from Salesforce.
  */
@@ -219,6 +275,7 @@ export default function SalesBand({
     <>
       <Eyebrow style={{ margin: "6px 0 10px" }}>sales · from salesforce</Eyebrow>
       <SyncLine status={sync} />
+      <UncountedLine stats={stats} />
 
       {/* Organisations won, what they're worth, and the applications they drive */}
       <div
