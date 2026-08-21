@@ -401,6 +401,23 @@ async function instantlyFindLead(email) {
   return (await instantlyLeadsForEmail(email))[0] || null;
 }
 
+// Recover a campaign from the booker's last name plus their organisation.
+//
+// This one attributes revenue to a campaign on the strength of a name and a
+// string comparison, so it has to be the strictest of the three, and it was the
+// loosest. It accepted `target.includes(c)` with no floor on the length of `c`,
+// which means an Instantly lead whose company_name was "Grace" claimed every
+// booking from a "Grace ..." anything -- Grace Community Church, Grace Point,
+// Grace Baptist -- whichever the search happened to return first. It also never
+// checked that the lead it matched was even the person searched for:
+// /leads/list is fuzzy across name, email and company, so searching "Reeve"
+// returns leads that merely contain "reeve" somewhere.
+//
+// The rules below are the ones the letters join in this file already uses, for
+// the same problem on the same kind of names: an exact normalised match always
+// counts, a substring only counts when BOTH sides are at least 6 alphanumerics,
+// and an exact match outranks a substring rather than losing to whatever came
+// back first.
 async function instantlyFindLeadByNameOrg(lastName, org) {
   if (!process.env.INSTANTLY_API_KEY || !lastName) return null;
   const data = await instantlyApi('/leads/list', {
@@ -410,11 +427,29 @@ async function instantlyFindLeadByNameOrg(lastName, org) {
   const items = (data && (data.items || data.leads)) || [];
   const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const target = norm(org);
-  if (!target) return null;
-  const hit = items.find((l) => {
-    const c = norm(l.company_name);
-    return c && (c.includes(target) || target.includes(c));
-  });
+  const wantLast = norm(lastName);
+  if (!target || !wantLast) return null;
+
+  const MIN = 6; // below this a substring is a coincidence, not a match
+  const scored = items
+    .filter((l) => l.campaign || l.campaign_id)
+    // The search is fuzzy, so confirm the lead is actually this person before
+    // letting their campaign speak for the booking.
+    .filter((l) => {
+      const name = norm(`${l.first_name || ''}${l.last_name || ''}`) || norm(l.name);
+      return name.includes(wantLast);
+    })
+    .map((l) => ({ l, c: norm(l.company_name) }))
+    .filter(({ c }) => c && (
+      c === target ||
+      (c.length >= MIN && target.length >= MIN && (c.includes(target) || target.includes(c)))
+    ))
+    .sort((a, b) =>
+      // Exact first, then the longer company name: "First Lutheran Church of
+      // Cedar Falls" is a better claim on "First Lutheran Church" than "First".
+      (b.c === target) - (a.c === target) || b.c.length - a.c.length);
+
+  const hit = scored[0]?.l;
   return hit ? { ...hit, campaign: hit.campaign || hit.campaign_id || null } : null;
 }
 
