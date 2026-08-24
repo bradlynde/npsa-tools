@@ -4,6 +4,9 @@ import { Card, Eyebrow, Note, fmtMoney } from "../ui";
 
 export type CampaignAgg = {
   campaign: string;
+  /** False for a source row -- direct, referral, organic -- which is not a campaign
+   *  and should not read like one sitting in the same list. */
+  isCampaign: boolean;
   booked: number;
   held: number;
   loes: number;
@@ -23,6 +26,8 @@ export default function CampaignTable({
   loading: boolean;
 }) {
   const max = Math.max(1, ...rows.map((r) => r.booked));
+  const campaignCount = rows.filter((r) => r.isCampaign).length;
+  const sourceCount = rows.length - campaignCount;
 
   return (
     <Card style={{ marginBottom: 14 }}>
@@ -37,8 +42,13 @@ export default function CampaignTable({
         }}
       >
         <Eyebrow>by campaign &amp; source — {rangeWord}</Eyebrow>
+        {/* Count the campaigns, not the rows. Source rows sit in this table too, and
+            calling all of them campaigns overstated how many were running -- it read
+            "15 campaigns" when one of those was the catch-all for everything that
+            was not a campaign at all. */}
         <Eyebrow color="var(--faint)">
-          {rows.length} {rows.length === 1 ? "campaign" : "campaigns"}
+          {campaignCount} {campaignCount === 1 ? "campaign" : "campaigns"}
+          {sourceCount > 0 ? ` · ${sourceCount} ${sourceCount === 1 ? "source" : "sources"}` : ""}
         </Eyebrow>
       </div>
 
@@ -90,7 +100,13 @@ export default function CampaignTable({
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: 13.5 }}>
+                  <div
+                    style={{
+                      fontWeight: c.isCampaign ? 600 : 500,
+                      color: c.isCampaign ? "var(--ink)" : "var(--sec)",
+                      fontSize: 13.5,
+                    }}
+                  >
                     {c.campaign}
                   </div>
                   <div
@@ -107,7 +123,7 @@ export default function CampaignTable({
                       style={{
                         width: `${(c.booked / max) * 100}%`,
                         height: "100%",
-                        background: "var(--olive)",
+                        background: c.isCampaign ? "var(--olive)" : "var(--bd2)",
                         transformOrigin: "left",
                         animation: "growX .9s cubic-bezier(.34,1.3,.4,1) both",
                       }}
