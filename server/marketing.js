@@ -332,6 +332,16 @@ async function ensureSchema(pool) {
 // ─────────────────────────────────────────────────────────────
 const INSTANTLY_BASE = 'https://api.instantly.ai/api/v2';
 let _campaignCache = { at: 0, map: {} };
+// A booking whose campaign id was never filled in. Grouping and the campaign
+// name both come from it now, so a row without one is still carrying whatever
+// Instantly called that campaign at the time it was enriched.
+//
+// Declared once because it has to hold in BOTH places that enrich. It used to
+// live only in the Refresh path, and Refresh bails out when a sweep is already
+// running -- so a redeploy, whose startup sweep takes the lock 60 seconds after
+// boot, could swallow a Refresh whole: ok: true, nothing queried, nothing said.
+const NEEDS_CAMPAIGN_ID = `(instantly_campaign IS NOT NULL AND instantly_campaign_id IS NULL)`;
+
 let _enrichRunning = false; // guards the background full-sweep enrichment
 
 // Call the Instantly v2 API (Bearer auth) with 429 back-off — an enrichment
@@ -1605,14 +1615,17 @@ export function registerMarketing(app, pool) {
         `SELECT id FROM bookings
           WHERE enriched_at IS NULL
              OR (meeting_date < NOW() AND held IS NULL)
-             OR (instantly_campaign IS NOT NULL AND instantly_campaign_id IS NULL)`
+             OR ${NEEDS_CAMPAIGN_ID}`
       );
       // Except when it is not small. Every unresolved booking now also costs a
       // lookup to identify it, so a backlog that used to finish inside the request
       // can outlast it — and a refresh that times out looks like a refresh that
       // failed, which is the one outcome worth avoiding.
       if (rows.length > 25) {
-        if (_enrichRunning) return res.json({ ok: true, running: true, message: 'a sweep is already in progress' });
+        // Saying only "in progress" made a refresh that queried nothing look like a
+        // refresh that worked. The count is what distinguishes them.
+        if (_enrichRunning) return res.json({ ok: true, running: true, pending: rows.length,
+          message: `${rows.length} still to refresh — another sweep holds the lock, they will be picked up` });
         _enrichRunning = true;
         res.json({ ok: true, started: rows.length, message: 'running in the background — reload shortly' });
         (async () => {
@@ -2300,10 +2313,11 @@ export function registerMarketing(app, pool) {
       // aside, drops it straight out of this set.
       const { rows } = await pool.query(
         `SELECT id FROM bookings
-          WHERE (event_uri IS NOT NULL OR (email IS NOT NULL AND meeting_date IS NOT NULL))
-            AND (meeting_date IS NULL
-                 OR meeting_date > NOW() - interval '7 days'
-                 OR (held IS NULL AND exclusion_reason IS NULL))`);
+          WHERE ((event_uri IS NOT NULL OR (email IS NOT NULL AND meeting_date IS NOT NULL))
+                 AND (meeting_date IS NULL
+                      OR meeting_date > NOW() - interval '7 days'
+                      OR (held IS NULL AND exclusion_reason IS NULL)))
+             OR ${NEEDS_CAMPAIGN_ID}`);
       for (const r of rows) {
         try { await enrichBooking(pool, r.id); } catch (e) { console.error('sweep enrich error:', e.message); }
       }
