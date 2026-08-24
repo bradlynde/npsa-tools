@@ -406,9 +406,39 @@ async function instantlyLeadsForEmail(email) {
     .sort((a, b) => new Date(b.timestamp_created || 0) - new Date(a.timestamp_created || 0));
 }
 
-// Best (most-recent) Instantly lead for an email, or null.
-async function instantlyFindLead(email) {
-  return (await instantlyLeadsForEmail(email))[0] || null;
+/**
+ * Drop leads created after the booking was made, then take the most recent of what
+ * is left.
+ *
+ * "Most recent lead wins" is right until somebody runs a remarketing campaign.
+ * Remarket FY27 - Non-Repliers was created on 27 July 2026 and enrolled the people
+ * who had not replied to the earlier campaigns, so those people are leads twice
+ * over. Re-enriching a booking taken in March then found the July lead and moved
+ * the credit: Phase 1 fell 43 to 15, Christian Schools 41 to 20, Phase 3 31 to 20,
+ * and Remarket went 9 to 79 on work the other three had done.
+ *
+ * An email sent after somebody booked cannot be why they booked. That is the whole
+ * rule. Leads with no creation date are kept, because an unknown date is not
+ * evidence of anything, and a booking with no booked_on constrains nothing.
+ */
+const leadNotAfter = (leads, bookedOn) => {
+  if (!bookedOn) return leads;
+  const cutoff = new Date(bookedOn).getTime();
+  if (!Number.isFinite(cutoff)) return leads;
+  const eligible = leads.filter((l) => {
+    if (!l.timestamp_created) return true;
+    const t = new Date(l.timestamp_created).getTime();
+    return !Number.isFinite(t) || t <= cutoff;
+  });
+  // If every lead postdates the booking the person still came from somewhere, and
+  // the oldest of them is the closest thing to an answer -- better than reporting
+  // no campaign for a booking that plainly came through one.
+  return eligible.length ? eligible : leads.slice().reverse();
+};
+
+// Best lead for an email that could actually have caused the booking, or null.
+async function instantlyFindLead(email, bookedOn) {
+  return leadNotAfter(await instantlyLeadsForEmail(email), bookedOn)[0] || null;
 }
 
 // Recover a campaign from the booker's last name plus their organisation.
@@ -428,7 +458,7 @@ async function instantlyFindLead(email) {
 // counts, a substring only counts when BOTH sides are at least 6 alphanumerics,
 // and an exact match outranks a substring rather than losing to whatever came
 // back first.
-async function instantlyFindLeadByNameOrg(lastName, org) {
+async function instantlyFindLeadByNameOrg(lastName, org, bookedOn) {
   if (!process.env.INSTANTLY_API_KEY || !lastName) return null;
   const data = await instantlyApi('/leads/list', {
     method: 'POST',
@@ -459,7 +489,9 @@ async function instantlyFindLeadByNameOrg(lastName, org) {
       // Cedar Falls" is a better claim on "First Lutheran Church" than "First".
       (b.c === target) - (a.c === target) || b.c.length - a.c.length);
 
-  const hit = scored[0]?.l;
+  // Same cut-off as the email matcher: a lead added after the booking cannot
+  // explain it, however well the organisation name lines up.
+  const hit = leadNotAfter(scored.map((x) => x.l), bookedOn)[0];
   return hit ? { ...hit, campaign: hit.campaign || hit.campaign_id || null } : null;
 }
 
@@ -474,7 +506,7 @@ const FREEMAIL = new Set([
 // Recover an Instantly campaign when the exact email didn't match but the booking
 // shares an org DOMAIN with an Instantly lead (a different person at the same org,
 // or a slightly different address). Skips free/consumer domains.
-async function instantlyFindLeadByDomain(domain) {
+async function instantlyFindLeadByDomain(domain, bookedOn) {
   const d = (domain || '').trim().toLowerCase().replace(/^www\./, '');
   if (!process.env.INSTANTLY_API_KEY || !d || FREEMAIL.has(d)) return null;
   const data = await instantlyApi('/leads/list', {
@@ -491,7 +523,7 @@ async function instantlyFindLeadByDomain(domain) {
       return emailDom === d || compDom === d;
     })
     .sort((a, b) => new Date(b.timestamp_created || 0) - new Date(a.timestamp_created || 0));
-  return matches[0] || null;
+  return leadNotAfter(matches, bookedOn)[0] || null;
 }
 
 /**
@@ -888,7 +920,7 @@ async function enrichBooking(pool, id) {
     // is what the campaign actually is. A name resolving to null here used to end
     // the chain silently -- a lead in a campaign the workspace no longer lists
     // looked exactly like a lead in no campaign at all.
-    const lead = await instantlyFindLead(row.email);
+    const lead = await instantlyFindLead(row.email, row.booked_on);
     if (lead?.campaign) {
       const map = await instantlyCampaignMap();
       campaignId = lead.campaign;
@@ -896,7 +928,7 @@ async function enrichBooking(pool, id) {
     }
     if (!campaignId) {
       const last = (row.name || '').trim().split(/\s+/).pop();
-      const lead2 = await instantlyFindLeadByNameOrg(last, row.organization);
+      const lead2 = await instantlyFindLeadByNameOrg(last, row.organization, row.booked_on);
       if (lead2?.campaign) {
         const map = await instantlyCampaignMap();
         campaignId = lead2.campaign;
@@ -904,7 +936,7 @@ async function enrichBooking(pool, id) {
       }
     }
     if (!campaignId) {
-      const lead3 = await instantlyFindLeadByDomain((row.email || '').split('@')[1]);
+      const lead3 = await instantlyFindLeadByDomain((row.email || '').split('@')[1], row.booked_on);
       if (lead3?.campaign) {
         const map = await instantlyCampaignMap();
         campaignId = lead3.campaign;
