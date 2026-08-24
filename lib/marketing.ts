@@ -519,19 +519,36 @@ export function channelsInRange(
     .sort((a, b) => b.booked - a.booked);
 }
 
-/** Range-scoped campaign breakdown, mirroring the upstream by-campaign table. */
+/**
+ * Range-scoped breakdown by campaign AND source, which is what the panel is
+ * titled and what the upstream by-campaign table has always returned.
+ *
+ * It used to key on the campaign name alone and pool everything else into one
+ * "— no campaign —" row. That row read as 53 bookings whose attribution had been
+ * lost, when 51 of them were never campaign traffic in the first place: 47 direct,
+ * 2 referral, 1 past engaged prospect, 1 organic search. Only 2 were Instantly
+ * bookings whose campaign genuinely could not be worked out, and those are the
+ * ones worth chasing -- so they are the ones the row now names.
+ */
 export function campaignsInRange(
   bookings: BookingRow[],
   range: Range
-): { campaign: string; booked: number; held: number; loes: number; fees: number }[] {
+): { campaign: string; isCampaign: boolean; booked: number; held: number; loes: number; fees: number }[] {
   const from = rangeStart(range);
-  const map = new Map<string, { booked: number; held: number; loes: number; fees: number }>();
+  const map = new Map<string, { isCampaign: boolean; booked: number; held: number; loes: number; fees: number }>();
   for (const b of bookings) {
     if (!countsTowardTotals(b)) continue;
     if (!b.booked_on) continue;
     if (new Date(b.booked_on) < from) continue;
-    const key = b.instantly_campaign?.trim() || '— no campaign —';
-    const cur = map.get(key) || { booked: 0, held: 0, loes: 0, fees: 0 };
+    const named = b.instantly_campaign?.trim();
+    // An Instantly booking with no campaign is a real gap. Anything else simply
+    // came from somewhere that is not a campaign, and says so.
+    const key =
+      named ||
+      (b.attribution_channel === 'instantly'
+        ? 'Instantly — campaign unknown'
+        : channelLabel(b.attribution_channel));
+    const cur = map.get(key) || { isCampaign: Boolean(named), booked: 0, held: 0, loes: 0, fees: 0 };
     cur.booked += 1;
     if (b.held) cur.held += 1;
     if (b.became_client) {
