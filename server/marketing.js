@@ -1593,7 +1593,19 @@ export function registerMarketing(app, pool) {
       // Stale-only refresh: normally a small set, run synchronously so a UI reload
       // sees fresh data.
       const { rows } = await pool.query(
-        `SELECT id FROM bookings WHERE enriched_at IS NULL OR (meeting_date < NOW() AND held IS NULL)`
+        // The third condition is a backfill that retires itself. Grouping moved onto
+        // the campaign id, but every booking enriched before that column existed has
+        // a name and no id, so it still groups by name -- which is the split this was
+        // meant to end. Those rows are enriched and resolved, so neither of the first
+        // two conditions reaches them and neither does the periodic sweep, which only
+        // looks a week back. They would have sat there for good.
+        //
+        // Re-enriching sets the id, after which the row stops matching. No migration,
+        // and nothing to remember to run once.
+        `SELECT id FROM bookings
+          WHERE enriched_at IS NULL
+             OR (meeting_date < NOW() AND held IS NULL)
+             OR (instantly_campaign IS NOT NULL AND instantly_campaign_id IS NULL)`
       );
       // Except when it is not small. Every unresolved booking now also costs a
       // lookup to identify it, so a backlog that used to finish inside the request
