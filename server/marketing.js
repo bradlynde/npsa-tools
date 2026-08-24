@@ -1876,20 +1876,42 @@ export function registerMarketing(app, pool) {
   app.get('/api/marketing/timeseries', async (req, res) => {
     if (!pool) return guard(res);
     const g = req.query.granularity === 'month' ? 'month' : 'week';
+    // date_trunc('week') starts on MONDAY. The "bookings this week" tile is Sunday
+    // to Saturday and says so, so the two disagreed about which week a booking
+    // belonged to: a Sunday booking sat in the tile's current week and in the
+    // chart's PREVIOUS bar at the same time. Every Sunday, the chart and the number
+    // above it told different stories about the same bookings.
+    const bucket = g === 'week'
+      ? `date_trunc('week', booked_on + interval '1 day') - interval '1 day'`
+      : `date_trunc('month', booked_on)`;
+    const step = g === 'week' ? '1 week' : '1 month';
     try {
       const { rows } = await pool.query(`
-        SELECT to_char(date_trunc('${g}', booked_on), 'YYYY-MM-DD') AS period,
-               COUNT(*)::int AS booked,
-               COUNT(*) FILTER (WHERE held IS TRUE)::int AS held,
+        WITH b AS (
+          SELECT ${bucket} AS period,
+                 held, became_client, won, won_amount
+            FROM bookings WHERE booked_on IS NOT NULL AND ${COUNTABLE}
+        ),
+        bounds AS (SELECT MIN(period) AS lo, MAX(period) AS hi FROM b),
+        -- A week with no bookings has to read as a gap, not close up and make the
+        -- run of weeks look continuous. sales-timeseries has done this since it was
+        -- written; this chart is the one that quietly dropped empty periods.
+        periods AS (
+          SELECT generate_series(lo, hi, INTERVAL '${step}') AS period FROM bounds
+        )
+        SELECT to_char(p.period, 'YYYY-MM-DD') AS period,
+               COUNT(b.period)::int AS booked,
+               COUNT(*) FILTER (WHERE b.held IS TRUE)::int AS held,
                -- Meetings whose outcome is actually known. A meeting still in the
                -- future has held IS NULL, and counting it as "booked but not held"
                -- makes a held RATE drift upward on its own as dates pass.
-               COUNT(*) FILTER (WHERE held IS NOT NULL)::int AS resolved,
-               COUNT(*) FILTER (WHERE became_client)::int AS clients,
-               COUNT(*) FILTER (WHERE won)::int AS won,
-               COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_amount
-        FROM bookings WHERE booked_on IS NOT NULL AND ${COUNTABLE}
-        GROUP BY 1 ORDER BY 1`);
+               COUNT(*) FILTER (WHERE b.held IS NOT NULL)::int AS resolved,
+               COUNT(*) FILTER (WHERE b.became_client)::int AS clients,
+               COUNT(*) FILTER (WHERE b.won)::int AS won,
+               COALESCE(SUM(b.won_amount) FILTER (WHERE b.won),0)::numeric AS won_amount
+          FROM periods p
+          LEFT JOIN b ON b.period = p.period
+         GROUP BY p.period ORDER BY p.period`);
       res.json(rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
