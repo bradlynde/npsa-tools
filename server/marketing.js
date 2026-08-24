@@ -156,6 +156,10 @@ async function ensureSchema(pool) {
     -- dead names held 63 bookings between them. The id is what actually identifies
     -- a campaign, and grouping keys on it.
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS instantly_campaign_id TEXT;
+    -- When the Instantly lead this booking was matched to was created. A lead that
+    -- postdates the booking cannot be why it was booked, and recording the date is
+    -- what lets that be checked later rather than only at the moment of matching.
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS attribution_lead_at TIMESTAMPTZ;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won               BOOLEAN DEFAULT FALSE;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_amount        NUMERIC DEFAULT 0;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_at            TIMESTAMPTZ;
@@ -341,6 +345,27 @@ let _campaignCache = { at: 0, map: {} };
 // running -- so a redeploy, whose startup sweep takes the lock 60 seconds after
 // boot, could swallow a Refresh whole: ok: true, nothing queried, nothing said.
 const NEEDS_CAMPAIGN_ID = `(instantly_campaign IS NOT NULL AND instantly_campaign_id IS NULL)`;
+
+// A reverse-matched booking that never recorded which lead it matched, or recorded
+// one created after the booking was made.
+//
+// The first half is a backfill that retires itself: every booking matched before
+// the column existed has no date, gets re-enriched once, and then stops matching.
+// It is what repairs the seventy bookings that "most recent lead wins" moved onto
+// the remarketing campaign, which nothing else would have caught -- they have a
+// campaign id, so NEEDS_CAMPAIGN_ID does not reach them.
+//
+// The second half is permanent. If a lead ever again postdates its booking, the row
+// re-enriches instead of quietly keeping the wrong campaign.
+//
+// Only reverse_% sources qualify. A UTM booking has no lead to date and a manual one
+// was set by a person, so neither should ever be re-enriched on this account -- and
+// including them would leave a condition that never stops matching.
+const NEEDS_LEAD_DATE = `(
+     instantly_campaign IS NOT NULL
+ AND attribution_source LIKE 'reverse_%'
+ AND (attribution_lead_at IS NULL
+      OR (booked_on IS NOT NULL AND attribution_lead_at > booked_on)))`;
 
 let _enrichRunning = false; // guards the background full-sweep enrichment
 
@@ -911,7 +936,11 @@ async function enrichBooking(pool, id) {
   const override = row.manual_override || {};
 
   // --- Instantly campaign ---
-  let campaign = null, campaignId = null, source = 'none';
+  // leadAt distinguishes three states, and all three matter to the re-enrich
+  // condition: a real date, '-infinity' for a lead Instantly gave no date for, and
+  // null for "never matched a lead". Storing null in the undated case would leave the
+  // row matching NEEDS_LEAD_DATE on every sweep, for ever, with nothing to fix.
+  let campaign = null, campaignId = null, leadAt = null, source = 'none';
   if ((row.utm_source || '').toLowerCase() === 'instantly' && row.utm_campaign) {
     ({ id: campaignId, name: campaign } = await slugToCampaign(row.utm_campaign));
     source = 'utm';
@@ -924,6 +953,7 @@ async function enrichBooking(pool, id) {
     if (lead?.campaign) {
       const map = await instantlyCampaignMap();
       campaignId = lead.campaign;
+      leadAt = lead.timestamp_created || '-infinity';
       campaign = map[lead.campaign] || null; source = 'reverse_email';
     }
     if (!campaignId) {
@@ -932,6 +962,7 @@ async function enrichBooking(pool, id) {
       if (lead2?.campaign) {
         const map = await instantlyCampaignMap();
         campaignId = lead2.campaign;
+        leadAt = lead2.timestamp_created || '-infinity';
         campaign = map[lead2.campaign] || null; source = 'reverse_name_org';
       }
     }
@@ -940,6 +971,7 @@ async function enrichBooking(pool, id) {
       if (lead3?.campaign) {
         const map = await instantlyCampaignMap();
         campaignId = lead3.campaign;
+        leadAt = lead3.timestamp_created || '-infinity';
         campaign = map[lead3.campaign] || null; source = 'reverse_domain';
       }
     }
@@ -953,7 +985,7 @@ async function enrichBooking(pool, id) {
   if (override.channel) {
     channel = override.channel;
     source = 'manual';
-    if (override.channel !== 'instantly') { campaign = null; campaignId = null; }
+    if (override.channel !== 'instantly') { campaign = null; campaignId = null; leadAt = null; }
   }
   // Naming the campaign is the stronger statement, so it is applied last and settles
   // the channel with it: a booking cannot be from an Instantly campaign and from
@@ -968,6 +1000,7 @@ async function enrichBooking(pool, id) {
     // the campaign they corrected it TO, the moment that campaign is renamed.
     const map = await instantlyCampaignMap();
     campaignId = Object.keys(map).find((k) => map[k] === campaign) || null;
+    leadAt = null;
   }
 
   // --- Cancelled + held (one Calendly lookup answers both) ---
@@ -1098,7 +1131,8 @@ async function enrichBooking(pool, id) {
 
   await pool.query(
     `UPDATE bookings SET
-       instantly_campaign=$1, instantly_campaign_id=$17, attribution_channel=$2, attribution_source=$3,
+       instantly_campaign=$1, instantly_campaign_id=$17, attribution_lead_at=$18,
+       attribution_channel=$2, attribution_source=$3,
        held=$4, held_source=$5, became_client=$6, client_letter_id=$7, fee=$8,
        exclusion_reason=$9, cancelled=$10, cancelled_at=$11, rescheduled_from=$12,
        event_uri=$13, calendly_uri=COALESCE($14, calendly_uri), calendly_lookup_at=$15,
@@ -1106,7 +1140,7 @@ async function enrichBooking(pool, id) {
      WHERE id=$16`,
     [campaign, channel, source, held, heldSource, becameClient, letterId, fee,
      exclusionReason, cancelled, cancelledAt, rescheduledFrom,
-     eventUri, inviteeUri, lookupAt, id, campaignId]
+     eventUri, inviteeUri, lookupAt, id, campaignId, leadAt]
   );
 }
 
@@ -1647,7 +1681,8 @@ export function registerMarketing(app, pool) {
         `SELECT id FROM bookings
           WHERE enriched_at IS NULL
              OR (meeting_date < NOW() AND held IS NULL)
-             OR ${NEEDS_CAMPAIGN_ID}`
+             OR ${NEEDS_CAMPAIGN_ID}
+             OR ${NEEDS_LEAD_DATE}`
       );
       // Except when it is not small. Every unresolved booking now also costs a
       // lookup to identify it, so a backlog that used to finish inside the request
@@ -2349,7 +2384,8 @@ export function registerMarketing(app, pool) {
                  AND (meeting_date IS NULL
                       OR meeting_date > NOW() - interval '7 days'
                       OR (held IS NULL AND exclusion_reason IS NULL)))
-             OR ${NEEDS_CAMPAIGN_ID}`);
+             OR ${NEEDS_CAMPAIGN_ID}
+             OR ${NEEDS_LEAD_DATE}`);
       for (const r of rows) {
         try { await enrichBooking(pool, r.id); } catch (e) { console.error('sweep enrich error:', e.message); }
       }
