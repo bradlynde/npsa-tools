@@ -926,7 +926,12 @@ export default function App() {
   };
   const fetchLetters = async (search = '') => {
     const r = await fetch(`/api/letters?search=${encodeURIComponent(search)}`);
-    if (r.ok) setSavedLetters(await r.json());
+    if (!r.ok) return;
+    // An error body here is an object, not a list, and the table maps over it
+    // unguarded — which throws during render and unmounts the whole app, so a
+    // hiccup on this one endpoint takes the generator down with it.
+    const rows = await r.json();
+    setSavedLetters(Array.isArray(rows) ? rows : []);
   };
 
   const saveLetter = async () => {
@@ -2345,17 +2350,17 @@ export default function App() {
       {signerApprovalModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
           <div style={{background:"var(--card)",borderRadius:10,padding:"32px 36px",maxWidth:400,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)",textAlign:"center"}}>
-            <div style={{fontSize:36,marginBottom:12,color:"#e8bd6d",fontWeight:700}}>(!)</div>
+            <div style={{fontSize:36,marginBottom:12,color:"var(--warn-fg)",fontWeight:700}}>(!)</div>
             <div style={{fontWeight:700,fontSize:17,color:"var(--ink)",marginBottom:10}}>Management Approval Required</div>
-            <div style={{fontSize:14,color:"#444",marginBottom:8,lineHeight:1.6}}>
+            <div style={{fontSize:14,color:"var(--sec)",marginBottom:8,lineHeight:1.6}}>
               You're changing the authorized signer to <strong>{signerApprovalModal.name}</strong>.
             </div>
-            <div style={{fontSize:14,color:"#444",marginBottom:24,lineHeight:1.6}}>
+            <div style={{fontSize:14,color:"var(--sec)",marginBottom:24,lineHeight:1.6}}>
               Has this change been approved by management?
             </div>
             <div style={{display:"flex",gap:12,justifyContent:"center"}}>
               <button onClick={()=>setSignerApprovalModal(null)}
-                style={{padding:"9px 22px",borderRadius:6,border:"1px solid #ccc",background:"#f5f5f5",fontSize:13,cursor:"pointer",fontWeight:600,color:"#555"}}>
+                style={{padding:"9px 22px",borderRadius:6,border:"1px solid var(--bd2)",background:"var(--hover)",fontSize:13,cursor:"pointer",fontWeight:600,color:"var(--sec)"}}>
                 Cancel
               </button>
               <button onClick={()=>{setF("npsaSignerName",signerApprovalModal.name);setF("npsaSignerTitle",signerApprovalModal.title);setSignerApprovalModal(null);}}
@@ -2372,30 +2377,30 @@ export default function App() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
           <div style={{background:"var(--card)",borderRadius:10,padding:"32px 36px",maxWidth:460,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
             <div style={{fontWeight:700,fontSize:16,color:"var(--ink)",marginBottom:4}}>Email to Grant Writer</div>
-            <div style={{fontSize:12,color:"#777",marginBottom:20,lineHeight:1.5}}>Your default email client will open with these fields pre-filled. Attach the downloaded GW document before sending.</div>
+            <div style={{fontSize:12,color:"var(--mute)",marginBottom:20,lineHeight:1.5}}>Your default email client will open with these fields pre-filled. Attach the downloaded GW document before sending.</div>
             {[
               {label:"To", key:"to", placeholder:"grantwriter@example.com"},
               {label:"Subject", key:"subject", placeholder:"Subject"},
             ].map(f2=>(
               <div key={f2.key} style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:"#444",display:"block",marginBottom:4}}>{f2.label}</label>
+                <label style={{fontSize:12,fontWeight:600,color:"var(--sec)",display:"block",marginBottom:4}}>{f2.label}</label>
                 <input value={emailFields[f2.key]} onChange={e=>setEmailFields(ef=>({...ef,[f2.key]:e.target.value}))}
                   placeholder={f2.placeholder}
-                  style={{width:"100%",border:"1px solid #ccc",borderRadius:6,padding:"8px 10px",fontSize:13,boxSizing:"border-box",outline:"none"}}/>
+                  style={{width:"100%",border:"1px solid var(--bd2)",borderRadius:6,padding:"8px 10px",fontSize:13,boxSizing:"border-box",outline:"none"}}/>
               </div>
             ))}
             <div style={{marginBottom:20}}>
-              <label style={{fontSize:12,fontWeight:600,color:"#444",display:"block",marginBottom:4}}>Message</label>
+              <label style={{fontSize:12,fontWeight:600,color:"var(--sec)",display:"block",marginBottom:4}}>Message</label>
               <textarea value={emailFields.message} onChange={e=>setEmailFields(ef=>({...ef,message:e.target.value}))}
-                rows={5} style={{width:"100%",border:"1px solid #ccc",borderRadius:6,padding:"8px 10px",fontSize:13,boxSizing:"border-box",outline:"none",resize:"vertical",fontFamily:"inherit"}}/>
+                rows={5} style={{width:"100%",border:"1px solid var(--bd2)",borderRadius:6,padding:"8px 10px",fontSize:13,boxSizing:"border-box",outline:"none",resize:"vertical",fontFamily:"inherit"}}/>
             </div>
-            <div style={{background:"#fff8e8",border:"1px solid #e8c97a",borderRadius:6,padding:"10px 14px",fontSize:12,color:"#7a5a00",marginBottom:12,lineHeight:1.5}}>
+            <div style={{background:"var(--warn-bg)",border:"1px solid var(--warn-fg)",borderRadius:6,padding:"10px 14px",fontSize:12,color:"var(--warn-fg)",marginBottom:12,lineHeight:1.5}}>
               <strong>Note:</strong> Email clients cannot attach files automatically. Use <em>Download Form</em> below to save the PDF first, then attach it manually to your email.
             </div>
             <div style={{display:"flex",gap:10,flexDirection:"column"}}>
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>setEmailModal(false)}
-                  style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #ccc",background:"#f5f5f5",color:"#555",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                  style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid var(--bd2)",background:"var(--hover)",color:"var(--sec)",fontSize:13,fontWeight:600,cursor:"pointer"}}>
                   Cancel
                 </button>
                 <button onClick={()=>{
@@ -2420,23 +2425,23 @@ export default function App() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}}>
           <div style={{background:"var(--card)",borderRadius:10,padding:"32px 36px",maxWidth:420,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
             <div style={{fontWeight:700,fontSize:16,color:"var(--ink)",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
-            <div style={{fontSize:12,color:"#777",marginBottom:pendingPrintAfterSave?12:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
+            <div style={{fontSize:12,color:"var(--mute)",marginBottom:pendingPrintAfterSave?12:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
             {pendingPrintAfterSave && (
-              <div style={{background:"#eef4fb",border:"1px solid #b8cde4",borderRadius:6,padding:"10px 12px",fontSize:12,color:"var(--navy)",marginBottom:20,lineHeight:1.5}}>
+              <div style={{background:"var(--hover)",border:"1px solid var(--bd2)",borderRadius:6,padding:"10px 12px",fontSize:12,color:"var(--navy)",marginBottom:20,lineHeight:1.5}}>
                 {currentLetterId
                   ? "This letter has unsaved changes. Save the update and the download will start automatically."
                   : "Letters must be saved before they can be downloaded. Pick the rep and the download will start automatically."}
               </div>
             )}
             <div style={{marginBottom:20}}>
-              <label style={{fontSize:12,fontWeight:600,color:"#444",display:"block",marginBottom:6}}>Sales Rep</label>
+              <label style={{fontSize:12,fontWeight:600,color:"var(--sec)",display:"block",marginBottom:6}}>Sales Rep</label>
               {reps.length === 0 ? (
                 <div style={{fontSize:12,color:"var(--err-fg)",background:"var(--err-bg)",border:"1px solid var(--err-fg)",borderRadius:6,padding:"10px 12px"}}>
                   No reps configured. Go to Settings to add reps first.
                 </div>
               ) : (
                 <select value={selectedRep} onChange={e=>setSelectedRep(e.target.value)}
-                  style={{width:"100%",border:"1px solid #ccc",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",background:"var(--card)"}}>
+                  style={{width:"100%",border:"1px solid var(--bd2)",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",background:"var(--card)"}}>
                   <option value="">— Select rep —</option>
                   {reps.map(r=><option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
@@ -2444,11 +2449,11 @@ export default function App() {
             </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{ setShowSaveModal(false); setPendingPrintAfterSave(false); }}
-                style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid #ccc",background:"#f5f5f5",color:"#555",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid var(--bd2)",background:"var(--hover)",color:"var(--sec)",fontSize:13,fontWeight:600,cursor:"pointer"}}>
                 Cancel
               </button>
               <button onClick={saveLetter} disabled={!selectedRep}
-                style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:selectedRep?"var(--navy)":"#ccc",color:"#fff",fontSize:13,fontWeight:700,cursor:selectedRep?"pointer":"not-allowed"}}>
+                style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:selectedRep?"var(--navy)":"var(--track)",color:selectedRep?"var(--on-accent)":"var(--faint)",fontSize:13,fontWeight:700,cursor:selectedRep?"pointer":"not-allowed"}}>
                 {pendingPrintAfterSave ? (currentLetterId ? "Update & Download" : "Save & Download") : (currentLetterId ? "Update" : "Save")}
               </button>
             </div>
@@ -2478,7 +2483,7 @@ export default function App() {
                   {letterSearch ? "No letters match your search." : "No saved letters yet."}
                 </div>
               ) : (
-                <div style={{maxWidth:880,margin:"0 auto",background:"var(--card)",borderRadius:18,boxShadow:"0 6px 24px rgba(2,6,23,0.06)",border:"1px solid var(--hair2)",overflow:"hidden"}}>
+                <div style={{maxWidth:880,margin:"0 auto",background:"var(--card)",borderRadius:18,boxShadow:"var(--shadow-card)",border:"1px solid var(--hair2)",overflow:"hidden"}}>
                   <table style={{width:"100%",borderCollapse:"collapse"}}>
                     <thead>
                       <tr style={{borderBottom:"1px solid var(--hair2)"}}>
@@ -2489,7 +2494,7 @@ export default function App() {
                     </thead>
                     <tbody>
                       {savedLetters.map((l,li)=>(
-                        <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid var(--hair2)",background:currentLetterId===l.id?"#f5f3ff":"#fff"}}>
+                        <tr key={l.id} style={{borderBottom:li===savedLetters.length-1?"none":"1px solid var(--hair2)",background:currentLetterId===l.id?"var(--hover)":"transparent"}}>
                           <td style={{padding:"16px 14px",fontWeight:700,color:"var(--ink)",fontSize:16}}>{l.client_name}</td>
                           <td style={{padding:"16px 14px",color:"var(--sec)",fontSize:15}}>{l.rep_name}</td>
                           <td style={{padding:"16px 14px",color:"var(--navy)",fontSize:14,fontWeight:600}}>
@@ -2503,7 +2508,7 @@ export default function App() {
                                 Load
                               </button>
                               <button onClick={()=>deleteLetter(l.id)}
-                                style={{background:"var(--card)",border:"1px solid #d9a99c",color:"var(--err-fg)",borderRadius:8,padding:"8px 14px",fontSize:13.5,fontWeight:600,cursor:"pointer"}}>
+                                style={{background:"var(--card)",border:"1px solid var(--err-fg)",color:"var(--err-fg)",borderRadius:8,padding:"8px 14px",fontSize:13.5,fontWeight:600,cursor:"pointer"}}>
                                 Delete
                               </button>
                             </div>
