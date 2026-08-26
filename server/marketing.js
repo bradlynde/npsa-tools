@@ -346,26 +346,17 @@ let _campaignCache = { at: 0, map: {} };
 // boot, could swallow a Refresh whole: ok: true, nothing queried, nothing said.
 const NEEDS_CAMPAIGN_ID = `(instantly_campaign IS NOT NULL AND instantly_campaign_id IS NULL)`;
 
-// A reverse-matched booking that never recorded which lead it matched, or recorded
-// one created after the booking was made.
+// NEEDS_LEAD_DATE is gone. It selected reverse-matched rows whose matched lead was
+// undated or postdated the booking, to drive the #164/#165 repair -- and that repair
+// rested on a premise that is false: a lead MOVED between campaigns keeps its
+// original timestamp_created, so it never postdates the booking and the rule never
+// fires. What the condition actually did was re-run the reverse lookup over ~70 rows
+// and re-credit each to wherever its lead had been moved since. It made the damage
+// worse, not better (Remarket 79 -> 91).
 //
-// The first half is a backfill that retires itself: every booking matched before
-// the column existed has no date, gets re-enriched once, and then stops matching.
-// It is what repairs the seventy bookings that "most recent lead wins" moved onto
-// the remarketing campaign, which nothing else would have caught -- they have a
-// campaign id, so NEEDS_CAMPAIGN_ID does not reach them.
-//
-// The second half is permanent. If a lead ever again postdates its booking, the row
-// re-enriches instead of quietly keeping the wrong campaign.
-//
-// Only reverse_% sources qualify. A UTM booking has no lead to date and a manual one
-// was set by a person, so neither should ever be re-enriched on this account -- and
-// including them would leave a condition that never stops matching.
-const NEEDS_LEAD_DATE = `(
-     instantly_campaign IS NOT NULL
- AND attribution_source LIKE 'reverse_%'
- AND (attribution_lead_at IS NULL
-      OR (booked_on IS NOT NULL AND attribution_lead_at > booked_on)))`;
+// It cannot survive sticky attribution in any case. The sticky path deliberately
+// does not consult a lead, so it never writes attribution_lead_at -- rows with a
+// null one would match this on every sweep for ever, with nothing able to fix them.
 
 let _enrichRunning = false; // guards the background full-sweep enrichment
 
@@ -936,14 +927,54 @@ async function enrichBooking(pool, id) {
   const override = row.manual_override || {};
 
   // --- Instantly campaign ---
-  // leadAt distinguishes three states, and all three matter to the re-enrich
-  // condition: a real date, '-infinity' for a lead Instantly gave no date for, and
-  // null for "never matched a lead". Storing null in the undated case would leave the
-  // row matching NEEDS_LEAD_DATE on every sweep, for ever, with nothing to fix.
+  // Attribution is STICKY. A reverse lookup fills a gap; it never revises an answer.
+  //
+  // The reverse matchers (email, name+org, domain) all resolve to "whichever campaign
+  // that lead sits in RIGHT NOW". Leads get MOVED between campaigns routinely, and
+  // Instantly moves rather than copies -- one lead record, whose timestamp_created
+  // keeps the ORIGINAL import date. So the campaign field on a lead means "where this
+  // person lives today", not "which campaign emailed them". Re-enriching an old
+  // booking therefore re-credited it to wherever its lead had since been moved, and
+  // every refresh dragged more of the back catalogue onto the newest remarketing
+  // campaign: Phase 1 43 -> 18, Christian Schools 41 -> 26, Remarket 9 -> 91, on work
+  // the earlier campaigns had done.
+  //
+  // Dating the lead cannot catch this (#164 tried) precisely because a moved lead
+  // keeps its original date, so the booking never looks newer than the lead.
+  //
+  // What actually holds is refusing to overwrite. Only two things may change a
+  // campaign that is already recorded:
+  //   utm      -- contemporaneous, embedded in the email that was really clicked
+  //   manual   -- a person looked and decided
+  // Both are handled below and both still win. Everything else keeps what is there.
+  //
+  // leadAt distinguishes three states: a real date, '-infinity' for a lead Instantly
+  // gave no date for, and null for "never matched a lead". It is carried forward
+  // untouched on the sticky path so a re-enrich cannot blank it.
   let campaign = null, campaignId = null, leadAt = null, source = 'none';
+  const hasCampaign = !!(row.instantly_campaign || row.instantly_campaign_id);
   if ((row.utm_source || '').toLowerCase() === 'instantly' && row.utm_campaign) {
     ({ id: campaignId, name: campaign } = await slugToCampaign(row.utm_campaign));
     source = 'utm';
+  } else if (hasCampaign) {
+    // Keep what is already recorded, including the source that set it -- overwriting
+    // that with a marker would destroy the only record of how each row was decided,
+    // which is what makes the damage auditable.
+    campaign = row.instantly_campaign;
+    campaignId = row.instantly_campaign_id;
+    leadAt = row.attribution_lead_at;
+    source = row.attribution_source || 'none';
+    // Filling in the other half of the pair is not a revision -- name and id denote
+    // the same campaign, so resolving one from the other cannot move a booking. It is
+    // also what retires NEEDS_CAMPAIGN_ID now that a reverse lookup no longer runs
+    // here to set the id as a side effect. The map is cached, so this costs no call.
+    if (campaign && !campaignId) {
+      const map = await instantlyCampaignMap();
+      campaignId = Object.keys(map).find((k) => map[k] === campaign) || null;
+    } else if (campaignId && !campaign) {
+      const map = await instantlyCampaignMap();
+      campaign = map[campaignId] || null;
+    }
   } else {
     // Each branch records the id it matched on as well as the name, because the id
     // is what the campaign actually is. A name resolving to null here used to end
@@ -1676,13 +1707,14 @@ export function registerMarketing(app, pool) {
         // two conditions reaches them and neither does the periodic sweep, which only
         // looks a week back. They would have sat there for good.
         //
-        // Re-enriching sets the id, after which the row stops matching. No migration,
-        // and nothing to remember to run once.
+        // Re-enriching resolves the id from the name it already holds, after which the
+        // row stops matching. No migration, and nothing to remember to run once. It is
+        // a rename, not a re-attribution: sticky attribution means the campaign itself
+        // cannot move here, so this backfill can no longer smuggle one in.
         `SELECT id FROM bookings
           WHERE enriched_at IS NULL
              OR (meeting_date < NOW() AND held IS NULL)
-             OR ${NEEDS_CAMPAIGN_ID}
-             OR ${NEEDS_LEAD_DATE}`
+             OR ${NEEDS_CAMPAIGN_ID}`
       );
       // Except when it is not small. Every unresolved booking now also costs a
       // lookup to identify it, so a backlog that used to finish inside the request
@@ -2384,8 +2416,7 @@ export function registerMarketing(app, pool) {
                  AND (meeting_date IS NULL
                       OR meeting_date > NOW() - interval '7 days'
                       OR (held IS NULL AND exclusion_reason IS NULL)))
-             OR ${NEEDS_CAMPAIGN_ID}
-             OR ${NEEDS_LEAD_DATE}`);
+             OR ${NEEDS_CAMPAIGN_ID}`);
       for (const r of rows) {
         try { await enrichBooking(pool, r.id); } catch (e) { console.error('sweep enrich error:', e.message); }
       }
