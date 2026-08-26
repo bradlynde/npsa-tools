@@ -155,6 +155,31 @@ export const STATE_PROGRAMS_BY_STATE = Object.fromEntries(
     }),
 );
 
+/*
+ * Everything about a state that is NOT a date.
+ *
+ * The deadline table answers "when", and on its own that was the whole editor —
+ * 200-odd rows of every jurisdiction at once, which is unreadable and, worse,
+ * gives no way to tell whether the handful of rows for the state you care about
+ * are current. This is the rest of the answer for one state: who administers it,
+ * what state-funded money sits beside the federal award, and when each layer was
+ * last checked. `lastVerified` is the state file's own date in Drive, `checkedOn`
+ * is the day the web check ran over the extraction — two different claims about
+ * freshness, so they are reported as two.
+ */
+export const STATE_REFERENCE = {
+  checkedOn: VERIFIED._checked || '',
+  notCovered: KB._not_covered || [],
+  states: Object.fromEntries(
+    Object.entries(KB.states).map(([state, s]) => [state, {
+      saa: s.saa || '',
+      saaShort: s.saa_short || '',
+      lastVerified: s.last_verified || '',
+      programs: STATE_PROGRAMS_BY_STATE[state] || [],
+    }]),
+  ),
+};
+
 export async function ensureDeadlineSchema(pool) {
   if (!pool) return;
   await pool.query(`

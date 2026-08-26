@@ -1160,7 +1160,7 @@ export default function App() {
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.7 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0 1 22 16.92z"/></svg>
               </div>
               <div>
-                <div style={{color:'var(--ink)',fontWeight:700,fontSize:17,display:'flex',alignItems:'center',gap:8}}>Pre-Call Notes Generator<span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span></div>
+                <div style={{color:'var(--ink)',fontWeight:700,fontSize:17,display:'flex',alignItems:'center',gap:8}}>Pre-Call Notes Generator</div>
                 <div style={{color:'var(--mute)',fontSize:13,lineHeight:1.5,marginTop:2}}>Paste a Calendly invite and generate AI-powered prep notes</div>
               </div>
             </div>
@@ -1189,13 +1189,14 @@ export default function App() {
         &#8592; Dashboard
       </button>
       <div style={{color:'var(--ink)',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
-      <span style={{fontSize:10,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',color:'#3a2c6e',background:'#ece8f7',border:'1px solid #d6cdf0',borderRadius:20,padding:'2px 9px'}}>In Beta</span>
       <button onClick={()=>setPreCallShowDeadlines(true)}
         style={{marginLeft:'auto',background:'var(--card)',border:'1px solid var(--bd)',borderRadius:10,padding:'9px 16px',color:'var(--sec)',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
         &#128197; Deadlines
       </button>
     </div>
-    {preCallShowDeadlines && <DeadlineEditor onClose={()=>setPreCallShowDeadlines(false)}/>}
+    {/* Opening on the state the rep is preparing for saves the lookup the editor
+        used to make them do by eye over every jurisdiction at once. */}
+    {preCallShowDeadlines && <DeadlineEditor initialState={preCallForm.orgState} onClose={()=>setPreCallShowDeadlines(false)}/>}
 
     <div style={{maxWidth:900,margin:'28px auto',padding:'0 24px 60px',display:'flex',gap:28,alignItems:'flex-start',flexWrap:'wrap'}}>
 
@@ -2469,6 +2470,14 @@ export default function App() {
           <div style={{background:"var(--bg)",flex:1,display:"flex",flexDirection:"column",maxHeight:"100vh",overflow:"hidden"}}>
             {/* Header */}
             <div style={{padding:"22px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,background:"var(--card)",borderBottom:"1px solid var(--hair2)"}}>
+              {/* The overlay only ever opens over the dashboard — from the card, or
+                  deep-linked from the toolbox shell with ?view=letters — so "back"
+                  is unambiguous. goBack() leaves the iframe when the shell sent us
+                  here and reveals our own dashboard when it did not. */}
+              <button onClick={()=>{ setShowLetterBrowser(false); goBack(); }}
+                style={{background:"var(--bg)",border:"1px solid var(--bd)",borderRadius:10,padding:"9px 16px",color:"var(--sec)",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:7}}>
+                &#8592; Dashboard
+              </button>
               <div style={{color:"var(--ink)",fontWeight:800,fontSize:20,flex:1}}>Saved Letters</div>
               <input value={letterSearch} onChange={e=>{ setLetterSearch(e.target.value); fetchLetters(e.target.value); }}
                 placeholder="Search by client or rep..."

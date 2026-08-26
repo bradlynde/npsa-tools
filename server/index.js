@@ -15,7 +15,7 @@ import {
 } from './precall-facts.js';
 import {
   ensureDeadlineSchema, listDeadlines, upsertDeadline, deleteDeadline,
-  deadlinesForState, renderDeadlines, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE,
+  deadlinesForState, renderDeadlines, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE, STATE_REFERENCE,
 } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 
@@ -471,7 +471,10 @@ app.get('/api/precall/bookings', async (req, res) => {
 // ── Curated NSGP deadlines ────────────────────────────────────────────────────
 app.get('/api/precall/deadlines', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Storage not configured' });
-  try { res.json({ deadlines: await listDeadlines(pool) }); }
+  // The reference travels with the dates: the editor shows one state at a time,
+  // and a date without its SAA, its state-funded programs and its freshness is
+  // the shape of the table that was too hard to keep current.
+  try { res.json({ deadlines: await listDeadlines(pool), reference: STATE_REFERENCE }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
