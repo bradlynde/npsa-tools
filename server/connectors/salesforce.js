@@ -596,9 +596,45 @@ export function registerSalesforceConnector(app, pool) {
     }
     _schemaReady = _schemaReady || ensureSyncSchema(pool);
     await _schemaReady;
+
+    // A delivery is the COMPLETE current set by contract -- anything absent is
+    // treated as deleted. So a sender that hands over part of the set silently
+    // deletes the rest, and a short delivery is indistinguishable from a genuine
+    // shrink. The existing rails do not catch it: a partial pull is neither empty
+    // nor necessarily half the table. Two financials went missing this way and
+    // stayed missing for nineteen days, because 124 of 126 looks like a fine day.
+    //
+    // Salesforce states both facts in its own query response, so the fix is just
+    // to read them:
+    //
+    //   totalSize   how many records MATCHED -- not how many were handed over
+    //   done:false  "this is one page; ask nextRecordsUrl for the remainder"
+    //
+    // A sender that follows pagination reports done:true and a complete set, so
+    // this never fires for it. One that stops at the first page trips it on its
+    // first run rather than pruning the remainder away every night. Both fields
+    // are optional: a sender that says nothing is trusted exactly as before.
+    const stated = [req.body, req.body?.results?.[0]?.body, req.body?.body]
+      .find((o) => o && (o.totalSize != null || o.total_size != null
+                      || o.expected != null || o.done != null)) || {};
+    const expected = Number(stated.totalSize ?? stated.total_size ?? stated.expected);
+    const morePages = stated.done === false;
+
     // Recorded as a sync_runs row exactly like a pull, so the freshness strip and
     // the failure history work identically no matter which transport delivered it.
-    const result = await runSource(pool, source, () => APPLIERS[source](pool, records));
+    // The check runs INSIDE the runner for the same reason: a refusal has to be as
+    // visible as a failed pull, and refusing before the applier means nothing is
+    // upserted and, crucially, nothing is pruned.
+    const result = await runSource(pool, source, () => {
+      if (morePages) {
+        throw new Error(`sender delivered one page of ${records.length} and did not follow `
+          + 'pagination (done: false) — refusing a partial sync');
+      }
+      if (Number.isFinite(expected) && records.length < expected) {
+        throw new Error(`received ${records.length} of ${expected} records — refusing a partial sync`);
+      }
+      return APPLIERS[source](pool, records);
+    });
     res.status(result.ok ? 200 : 409).json(result);
   });
 
