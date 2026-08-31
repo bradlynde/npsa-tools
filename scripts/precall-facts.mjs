@@ -56,6 +56,9 @@ Imaginary Person | Title TBD
 
 ## Strategic Insights
 
+## # Attendees All Campuses
+About 1,200 members across two campuses.
+
 ## Top Three Security Wish List Items
 <<WISH_LIST>>
 
@@ -171,6 +174,12 @@ const checks = {
   'deadline section keyed to the derived state': /TX sub-applicant deadlines/.test(n),
   'award figures survived': n.includes('Up to $200,000'),
   'deadline section present even with no table': /## NSGP Deadlines/.test(n) && /not recorded|confirm with/i.test(n),
+  // The stub drops this token and writes its own congregation size instead — the
+  // same failure as the invented phone number, and it must lose the same way: the
+  // rep asks on the call and writes the answer on the rule.
+  'attendee count section survives': /## # Attendees All Campuses/.test(n),
+  'attendee count is a rule, not a guess': /## # Attendees All Campuses\s*\n+\\_/.test(n),
+  'invented congregation size GONE': !n.includes('About 1,200 members'),
 };
 // Now the degraded run: no reader answers at all.
 globalThis.__READERS_DOWN = true;

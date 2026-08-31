@@ -151,6 +151,16 @@ export function writeInLines(n = 3) {
 }
 
 /**
+ * One ruled line for a single value the rep writes down mid-call.
+ *
+ * Not writeInLines(1): a lone "1." in front of a rule reads as the first of a
+ * list the rep is meant to continue, and this is one number, not a list.
+ */
+export function writeInField() {
+  return '\\_'.repeat(48);
+}
+
+/**
  * Swaps the tokens for their rendered blocks.
  *
  * A model that drops a token would silently drop a whole section of facts, so a
