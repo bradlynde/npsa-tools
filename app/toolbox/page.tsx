@@ -302,7 +302,6 @@ export default function ToolboxPage() {
           <ActionCard
             numeral="v."
             title="Pre-Call Notes Generator"
-            badge="BETA"
             description="Paste a Calendly invite and generate AI-powered prep notes."
             onClick={() => router.push("/loe?view=precall")}
           />
