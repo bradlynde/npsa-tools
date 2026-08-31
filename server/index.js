@@ -11,7 +11,7 @@ import { registerMarketing } from './marketing.js';
 import { listUpcomingBookings, getBooking, roundRobinSchedulingUrl } from './precall-bookings.js';
 import {
   buildMeetingDetails, buildAttendees, buildVideoConference,
-  writeInLines, substituteBlocks, fillEmptySections, formatCentral, NPSA_TITLES,
+  writeInLines, writeInField, substituteBlocks, fillEmptySections, formatCentral, NPSA_TITLES,
 } from './precall-facts.js';
 import {
   ensureDeadlineSchema, listDeadlines, upsertDeadline, deleteDeadline,
@@ -234,7 +234,7 @@ MUST-FOLLOW RULES:
 3. For attendee titles: confirm from the website text. If a title cannot be verified, do not invent one.
 4. Label the organization's website "School Website" for schools, "Church Website" for churches, "Website" otherwise.
 5. List every campus/property/location found on the website with its complete postal address. If none can be verified, write "TBD".
-6. Keep the fillable sections present with their headings even when empty (the rep fills these in live): Strategic Insights, Top Three Security Wish List Items.
+6. Keep the fillable sections present with their headings even when empty (the rep fills these in live): Strategic Insights, # Attendees All Campuses, Top Three Security Wish List Items. "# Attendees All Campuses" asks how many people the organization draws across every campus — it is a number the rep gets on the call, never one you estimate.
 7. Keep the briefing tight and useful — short sentences, no filler, no marketing fluff. Prefer bullets over paragraphs except in the Objective and Overview.
 
 OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a bracketed line entirely if it would just say TBD with no value, EXCEPT where a rule says to keep it):
@@ -280,6 +280,9 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 
 ## Verified Campus / Property Locations
 {For each: **{Site name}** — {full postal address}. If none verified: TBD}
+
+## # Attendees All Campuses
+<<ATTENDEE_COUNT>>
 
 ## Stated Needs & Drivers
 {Only if the rep's notes or input mention specific needs/drivers. Bullet the needs (e.g. upgrade cameras, access control, doors/gates) and, under a bold "Drivers:" line, bullet what's prompting this (e.g. recent threat, leadership initiative). If nothing was stated, omit this entire section.}
@@ -794,6 +797,11 @@ app.post('/api/precall', async (req, res) => {
       ATTENDEES: { heading: 'Attendees', body: buildAttendees(facts, research, booking?.host) },
       VIDEO_CONFERENCE: { heading: 'Video Conference Details', body: buildVideoConference(facts.location) },
       WISH_LIST: { heading: 'Top Three Security Wish List Items', body: writeInLines(3) },
+      // Total attendance across every campus — the figure that sizes the whole
+      // engagement. It is a rule for the rep to write on rather than anything the
+      // model produces: a plausible-looking congregation size is exactly the kind
+      // of invention this pipeline exists to keep off the page.
+      ATTENDEE_COUNT: { heading: '# Attendees All Campuses', body: writeInField() },
       // Always supplied when a state is known. An unsupplied token is stripped, and
       // since the model is forbidden from writing dates, that would delete the
       // deadline section altogether rather than degrade it — worse than the
