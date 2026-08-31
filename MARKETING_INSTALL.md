@@ -239,7 +239,29 @@ The sync deletes, so it refuses when the pull looks wrong rather than trusting i
   an empty Salesforce — nothing is deleted
 - a pull that would remove **more than half** the stored rows is held back and flagged on the
   freshness strip; the upserts still land
+- a delivery **short of the total it states** is refused outright — see below
 - every attempt, successful or not, writes a `sync_runs` row
+
+**Say how many records there were, not just how many you sent.** Include Salesforce's
+own `totalSize` and `done` alongside `records`, and the endpoint checks the delivery
+against them:
+
+```jsonc
+{ "source": "salesforce_financials_raw",
+  "totalSize": 126,        // how many MATCHED, not how many are below
+  "done": true,            // false = "this is one page, ask nextRecordsUrl for the rest"
+  "records": [ ... ] }
+```
+
+Both fields are optional and a sender that omits them is trusted exactly as before, so
+this changes nothing for an existing integration until you add them. Add them anyway.
+Anything that queries Salesforce over REST gets both for free, and without them a sender
+that stops at the first page is indistinguishable from one reporting a genuine shrink —
+the delivery is the complete set by contract, so the remainder is silently deleted. That
+is not hypothetical: a Zapier `Custom SOQL Query` step does not follow `nextRecordsUrl`,
+and two financials sat outside the revenue totals for nineteen days behind a nightly
+delivery of 124 records that looked perfectly healthy. `scripts/partial-sync-guard.mjs`
+covers it.
 
 ---
 
