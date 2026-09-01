@@ -49,6 +49,10 @@ const CAMPAIGN_SLUG_IDS = {
   'xp-campaign':             '26dde45b-476d-4571-a3e5-652d006aeb82',
   'iowa-schools':            '26c27e7d-1651-4d39-8206-c2c2cdb63392',
   'remarket-fy27':           '8552c05f-c927-48ee-b654-66f33e1c5cf1',
+  // Remarket FY27 sends under two slugs. Unmapped, this one titled itself into
+  // "NPSA Church Outreach" -- a campaign Instantly has never had -- and took a
+  // booking with it, so one campaign showed up as two and neither total was right.
+  'npsa-church-outreach':    '8552c05f-c927-48ee-b654-66f33e1c5cf1',
 };
 
 // Last resort, and only when Instantly cannot be reached at all: the names as
@@ -69,7 +73,28 @@ const CAMPAIGN_SLUG_FALLBACK = {
   'xp-campaign':             'XP Campaign 11.5.2025',
   'iowa-schools':            'Iowa Schools',
   'remarket-fy27':           'Remarket FY27 - Non-Repliers',
+  'npsa-church-outreach':    'Remarket FY27 - Non-Repliers',
 };
+
+// Campaign names Instantly no longer returns, because the campaign was renamed
+// under them. A booking enriched before the rename kept the old name, and one
+// enriched before instantly_campaign_id existed kept no id at all -- so it groups
+// on its own row, and the id backfill can never rescue it: the backfill resolves
+// the stored name against Instantly's CURRENT names, which by definition no longer
+// include this one. That is a repair query selecting rows it cannot repair, the
+// same shape as the NEEDS_LEAD_DATE condition deleted below.
+//
+// Mapping the dead name to the id is what lets those rows converge. The name they
+// then display comes from Instantly and stays correct through the next rename;
+// only the id is asserted here, and an id cannot drift.
+const CAMPAIGN_DEAD_NAMES = {
+  'remarket fy27 - non-repliers (excl il, ca)': '8552c05f-c927-48ee-b654-66f33e1c5cf1',
+  'ca outreach - csnsgp fy26 (6-step)':         '28c9205e-23fe-4e10-b5fc-839cb2e9f0ab',
+  'il outreach - uncontacted (6-step)':         'e16e3d42-d3bc-40ce-88e8-756b2aa79ee8',
+};
+
+const deadNameToId = (name) =>
+  CAMPAIGN_DEAD_NAMES[(name || '').trim().toLowerCase()] || null;
 
 // Tokens that stay upper-case when a slug is titled: the grant programs, and any
 // two-letter token, since campaigns are routinely cut by state (ca, tx, il).
@@ -970,7 +995,8 @@ async function enrichBooking(pool, id) {
     // here to set the id as a side effect. The map is cached, so this costs no call.
     if (campaign && !campaignId) {
       const map = await instantlyCampaignMap();
-      campaignId = Object.keys(map).find((k) => map[k] === campaign) || null;
+      campaignId = Object.keys(map).find((k) => map[k] === campaign)
+        || deadNameToId(campaign) || null;
     } else if (campaignId && !campaign) {
       const map = await instantlyCampaignMap();
       campaign = map[campaignId] || null;
@@ -1956,8 +1982,14 @@ export function registerMarketing(app, pool) {
         // Instantly's current name wins over whatever was stored when the booking
         // was enriched; the stored name is the fallback for a campaign the
         // workspace no longer returns (archived, or deleted outright).
+        //
+        // A row with no id falls back to a dead name before it falls back to the
+        // stored one, so a rename folds here immediately rather than waiting on the
+        // backfill -- which matters because the display is the whole symptom: three
+        // renamed campaigns were each showing as a separate one-booking row.
+        const cid = r.cid || deadNameToId(r.cname);
         const label = isCampaign
-          ? ((r.cid && map[r.cid]) || r.cname || 'Instantly – campaign unknown')
+          ? ((cid && map[cid]) || r.cname || 'Instantly – campaign unknown')
           : r.channel_label;
         const key = `${isCampaign ? 'c' : 'x'}:${label}`;
         const cur = out.get(key) || { campaign: label, is_campaign: isCampaign,
