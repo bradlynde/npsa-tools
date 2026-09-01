@@ -432,10 +432,25 @@ async function syncFinancials(pool) {
 }
 
 async function syncApplications(pool) {
-  // Applicaiton_Status__c is misspelled in Salesforce — that is the real API name.
+  // Application_Status__c, spelled the ordinary way. This used to read
+  // Applicaiton_Status__c, with a comment asserting the field was misspelled in
+  // Salesforce and that the typo was the real API name. It is not. The org
+  // rejects it outright:
+  //
+  //   No such column 'Applicaiton_Status__c' on entity 'Applications__c'
+  //
+  // Nothing caught it because nothing ran it: this pull path needs SF_CLIENT_ID
+  // / SF_USERNAME / SF_PRIVATE_KEY, the org is Professional Edition, and the
+  // connector has been idle since it was written (sync/status reports
+  // configured: false). The claim was copied into a Zap and a real-time
+  // workflow on the strength of the comment alone, and only surfaced when the
+  // Zap actually issued the query. Two other misspellings on this object ARE
+  // real -- Security_Upfrton__c and Security_Potential_Implementatoin_Fees__c,
+  // both confirmed in the Object Manager -- which is presumably how this one
+  // got believed.
   const records = await soql(
     `SELECT Id, Name, Account__c, Account__r.Name, Grant_Program__c, State__c,
-            Applicaiton_Status__c, Total_Amount_Requested__c,
+            Application_Status__c, Total_Amount_Requested__c,
             Actual_Amount_Awarded__c, Maximum_Award_Amount__c
        FROM Applications__c`
   );
@@ -446,7 +461,7 @@ async function syncApplications(pool) {
     account_id: r.Account__c || null,
     grant_program: r.Grant_Program__c || null,
     state: r.State__c || null,
-    status: r.Applicaiton_Status__c || null,
+    status: r.Application_Status__c || null,
     amount_requested: r.Total_Amount_Requested__c ?? 0,
     amount_awarded: r.Actual_Amount_Awarded__c ?? 0,
     max_award: r.Maximum_Award_Amount__c ?? 0,

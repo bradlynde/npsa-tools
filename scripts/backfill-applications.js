@@ -14,7 +14,7 @@
 //   node scripts/backfill-applications.js
 //
 // Refresh the data file anytime by re-running this SOQL and saving the rows:
-//   SELECT Id, Account__r.Name, Grant_Program__c, State__c, Applicaiton_Status__c,
+//   SELECT Id, Account__r.Name, Grant_Program__c, State__c, Application_Status__c,
 //          Total_Amount_Requested__c, Actual_Amount_Awarded__c, Maximum_Award_Amount__c
 //   FROM Applications__c
 
