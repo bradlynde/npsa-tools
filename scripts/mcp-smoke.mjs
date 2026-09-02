@@ -4,7 +4,7 @@
  *
  * Stands up the MCP layer on a throwaway express app with a handful of fake
  * /api routes standing in for the real ones, so this runs with no database,
- * no Calendly token and no network. It checks the three things that matter:
+ * no Calendly token and no network. It checks the things that matter:
  *
  *   1. The gate. Unset MCP_API_KEYS refuses everything (503, fail closed); a
  *      missing or wrong bearer key is 401; any one of several configured keys
@@ -14,6 +14,10 @@
  *   3. The plumbing. Tools that go through the loopback /api routes return what
  *      those routes returned; the ones that filter or trim (deadline filtering,
  *      the saved_html omission on letter_get) do so.
+ *   4. Writes. Every write tool carries the WRITE annotation and a "confirm"
+ *      instruction, forwards the right method and body to the right route, is
+ *      logged with the caller's key fingerprint, and disappears entirely for a
+ *      key that MCP_WRITE_KEYS leaves out.
  *
  *   node scripts/mcp-smoke.mjs
  */
@@ -23,12 +27,17 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { registerMcp, MCP_PATH } from '../server/mcp.js';
 
-const EXPECTED_TOOLS = [
+const READ_TOOLS = [
   'letters_stats', 'letters_search', 'letter_get', 'reps_list', 'letter_template_get',
   'nsgp_deadlines_list', 'nsgp_state_reference',
   'precall_bookings_list', 'precall_booking_get',
   'marketing_overview', 'marketing_by_campaign', 'marketing_by_channel', 'marketing_timeseries',
   'marketing_bookings', 'marketing_untracked_wins', 'marketing_revenue_quality',
+];
+const WRITE_TOOLS = [
+  'letter_update', 'rep_add', 'rep_remove',
+  'nsgp_deadline_upsert', 'nsgp_deadline_delete',
+  'marketing_booking_update', 'marketing_refresh',
 ];
 
 const FAKE_STATS = { total: 7, total_fees: 12345, by_rep: [{ rep_name: 'Chad', count: 4 }] };
@@ -43,11 +52,22 @@ const FAKE_DEADLINES = {
 };
 const FAKE_LETTER = { id: 42, client_name: 'Trinity', rep_name: 'Stuart', doc_tab: 'in-house', form_data: { fee: 1 }, saved_html: '<p>big</p>', total_fee: 4500 };
 
+// Every write the fake routes receive, so the checks can see exactly what was sent.
+const received = [];
+const record = (req, res, body = { ok: true }) => { received.push({ method: req.method, path: req.path, body: req.body }); res.json(body); };
+
 const app = express();
 app.use(express.json());
 app.get('/api/letters/stats', (_req, res) => res.json(FAKE_STATS));
 app.get('/api/letters/:id', (req, res) => req.params.id === '42' ? res.json(FAKE_LETTER) : res.status(404).json({ error: 'Not found' }));
+app.put('/api/letters/:id', (req, res) => { Object.assign(FAKE_LETTER, req.body); record(req, res); });
+app.post('/api/reps', (req, res) => record(req, res, { id: 5, name: req.body.name }));
+app.delete('/api/reps/:id', (req, res) => record(req, res));
 app.get('/api/precall/deadlines', (_req, res) => res.json(FAKE_DEADLINES));
+app.put('/api/precall/deadlines', (req, res) => record(req, res, { ok: true, id: 9 }));
+app.delete('/api/precall/deadlines/:id', (req, res) => record(req, res));
+app.patch('/api/marketing/bookings/:id', (req, res) => record(req, res));
+app.post('/api/marketing/enrich', (req, res) => record(req, res, { ok: true, refreshed: 3, all: req.query.all === '1' }));
 app.get('/api/marketing/stats', (_req, res) => res.status(503).json({ error: 'Storage not configured' }));
 
 let port = 0;
@@ -65,6 +85,17 @@ const post = (headers = {}) => fetch(url, {
   headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers },
 });
 
+async function connect(key) {
+  const transport = new StreamableHTTPClientTransport(new URL(url), {
+    requestInit: { headers: { Authorization: `Bearer ${key}` } },
+  });
+  const client = new Client({ name: 'smoke', version: '0' });
+  await client.connect(transport);
+  return client;
+}
+const text = r => JSON.parse(r.content[0].text);
+const names = async client => (await client.listTools()).tools.map(t => t.name).sort();
+
 let failures = 0;
 async function check(name, fn) {
   try { await fn(); console.log(`PASS  ${name}`); }
@@ -74,6 +105,7 @@ async function check(name, fn) {
 // ── 1. The gate ───────────────────────────────────────────────────────────────
 delete process.env.MCP_API_KEYS;
 delete process.env.MCP_API_KEY;
+delete process.env.MCP_WRITE_KEYS;
 await check('unset MCP_API_KEYS refuses with 503', async () => {
   assert.equal((await post({ Authorization: 'Bearer anything' })).status, 503);
 });
@@ -89,19 +121,25 @@ await check('GET is 405', async () => {
   assert.equal(r.status, 405);
 });
 
-// ── 2 + 3. A real client ──────────────────────────────────────────────────────
-const transport = new StreamableHTTPClientTransport(new URL(url), {
-  requestInit: { headers: { Authorization: 'Bearer first-key' } },
+// ── 2 + 3. Reads through a real client ────────────────────────────────────────
+const client = await connect('first-key');
+
+await check('lists every read and write tool when writes are open', async () => {
+  assert.deepEqual(await names(client), [...READ_TOOLS, ...WRITE_TOOLS].sort());
+  for (const t of (await client.listTools()).tools) assert.ok(t.description?.length > 20, `${t.name} needs a description`);
 });
-const client = new Client({ name: 'smoke', version: '0' });
-await client.connect(transport);
 
-const text = r => JSON.parse(r.content[0].text);
-
-await check('lists every tool', async () => {
-  const { tools } = await client.listTools();
-  assert.deepEqual(tools.map(t => t.name).sort(), [...EXPECTED_TOOLS].sort());
-  for (const t of tools) assert.ok(t.description?.length > 20, `${t.name} needs a description`);
+await check('read tools are annotated read-only, write tools are not', async () => {
+  for (const t of (await client.listTools()).tools) {
+    const isWrite = WRITE_TOOLS.includes(t.name);
+    assert.equal(t.annotations?.readOnlyHint, !isWrite, `${t.name} readOnlyHint`);
+    if (isWrite) {
+      assert.match(t.description, /^WRITE/, `${t.name} must announce itself as a write`);
+      assert.match(t.description, /Confirm with the user/, `${t.name} must ask for confirmation`);
+    }
+  }
+  const destructive = (await client.listTools()).tools.filter(t => t.annotations?.destructiveHint).map(t => t.name).sort();
+  assert.deepEqual(destructive, ['nsgp_deadline_delete', 'rep_remove']);
 });
 
 await check('nsgp_state_reference answers without a database', async () => {
@@ -147,7 +185,125 @@ await check('a 503 route reports itself as a tool error', async () => {
   assert.match(r.content[0].text, /Storage not configured/);
 });
 
+// ── 4. Writes ─────────────────────────────────────────────────────────────────
+const lastWrite = () => received[received.length - 1];
+
+await check('nsgp_deadline_upsert PUTs the row with the route\'s field names', async () => {
+  const r = await client.callTool({ name: 'nsgp_deadline_upsert', arguments: {
+    state: 'il', program: 'NSGP-IL', cycle_year: 2027, deadline: '2027-03-01', note: 'GATA portal opens Jan',
+  } });
+  assert.ok(!r.isError, r.content?.[0]?.text);
+  assert.equal(text(r).id, 9);
+  const w = lastWrite();
+  assert.equal(w.method, 'PUT');
+  assert.equal(w.path, '/api/precall/deadlines');
+  assert.equal(w.body.state, 'IL');
+  assert.equal(w.body.cycleYear, 2027);
+  assert.equal(w.body.cycle_year, undefined);
+  assert.equal(w.body.deadline, '2027-03-01');
+});
+
+await check('nsgp_deadline_upsert rejects a malformed date before it reaches the route', async () => {
+  const before = received.length;
+  const r = await client.callTool({ name: 'nsgp_deadline_upsert', arguments: { state: 'IL', cycle_year: 2027, deadline: '3/1/2027' } });
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /Invalid arguments/);
+  assert.equal(received.length, before, 'nothing was sent');
+});
+
+await check('nsgp_deadline_delete DELETEs by id', async () => {
+  const r = await client.callTool({ name: 'nsgp_deadline_delete', arguments: { id: 4 } });
+  assert.ok(!r.isError);
+  assert.deepEqual([lastWrite().method, lastWrite().path], ['DELETE', '/api/precall/deadlines/4']);
+});
+
+await check('letter_update merges only the given fields into the existing record', async () => {
+  const r = await client.callTool({ name: 'letter_update', arguments: { id: 42, total_fee: 5000 } });
+  assert.ok(!r.isError, r.content?.[0]?.text);
+  const w = lastWrite();
+  assert.equal(w.method, 'PUT');
+  assert.equal(w.body.total_fee, 5000);
+  assert.equal(w.body.client_name, 'Trinity', 'untouched field carried over');
+  assert.deepEqual(w.body.form_data, { fee: 1 }, 'form data carried over');
+  assert.equal(w.body.saved_html, '<p>big</p>', 'html carried over');
+  assert.equal(text(r).saved_html, undefined, 'response leaves the HTML out');
+  assert.equal(text(r).total_fee, 5000);
+});
+
+await check('letter_update with nothing to change is a tool error and sends nothing', async () => {
+  const before = received.length;
+  const r = await client.callTool({ name: 'letter_update', arguments: { id: 42 } });
+  assert.equal(r.isError, true);
+  assert.equal(received.length, before);
+});
+
+await check('rep_add POSTs, rep_remove DELETEs', async () => {
+  const a = await client.callTool({ name: 'rep_add', arguments: { name: 'Josh' } });
+  assert.deepEqual(text(a), { id: 5, name: 'Josh' });
+  assert.deepEqual([lastWrite().method, lastWrite().path, lastWrite().body], ['POST', '/api/reps', { name: 'Josh' }]);
+  await client.callTool({ name: 'rep_remove', arguments: { id: 5 } });
+  assert.deepEqual([lastWrite().method, lastWrite().path], ['DELETE', '/api/reps/5']);
+});
+
+await check('marketing_booking_update PATCHes only the fields given', async () => {
+  const r = await client.callTool({ name: 'marketing_booking_update', arguments: { id: 17, held: true, exclusion: '' } });
+  assert.ok(!r.isError, r.content?.[0]?.text);
+  const w = lastWrite();
+  assert.deepEqual([w.method, w.path], ['PATCH', '/api/marketing/bookings/17']);
+  assert.deepEqual(w.body, { held: true, exclusion: '' });
+  const empty = await client.callTool({ name: 'marketing_booking_update', arguments: { id: 17 } });
+  assert.equal(empty.isError, true);
+  const before = received.length;
+  const typo = await client.callTool({ name: 'marketing_booking_update', arguments: { id: 17, exclusion: 'typo' } });
+  assert.equal(typo.isError, true);
+  assert.match(typo.content[0].text, /Invalid arguments/);
+  assert.equal(received.length, before, 'a bad exclusion reason never reaches the route');
+});
+
+await check('marketing_refresh POSTs, with all=1 only when asked', async () => {
+  const stale = text(await client.callTool({ name: 'marketing_refresh', arguments: {} }));
+  assert.equal(stale.all, false);
+  const full = text(await client.callTool({ name: 'marketing_refresh', arguments: { all: true } }));
+  assert.equal(full.all, true);
+});
+
+await check('every write is logged with the caller\'s key fingerprint', async () => {
+  const lines = [];
+  const orig = console.log;
+  console.log = (...a) => lines.push(a.join(' '));
+  try { await client.callTool({ name: 'rep_add', arguments: { name: 'Audit' } }); }
+  finally { console.log = orig; }
+  const line = lines.find(l => l.startsWith('[mcp] write rep_add by '));
+  assert.ok(line, 'audit line present');
+  assert.match(line, /by [0-9a-f]{8} /, 'fingerprint, not the key');
+  assert.ok(!line.includes('first-key'), 'the key itself never appears');
+});
+
 await client.close();
+
+// ── MCP_WRITE_KEYS narrows who can write ──────────────────────────────────────
+process.env.MCP_WRITE_KEYS = 'first-key';
+const reader = await connect('second-key');
+const writer = await connect('first-key');
+
+await check('a key outside MCP_WRITE_KEYS sees only the read tools', async () => {
+  assert.deepEqual(await names(reader), [...READ_TOOLS].sort());
+});
+
+await check('a key outside MCP_WRITE_KEYS cannot call a write tool', async () => {
+  const before = received.length;
+  const r = await reader.callTool({ name: 'rep_add', arguments: { name: 'Nope' } });
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /not found/);
+  assert.equal(received.length, before, 'nothing was sent');
+});
+
+await check('a key on MCP_WRITE_KEYS still has everything', async () => {
+  assert.deepEqual(await names(writer), [...READ_TOOLS, ...WRITE_TOOLS].sort());
+});
+
+await reader.close();
+await writer.close();
 httpServer.close();
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll MCP checks passed');
