@@ -694,6 +694,15 @@ export { EXCLUSION_REASONS, EXCLUSION_LABELS };
 //                Calendly only records the link on the invitee, so answering it
 //                costs the same second API call attendance does.
 //
+//   host       — the rep who owns the meeting, read from the event's first
+//                membership. It costs nothing: this function already fetches the
+//                scheduled event, and event_memberships sits in the same response
+//                that status is read from. Until now that field was thrown away,
+//                and the ONLY thing that ever wrote bookings.host was whatever the
+//                Zap happened to post at ingest — so a booking that arrived without
+//                one stayed blank for ever, since nothing re-asked. Calendly is the
+//                authority on who is hosting; ask it.
+//
 // checkAttendance skips the second API call for events that have not happened yet;
 // checkReschedule asks for it anyway while the link is still unknown, because a
 // move usually lands on a date in the future and would otherwise go unnoticed until
@@ -702,13 +711,18 @@ export { EXCLUSION_REASONS, EXCLUSION_LABELS };
 // Returns null for anything it cannot determine, so a missing token or a Calendly
 // outage leaves existing values untouched rather than overwriting them.
 async function calendlyStatus(eventUri, { checkAttendance = false, checkReschedule = false } = {}) {
-  const unknown = { cancelled: null, held: null, source: null, oldInvitee: null };
+  const unknown = { cancelled: null, held: null, source: null, oldInvitee: null, host: null };
   const key = process.env.CALENDLY_API_TOKEN;
   if (!key || !eventUri) return unknown;
   try {
     const ev = await fetch(eventUri, { headers: { Authorization: `Bearer ${key}` } });
     if (!ev.ok) return unknown;
-    const status = (await ev.json())?.resource?.status;
+    const resource = (await ev.json())?.resource;
+    const status = resource?.status;
+    // A round robin has one membership; a collective event lists everyone, and the
+    // first is the owner — the same choice the Calendly backfill makes, so a booking
+    // reads the same host whichever path imported it.
+    const base = { ...unknown, host: (resource?.event_memberships || [])[0]?.user_email || null };
     // A cancellation says nothing about attendance, so it deliberately leaves held
     // alone. Writing held=false here was the original conflation, and it stuck: an
     // event cancelled and then reinstated kept "not held" forever, because a future
@@ -718,15 +732,15 @@ async function calendlyStatus(eventUri, { checkAttendance = false, checkReschedu
     // A rescheduled-away event is cancelled too, and its own invitee carries the
     // forward pointer — but that link is read from the replacement's side instead,
     // so this path stays a single API call.
-    if (status === 'canceled') return { ...unknown, cancelled: true };
-    if (status !== 'active') return unknown;
-    if (!checkAttendance && !checkReschedule) return { ...unknown, cancelled: false };
+    if (status === 'canceled') return { ...base, cancelled: true };
+    if (status !== 'active') return base;
+    if (!checkAttendance && !checkReschedule) return { ...base, cancelled: false };
     const inv = await fetch(`${eventUri}/invitees`, { headers: { Authorization: `Bearer ${key}` } });
-    if (!inv.ok) return { ...unknown, cancelled: false };
+    if (!inv.ok) return { ...base, cancelled: false };
     const first = ((await inv.json()).collection || [])[0];
     const oldInvitee = (checkReschedule && first?.old_invitee) || null;
-    if (!checkAttendance || !first) return { ...unknown, cancelled: false, oldInvitee };
-    return { cancelled: false, held: !first.no_show, source: 'calendly', oldInvitee };
+    if (!checkAttendance || !first) return { ...base, cancelled: false, oldInvitee };
+    return { ...base, cancelled: false, held: !first.no_show, source: 'calendly', oldInvitee };
   } catch {
     return unknown;
   }
@@ -777,7 +791,7 @@ const answerMatching = (qs, re) => {
 
 // Shared with the pre-call notes generator, which reads the same events and the
 // same question/answer shape. One reader of Calendly's quirks, not two.
-export { calendlyGet, answerMatching };
+export { calendlyGet, answerMatching, calendlyStatus };
 
 let _calOrg = null;
 const calendlyOrg = async () => (_calOrg ??= (await calendlyGet('/users/me')).resource.current_organization);
@@ -1186,6 +1200,10 @@ async function enrichBooking(pool, id) {
   }
   if (typeof override.became_client === 'boolean') becameClient = override.became_client;
 
+  // host is COALESCEd the other way round from the rest: Calendly's answer WINS and
+  // the stored value is only the fallback, because a round robin can be reassigned
+  // and the calendar is the truth. It still never blanks a name — st.host is null
+  // whenever Calendly was not reached, and null falls through to what is there.
   await pool.query(
     `UPDATE bookings SET
        instantly_campaign=$1, instantly_campaign_id=$17, attribution_lead_at=$18,
@@ -1193,11 +1211,12 @@ async function enrichBooking(pool, id) {
        held=$4, held_source=$5, became_client=$6, client_letter_id=$7, fee=$8,
        exclusion_reason=$9, cancelled=$10, cancelled_at=$11, rescheduled_from=$12,
        event_uri=$13, calendly_uri=COALESCE($14, calendly_uri), calendly_lookup_at=$15,
+       host=COALESCE($19, host),
        enriched_at=NOW(), updated_at=NOW()
      WHERE id=$16`,
     [campaign, channel, source, held, heldSource, becameClient, letterId, fee,
      exclusionReason, cancelled, cancelledAt, rescheduledFrom,
-     eventUri, inviteeUri, lookupAt, id, campaignId, leadAt]
+     eventUri, inviteeUri, lookupAt, id, campaignId, leadAt, st.host]
   );
 }
 
