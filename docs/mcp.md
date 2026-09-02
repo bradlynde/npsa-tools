@@ -2,8 +2,9 @@
 
 The Sales Toolbox backend exposes its data to Claude through the Model Context
 Protocol at `POST /mcp` on the Railway service (the `loe-generator` lineage). Claude
-Code and Claude Desktop connect to it directly and get read-only tools for letters,
-reps, NSGP deadlines, pre-call bookings and the marketing dashboard figures.
+Code and Claude Desktop connect to it directly and get tools for letters, reps,
+NSGP deadlines, pre-call bookings and the marketing dashboard figures -- sixteen
+reads, and seven writes for keys allowed them.
 
 Code: `server/mcp.js`. Mounted from `server/index.js` ahead of the SPA fallback.
 
@@ -44,8 +45,9 @@ Code: `server/mcp.js`. Mounted from `server/index.js` ahead of the SPA fallback.
    `401` means it is live and gated. `503` means the variable is not set. `200`
    with HTML means the deploy has not picked up the route yet.
 
-Keys are secrets. Do not commit them and do not keep them under `~/Documents`
-(iCloud-synced).
+Keys are secrets. Do not commit them -- `.mcp.json` carries `${NPSA_MCP_KEY}`
+rather than a key for exactly that reason -- and do not keep them under
+`~/Documents` (iCloud-synced).
 
 ## Connecting
 
@@ -57,6 +59,16 @@ claude mcp add --transport http npsa-tools https://loe-generator-production.up.r
 
 Add `--scope user` to make it available in every project rather than just the
 current one. Then `/mcp` inside Claude Code shows the server and its tools.
+
+Or take the checked-in `.mcp.json` at the repo root, which points at the same
+endpoint and reads the key from `NPSA_MCP_KEY`. That is why the key is an
+expansion and not a literal: the file is committed, and a bearer token in a
+public-ish repo is a bearer token anyone can use. Export it and Claude Code picks
+the server up on its own, project-scoped, with no `claude mcp add` at all:
+
+```bash
+export NPSA_MCP_KEY=YOUR_KEY
+```
 
 ### Claude Desktop
 
@@ -82,11 +94,26 @@ goes in through the `mcp-remote` bridge instead. In
 
 Restart Desktop afterwards.
 
-### claude.ai web and Cowork
+### Claude Code on the web
+
+The `.mcp.json` above is what this reads too, but two things have to be true of the
+ENVIRONMENT before it can connect, and neither is in the repo:
+
+1. `NPSA_MCP_KEY` set as an environment variable on the Claude Code environment.
+2. `loe-generator-production.up.railway.app` allowed by that environment's network
+   policy. Egress is deny-by-default there, and a blocked host fails as a 403 on
+   the proxy's CONNECT rather than anything the MCP client reports -- so the
+   symptom of forgetting this is a server that simply never appears. Both are
+   edited where the environment is configured:
+   https://code.claude.com/docs/en/claude-code-on-the-web
+
+### claude.ai connectors and Cowork
 
 Not supported by this version. Those connectors require OAuth 2.1 with dynamic
 client registration, which means an authorization server in front of the existing
-login-code auth service. Scoped separately if it is wanted.
+login-code auth service. Scoped separately if it is wanted. Note this is a separate
+thing from Claude Code on the web above, which is a Claude Code client and reads
+`.mcp.json` like any other.
 
 ## Tools
 
