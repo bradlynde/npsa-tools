@@ -23,7 +23,13 @@
 //
 //   registerMcp(app, { pool, port })   // before the SPA fallback in index.js
 
-import crypto from 'crypto';
+import crypto, { webcrypto } from 'crypto';
+
+// The MCP SDK reaches for the Web Crypto global (randomUUID and friends). Node 20
+// has it; the Node 18 image this service runs on does not, and the failure is a
+// "crypto is not defined" parse error on every request, after auth has already
+// passed. Give it the same object Node 20 would.
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
