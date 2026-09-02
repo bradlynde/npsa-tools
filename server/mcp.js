@@ -1,0 +1,348 @@
+// MCP server for the Sales Toolbox backend.
+//
+// Exposes the data this service already serves — letters, reps, NSGP deadlines,
+// pre-call bookings and the marketing figures — as Model Context Protocol tools,
+// so Claude Code and Claude Desktop can read them directly. Streamable HTTP on
+// POST /mcp, stateless (a fresh server per request, no session table to keep).
+//
+// Read-only on purpose. Every tool here answers a question; none of them change
+// anything. Writes (saving letters, editing deadlines, and later the grant-client
+// intake work) come in a follow-up once this has proven itself.
+//
+// The tools reach the data through the same HTTP routes the dashboard uses, over
+// the loopback interface. That is deliberate: the marketing queries live inline in
+// their route handlers, and re-implementing them here would be a second copy of
+// the same SQL that could drift from what the dashboard shows. Going through the
+// route means the number Claude reads is the number on the screen. The cost is one
+// local hop per call, which is nothing next to the Postgres round trip behind it.
+//
+// Auth is a bearer key from MCP_API_KEYS (comma-separated, so each person gets
+// their own and one can be revoked without rotating the rest). With the variable
+// unset the endpoint refuses everything — the routes it fronts have no auth of
+// their own, so this must never fall open.
+//
+//   registerMcp(app, { pool, port })   // before the SPA fallback in index.js
+
+import crypto from 'crypto';
+import { z } from 'zod';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { STATE_REFERENCE } from './nsgp-deadlines.js';
+import { getBooking } from './precall-bookings.js';
+
+export const MCP_PATH = '/mcp';
+const SERVER_INFO = { name: 'npsa-tools', version: '1.0.0' };
+
+const INSTRUCTIONS = `NPSA Sales Toolbox: read-only access to Nonprofit Security Advisors' internal data.
+Areas: engagement letters and proposals (letters_*), sales reps, NSGP grant deadlines by state
+(nsgp_*), upcoming Calendly consultation bookings (precall_*), and the marketing dashboard
+figures (marketing_*). Every tool is read-only. Dollar figures are USD. Dates are ISO
+(YYYY-MM-DD) unless a field says otherwise. State codes are two-letter USPS abbreviations.`;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+function configuredKeys() {
+  const raw = process.env.MCP_API_KEYS || process.env.MCP_API_KEY || '';
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function keyMatches(presented, keys) {
+  const a = Buffer.from(presented);
+  return keys.some(k => {
+    const b = Buffer.from(k);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  });
+}
+
+export function requireMcpKey(req, res, next) {
+  const keys = configuredKeys();
+  if (!keys.length) {
+    return res.status(503).json({ error: 'MCP is not configured on this server (MCP_API_KEYS is unset)' });
+  }
+  const presented = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!presented || !keyMatches(presented, keys)) {
+    res.set('WWW-Authenticate', 'Bearer realm="npsa-tools"');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function todayIso() {
+  // Central time, to match how the rest of the app talks about "today".
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
+function ok(data) {
+  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+}
+
+function fail(message) {
+  return { content: [{ type: 'text', text: message }], isError: true };
+}
+
+// Wraps a tool body so a thrown error becomes a tool error result rather than a
+// protocol failure — the caller sees "Storage not configured" instead of a dropped
+// request, and can decide what to do about it.
+function tool(fn) {
+  return async (args, extra) => {
+    try { return ok(await fn(args || {}, extra)); }
+    catch (err) { return fail(err?.message || String(err)); }
+  };
+}
+
+function normState(s) {
+  return String(s || '').trim().toUpperCase();
+}
+
+// ── Server ────────────────────────────────────────────────────────────────────
+
+export function buildMcpServer({ api }) {
+  const server = new McpServer(SERVER_INFO, { instructions: INSTRUCTIONS });
+
+  // ── Sales Toolbox: letters and reps ───────────────────────────────────────
+
+  server.registerTool('letters_stats', {
+    title: 'Letter stats',
+    description: 'Count of engagement letters and total fees, with a per-rep leaderboard. Proposals and addendums are excluded, matching the dashboard.',
+    inputSchema: {},
+  }, tool(async () => api('/letters/stats')));
+
+  server.registerTool('letters_search', {
+    title: 'Search letters',
+    description: 'List saved letters, proposals and addendums, newest first. Optional search matches client name or rep name (case-insensitive substring). Returns id, client_name, rep_name, doc_tab (pre-award | in-house | post-award | proposal | addendum) and updated_at. Use letter_get for the full record.',
+    inputSchema: {
+      search: z.string().optional().describe('Substring to match against client or rep name'),
+      doc_tab: z.string().optional().describe('Only this document type, e.g. "proposal"'),
+      limit: z.number().int().min(1).max(200).optional().describe('Max rows to return (default 50)'),
+    },
+  }, tool(async ({ search = '', doc_tab, limit = 50 }) => {
+    let rows = await api(`/letters?search=${encodeURIComponent(search)}`);
+    if (doc_tab) rows = rows.filter(r => r.doc_tab === doc_tab);
+    return { count: rows.length, letters: rows.slice(0, limit) };
+  }));
+
+  server.registerTool('letter_get', {
+    title: 'Get letter',
+    description: 'Full record for one saved letter: the form data it was generated from, fee total, rep, and timestamps. The rendered HTML is large and omitted unless include_html is true.',
+    inputSchema: {
+      id: z.number().int().describe('Letter id from letters_search'),
+      include_html: z.boolean().optional().describe('Include the saved rendered HTML (default false)'),
+    },
+  }, tool(async ({ id, include_html = false }) => {
+    const row = await api(`/letters/${id}`);
+    if (!include_html) {
+      const { saved_html, ...rest } = row;
+      return { ...rest, has_saved_html: Boolean(saved_html) };
+    }
+    return row;
+  }));
+
+  server.registerTool('reps_list', {
+    title: 'List sales reps',
+    description: 'The sales reps letters can be attributed to.',
+    inputSchema: {},
+  }, tool(async () => api('/reps')));
+
+  server.registerTool('letter_template_get', {
+    title: 'Get letter template',
+    description: 'The current template definition for a document type: pre-award, in-house, post-award, proposal, or addendum. Shows the phases, sections and default fee structure the generator starts from.',
+    inputSchema: {
+      type: z.enum(['pre-award', 'in-house', 'post-award', 'proposal', 'addendum']),
+    },
+  }, tool(async ({ type }) => api(`/templates/${type}`)));
+
+  // ── NSGP deadlines ────────────────────────────────────────────────────────
+
+  server.registerTool('nsgp_deadlines_list', {
+    title: 'NSGP deadlines',
+    description: 'Curated NSGP application deadlines. Filter to one state (rows for that state plus federal "US" rows) and optionally to dates on or after today. Each row carries program, cycle_year, deadline, kind, note, source, confidence and layer. With a state, the state reference (SAA name, state-funded programs, last verified) is attached.',
+    inputSchema: {
+      state: z.string().length(2).optional().describe('Two-letter state code, e.g. "IL"'),
+      upcoming_only: z.boolean().optional().describe('Only deadlines on or after today (default false)'),
+    },
+  }, tool(async ({ state, upcoming_only = false }) => {
+    const { deadlines, reference } = await api('/precall/deadlines');
+    const st = normState(state);
+    const today = todayIso();
+    let rows = deadlines;
+    if (st) rows = rows.filter(r => r.state === st || r.state === 'US');
+    if (upcoming_only) rows = rows.filter(r => r.deadline && r.deadline >= today);
+    return {
+      today,
+      checked_on: reference?.checkedOn || null,
+      state: st || null,
+      reference: st ? (reference?.states?.[st] || null) : undefined,
+      count: rows.length,
+      deadlines: rows,
+    };
+  }));
+
+  server.registerTool('nsgp_state_reference', {
+    title: 'NSGP state reference',
+    description: 'For one state: the State Administrative Agency (SAA) that runs NSGP there, any state-funded security grant programs, and when that entry was last verified. Without a state, lists every covered state with its SAA short name, plus the states not covered.',
+    inputSchema: {
+      state: z.string().length(2).optional().describe('Two-letter state code'),
+    },
+  }, tool(async ({ state }) => {
+    const st = normState(state);
+    if (st) {
+      const entry = STATE_REFERENCE.states[st];
+      if (!entry) return { state: st, covered: false, not_covered: STATE_REFERENCE.notCovered };
+      return { state: st, covered: true, checked_on: STATE_REFERENCE.checkedOn, ...entry };
+    }
+    return {
+      checked_on: STATE_REFERENCE.checkedOn,
+      not_covered: STATE_REFERENCE.notCovered,
+      states: Object.fromEntries(
+        Object.entries(STATE_REFERENCE.states).map(([k, v]) => [k, { saa: v.saaShort || v.saa, programs: v.programs.length }]),
+      ),
+    };
+  }));
+
+  // ── Pre-call bookings ─────────────────────────────────────────────────────
+
+  server.registerTool('precall_bookings_list', {
+    title: 'Upcoming bookings',
+    description: 'Upcoming Calendly consultation bookings with the facts the pre-call notes generator uses: organisation, state, website, invitee contact details, host and start time. Served from a 60-second cache unless refresh is true.',
+    inputSchema: {
+      refresh: z.boolean().optional().describe('Bypass the cache and ask Calendly now'),
+      limit: z.number().int().min(1).max(40).optional().describe('Max bookings (default 40)'),
+    },
+  }, tool(async ({ refresh = false, limit = 40 }) => {
+    const data = await api(`/precall/bookings${refresh ? '?refresh=1' : ''}`);
+    return { cached: data.cached, count: data.bookings.length, bookings: data.bookings.slice(0, limit) };
+  }));
+
+  server.registerTool('precall_booking_get', {
+    title: 'Get booking',
+    description: 'One Calendly booking by its event URI (from precall_bookings_list), fetched fresh.',
+    inputSchema: {
+      event_uri: z.string().url().describe('Calendly scheduled_events URI'),
+    },
+  }, tool(async ({ event_uri }) => {
+    if (!process.env.CALENDLY_API_TOKEN) throw new Error('Calendly is not connected');
+    const booking = await getBooking(event_uri);
+    if (!booking) throw new Error('Booking not found');
+    return booking;
+  }));
+
+  // ── Marketing dashboard ───────────────────────────────────────────────────
+
+  server.registerTool('marketing_overview', {
+    title: 'Marketing overview',
+    description: 'The headline figures from the marketing dashboard in one call: booking stats, the funnel, grant-application stats from Salesforce, and when each Salesforce sync last ran. Start here before the more specific marketing_* tools.',
+    inputSchema: {},
+  }, tool(async () => {
+    const [stats, funnel, applications, sync] = await Promise.all([
+      api('/marketing/stats'), api('/marketing/funnel'),
+      api('/marketing/applications/stats'), api('/marketing/sync/status'),
+    ]);
+    return { stats, funnel, applications, sync };
+  }));
+
+  server.registerTool('marketing_by_campaign', {
+    title: 'Bookings by campaign',
+    description: 'Bookings, held meetings, LOEs and wins grouped by Instantly campaign. Grouped on campaign id so renamed campaigns stay together.',
+    inputSchema: {},
+  }, tool(async () => api('/marketing/by-campaign')));
+
+  server.registerTool('marketing_by_channel', {
+    title: 'Bookings by channel',
+    description: 'Bookings, held meetings, LOEs and wins grouped by acquisition channel (cold email, ads, referral, and so on).',
+    inputSchema: {},
+  }, tool(async () => api('/marketing/by-channel')));
+
+  server.registerTool('marketing_timeseries', {
+    title: 'Marketing time series',
+    description: 'Trend data. series "bookings" is the funnel over time by week or month. series "sales" is won revenue over time by month or quarter.',
+    inputSchema: {
+      series: z.enum(['bookings', 'sales']).optional().describe('Which series (default "bookings")'),
+      granularity: z.enum(['week', 'month', 'quarter']).optional().describe('bookings: week | month. sales: month | quarter.'),
+    },
+  }, tool(async ({ series = 'bookings', granularity }) => {
+    const path = series === 'sales' ? '/marketing/sales-timeseries' : '/marketing/timeseries';
+    const q = granularity ? `?granularity=${encodeURIComponent(granularity)}` : '';
+    return api(`${path}${q}`);
+  }));
+
+  server.registerTool('marketing_bookings', {
+    title: 'Booking records',
+    description: 'Individual booking rows with their attribution (channel, campaign), Held and LOE flags, and any linked win. Filter by search text, channel or campaign.',
+    inputSchema: {
+      search: z.string().optional().describe('Substring match on the booking'),
+      channel: z.string().optional(),
+      campaign: z.string().optional(),
+      limit: z.number().int().min(1).max(500).optional().describe('Max rows (default 100)'),
+    },
+  }, tool(async ({ search = '', channel = '', campaign = '', limit = 100 }) => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (channel) params.set('channel', channel);
+    if (campaign) params.set('campaign', campaign);
+    const qs = params.toString();
+    const rows = await api(`/marketing/bookings${qs ? `?${qs}` : ''}`);
+    const list = Array.isArray(rows) ? rows : (rows.bookings || rows.rows || []);
+    return { count: list.length, bookings: list.slice(0, limit) };
+  }));
+
+  server.registerTool('marketing_untracked_wins', {
+    title: 'Untracked wins',
+    description: 'Salesforce wins that could not be matched to a tracked booking. Most predate funnel tracking (late February 2026); recent ones may be attribution gaps worth a look.',
+    inputSchema: {},
+  }, tool(async () => api('/marketing/untracked-wins')));
+
+  server.registerTool('marketing_revenue_quality', {
+    title: 'Revenue quality check',
+    description: 'Reconciliation between the two revenue totals (bookings-attributed vs Salesforce). No longer on the dashboard; use it to confirm the totals still agree.',
+    inputSchema: {},
+  }, tool(async () => api('/marketing/revenue-quality')));
+
+  return server;
+}
+
+// ── Express wiring ────────────────────────────────────────────────────────────
+
+export function registerMcp(app, { port }) {
+  const base = () => `http://127.0.0.1:${typeof port === 'function' ? port() : port}/api`;
+
+  async function api(path) {
+    const r = await fetch(`${base()}${path}`, { headers: { Accept: 'application/json' } });
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+    if (!r.ok) {
+      const msg = data && typeof data === 'object' && data.error ? data.error : `HTTP ${r.status} from ${path}`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  app.post(MCP_PATH, requireMcpKey, async (req, res) => {
+    const server = buildMcpServer({ api });
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless: nothing to resume, nothing to leak
+      enableJsonResponse: true,
+    });
+    res.on('close', () => { transport.close(); server.close(); });
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      console.error('MCP request error:', err?.message || err);
+      if (!res.headersSent) {
+        res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: null });
+      }
+    }
+  });
+
+  // Stateless servers have no stream to resume and no session to end.
+  const notAllowed = (req, res) => res.status(405).json({
+    jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null,
+  });
+  app.get(MCP_PATH, requireMcpKey, notAllowed);
+  app.delete(MCP_PATH, requireMcpKey, notAllowed);
+}

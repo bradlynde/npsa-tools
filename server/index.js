@@ -18,6 +18,7 @@ import {
   deadlinesForState, renderDeadlines, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE, STATE_REFERENCE,
 } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
+import { registerMcp } from './mcp.js';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -974,6 +975,9 @@ app.delete('/api/reps/:id', async (req, res) => {
 
 registerMarketing(app, pool);
 registerSalesforceConnector(app, pool);
+// MCP lives at /mcp, outside /api, so it must be mounted ahead of the SPA
+// fallback below or the catch-all would answer for it with index.html.
+registerMcp(app, { port: () => PORT });
 
 // An API route that does not exist must say so. Without this the fallback below
 // answers for it, so a JSON caller gets 200 and a page of HTML — which reads as a
