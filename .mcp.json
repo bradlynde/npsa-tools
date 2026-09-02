@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "npsa-tools": {
+      "type": "http",
+      "url": "https://loe-generator-production.up.railway.app/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NPSA_MCP_KEY}"
+      }
+    }
+  }
+}
