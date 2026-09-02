@@ -147,6 +147,17 @@ check('D  npsa-church-outreach resolves to Remarket FY27, not a new campaign',
   [slug.name, slug.cid],
   ['Remarket FY27 - Non-Repliers', '8552c05f-c927-48ee-b654-66f33e1c5cf1']);
 
+// E. The toolbox draws its own campaign table in the browser -- that panel is
+//    range-scoped and by-campaign is not -- and it can only group on what this
+//    endpoint hands it. With the name alone, a renamed campaign splits into two
+//    rows there no matter what the fold above does, which is exactly what #173
+//    failed to fix: it repaired by-campaign, an endpoint that table never calls.
+const list = await call('GET /api/marketing/bookings');
+check('E  the bookings list carries the campaign id, not just the name',
+  Object.prototype.hasOwnProperty.call(list[0] ?? {}, 'instantly_campaign_id'), true);
+check('E2 and it is the live campaign id',
+  list[0]?.instantly_campaign_id, '8552c05f-c927-48ee-b654-66f33e1c5cf1');
+
 await pool.end();
 const failed = results.filter(x => !x.ok);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);

@@ -2129,7 +2129,14 @@ export function registerMarketing(app, pool) {
         // The two joins carry the dates either side of a reschedule, so the list can
         // say what a moved meeting moved from or to without a second round trip.
         `SELECT b.id, b.booked_on, b.meeting_date, b.name, b.organization, b.email, b.told_us,
-                b.attribution_channel, b.attribution_source, b.instantly_campaign, b.host,
+                b.attribution_channel, b.attribution_source, b.instantly_campaign,
+                -- The id as well as the name. The toolbox builds its own campaign
+                -- table in the browser, because that panel is range-scoped and
+                -- by-campaign is not, and it had only the name to group on -- so a
+                -- campaign renamed in Instantly split into two rows there even after
+                -- #158 and #173 fixed exactly that on this side. Grouping needs the
+                -- id, and the id is not something the client can derive.
+                b.instantly_campaign_id, b.host,
                 b.held, b.became_client, b.fee,
                 b.won, b.won_amount, b.exclusion_reason, b.cancelled, b.cancelled_at,
                 b.rescheduled_from, b.rescheduled_to,
