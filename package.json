@@ -11,6 +11,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "express": "^4.21.0",
     "html-to-docx": "^1.8.0",
     "html2pdf.js": "^0.14.0",
@@ -18,7 +19,8 @@
     "openai": "^4.73.0",
     "pg": "^8.13.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
