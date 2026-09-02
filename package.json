@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --experimental-strip-types lib/marketing.test.mts"
   },
   "dependencies": {
     "next": "^14.0.0",
@@ -23,4 +24,3 @@
     "autoprefixer": "^10.4.0"
   }
 }
-
