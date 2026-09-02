@@ -1,0 +1,4150 @@
+{
+  "_source": "Generated 2026-09-02 from the deployed Apps Script build (NSGP Intake Form v1, Version 24): the FIELDS array in Code.gs for key/section/label/order, and the element type per data-key in Index.html for kind. Edit this file by hand from now on; the Python generator is retired for this form.",
+  "_kinds": "text | textarea | select | upload | meta. meta keys (_status) are written by the server, never by the page.",
+  "questions": [
+    {
+      "key": "q_1_1_1",
+      "section": "1. Applicant Information",
+      "label": "1.1.1 Name",
+      "ordinal": 1,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_1_2",
+      "section": "1. Applicant Information",
+      "label": "1.1.2 Title",
+      "ordinal": 2,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_1_3",
+      "section": "1. Applicant Information",
+      "label": "1.1.3 Email",
+      "ordinal": 3,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_1_4",
+      "section": "1. Applicant Information",
+      "label": "1.1.4 Phone Number",
+      "ordinal": 4,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_2_1",
+      "section": "1. Applicant Information",
+      "label": "1.2.1 Name",
+      "ordinal": 5,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_2_2",
+      "section": "1. Applicant Information",
+      "label": "1.2.2 Title",
+      "ordinal": 6,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_2_3",
+      "section": "1. Applicant Information",
+      "label": "1.2.3 Email",
+      "ordinal": 7,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_2_4",
+      "section": "1. Applicant Information",
+      "label": "1.2.4 Phone Number",
+      "ordinal": 8,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_1",
+      "section": "1. Applicant Information",
+      "label": "1.3.1 Legal Name (as it appears on state registration/incorporation documents)",
+      "ordinal": 9,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_2",
+      "section": "1. Applicant Information",
+      "label": "1.3.2 Doing Business As (d/b/a), if applicable",
+      "ordinal": 10,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_3",
+      "section": "1. Applicant Information",
+      "label": "1.3.3 Federal UEI (from SAM.gov) — ONLY ONE PER ORGANIZATION; with multiple sites you still need only one registration",
+      "ordinal": 11,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_4",
+      "section": "1. Applicant Information",
+      "label": "1.3.4 SAM.gov Expiration Date (only for TX and IL orgs)",
+      "ordinal": 12,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_5",
+      "section": "1. Applicant Information",
+      "label": "1.3.5 Federal EIN",
+      "ordinal": 13,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_6",
+      "section": "1. Applicant Information",
+      "label": "1.3.6 Fiscal Year End Date",
+      "ordinal": 14,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_7",
+      "section": "1. Applicant Information",
+      "label": "1.3.7 Number of full-time employees",
+      "ordinal": 15,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_8",
+      "section": "1. Applicant Information",
+      "label": "1.3.8 Number of part-time employees",
+      "ordinal": 16,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_9",
+      "section": "1. Applicant Information",
+      "label": "1.3.9 Number of volunteers — approximate (NY orgs only)",
+      "ordinal": 17,
+      "kind": "text"
+    },
+    {
+      "key": "q_1_3_10",
+      "section": "1. Applicant Information",
+      "label": "1.3.10 Annual operating budget",
+      "ordinal": 18,
+      "kind": "text"
+    },
+    {
+      "key": "q_2_1",
+      "section": "2. Identity",
+      "label": "2.1 Please provide a detailed breakdown of your organization's ideology. What are your public stances on key issues (e.g., pro-life, support for Israel, traditional marriage)? Please provide a link to your statement of faith or beliefs.",
+      "ordinal": 19,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_2_1",
+      "section": "NPSA Notes",
+      "label": "Note — 2.1 Please provide a detailed breakdown of your organization's ideology. What are your public stances on key issues (e.g., pro-life, support for Israel, traditional marriage)? Please provide a link to your statement of faith or belie",
+      "ordinal": 20,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_2_2",
+      "section": "2. Identity",
+      "label": "2.2 What makes your organization a prominent landmark in your community? (Consider your physical building, visible symbols, history, or reputation, location - e.g. busy intersection, downtown).",
+      "ordinal": 21,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_2_2",
+      "section": "NPSA Notes",
+      "label": "Note — 2.2 What makes your organization a prominent landmark in your community? (Consider your physical building, visible symbols, history, or reputation, location - e.g. busy intersection, downtown).",
+      "ordinal": 22,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_2_3",
+      "section": "2. Identity",
+      "label": "2.3 Are there any \"absolute statements\" we can make? (e.g., \"the largest church in the county,\" \"the only Jewish day school in the region\").",
+      "ordinal": 23,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_2_3",
+      "section": "NPSA Notes",
+      "label": "Note — 2.3 Are there any \"absolute statements\" we can make? (e.g., \"the largest church in the county,\" \"the only Jewish day school in the region\").",
+      "ordinal": 24,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_2_4",
+      "section": "2. Identity",
+      "label": "2.4 Does your organization have a high public profile? (Consider any well-known members, national media attention, or your role as a leading voice on certain issues).",
+      "ordinal": 25,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_2_4",
+      "section": "NPSA Notes",
+      "label": "Note — 2.4 Does your organization have a high public profile? (Consider any well-known members, national media attention, or your role as a leading voice on certain issues).",
+      "ordinal": 26,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_3_1_1",
+      "section": "3. Community Role",
+      "label": "3.1.1 Total membership or enrollment (one number)",
+      "ordinal": 27,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_3_1_1",
+      "section": "NPSA Notes",
+      "label": "Note — 3.1.1 Total membership or enrollment (one number)",
+      "ordinal": 28,
+      "kind": "text"
+    },
+    {
+      "key": "q_3_1_2",
+      "section": "3. Community Role",
+      "label": "3.1.2 Average weekly attendance (typical week, all programs combined)",
+      "ordinal": 29,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_3_1_2",
+      "section": "NPSA Notes",
+      "label": "Note — 3.1.2 Average weekly attendance (typical week, all programs combined)",
+      "ordinal": 30,
+      "kind": "text"
+    },
+    {
+      "key": "q_3_1_3",
+      "section": "3. Community Role",
+      "label": "3.1.3 Peak occupancy — the highest number of people on your campus at one time, and when it occurs (Example: \"4,500 during Easter services\")",
+      "ordinal": 31,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_3_1_3",
+      "section": "NPSA Notes",
+      "label": "Note — 3.1.3 Peak occupancy — the highest number of people on your campus at one time, and when it occurs (Example: \"4,500 during Easter services\")",
+      "ordinal": 32,
+      "kind": "text"
+    },
+    {
+      "key": "q_3_1_4",
+      "section": "3. Community Role",
+      "label": "3.1.4 How many days per week is your facility open and in use? Typical hours?",
+      "ordinal": 33,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_3_1_4",
+      "section": "NPSA Notes",
+      "label": "Note — 3.1.4 How many days per week is your facility open and in use? Typical hours?",
+      "ordinal": 34,
+      "kind": "text"
+    },
+    {
+      "key": "q_3_1_5",
+      "section": "3. Community Role",
+      "label": "3.1.5 Describe all populations you serve — be specific about vulnerable demographics. (Example: \"~400 children under 12 on Sundays, 85 seniors at weekly lunch, 20-30 veterans at monthly support group, 40-60 homeless at Saturday meal service",
+      "ordinal": 35,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_3_1_5",
+      "section": "NPSA Notes",
+      "label": "Note — 3.1.5 Describe all populations you serve — be specific about vulnerable demographics. (Example: \"~400 children under 12 on Sundays, 85 seniors at weekly lunch, 20-30 veterans at monthly support group, 40-60 homeless at Saturday meal ",
+      "ordinal": 36,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_3_2_1",
+      "section": "3. Community Role",
+      "label": "3.2.1 List all programs, services, events, and outside organizations that operate from your facility. For each: (1) run by your org or an outside org, (2) how many people participate, (3) the schedule. We have pre-populated items found from",
+      "ordinal": 37,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_3_2_1",
+      "section": "NPSA Notes",
+      "label": "Note — 3.2.1 List all programs, services, events, and outside organizations that operate from your facility. For each: (1) run by your org or an outside org, (2) how many people participate, (3) the schedule. We have pre-populated items fou",
+      "ordinal": 38,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_3_2_2",
+      "section": "3. Community Role",
+      "label": "3.2.2 For any schools, preschools, or educational classes at your facility, provide hours of operation and average attendance.",
+      "ordinal": 39,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_3_2_2",
+      "section": "NPSA Notes",
+      "label": "Note — 3.2.2 For any schools, preschools, or educational classes at your facility, provide hours of operation and average attendance.",
+      "ordinal": 40,
+      "kind": "text"
+    },
+    {
+      "key": "q_3_2_3",
+      "section": "3. Community Role",
+      "label": "3.2.3 Looking at the programs and organizations you listed — are any of them the only one of their kind in your area? If so, which?",
+      "ordinal": 41,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_3_2_3",
+      "section": "NPSA Notes",
+      "label": "Note — 3.2.3 Looking at the programs and organizations you listed — are any of them the only one of their kind in your area? If so, which?",
+      "ordinal": 42,
+      "kind": "text"
+    },
+    {
+      "key": "q_3_3_1",
+      "section": "3. Community Role",
+      "label": "3.3.1 Have any law enforcement, fire department, or emergency management personnel ever visited your facility for a security-related purpose (walkthrough, assessment, training, incident response)? If yes, which agency, what they did, and ap",
+      "ordinal": 43,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_3_3_1",
+      "section": "NPSA Notes",
+      "label": "Note — 3.3.1 Have any law enforcement, fire department, or emergency management personnel ever visited your facility for a security-related purpose (walkthrough, assessment, training, incident response)? If yes, which agency, what they did,",
+      "ordinal": 44,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_3_3_2",
+      "section": "3. Community Role",
+      "label": "3.3.2 Do you or anyone from your organization participate in any external security, preparedness, or community safety meetings, coalitions, or mailing lists? (Examples: county emergency management forums, faith-based security coalitions, CI",
+      "ordinal": 45,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_3_3_2",
+      "section": "NPSA Notes",
+      "label": "Note — 3.3.2 Do you or anyone from your organization participate in any external security, preparedness, or community safety meetings, coalitions, or mailing lists? (Examples: county emergency management forums, faith-based security coaliti",
+      "ordinal": 46,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_3_3_3",
+      "section": "3. Community Role",
+      "label": "3.3.3 Does your facility serve any formal role in local emergency or community plans? (Examples: designated school reunification site, Red Cross shelter, disaster food distribution point, emergency staging area.) If yes, describe the design",
+      "ordinal": 47,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_3_3_3",
+      "section": "NPSA Notes",
+      "label": "Note — 3.3.3 Does your facility serve any formal role in local emergency or community plans? (Examples: designated school reunification site, Red Cross shelter, disaster food distribution point, emergency staging area.) If yes, describe the",
+      "ordinal": 48,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_3_3_4",
+      "section": "3. Community Role",
+      "label": "3.3.4 Have you ever provided your facility, camera feeds, building maps, or other resources to support law enforcement or emergency services — during an incident, an investigation, or as a standing arrangement? If yes, describe what, to who",
+      "ordinal": 49,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_3_3_4",
+      "section": "NPSA Notes",
+      "label": "Note — 3.3.4 Have you ever provided your facility, camera feeds, building maps, or other resources to support law enforcement or emergency services — during an incident, an investigation, or as a standing arrangement? If yes, describe what,",
+      "ordinal": 50,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_3_3_5",
+      "section": "3. Community Role",
+      "label": "3.3.5 Is there anything else about your relationship with law enforcement, emergency management, or community safety organizations that we should know? Include anything informal — a congregant in law enforcement, a board member who is a ret",
+      "ordinal": 51,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_3_3_5",
+      "section": "NPSA Notes",
+      "label": "Note — 3.3.5 Is there anything else about your relationship with law enforcement, emergency management, or community safety organizations that we should know? Include anything informal — a congregant in law enforcement, a board member who i",
+      "ordinal": 52,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_4_1",
+      "section": "4. Threats",
+      "label": "4.1 Please detail any and all security incidents at your facility, with dates and police report numbers if available. Include anything, even if it seems minor — we determine what is relevant. (Example: \"12/2024 — individual pulled open a lo",
+      "ordinal": 53,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_4_1",
+      "section": "NPSA Notes",
+      "label": "Note — 4.1 Please detail any and all security incidents at your facility, with dates and police report numbers if available. Include anything, even if it seems minor — we determine what is relevant. (Example: \"12/2024 — individual pulled op",
+      "ordinal": 54,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_4_2",
+      "section": "4. Threats",
+      "label": "4.2 Are you personally aware of any security incidents — threats, vandalism, break-ins, or attacks — at nearby houses of worship, schools, or nonprofits? We want incidents you have personal knowledge of from your community, not news stories",
+      "ordinal": 55,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_4_2",
+      "section": "NPSA Notes",
+      "label": "Note — 4.2 Are you personally aware of any security incidents — threats, vandalism, break-ins, or attacks — at nearby houses of worship, schools, or nonprofits? We want incidents you have personal knowledge of from your community, not news ",
+      "ordinal": 56,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_4_3",
+      "section": "4. Threats",
+      "label": "4.3 Have you or your members ever been the target of online harassment or doxing?",
+      "ordinal": 57,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_4_3",
+      "section": "NPSA Notes",
+      "label": "Note — 4.3 Have you or your members ever been the target of online harassment or doxing?",
+      "ordinal": 58,
+      "kind": "text"
+    },
+    {
+      "key": "q_4_4",
+      "section": "4. Threats",
+      "label": "4.4 Do you host speakers or events that are controversial or draw counter-protesters, opposition, or heightened attention? Have any of your public stances generated backlash, media criticism, or organized opposition? (Example: \"Hosted a pro",
+      "ordinal": 59,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_4_4",
+      "section": "NPSA Notes",
+      "label": "Note — 4.4 Do you host speakers or events that are controversial or draw counter-protesters, opposition, or heightened attention? Have any of your public stances generated backlash, media criticism, or organized opposition? (Example: \"Hoste",
+      "ordinal": 60,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_4_5",
+      "section": "4. Threats",
+      "label": "4.5 Have you ever had to cancel or postpone an event due to security concerns?",
+      "ordinal": 61,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_4_5",
+      "section": "NPSA Notes",
+      "label": "Note — 4.5 Have you ever had to cancel or postpone an event due to security concerns?",
+      "ordinal": 62,
+      "kind": "text"
+    },
+    {
+      "key": "resp_q_4_6",
+      "section": "4. Threats",
+      "label": "4.6 FOR YOUR REFERENCE — Our research identifies the infrastructure near your facility (setback, frontages, parking, and nearby hospitals, law enforcement/fire, schools, houses of worship, government, symbolic/historic sites, transit, media",
+      "ordinal": 63,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_5_1",
+      "section": "5. The Project",
+      "label": "5.1 Have you previously received a federal NSGP or state security grant? If yes, provide year and amount.",
+      "ordinal": 64,
+      "kind": "text"
+    },
+    {
+      "key": "note_q_5_1",
+      "section": "NPSA Notes",
+      "label": "Note — 5.1 Have you previously received a federal NSGP or state security grant? If yes, provide year and amount.",
+      "ordinal": 65,
+      "kind": "text"
+    },
+    {
+      "key": "q_5_2",
+      "section": "5. The Project",
+      "label": "5.2 Describe any connections between your security systems and law enforcement or emergency services. Can police view your cameras remotely? Do they have keys or access codes? Is your alarm monitored by a service that notifies police? (Exam",
+      "ordinal": 66,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_5_2",
+      "section": "NPSA Notes",
+      "label": "Note — 5.2 Describe any connections between your security systems and law enforcement or emergency services. Can police view your cameras remotely? Do they have keys or access codes? Is your alarm monitored by a service that notifies police",
+      "ordinal": 67,
+      "kind": "textarea"
+    },
+    {
+      "key": "q_5_3",
+      "section": "5. The Project",
+      "label": "5.3 Project Team: Identify 2-3 people to manage this grant covering these roles (one person can fill more than one): Project Manager (timeline, procurement, reporting), Budget Manager (spending, financial reporting), Facilities Manager (ven",
+      "ordinal": 68,
+      "kind": "textarea"
+    },
+    {
+      "key": "note_q_5_3",
+      "section": "NPSA Notes",
+      "label": "Note — 5.3 Project Team: Identify 2-3 people to manage this grant covering these roles (one person can fill more than one): Project Manager (timeline, procurement, reporting), Budget Manager (spending, financial reporting), Facilities Manag",
+      "ordinal": 69,
+      "kind": "textarea"
+    },
+    {
+      "key": "loc1_name",
+      "section": "Locations",
+      "label": "Site 1 — Facility Name",
+      "ordinal": 70,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_addr",
+      "section": "Locations",
+      "label": "Site 1 — Physical Address",
+      "ordinal": 71,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_county",
+      "section": "Locations",
+      "label": "Site 1 — County",
+      "ordinal": 72,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_ownlease",
+      "section": "Locations",
+      "label": "Site 1 — Own / Lease",
+      "ordinal": 73,
+      "kind": "select"
+    },
+    {
+      "key": "loc1_year",
+      "section": "Locations",
+      "label": "Site 1 — Year Built",
+      "ordinal": 74,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_historic",
+      "section": "Locations",
+      "label": "Site 1 — Historic?",
+      "ordinal": 75,
+      "kind": "select"
+    },
+    {
+      "key": "loc1_sqft",
+      "section": "Locations",
+      "label": "Site 1 — Total Sq Ft",
+      "ordinal": 76,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_acreage",
+      "section": "Locations",
+      "label": "Site 1 — Acreage",
+      "ordinal": 77,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_buildings",
+      "section": "Locations",
+      "label": "Site 1 — # Bldgs",
+      "ordinal": 78,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_value",
+      "section": "Locations",
+      "label": "Site 1 — Insured Value",
+      "ordinal": 79,
+      "kind": "text"
+    },
+    {
+      "key": "loc1_programs",
+      "section": "Locations",
+      "label": "Site 1 — Programs Applying",
+      "ordinal": 80,
+      "kind": "select"
+    },
+    {
+      "key": "loc2_name",
+      "section": "Locations",
+      "label": "Site 2 — Facility Name",
+      "ordinal": 81,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_addr",
+      "section": "Locations",
+      "label": "Site 2 — Physical Address",
+      "ordinal": 82,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_county",
+      "section": "Locations",
+      "label": "Site 2 — County",
+      "ordinal": 83,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_ownlease",
+      "section": "Locations",
+      "label": "Site 2 — Own / Lease",
+      "ordinal": 84,
+      "kind": "select"
+    },
+    {
+      "key": "loc2_year",
+      "section": "Locations",
+      "label": "Site 2 — Year Built",
+      "ordinal": 85,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_historic",
+      "section": "Locations",
+      "label": "Site 2 — Historic?",
+      "ordinal": 86,
+      "kind": "select"
+    },
+    {
+      "key": "loc2_sqft",
+      "section": "Locations",
+      "label": "Site 2 — Total Sq Ft",
+      "ordinal": 87,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_acreage",
+      "section": "Locations",
+      "label": "Site 2 — Acreage",
+      "ordinal": 88,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_buildings",
+      "section": "Locations",
+      "label": "Site 2 — # Bldgs",
+      "ordinal": 89,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_value",
+      "section": "Locations",
+      "label": "Site 2 — Insured Value",
+      "ordinal": 90,
+      "kind": "text"
+    },
+    {
+      "key": "loc2_programs",
+      "section": "Locations",
+      "label": "Site 2 — Programs Applying",
+      "ordinal": 91,
+      "kind": "select"
+    },
+    {
+      "key": "loc3_name",
+      "section": "Locations",
+      "label": "Site 3 — Facility Name",
+      "ordinal": 92,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_addr",
+      "section": "Locations",
+      "label": "Site 3 — Physical Address",
+      "ordinal": 93,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_county",
+      "section": "Locations",
+      "label": "Site 3 — County",
+      "ordinal": 94,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_ownlease",
+      "section": "Locations",
+      "label": "Site 3 — Own / Lease",
+      "ordinal": 95,
+      "kind": "select"
+    },
+    {
+      "key": "loc3_year",
+      "section": "Locations",
+      "label": "Site 3 — Year Built",
+      "ordinal": 96,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_historic",
+      "section": "Locations",
+      "label": "Site 3 — Historic?",
+      "ordinal": 97,
+      "kind": "select"
+    },
+    {
+      "key": "loc3_sqft",
+      "section": "Locations",
+      "label": "Site 3 — Total Sq Ft",
+      "ordinal": 98,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_acreage",
+      "section": "Locations",
+      "label": "Site 3 — Acreage",
+      "ordinal": 99,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_buildings",
+      "section": "Locations",
+      "label": "Site 3 — # Bldgs",
+      "ordinal": 100,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_value",
+      "section": "Locations",
+      "label": "Site 3 — Insured Value",
+      "ordinal": 101,
+      "kind": "text"
+    },
+    {
+      "key": "loc3_programs",
+      "section": "Locations",
+      "label": "Site 3 — Programs Applying",
+      "ordinal": 102,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_vehicle_bollards_int",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Bollards — Priority (1 = fund first)",
+      "ordinal": 103,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_vehicle_bollards_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Bollards — Currently have",
+      "ordinal": 104,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_bollards_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Bollards — What & why",
+      "ordinal": 105,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_bollards_where",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Bollards — Where at the site",
+      "ordinal": 106,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_bollards_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Bollards — Quantity / dimension",
+      "ordinal": 107,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_bollards_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Bollards — Est. cost",
+      "ordinal": 108,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_security_fencing_and_int",
+      "section": "Wish List — Facility 1",
+      "label": "Security Fencing and Gates — Priority (1 = fund first)",
+      "ordinal": 109,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_security_fencing_and_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Security Fencing and Gates — Currently have",
+      "ordinal": 110,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_fencing_and_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Security Fencing and Gates — What & why",
+      "ordinal": 111,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_fencing_and_where",
+      "section": "Wish List — Facility 1",
+      "label": "Security Fencing and Gates — Where at the site",
+      "ordinal": 112,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_fencing_and_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Security Fencing and Gates — Quantity / dimension",
+      "ordinal": 113,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_fencing_and_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Security Fencing and Gates — Est. cost",
+      "ordinal": 114,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_ballistic_rated_door_int",
+      "section": "Wish List — Facility 1",
+      "label": "Ballistic-Rated Doors — Priority (1 = fund first)",
+      "ordinal": 115,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_ballistic_rated_door_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Ballistic-Rated Doors — Currently have",
+      "ordinal": 116,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_ballistic_rated_door_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Ballistic-Rated Doors — What & why",
+      "ordinal": 117,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_ballistic_rated_door_where",
+      "section": "Wish List — Facility 1",
+      "label": "Ballistic-Rated Doors — Where at the site",
+      "ordinal": 118,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_ballistic_rated_door_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Ballistic-Rated Doors — Quantity / dimension",
+      "ordinal": 119,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_ballistic_rated_door_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Ballistic-Rated Doors — Est. cost",
+      "ordinal": 120,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_security_window_film_int",
+      "section": "Wish List — Facility 1",
+      "label": "Security Window Film — Priority (1 = fund first)",
+      "ordinal": 121,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_security_window_film_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Security Window Film — Currently have",
+      "ordinal": 122,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_window_film_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Security Window Film — What & why",
+      "ordinal": 123,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_window_film_where",
+      "section": "Wish List — Facility 1",
+      "label": "Security Window Film — Where at the site",
+      "ordinal": 124,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_window_film_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Security Window Film — Quantity / dimension",
+      "ordinal": 125,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_window_film_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Security Window Film — Est. cost",
+      "ordinal": 126,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_electronic_access_co_int",
+      "section": "Wish List — Facility 1",
+      "label": "Electronic Access Control — Priority (1 = fund first)",
+      "ordinal": 127,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_electronic_access_co_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Electronic Access Control — Currently have",
+      "ordinal": 128,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_electronic_access_co_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Electronic Access Control — What & why",
+      "ordinal": 129,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_electronic_access_co_where",
+      "section": "Wish List — Facility 1",
+      "label": "Electronic Access Control — Where at the site",
+      "ordinal": 130,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_electronic_access_co_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Electronic Access Control — Quantity / dimension",
+      "ordinal": 131,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_electronic_access_co_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Electronic Access Control — Est. cost",
+      "ordinal": 132,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_lockdown_system_int",
+      "section": "Wish List — Facility 1",
+      "label": "Lockdown System — Priority (1 = fund first)",
+      "ordinal": 133,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_lockdown_system_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Lockdown System — Currently have",
+      "ordinal": 134,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_lockdown_system_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Lockdown System — What & why",
+      "ordinal": 135,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_lockdown_system_where",
+      "section": "Wish List — Facility 1",
+      "label": "Lockdown System — Where at the site",
+      "ordinal": 136,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_lockdown_system_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Lockdown System — Quantity / dimension",
+      "ordinal": 137,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_lockdown_system_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Lockdown System — Est. cost",
+      "ordinal": 138,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_non_electronic_locks_int",
+      "section": "Wish List — Facility 1",
+      "label": "Non-Electronic Locks — Priority (1 = fund first)",
+      "ordinal": 139,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_non_electronic_locks_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Non-Electronic Locks — Currently have",
+      "ordinal": 140,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_non_electronic_locks_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Non-Electronic Locks — What & why",
+      "ordinal": 141,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_non_electronic_locks_where",
+      "section": "Wish List — Facility 1",
+      "label": "Non-Electronic Locks — Where at the site",
+      "ordinal": 142,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_non_electronic_locks_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Non-Electronic Locks — Quantity / dimension",
+      "ordinal": 143,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_non_electronic_locks_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Non-Electronic Locks — Est. cost",
+      "ordinal": 144,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_visitor_management_s_int",
+      "section": "Wish List — Facility 1",
+      "label": "Visitor Management System — Priority (1 = fund first)",
+      "ordinal": 145,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_visitor_management_s_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Visitor Management System — Currently have",
+      "ordinal": 146,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_visitor_management_s_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Visitor Management System — What & why",
+      "ordinal": 147,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_visitor_management_s_where",
+      "section": "Wish List — Facility 1",
+      "label": "Visitor Management System — Where at the site",
+      "ordinal": 148,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_visitor_management_s_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Visitor Management System — Quantity / dimension",
+      "ordinal": 149,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_visitor_management_s_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Visitor Management System — Est. cost",
+      "ordinal": 150,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_vehicle_gate_access__int",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Gate Access Control — Priority (1 = fund first)",
+      "ordinal": 151,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_vehicle_gate_access__cur",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Gate Access Control — Currently have",
+      "ordinal": 152,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_gate_access__desc",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Gate Access Control — What & why",
+      "ordinal": 153,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_gate_access__where",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Gate Access Control — Where at the site",
+      "ordinal": 154,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_gate_access__qty",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Gate Access Control — Quantity / dimension",
+      "ordinal": 155,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_vehicle_gate_access__cost",
+      "section": "Wish List — Facility 1",
+      "label": "Vehicle Gate Access Control — Est. cost",
+      "ordinal": 156,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_cctv_camera_system_int",
+      "section": "Wish List — Facility 1",
+      "label": "CCTV / Camera System — Priority (1 = fund first)",
+      "ordinal": 157,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_cctv_camera_system_cur",
+      "section": "Wish List — Facility 1",
+      "label": "CCTV / Camera System — Currently have",
+      "ordinal": 158,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_cctv_camera_system_desc",
+      "section": "Wish List — Facility 1",
+      "label": "CCTV / Camera System — What & why",
+      "ordinal": 159,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_cctv_camera_system_where",
+      "section": "Wish List — Facility 1",
+      "label": "CCTV / Camera System — Where at the site",
+      "ordinal": 160,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_cctv_camera_system_qty",
+      "section": "Wish List — Facility 1",
+      "label": "CCTV / Camera System — Quantity / dimension",
+      "ordinal": 161,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_cctv_camera_system_cost",
+      "section": "Wish List — Facility 1",
+      "label": "CCTV / Camera System — Est. cost",
+      "ordinal": 162,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_exterior_security_li_int",
+      "section": "Wish List — Facility 1",
+      "label": "Exterior Security Lighting — Priority (1 = fund first)",
+      "ordinal": 163,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_exterior_security_li_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Exterior Security Lighting — Currently have",
+      "ordinal": 164,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_exterior_security_li_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Exterior Security Lighting — What & why",
+      "ordinal": 165,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_exterior_security_li_where",
+      "section": "Wish List — Facility 1",
+      "label": "Exterior Security Lighting — Where at the site",
+      "ordinal": 166,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_exterior_security_li_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Exterior Security Lighting — Quantity / dimension",
+      "ordinal": 167,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_exterior_security_li_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Exterior Security Lighting — Est. cost",
+      "ordinal": 168,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_two_way_radios_int",
+      "section": "Wish List — Facility 1",
+      "label": "Two-Way Radios — Priority (1 = fund first)",
+      "ordinal": 169,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_two_way_radios_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Two-Way Radios — Currently have",
+      "ordinal": 170,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_two_way_radios_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Two-Way Radios — What & why",
+      "ordinal": 171,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_two_way_radios_where",
+      "section": "Wish List — Facility 1",
+      "label": "Two-Way Radios — Where at the site",
+      "ordinal": 172,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_two_way_radios_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Two-Way Radios — Quantity / dimension",
+      "ordinal": 173,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_two_way_radios_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Two-Way Radios — Est. cost",
+      "ordinal": 174,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_panic_buttons_duress_int",
+      "section": "Wish List — Facility 1",
+      "label": "Panic Buttons / Duress Alarms — Priority (1 = fund first)",
+      "ordinal": 175,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_panic_buttons_duress_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Panic Buttons / Duress Alarms — Currently have",
+      "ordinal": 176,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_panic_buttons_duress_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Panic Buttons / Duress Alarms — What & why",
+      "ordinal": 177,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_panic_buttons_duress_where",
+      "section": "Wish List — Facility 1",
+      "label": "Panic Buttons / Duress Alarms — Where at the site",
+      "ordinal": 178,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_panic_buttons_duress_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Panic Buttons / Duress Alarms — Quantity / dimension",
+      "ordinal": 179,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_panic_buttons_duress_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Panic Buttons / Duress Alarms — Est. cost",
+      "ordinal": 180,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_intrusion_detection__int",
+      "section": "Wish List — Facility 1",
+      "label": "Intrusion Detection System (IDS) — Priority (1 = fund first)",
+      "ordinal": 181,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_intrusion_detection__cur",
+      "section": "Wish List — Facility 1",
+      "label": "Intrusion Detection System (IDS) — Currently have",
+      "ordinal": 182,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_intrusion_detection__desc",
+      "section": "Wish List — Facility 1",
+      "label": "Intrusion Detection System (IDS) — What & why",
+      "ordinal": 183,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_intrusion_detection__where",
+      "section": "Wish List — Facility 1",
+      "label": "Intrusion Detection System (IDS) — Where at the site",
+      "ordinal": 184,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_intrusion_detection__qty",
+      "section": "Wish List — Facility 1",
+      "label": "Intrusion Detection System (IDS) — Quantity / dimension",
+      "ordinal": 185,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_intrusion_detection__cost",
+      "section": "Wish List — Facility 1",
+      "label": "Intrusion Detection System (IDS) — Est. cost",
+      "ordinal": 186,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_contracted_security__int",
+      "section": "Wish List — Facility 1",
+      "label": "Contracted Security Guards — Priority (1 = fund first)",
+      "ordinal": 187,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_contracted_security__cur",
+      "section": "Wish List — Facility 1",
+      "label": "Contracted Security Guards — Currently have",
+      "ordinal": 188,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_contracted_security__desc",
+      "section": "Wish List — Facility 1",
+      "label": "Contracted Security Guards — What & why",
+      "ordinal": 189,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_contracted_security__where",
+      "section": "Wish List — Facility 1",
+      "label": "Contracted Security Guards — Where at the site",
+      "ordinal": 190,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_contracted_security__qty",
+      "section": "Wish List — Facility 1",
+      "label": "Contracted Security Guards — Quantity / dimension",
+      "ordinal": 191,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_contracted_security__cost",
+      "section": "Wish List — Facility 1",
+      "label": "Contracted Security Guards — Est. cost",
+      "ordinal": 192,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_active_shooter_threa_int",
+      "section": "Wish List — Facility 1",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Priority (1 = fund first)",
+      "ordinal": 193,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_active_shooter_threa_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Currently have",
+      "ordinal": 194,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_active_shooter_threa_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — What & why",
+      "ordinal": 195,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_active_shooter_threa_where",
+      "section": "Wish List — Facility 1",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Where at the site",
+      "ordinal": 196,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_active_shooter_threa_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Quantity / dimension",
+      "ordinal": 197,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_active_shooter_threa_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Est. cost",
+      "ordinal": 198,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_tabletop_functional__int",
+      "section": "Wish List — Facility 1",
+      "label": "Tabletop / Functional Exercises — Priority (1 = fund first)",
+      "ordinal": 199,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_tabletop_functional__cur",
+      "section": "Wish List — Facility 1",
+      "label": "Tabletop / Functional Exercises — Currently have",
+      "ordinal": 200,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_tabletop_functional__desc",
+      "section": "Wish List — Facility 1",
+      "label": "Tabletop / Functional Exercises — What & why",
+      "ordinal": 201,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_tabletop_functional__where",
+      "section": "Wish List — Facility 1",
+      "label": "Tabletop / Functional Exercises — Where at the site",
+      "ordinal": 202,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_tabletop_functional__qty",
+      "section": "Wish List — Facility 1",
+      "label": "Tabletop / Functional Exercises — Quantity / dimension",
+      "ordinal": 203,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_tabletop_functional__cost",
+      "section": "Wish List — Facility 1",
+      "label": "Tabletop / Functional Exercises — Est. cost",
+      "ordinal": 204,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_security_plan_develo_int",
+      "section": "Wish List — Facility 1",
+      "label": "Security Plan Development — Priority (1 = fund first)",
+      "ordinal": 205,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_security_plan_develo_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Security Plan Development — Currently have",
+      "ordinal": 206,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_plan_develo_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Security Plan Development — What & why",
+      "ordinal": 207,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_plan_develo_where",
+      "section": "Wish List — Facility 1",
+      "label": "Security Plan Development — Where at the site",
+      "ordinal": 208,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_plan_develo_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Security Plan Development — Quantity / dimension",
+      "ordinal": 209,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_security_plan_develo_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Security Plan Development — Est. cost",
+      "ordinal": 210,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_other0_int",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Priority (1 = fund first)",
+      "ordinal": 211,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_other0_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Currently have",
+      "ordinal": 212,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other0_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — What & why",
+      "ordinal": 213,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other0_where",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Where at the site",
+      "ordinal": 214,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other0_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Quantity / dimension",
+      "ordinal": 215,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other0_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Est. cost",
+      "ordinal": 216,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_other1_int",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Priority (1 = fund first)",
+      "ordinal": 217,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f1_other1_cur",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Currently have",
+      "ordinal": 218,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other1_desc",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — What & why",
+      "ordinal": 219,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other1_where",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Where at the site",
+      "ordinal": 220,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other1_qty",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Quantity / dimension",
+      "ordinal": 221,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f1_other1_cost",
+      "section": "Wish List — Facility 1",
+      "label": "Other (describe →) — Est. cost",
+      "ordinal": 222,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f1_anything_else",
+      "section": "Wish List — Facility 1",
+      "label": "Anything else we should know?",
+      "ordinal": 223,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_bollards_int",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Bollards — Priority (1 = fund first)",
+      "ordinal": 224,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_vehicle_bollards_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Bollards — Currently have",
+      "ordinal": 225,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_bollards_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Bollards — What & why",
+      "ordinal": 226,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_bollards_where",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Bollards — Where at the site",
+      "ordinal": 227,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_bollards_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Bollards — Quantity / dimension",
+      "ordinal": 228,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_bollards_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Bollards — Est. cost",
+      "ordinal": 229,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_security_fencing_and_int",
+      "section": "Wish List — Facility 2",
+      "label": "Security Fencing and Gates — Priority (1 = fund first)",
+      "ordinal": 230,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_security_fencing_and_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Security Fencing and Gates — Currently have",
+      "ordinal": 231,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_fencing_and_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Security Fencing and Gates — What & why",
+      "ordinal": 232,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_fencing_and_where",
+      "section": "Wish List — Facility 2",
+      "label": "Security Fencing and Gates — Where at the site",
+      "ordinal": 233,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_fencing_and_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Security Fencing and Gates — Quantity / dimension",
+      "ordinal": 234,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_fencing_and_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Security Fencing and Gates — Est. cost",
+      "ordinal": 235,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_ballistic_rated_door_int",
+      "section": "Wish List — Facility 2",
+      "label": "Ballistic-Rated Doors — Priority (1 = fund first)",
+      "ordinal": 236,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_ballistic_rated_door_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Ballistic-Rated Doors — Currently have",
+      "ordinal": 237,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_ballistic_rated_door_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Ballistic-Rated Doors — What & why",
+      "ordinal": 238,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_ballistic_rated_door_where",
+      "section": "Wish List — Facility 2",
+      "label": "Ballistic-Rated Doors — Where at the site",
+      "ordinal": 239,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_ballistic_rated_door_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Ballistic-Rated Doors — Quantity / dimension",
+      "ordinal": 240,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_ballistic_rated_door_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Ballistic-Rated Doors — Est. cost",
+      "ordinal": 241,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_security_window_film_int",
+      "section": "Wish List — Facility 2",
+      "label": "Security Window Film — Priority (1 = fund first)",
+      "ordinal": 242,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_security_window_film_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Security Window Film — Currently have",
+      "ordinal": 243,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_window_film_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Security Window Film — What & why",
+      "ordinal": 244,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_window_film_where",
+      "section": "Wish List — Facility 2",
+      "label": "Security Window Film — Where at the site",
+      "ordinal": 245,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_window_film_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Security Window Film — Quantity / dimension",
+      "ordinal": 246,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_window_film_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Security Window Film — Est. cost",
+      "ordinal": 247,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_electronic_access_co_int",
+      "section": "Wish List — Facility 2",
+      "label": "Electronic Access Control — Priority (1 = fund first)",
+      "ordinal": 248,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_electronic_access_co_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Electronic Access Control — Currently have",
+      "ordinal": 249,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_electronic_access_co_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Electronic Access Control — What & why",
+      "ordinal": 250,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_electronic_access_co_where",
+      "section": "Wish List — Facility 2",
+      "label": "Electronic Access Control — Where at the site",
+      "ordinal": 251,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_electronic_access_co_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Electronic Access Control — Quantity / dimension",
+      "ordinal": 252,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_electronic_access_co_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Electronic Access Control — Est. cost",
+      "ordinal": 253,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_lockdown_system_int",
+      "section": "Wish List — Facility 2",
+      "label": "Lockdown System — Priority (1 = fund first)",
+      "ordinal": 254,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_lockdown_system_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Lockdown System — Currently have",
+      "ordinal": 255,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_lockdown_system_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Lockdown System — What & why",
+      "ordinal": 256,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_lockdown_system_where",
+      "section": "Wish List — Facility 2",
+      "label": "Lockdown System — Where at the site",
+      "ordinal": 257,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_lockdown_system_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Lockdown System — Quantity / dimension",
+      "ordinal": 258,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_lockdown_system_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Lockdown System — Est. cost",
+      "ordinal": 259,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_non_electronic_locks_int",
+      "section": "Wish List — Facility 2",
+      "label": "Non-Electronic Locks — Priority (1 = fund first)",
+      "ordinal": 260,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_non_electronic_locks_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Non-Electronic Locks — Currently have",
+      "ordinal": 261,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_non_electronic_locks_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Non-Electronic Locks — What & why",
+      "ordinal": 262,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_non_electronic_locks_where",
+      "section": "Wish List — Facility 2",
+      "label": "Non-Electronic Locks — Where at the site",
+      "ordinal": 263,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_non_electronic_locks_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Non-Electronic Locks — Quantity / dimension",
+      "ordinal": 264,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_non_electronic_locks_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Non-Electronic Locks — Est. cost",
+      "ordinal": 265,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_visitor_management_s_int",
+      "section": "Wish List — Facility 2",
+      "label": "Visitor Management System — Priority (1 = fund first)",
+      "ordinal": 266,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_visitor_management_s_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Visitor Management System — Currently have",
+      "ordinal": 267,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_visitor_management_s_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Visitor Management System — What & why",
+      "ordinal": 268,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_visitor_management_s_where",
+      "section": "Wish List — Facility 2",
+      "label": "Visitor Management System — Where at the site",
+      "ordinal": 269,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_visitor_management_s_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Visitor Management System — Quantity / dimension",
+      "ordinal": 270,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_visitor_management_s_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Visitor Management System — Est. cost",
+      "ordinal": 271,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_vehicle_gate_access__int",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Gate Access Control — Priority (1 = fund first)",
+      "ordinal": 272,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_vehicle_gate_access__cur",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Gate Access Control — Currently have",
+      "ordinal": 273,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_gate_access__desc",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Gate Access Control — What & why",
+      "ordinal": 274,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_gate_access__where",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Gate Access Control — Where at the site",
+      "ordinal": 275,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_gate_access__qty",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Gate Access Control — Quantity / dimension",
+      "ordinal": 276,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_vehicle_gate_access__cost",
+      "section": "Wish List — Facility 2",
+      "label": "Vehicle Gate Access Control — Est. cost",
+      "ordinal": 277,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_cctv_camera_system_int",
+      "section": "Wish List — Facility 2",
+      "label": "CCTV / Camera System — Priority (1 = fund first)",
+      "ordinal": 278,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_cctv_camera_system_cur",
+      "section": "Wish List — Facility 2",
+      "label": "CCTV / Camera System — Currently have",
+      "ordinal": 279,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_cctv_camera_system_desc",
+      "section": "Wish List — Facility 2",
+      "label": "CCTV / Camera System — What & why",
+      "ordinal": 280,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_cctv_camera_system_where",
+      "section": "Wish List — Facility 2",
+      "label": "CCTV / Camera System — Where at the site",
+      "ordinal": 281,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_cctv_camera_system_qty",
+      "section": "Wish List — Facility 2",
+      "label": "CCTV / Camera System — Quantity / dimension",
+      "ordinal": 282,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_cctv_camera_system_cost",
+      "section": "Wish List — Facility 2",
+      "label": "CCTV / Camera System — Est. cost",
+      "ordinal": 283,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_exterior_security_li_int",
+      "section": "Wish List — Facility 2",
+      "label": "Exterior Security Lighting — Priority (1 = fund first)",
+      "ordinal": 284,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_exterior_security_li_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Exterior Security Lighting — Currently have",
+      "ordinal": 285,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_exterior_security_li_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Exterior Security Lighting — What & why",
+      "ordinal": 286,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_exterior_security_li_where",
+      "section": "Wish List — Facility 2",
+      "label": "Exterior Security Lighting — Where at the site",
+      "ordinal": 287,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_exterior_security_li_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Exterior Security Lighting — Quantity / dimension",
+      "ordinal": 288,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_exterior_security_li_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Exterior Security Lighting — Est. cost",
+      "ordinal": 289,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_two_way_radios_int",
+      "section": "Wish List — Facility 2",
+      "label": "Two-Way Radios — Priority (1 = fund first)",
+      "ordinal": 290,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_two_way_radios_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Two-Way Radios — Currently have",
+      "ordinal": 291,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_two_way_radios_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Two-Way Radios — What & why",
+      "ordinal": 292,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_two_way_radios_where",
+      "section": "Wish List — Facility 2",
+      "label": "Two-Way Radios — Where at the site",
+      "ordinal": 293,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_two_way_radios_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Two-Way Radios — Quantity / dimension",
+      "ordinal": 294,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_two_way_radios_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Two-Way Radios — Est. cost",
+      "ordinal": 295,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_panic_buttons_duress_int",
+      "section": "Wish List — Facility 2",
+      "label": "Panic Buttons / Duress Alarms — Priority (1 = fund first)",
+      "ordinal": 296,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_panic_buttons_duress_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Panic Buttons / Duress Alarms — Currently have",
+      "ordinal": 297,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_panic_buttons_duress_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Panic Buttons / Duress Alarms — What & why",
+      "ordinal": 298,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_panic_buttons_duress_where",
+      "section": "Wish List — Facility 2",
+      "label": "Panic Buttons / Duress Alarms — Where at the site",
+      "ordinal": 299,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_panic_buttons_duress_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Panic Buttons / Duress Alarms — Quantity / dimension",
+      "ordinal": 300,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_panic_buttons_duress_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Panic Buttons / Duress Alarms — Est. cost",
+      "ordinal": 301,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_intrusion_detection__int",
+      "section": "Wish List — Facility 2",
+      "label": "Intrusion Detection System (IDS) — Priority (1 = fund first)",
+      "ordinal": 302,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_intrusion_detection__cur",
+      "section": "Wish List — Facility 2",
+      "label": "Intrusion Detection System (IDS) — Currently have",
+      "ordinal": 303,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_intrusion_detection__desc",
+      "section": "Wish List — Facility 2",
+      "label": "Intrusion Detection System (IDS) — What & why",
+      "ordinal": 304,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_intrusion_detection__where",
+      "section": "Wish List — Facility 2",
+      "label": "Intrusion Detection System (IDS) — Where at the site",
+      "ordinal": 305,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_intrusion_detection__qty",
+      "section": "Wish List — Facility 2",
+      "label": "Intrusion Detection System (IDS) — Quantity / dimension",
+      "ordinal": 306,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_intrusion_detection__cost",
+      "section": "Wish List — Facility 2",
+      "label": "Intrusion Detection System (IDS) — Est. cost",
+      "ordinal": 307,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_contracted_security__int",
+      "section": "Wish List — Facility 2",
+      "label": "Contracted Security Guards — Priority (1 = fund first)",
+      "ordinal": 308,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_contracted_security__cur",
+      "section": "Wish List — Facility 2",
+      "label": "Contracted Security Guards — Currently have",
+      "ordinal": 309,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_contracted_security__desc",
+      "section": "Wish List — Facility 2",
+      "label": "Contracted Security Guards — What & why",
+      "ordinal": 310,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_contracted_security__where",
+      "section": "Wish List — Facility 2",
+      "label": "Contracted Security Guards — Where at the site",
+      "ordinal": 311,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_contracted_security__qty",
+      "section": "Wish List — Facility 2",
+      "label": "Contracted Security Guards — Quantity / dimension",
+      "ordinal": 312,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_contracted_security__cost",
+      "section": "Wish List — Facility 2",
+      "label": "Contracted Security Guards — Est. cost",
+      "ordinal": 313,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_active_shooter_threa_int",
+      "section": "Wish List — Facility 2",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Priority (1 = fund first)",
+      "ordinal": 314,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_active_shooter_threa_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Currently have",
+      "ordinal": 315,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_active_shooter_threa_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — What & why",
+      "ordinal": 316,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_active_shooter_threa_where",
+      "section": "Wish List — Facility 2",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Where at the site",
+      "ordinal": 317,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_active_shooter_threa_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Quantity / dimension",
+      "ordinal": 318,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_active_shooter_threa_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Est. cost",
+      "ordinal": 319,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_tabletop_functional__int",
+      "section": "Wish List — Facility 2",
+      "label": "Tabletop / Functional Exercises — Priority (1 = fund first)",
+      "ordinal": 320,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_tabletop_functional__cur",
+      "section": "Wish List — Facility 2",
+      "label": "Tabletop / Functional Exercises — Currently have",
+      "ordinal": 321,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_tabletop_functional__desc",
+      "section": "Wish List — Facility 2",
+      "label": "Tabletop / Functional Exercises — What & why",
+      "ordinal": 322,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_tabletop_functional__where",
+      "section": "Wish List — Facility 2",
+      "label": "Tabletop / Functional Exercises — Where at the site",
+      "ordinal": 323,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_tabletop_functional__qty",
+      "section": "Wish List — Facility 2",
+      "label": "Tabletop / Functional Exercises — Quantity / dimension",
+      "ordinal": 324,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_tabletop_functional__cost",
+      "section": "Wish List — Facility 2",
+      "label": "Tabletop / Functional Exercises — Est. cost",
+      "ordinal": 325,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_security_plan_develo_int",
+      "section": "Wish List — Facility 2",
+      "label": "Security Plan Development — Priority (1 = fund first)",
+      "ordinal": 326,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_security_plan_develo_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Security Plan Development — Currently have",
+      "ordinal": 327,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_plan_develo_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Security Plan Development — What & why",
+      "ordinal": 328,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_plan_develo_where",
+      "section": "Wish List — Facility 2",
+      "label": "Security Plan Development — Where at the site",
+      "ordinal": 329,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_plan_develo_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Security Plan Development — Quantity / dimension",
+      "ordinal": 330,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_security_plan_develo_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Security Plan Development — Est. cost",
+      "ordinal": 331,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_other0_int",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Priority (1 = fund first)",
+      "ordinal": 332,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_other0_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Currently have",
+      "ordinal": 333,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other0_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — What & why",
+      "ordinal": 334,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other0_where",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Where at the site",
+      "ordinal": 335,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other0_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Quantity / dimension",
+      "ordinal": 336,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other0_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Est. cost",
+      "ordinal": 337,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_other1_int",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Priority (1 = fund first)",
+      "ordinal": 338,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f2_other1_cur",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Currently have",
+      "ordinal": 339,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other1_desc",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — What & why",
+      "ordinal": 340,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other1_where",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Where at the site",
+      "ordinal": 341,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other1_qty",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Quantity / dimension",
+      "ordinal": 342,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f2_other1_cost",
+      "section": "Wish List — Facility 2",
+      "label": "Other (describe →) — Est. cost",
+      "ordinal": 343,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f2_anything_else",
+      "section": "Wish List — Facility 2",
+      "label": "Anything else we should know?",
+      "ordinal": 344,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_bollards_int",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Bollards — Priority (1 = fund first)",
+      "ordinal": 345,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_vehicle_bollards_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Bollards — Currently have",
+      "ordinal": 346,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_bollards_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Bollards — What & why",
+      "ordinal": 347,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_bollards_where",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Bollards — Where at the site",
+      "ordinal": 348,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_bollards_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Bollards — Quantity / dimension",
+      "ordinal": 349,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_bollards_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Bollards — Est. cost",
+      "ordinal": 350,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_security_fencing_and_int",
+      "section": "Wish List — Facility 3",
+      "label": "Security Fencing and Gates — Priority (1 = fund first)",
+      "ordinal": 351,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_security_fencing_and_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Security Fencing and Gates — Currently have",
+      "ordinal": 352,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_fencing_and_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Security Fencing and Gates — What & why",
+      "ordinal": 353,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_fencing_and_where",
+      "section": "Wish List — Facility 3",
+      "label": "Security Fencing and Gates — Where at the site",
+      "ordinal": 354,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_fencing_and_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Security Fencing and Gates — Quantity / dimension",
+      "ordinal": 355,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_fencing_and_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Security Fencing and Gates — Est. cost",
+      "ordinal": 356,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_ballistic_rated_door_int",
+      "section": "Wish List — Facility 3",
+      "label": "Ballistic-Rated Doors — Priority (1 = fund first)",
+      "ordinal": 357,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_ballistic_rated_door_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Ballistic-Rated Doors — Currently have",
+      "ordinal": 358,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_ballistic_rated_door_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Ballistic-Rated Doors — What & why",
+      "ordinal": 359,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_ballistic_rated_door_where",
+      "section": "Wish List — Facility 3",
+      "label": "Ballistic-Rated Doors — Where at the site",
+      "ordinal": 360,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_ballistic_rated_door_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Ballistic-Rated Doors — Quantity / dimension",
+      "ordinal": 361,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_ballistic_rated_door_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Ballistic-Rated Doors — Est. cost",
+      "ordinal": 362,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_security_window_film_int",
+      "section": "Wish List — Facility 3",
+      "label": "Security Window Film — Priority (1 = fund first)",
+      "ordinal": 363,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_security_window_film_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Security Window Film — Currently have",
+      "ordinal": 364,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_window_film_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Security Window Film — What & why",
+      "ordinal": 365,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_window_film_where",
+      "section": "Wish List — Facility 3",
+      "label": "Security Window Film — Where at the site",
+      "ordinal": 366,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_window_film_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Security Window Film — Quantity / dimension",
+      "ordinal": 367,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_window_film_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Security Window Film — Est. cost",
+      "ordinal": 368,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_electronic_access_co_int",
+      "section": "Wish List — Facility 3",
+      "label": "Electronic Access Control — Priority (1 = fund first)",
+      "ordinal": 369,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_electronic_access_co_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Electronic Access Control — Currently have",
+      "ordinal": 370,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_electronic_access_co_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Electronic Access Control — What & why",
+      "ordinal": 371,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_electronic_access_co_where",
+      "section": "Wish List — Facility 3",
+      "label": "Electronic Access Control — Where at the site",
+      "ordinal": 372,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_electronic_access_co_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Electronic Access Control — Quantity / dimension",
+      "ordinal": 373,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_electronic_access_co_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Electronic Access Control — Est. cost",
+      "ordinal": 374,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_lockdown_system_int",
+      "section": "Wish List — Facility 3",
+      "label": "Lockdown System — Priority (1 = fund first)",
+      "ordinal": 375,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_lockdown_system_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Lockdown System — Currently have",
+      "ordinal": 376,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_lockdown_system_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Lockdown System — What & why",
+      "ordinal": 377,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_lockdown_system_where",
+      "section": "Wish List — Facility 3",
+      "label": "Lockdown System — Where at the site",
+      "ordinal": 378,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_lockdown_system_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Lockdown System — Quantity / dimension",
+      "ordinal": 379,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_lockdown_system_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Lockdown System — Est. cost",
+      "ordinal": 380,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_non_electronic_locks_int",
+      "section": "Wish List — Facility 3",
+      "label": "Non-Electronic Locks — Priority (1 = fund first)",
+      "ordinal": 381,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_non_electronic_locks_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Non-Electronic Locks — Currently have",
+      "ordinal": 382,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_non_electronic_locks_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Non-Electronic Locks — What & why",
+      "ordinal": 383,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_non_electronic_locks_where",
+      "section": "Wish List — Facility 3",
+      "label": "Non-Electronic Locks — Where at the site",
+      "ordinal": 384,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_non_electronic_locks_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Non-Electronic Locks — Quantity / dimension",
+      "ordinal": 385,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_non_electronic_locks_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Non-Electronic Locks — Est. cost",
+      "ordinal": 386,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_visitor_management_s_int",
+      "section": "Wish List — Facility 3",
+      "label": "Visitor Management System — Priority (1 = fund first)",
+      "ordinal": 387,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_visitor_management_s_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Visitor Management System — Currently have",
+      "ordinal": 388,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_visitor_management_s_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Visitor Management System — What & why",
+      "ordinal": 389,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_visitor_management_s_where",
+      "section": "Wish List — Facility 3",
+      "label": "Visitor Management System — Where at the site",
+      "ordinal": 390,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_visitor_management_s_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Visitor Management System — Quantity / dimension",
+      "ordinal": 391,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_visitor_management_s_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Visitor Management System — Est. cost",
+      "ordinal": 392,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_vehicle_gate_access__int",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Gate Access Control — Priority (1 = fund first)",
+      "ordinal": 393,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_vehicle_gate_access__cur",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Gate Access Control — Currently have",
+      "ordinal": 394,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_gate_access__desc",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Gate Access Control — What & why",
+      "ordinal": 395,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_gate_access__where",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Gate Access Control — Where at the site",
+      "ordinal": 396,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_gate_access__qty",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Gate Access Control — Quantity / dimension",
+      "ordinal": 397,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_vehicle_gate_access__cost",
+      "section": "Wish List — Facility 3",
+      "label": "Vehicle Gate Access Control — Est. cost",
+      "ordinal": 398,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_cctv_camera_system_int",
+      "section": "Wish List — Facility 3",
+      "label": "CCTV / Camera System — Priority (1 = fund first)",
+      "ordinal": 399,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_cctv_camera_system_cur",
+      "section": "Wish List — Facility 3",
+      "label": "CCTV / Camera System — Currently have",
+      "ordinal": 400,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_cctv_camera_system_desc",
+      "section": "Wish List — Facility 3",
+      "label": "CCTV / Camera System — What & why",
+      "ordinal": 401,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_cctv_camera_system_where",
+      "section": "Wish List — Facility 3",
+      "label": "CCTV / Camera System — Where at the site",
+      "ordinal": 402,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_cctv_camera_system_qty",
+      "section": "Wish List — Facility 3",
+      "label": "CCTV / Camera System — Quantity / dimension",
+      "ordinal": 403,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_cctv_camera_system_cost",
+      "section": "Wish List — Facility 3",
+      "label": "CCTV / Camera System — Est. cost",
+      "ordinal": 404,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_exterior_security_li_int",
+      "section": "Wish List — Facility 3",
+      "label": "Exterior Security Lighting — Priority (1 = fund first)",
+      "ordinal": 405,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_exterior_security_li_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Exterior Security Lighting — Currently have",
+      "ordinal": 406,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_exterior_security_li_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Exterior Security Lighting — What & why",
+      "ordinal": 407,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_exterior_security_li_where",
+      "section": "Wish List — Facility 3",
+      "label": "Exterior Security Lighting — Where at the site",
+      "ordinal": 408,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_exterior_security_li_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Exterior Security Lighting — Quantity / dimension",
+      "ordinal": 409,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_exterior_security_li_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Exterior Security Lighting — Est. cost",
+      "ordinal": 410,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_two_way_radios_int",
+      "section": "Wish List — Facility 3",
+      "label": "Two-Way Radios — Priority (1 = fund first)",
+      "ordinal": 411,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_two_way_radios_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Two-Way Radios — Currently have",
+      "ordinal": 412,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_two_way_radios_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Two-Way Radios — What & why",
+      "ordinal": 413,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_two_way_radios_where",
+      "section": "Wish List — Facility 3",
+      "label": "Two-Way Radios — Where at the site",
+      "ordinal": 414,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_two_way_radios_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Two-Way Radios — Quantity / dimension",
+      "ordinal": 415,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_two_way_radios_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Two-Way Radios — Est. cost",
+      "ordinal": 416,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_panic_buttons_duress_int",
+      "section": "Wish List — Facility 3",
+      "label": "Panic Buttons / Duress Alarms — Priority (1 = fund first)",
+      "ordinal": 417,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_panic_buttons_duress_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Panic Buttons / Duress Alarms — Currently have",
+      "ordinal": 418,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_panic_buttons_duress_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Panic Buttons / Duress Alarms — What & why",
+      "ordinal": 419,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_panic_buttons_duress_where",
+      "section": "Wish List — Facility 3",
+      "label": "Panic Buttons / Duress Alarms — Where at the site",
+      "ordinal": 420,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_panic_buttons_duress_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Panic Buttons / Duress Alarms — Quantity / dimension",
+      "ordinal": 421,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_panic_buttons_duress_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Panic Buttons / Duress Alarms — Est. cost",
+      "ordinal": 422,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_intrusion_detection__int",
+      "section": "Wish List — Facility 3",
+      "label": "Intrusion Detection System (IDS) — Priority (1 = fund first)",
+      "ordinal": 423,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_intrusion_detection__cur",
+      "section": "Wish List — Facility 3",
+      "label": "Intrusion Detection System (IDS) — Currently have",
+      "ordinal": 424,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_intrusion_detection__desc",
+      "section": "Wish List — Facility 3",
+      "label": "Intrusion Detection System (IDS) — What & why",
+      "ordinal": 425,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_intrusion_detection__where",
+      "section": "Wish List — Facility 3",
+      "label": "Intrusion Detection System (IDS) — Where at the site",
+      "ordinal": 426,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_intrusion_detection__qty",
+      "section": "Wish List — Facility 3",
+      "label": "Intrusion Detection System (IDS) — Quantity / dimension",
+      "ordinal": 427,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_intrusion_detection__cost",
+      "section": "Wish List — Facility 3",
+      "label": "Intrusion Detection System (IDS) — Est. cost",
+      "ordinal": 428,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_contracted_security__int",
+      "section": "Wish List — Facility 3",
+      "label": "Contracted Security Guards — Priority (1 = fund first)",
+      "ordinal": 429,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_contracted_security__cur",
+      "section": "Wish List — Facility 3",
+      "label": "Contracted Security Guards — Currently have",
+      "ordinal": 430,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_contracted_security__desc",
+      "section": "Wish List — Facility 3",
+      "label": "Contracted Security Guards — What & why",
+      "ordinal": 431,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_contracted_security__where",
+      "section": "Wish List — Facility 3",
+      "label": "Contracted Security Guards — Where at the site",
+      "ordinal": 432,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_contracted_security__qty",
+      "section": "Wish List — Facility 3",
+      "label": "Contracted Security Guards — Quantity / dimension",
+      "ordinal": 433,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_contracted_security__cost",
+      "section": "Wish List — Facility 3",
+      "label": "Contracted Security Guards — Est. cost",
+      "ordinal": 434,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_active_shooter_threa_int",
+      "section": "Wish List — Facility 3",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Priority (1 = fund first)",
+      "ordinal": 435,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_active_shooter_threa_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Currently have",
+      "ordinal": 436,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_active_shooter_threa_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — What & why",
+      "ordinal": 437,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_active_shooter_threa_where",
+      "section": "Wish List — Facility 3",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Where at the site",
+      "ordinal": 438,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_active_shooter_threa_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Quantity / dimension",
+      "ordinal": 439,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_active_shooter_threa_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Active Shooter / Threat Recognition / Stop the Bleed or other training — Est. cost",
+      "ordinal": 440,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_tabletop_functional__int",
+      "section": "Wish List — Facility 3",
+      "label": "Tabletop / Functional Exercises — Priority (1 = fund first)",
+      "ordinal": 441,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_tabletop_functional__cur",
+      "section": "Wish List — Facility 3",
+      "label": "Tabletop / Functional Exercises — Currently have",
+      "ordinal": 442,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_tabletop_functional__desc",
+      "section": "Wish List — Facility 3",
+      "label": "Tabletop / Functional Exercises — What & why",
+      "ordinal": 443,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_tabletop_functional__where",
+      "section": "Wish List — Facility 3",
+      "label": "Tabletop / Functional Exercises — Where at the site",
+      "ordinal": 444,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_tabletop_functional__qty",
+      "section": "Wish List — Facility 3",
+      "label": "Tabletop / Functional Exercises — Quantity / dimension",
+      "ordinal": 445,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_tabletop_functional__cost",
+      "section": "Wish List — Facility 3",
+      "label": "Tabletop / Functional Exercises — Est. cost",
+      "ordinal": 446,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_security_plan_develo_int",
+      "section": "Wish List — Facility 3",
+      "label": "Security Plan Development — Priority (1 = fund first)",
+      "ordinal": 447,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_security_plan_develo_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Security Plan Development — Currently have",
+      "ordinal": 448,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_plan_develo_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Security Plan Development — What & why",
+      "ordinal": 449,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_plan_develo_where",
+      "section": "Wish List — Facility 3",
+      "label": "Security Plan Development — Where at the site",
+      "ordinal": 450,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_plan_develo_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Security Plan Development — Quantity / dimension",
+      "ordinal": 451,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_security_plan_develo_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Security Plan Development — Est. cost",
+      "ordinal": 452,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_other0_int",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Priority (1 = fund first)",
+      "ordinal": 453,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_other0_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Currently have",
+      "ordinal": 454,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other0_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — What & why",
+      "ordinal": 455,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other0_where",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Where at the site",
+      "ordinal": 456,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other0_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Quantity / dimension",
+      "ordinal": 457,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other0_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Est. cost",
+      "ordinal": 458,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_other1_int",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Priority (1 = fund first)",
+      "ordinal": 459,
+      "kind": "select"
+    },
+    {
+      "key": "wl_f3_other1_cur",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Currently have",
+      "ordinal": 460,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other1_desc",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — What & why",
+      "ordinal": 461,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other1_where",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Where at the site",
+      "ordinal": 462,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other1_qty",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Quantity / dimension",
+      "ordinal": 463,
+      "kind": "textarea"
+    },
+    {
+      "key": "wl_f3_other1_cost",
+      "section": "Wish List — Facility 3",
+      "label": "Other (describe →) — Est. cost",
+      "ordinal": 464,
+      "kind": "text"
+    },
+    {
+      "key": "wl_f3_anything_else",
+      "section": "Wish List — Facility 3",
+      "label": "Anything else we should know?",
+      "ordinal": 465,
+      "kind": "textarea"
+    },
+    {
+      "key": "prog1_name",
+      "section": "Programs",
+      "label": "Program 1 — Program Name",
+      "ordinal": 466,
+      "kind": "text"
+    },
+    {
+      "key": "prog1_desc",
+      "section": "Programs",
+      "label": "Program 1 — Description",
+      "ordinal": 467,
+      "kind": "text"
+    },
+    {
+      "key": "prog1_freq",
+      "section": "Programs",
+      "label": "Program 1 — Frequency",
+      "ordinal": 468,
+      "kind": "text"
+    },
+    {
+      "key": "prog1_runby",
+      "section": "Programs",
+      "label": "Program 1 — Run by",
+      "ordinal": 469,
+      "kind": "select"
+    },
+    {
+      "key": "prog1_demo",
+      "section": "Programs",
+      "label": "Program 1 — Demographic",
+      "ordinal": 470,
+      "kind": "text"
+    },
+    {
+      "key": "prog1_people",
+      "section": "Programs",
+      "label": "Program 1 — # People",
+      "ordinal": 471,
+      "kind": "text"
+    },
+    {
+      "key": "prog2_name",
+      "section": "Programs",
+      "label": "Program 2 — Program Name",
+      "ordinal": 472,
+      "kind": "text"
+    },
+    {
+      "key": "prog2_desc",
+      "section": "Programs",
+      "label": "Program 2 — Description",
+      "ordinal": 473,
+      "kind": "text"
+    },
+    {
+      "key": "prog2_freq",
+      "section": "Programs",
+      "label": "Program 2 — Frequency",
+      "ordinal": 474,
+      "kind": "text"
+    },
+    {
+      "key": "prog2_runby",
+      "section": "Programs",
+      "label": "Program 2 — Run by",
+      "ordinal": 475,
+      "kind": "select"
+    },
+    {
+      "key": "prog2_demo",
+      "section": "Programs",
+      "label": "Program 2 — Demographic",
+      "ordinal": 476,
+      "kind": "text"
+    },
+    {
+      "key": "prog2_people",
+      "section": "Programs",
+      "label": "Program 2 — # People",
+      "ordinal": 477,
+      "kind": "text"
+    },
+    {
+      "key": "prog3_name",
+      "section": "Programs",
+      "label": "Program 3 — Program Name",
+      "ordinal": 478,
+      "kind": "text"
+    },
+    {
+      "key": "prog3_desc",
+      "section": "Programs",
+      "label": "Program 3 — Description",
+      "ordinal": 479,
+      "kind": "text"
+    },
+    {
+      "key": "prog3_freq",
+      "section": "Programs",
+      "label": "Program 3 — Frequency",
+      "ordinal": 480,
+      "kind": "text"
+    },
+    {
+      "key": "prog3_runby",
+      "section": "Programs",
+      "label": "Program 3 — Run by",
+      "ordinal": 481,
+      "kind": "select"
+    },
+    {
+      "key": "prog3_demo",
+      "section": "Programs",
+      "label": "Program 3 — Demographic",
+      "ordinal": 482,
+      "kind": "text"
+    },
+    {
+      "key": "prog3_people",
+      "section": "Programs",
+      "label": "Program 3 — # People",
+      "ordinal": 483,
+      "kind": "text"
+    },
+    {
+      "key": "prog4_name",
+      "section": "Programs",
+      "label": "Program 4 — Program Name",
+      "ordinal": 484,
+      "kind": "text"
+    },
+    {
+      "key": "prog4_desc",
+      "section": "Programs",
+      "label": "Program 4 — Description",
+      "ordinal": 485,
+      "kind": "text"
+    },
+    {
+      "key": "prog4_freq",
+      "section": "Programs",
+      "label": "Program 4 — Frequency",
+      "ordinal": 486,
+      "kind": "text"
+    },
+    {
+      "key": "prog4_runby",
+      "section": "Programs",
+      "label": "Program 4 — Run by",
+      "ordinal": 487,
+      "kind": "select"
+    },
+    {
+      "key": "prog4_demo",
+      "section": "Programs",
+      "label": "Program 4 — Demographic",
+      "ordinal": 488,
+      "kind": "text"
+    },
+    {
+      "key": "prog4_people",
+      "section": "Programs",
+      "label": "Program 4 — # People",
+      "ordinal": 489,
+      "kind": "text"
+    },
+    {
+      "key": "prog5_name",
+      "section": "Programs",
+      "label": "Program 5 — Program Name",
+      "ordinal": 490,
+      "kind": "text"
+    },
+    {
+      "key": "prog5_desc",
+      "section": "Programs",
+      "label": "Program 5 — Description",
+      "ordinal": 491,
+      "kind": "text"
+    },
+    {
+      "key": "prog5_freq",
+      "section": "Programs",
+      "label": "Program 5 — Frequency",
+      "ordinal": 492,
+      "kind": "text"
+    },
+    {
+      "key": "prog5_runby",
+      "section": "Programs",
+      "label": "Program 5 — Run by",
+      "ordinal": 493,
+      "kind": "select"
+    },
+    {
+      "key": "prog5_demo",
+      "section": "Programs",
+      "label": "Program 5 — Demographic",
+      "ordinal": 494,
+      "kind": "text"
+    },
+    {
+      "key": "prog5_people",
+      "section": "Programs",
+      "label": "Program 5 — # People",
+      "ordinal": 495,
+      "kind": "text"
+    },
+    {
+      "key": "prog6_name",
+      "section": "Programs",
+      "label": "Program 6 — Program Name",
+      "ordinal": 496,
+      "kind": "text"
+    },
+    {
+      "key": "prog6_desc",
+      "section": "Programs",
+      "label": "Program 6 — Description",
+      "ordinal": 497,
+      "kind": "text"
+    },
+    {
+      "key": "prog6_freq",
+      "section": "Programs",
+      "label": "Program 6 — Frequency",
+      "ordinal": 498,
+      "kind": "text"
+    },
+    {
+      "key": "prog6_runby",
+      "section": "Programs",
+      "label": "Program 6 — Run by",
+      "ordinal": 499,
+      "kind": "select"
+    },
+    {
+      "key": "prog6_demo",
+      "section": "Programs",
+      "label": "Program 6 — Demographic",
+      "ordinal": 500,
+      "kind": "text"
+    },
+    {
+      "key": "prog6_people",
+      "section": "Programs",
+      "label": "Program 6 — # People",
+      "ordinal": 501,
+      "kind": "text"
+    },
+    {
+      "key": "up_mission",
+      "section": "Uploads",
+      "label": "Mission statement on letterhead (file)",
+      "ordinal": 502,
+      "kind": "upload"
+    },
+    {
+      "key": "up_501c3",
+      "section": "Uploads",
+      "label": "501(c)(3) determination letter (file)",
+      "ordinal": 503,
+      "kind": "upload"
+    },
+    {
+      "key": "up_va",
+      "section": "Uploads",
+      "label": "Vulnerability assessment (if you have one) (file)",
+      "ordinal": 504,
+      "kind": "upload"
+    },
+    {
+      "key": "up_bios",
+      "section": "Uploads",
+      "label": "Leadership bios & resumes (PII-scrubbed) (file)",
+      "ordinal": 505,
+      "kind": "upload"
+    },
+    {
+      "key": "_filled_by",
+      "section": "About this response",
+      "label": "Who is filling this out? (name / role)",
+      "ordinal": 506,
+      "kind": "text"
+    },
+    {
+      "key": "_status",
+      "section": "About this response",
+      "label": "Submission status",
+      "ordinal": 507,
+      "kind": "meta"
+    },
+    {
+      "key": "chk_status_kickoff_call",
+      "section": "Checklist",
+      "label": "Kickoff call — status",
+      "ordinal": 508,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_kickoff_call",
+      "section": "Checklist",
+      "label": "Kickoff call — due date",
+      "ordinal": 509,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_kickoff_call",
+      "section": "Checklist",
+      "label": "Kickoff call — notes",
+      "ordinal": 510,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_sam_gov_uei_registration",
+      "section": "Checklist",
+      "label": "SAM.gov / UEI registration — owner",
+      "ordinal": 511,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_sam_gov_uei_registration",
+      "section": "Checklist",
+      "label": "SAM.gov / UEI registration — status",
+      "ordinal": 512,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_sam_gov_uei_registration",
+      "section": "Checklist",
+      "label": "SAM.gov / UEI registration — due date",
+      "ordinal": 513,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_sam_gov_uei_registration",
+      "section": "Checklist",
+      "label": "SAM.gov / UEI registration — notes",
+      "ordinal": 514,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_confirm_obtain_ein",
+      "section": "Checklist",
+      "label": "Confirm / obtain EIN — owner",
+      "ordinal": 515,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_confirm_obtain_ein",
+      "section": "Checklist",
+      "label": "Confirm / obtain EIN — status",
+      "ordinal": 516,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_confirm_obtain_ein",
+      "section": "Checklist",
+      "label": "Confirm / obtain EIN — due date",
+      "ordinal": 517,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_confirm_obtain_ein",
+      "section": "Checklist",
+      "label": "Confirm / obtain EIN — notes",
+      "ordinal": 518,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_501_c_3_determination_letter",
+      "section": "Checklist",
+      "label": "501(c)(3) determination letter — owner",
+      "ordinal": 519,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_501_c_3_determination_letter",
+      "section": "Checklist",
+      "label": "501(c)(3) determination letter — status",
+      "ordinal": 520,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_501_c_3_determination_letter",
+      "section": "Checklist",
+      "label": "501(c)(3) determination letter — due date",
+      "ordinal": 521,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_501_c_3_determination_letter",
+      "section": "Checklist",
+      "label": "501(c)(3) determination letter — notes",
+      "ordinal": 522,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_confirm_legal_org_name_w_secretary",
+      "section": "Checklist",
+      "label": "Confirm legal org name w/ Secretary of State — status",
+      "ordinal": 523,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_confirm_legal_org_name_w_secretary",
+      "section": "Checklist",
+      "label": "Confirm legal org name w/ Secretary of State — due date",
+      "ordinal": 524,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_confirm_legal_org_name_w_secretary",
+      "section": "Checklist",
+      "label": "Confirm legal org name w/ Secretary of State — notes",
+      "ordinal": 525,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_schedule_follow_up_call",
+      "section": "Checklist",
+      "label": "Schedule follow-up call — status",
+      "ordinal": 526,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_schedule_follow_up_call",
+      "section": "Checklist",
+      "label": "Schedule follow-up call — due date",
+      "ordinal": 527,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_schedule_follow_up_call",
+      "section": "Checklist",
+      "label": "Schedule follow-up call — notes",
+      "ordinal": 528,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_state_reg",
+      "section": "Checklist",
+      "label": "State registration — owner",
+      "ordinal": 529,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_state_reg",
+      "section": "Checklist",
+      "label": "State registration — status",
+      "ordinal": 530,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_state_reg",
+      "section": "Checklist",
+      "label": "State registration — due date",
+      "ordinal": 531,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_state_reg",
+      "section": "Checklist",
+      "label": "State registration — notes",
+      "ordinal": 532,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_information_collection_workbook_co",
+      "section": "Checklist",
+      "label": "Information-collection workbook complete — owner",
+      "ordinal": 533,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_information_collection_workbook_co",
+      "section": "Checklist",
+      "label": "Information-collection workbook complete — status",
+      "ordinal": 534,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_information_collection_workbook_co",
+      "section": "Checklist",
+      "label": "Information-collection workbook complete — due date",
+      "ordinal": 535,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_information_collection_workbook_co",
+      "section": "Checklist",
+      "label": "Information-collection workbook complete — notes",
+      "ordinal": 536,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_mission_statement_on_letterhead",
+      "section": "Checklist",
+      "label": "Mission statement on letterhead — owner",
+      "ordinal": 537,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_mission_statement_on_letterhead",
+      "section": "Checklist",
+      "label": "Mission statement on letterhead — status",
+      "ordinal": 538,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_mission_statement_on_letterhead",
+      "section": "Checklist",
+      "label": "Mission statement on letterhead — due date",
+      "ordinal": 539,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_mission_statement_on_letterhead",
+      "section": "Checklist",
+      "label": "Mission statement on letterhead — notes",
+      "ordinal": 540,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_preparedness_efforts_law_enforceme",
+      "section": "Checklist",
+      "label": "Preparedness efforts (law-enforcement relationships) — owner",
+      "ordinal": 541,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_preparedness_efforts_law_enforceme",
+      "section": "Checklist",
+      "label": "Preparedness efforts (law-enforcement relationships) — status",
+      "ordinal": 542,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_preparedness_efforts_law_enforceme",
+      "section": "Checklist",
+      "label": "Preparedness efforts (law-enforcement relationships) — due date",
+      "ordinal": 543,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_preparedness_efforts_law_enforceme",
+      "section": "Checklist",
+      "label": "Preparedness efforts (law-enforcement relationships) — notes",
+      "ordinal": 544,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_leadership_bios_resumes_pii_scrubb",
+      "section": "Checklist",
+      "label": "Leadership bios & resumes (PII-scrubbed) — owner",
+      "ordinal": 545,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_leadership_bios_resumes_pii_scrubb",
+      "section": "Checklist",
+      "label": "Leadership bios & resumes (PII-scrubbed) — status",
+      "ordinal": 546,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_leadership_bios_resumes_pii_scrubb",
+      "section": "Checklist",
+      "label": "Leadership bios & resumes (PII-scrubbed) — due date",
+      "ordinal": 547,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_leadership_bios_resumes_pii_scrubb",
+      "section": "Checklist",
+      "label": "Leadership bios & resumes (PII-scrubbed) — notes",
+      "ordinal": 548,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_vulnerability_assessment_request",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — request — owner",
+      "ordinal": 549,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_vulnerability_assessment_request",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — request — status",
+      "ordinal": 550,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_vulnerability_assessment_request",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — request — due date",
+      "ordinal": 551,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_vulnerability_assessment_request",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — request — notes",
+      "ordinal": 552,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_vulnerability_assessment_scheduled",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — scheduled — owner",
+      "ordinal": 553,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_vulnerability_assessment_scheduled",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — scheduled — status",
+      "ordinal": 554,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_vulnerability_assessment_scheduled",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — scheduled — due date",
+      "ordinal": 555,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_vulnerability_assessment_scheduled",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — scheduled — notes",
+      "ordinal": 556,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_vulnerability_assessment_received",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — received — owner",
+      "ordinal": 557,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_vulnerability_assessment_received",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — received — status",
+      "ordinal": 558,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_vulnerability_assessment_received",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — received — due date",
+      "ordinal": 559,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_vulnerability_assessment_received",
+      "section": "Checklist",
+      "label": "Vulnerability assessment — received — notes",
+      "ordinal": 560,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_wish_list_ideation_per_location",
+      "section": "Checklist",
+      "label": "Wish-list ideation (per location) — owner",
+      "ordinal": 561,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_wish_list_ideation_per_location",
+      "section": "Checklist",
+      "label": "Wish-list ideation (per location) — status",
+      "ordinal": 562,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_wish_list_ideation_per_location",
+      "section": "Checklist",
+      "label": "Wish-list ideation (per location) — due date",
+      "ordinal": 563,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_wish_list_ideation_per_location",
+      "section": "Checklist",
+      "label": "Wish-list ideation (per location) — notes",
+      "ordinal": 564,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_wish_list_prioritization",
+      "section": "Checklist",
+      "label": "Wish-list prioritization — status",
+      "ordinal": 565,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_wish_list_prioritization",
+      "section": "Checklist",
+      "label": "Wish-list prioritization — due date",
+      "ordinal": 566,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_wish_list_prioritization",
+      "section": "Checklist",
+      "label": "Wish-list prioritization — notes",
+      "ordinal": 567,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_who_vendor_quotes_for_wish_list_items",
+      "section": "Checklist",
+      "label": "Vendor quotes for wish-list items — owner",
+      "ordinal": 568,
+      "kind": "text"
+    },
+    {
+      "key": "chk_status_vendor_quotes_for_wish_list_items",
+      "section": "Checklist",
+      "label": "Vendor quotes for wish-list items — status",
+      "ordinal": 569,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_vendor_quotes_for_wish_list_items",
+      "section": "Checklist",
+      "label": "Vendor quotes for wish-list items — due date",
+      "ordinal": 570,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_vendor_quotes_for_wish_list_items",
+      "section": "Checklist",
+      "label": "Vendor quotes for wish-list items — notes",
+      "ordinal": 571,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_wish_list_budget_finalization",
+      "section": "Checklist",
+      "label": "Wish-list / budget finalization — status",
+      "ordinal": 572,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_wish_list_budget_finalization",
+      "section": "Checklist",
+      "label": "Wish-list / budget finalization — due date",
+      "ordinal": 573,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_wish_list_budget_finalization",
+      "section": "Checklist",
+      "label": "Wish-list / budget finalization — notes",
+      "ordinal": 574,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_investment_justification_ij_prepar",
+      "section": "Checklist",
+      "label": "Investment Justification (IJ) preparation — status",
+      "ordinal": 575,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_investment_justification_ij_prepar",
+      "section": "Checklist",
+      "label": "Investment Justification (IJ) preparation — due date",
+      "ordinal": 576,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_investment_justification_ij_prepar",
+      "section": "Checklist",
+      "label": "Investment Justification (IJ) preparation — notes",
+      "ordinal": 577,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_application_drafting",
+      "section": "Checklist",
+      "label": "Application drafting — status",
+      "ordinal": 578,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_application_drafting",
+      "section": "Checklist",
+      "label": "Application drafting — due date",
+      "ordinal": 579,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_application_drafting",
+      "section": "Checklist",
+      "label": "Application drafting — notes",
+      "ordinal": 580,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_final_review_edits",
+      "section": "Checklist",
+      "label": "Final review & edits — status",
+      "ordinal": 581,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_final_review_edits",
+      "section": "Checklist",
+      "label": "Final review & edits — due date",
+      "ordinal": 582,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_final_review_edits",
+      "section": "Checklist",
+      "label": "Final review & edits — notes",
+      "ordinal": 583,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_review_application_with_you",
+      "section": "Checklist",
+      "label": "Review application with you — status",
+      "ordinal": 584,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_review_application_with_you",
+      "section": "Checklist",
+      "label": "Review application with you — due date",
+      "ordinal": 585,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_review_application_with_you",
+      "section": "Checklist",
+      "label": "Review application with you — notes",
+      "ordinal": 586,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_assemble_submission_package",
+      "section": "Checklist",
+      "label": "Assemble submission package — status",
+      "ordinal": 587,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_assemble_submission_package",
+      "section": "Checklist",
+      "label": "Assemble submission package — due date",
+      "ordinal": 588,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_assemble_submission_package",
+      "section": "Checklist",
+      "label": "Assemble submission package — notes",
+      "ordinal": 589,
+      "kind": "textarea"
+    },
+    {
+      "key": "chk_status_submit_application",
+      "section": "Checklist",
+      "label": "Submit application — status",
+      "ordinal": 590,
+      "kind": "select"
+    },
+    {
+      "key": "chk_due_submit_application",
+      "section": "Checklist",
+      "label": "Submit application — due date",
+      "ordinal": 591,
+      "kind": "text"
+    },
+    {
+      "key": "chk_note_submit_application",
+      "section": "Checklist",
+      "label": "Submit application — notes",
+      "ordinal": 592,
+      "kind": "textarea"
+    }
+  ]
+}
