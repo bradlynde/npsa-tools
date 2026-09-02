@@ -49,6 +49,11 @@ export type BookingRow = {
   /** Which rule supplied the campaign — see attributionNote(). */
   attribution_source?: string | null;
   instantly_campaign: string | null;
+  /** The campaign's Instantly id. Names drift when a campaign is renamed; an id
+   *  does not, so campaignsInRange() groups on this and falls back to the name
+   *  only for rows enriched before the column existed. Optional because the
+   *  backend only began sending it alongside this change. */
+  instantly_campaign_id?: string | null;
   host: string | null;
   held: boolean | null;
   became_client: boolean | null;
@@ -520,6 +525,31 @@ export function channelsInRange(
 }
 
 /**
+ * Campaign names Instantly no longer answers to, because the campaign was renamed
+ * under them, mapped to the id and the current name.
+ *
+ * The backend keeps the same map, but only the id: it resolves the name live from
+ * Instantly. The browser has no such call, so the name is carried here too --
+ * which means this list has to be updated on a rename, and the id is what saves it
+ * from being wrong in the meantime. Rows with an id do not consult this at all;
+ * it is only for bookings enriched before instantly_campaign_id existed.
+ */
+const CAMPAIGN_DEAD_NAMES: Record<string, { id: string; name: string }> = {
+  'remarket fy27 - non-repliers (excl il, ca)': {
+    id: '8552c05f-c927-48ee-b654-66f33e1c5cf1',
+    name: 'Remarket FY27 - Non-Repliers',
+  },
+  'ca outreach - csnsgp fy26 (6-step)': {
+    id: '28c9205e-23fe-4e10-b5fc-839cb2e9f0ab',
+    name: 'CA Outreach - CSNSGP FY26',
+  },
+  'il outreach - uncontacted (6-step)': {
+    id: 'e16e3d42-d3bc-40ce-88e8-756b2aa79ee8',
+    name: 'IL Outreach - Uncontacted',
+  },
+};
+
+/**
  * Range-scoped breakdown by campaign AND source, which is what the panel is
  * titled and what the upstream by-campaign table has always returned.
  *
@@ -535,12 +565,45 @@ export function campaignsInRange(
   range: Range
 ): { campaign: string; isCampaign: boolean; booked: number; held: number; loes: number; fees: number }[] {
   const from = rangeStart(range);
-  const map = new Map<string, { isCampaign: boolean; booked: number; held: number; loes: number; fees: number }>();
+
+  // A campaign renamed in Instantly leaves its OLD name on every booking taken
+  // before the rename, so grouping on the name alone splits one campaign into two
+  // rows -- three were showing as separate one-booking campaigns when this was
+  // written, and #158 and #173 could not stop it because they fixed the fold in
+  // by-campaign, which this panel does not call.
+  //
+  // Grouping on the id alone does not work either: a booking enriched before the
+  // id column existed has none, and would not merge with one that does. So the
+  // key is a canonical NAME, and the id is what canonicalises it -- every row
+  // sharing an id resolves to the same name, whichever of its names it carries.
+  const idToName = new Map<string, string>();
+  for (const b of bookings) {
+    const id = b.instantly_campaign_id;
+    const name = b.instantly_campaign?.trim();
+    if (!id || !name) continue;
+    // Prefer a name Instantly still answers to: a dead one only wins if it is all
+    // this id ever appears with.
+    if (!idToName.has(id) || CAMPAIGN_DEAD_NAMES[idToName.get(id)!.toLowerCase()]) {
+      idToName.set(id, name);
+    }
+  }
+
+  const map = new Map<
+    string,
+    { campaign: string; isCampaign: boolean; booked: number; held: number; loes: number; fees: number }
+  >();
   for (const b of bookings) {
     if (!countsTowardTotals(b)) continue;
     if (!b.booked_on) continue;
     if (new Date(b.booked_on) < from) continue;
-    const named = b.instantly_campaign?.trim();
+    const stored = b.instantly_campaign?.trim();
+    // The id names the campaign when there is one. Failing that -- rows older than
+    // the column -- the dead-name map does, and failing that the stored name is
+    // all there is.
+    const named =
+      (b.instantly_campaign_id ? idToName.get(b.instantly_campaign_id) : undefined) ??
+      (stored ? CAMPAIGN_DEAD_NAMES[stored.toLowerCase()]?.name : undefined) ??
+      stored;
     // An Instantly booking with no campaign is a real gap. Anything else simply
     // came from somewhere that is not a campaign, and says so.
     const key =
@@ -548,7 +611,9 @@ export function campaignsInRange(
       (b.attribution_channel === 'instantly'
         ? 'Instantly — campaign unknown'
         : channelLabel(b.attribution_channel));
-    const cur = map.get(key) || { isCampaign: Boolean(named), booked: 0, held: 0, loes: 0, fees: 0 };
+    const cur = map.get(key) || {
+      campaign: key, isCampaign: Boolean(named), booked: 0, held: 0, loes: 0, fees: 0,
+    };
     cur.booked += 1;
     if (b.held) cur.held += 1;
     if (b.became_client) {
@@ -557,9 +622,7 @@ export function campaignsInRange(
     }
     map.set(key, cur);
   }
-  return [...map.entries()]
-    .map(([campaign, v]) => ({ campaign, ...v }))
-    .sort((a, b) => b.booked - a.booked);
+  return [...map.values()].sort((a, b) => b.booked - a.booked);
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
