@@ -3,9 +3,9 @@
 Phase 2, step 2 of the roadmap in [mcp.md](mcp.md). Written 2026-09-02 as the plan for the
 work; it is kept current as each PR lands, so the "Status" line below says what is real.
 
-**Status:** PR 1 (schema, catalog, routes), PR 2 (MCP tools) and PR 3 (the client page,
-with its Vercel passthrough on the `frontend` branch) are in. Uploads come next, then
-the import and cutover, so no client loses the Documents tab in between.
+**Status:** schema and routes, MCP tools, the client page with its Vercel passthrough,
+and uploads are in. What remains is the import of the Apps Script registry and the
+cutover.
 
 ## Why
 
@@ -149,8 +149,9 @@ pre-registered at 2 MB for `/api/clients` and `/api/intake` so a full seed fits.
 | GET | `/client/:slug?t=` | token | The intake page (PR 3). Until then a valid link gets a 503 "not deployed here yet" page. Wrong token → the same "invalid or expired" page as today, HTTP 404. Rescues a Gmail-mangled query (`?client%3Dslug%26t%3Dtoken&source=gmail…`) the way `doGet` did. |
 | PUT | `/api/intake/:slug/answers` | token | Client autosave: `{ answers: {key: value} }`. Catalog keys only, no meta keys. Bumps `last_client_activity_at`. |
 | POST | `/api/intake/:slug/complete` | token | Writes `_status = "Submitted <date> CT by <who>"`, sets `status=submitted` and `submitted_at` if the client was active. No email in this build. |
-| POST | `/api/intake/:slug/upload` | token | PR 5. |
-| GET | `/api/clients/:slug/uploads[/:id]` | team | PR 5. |
+| POST | `/api/intake/:slug/upload` | token | Multipart with fields `key` (an upload question) and `file`. PDF/JPG/PNG decided by the file's first bytes, 25 MB cap. Stores the file, writes the `up_*` answer, mirrors to Drive when configured. Answers CORS for the page's origin only. |
+| GET | `/api/clients/:slug/uploads` | team | Uploads with label, filename, type, size, uploader, time, Drive link and download path. |
+| GET | `/api/clients/:slug/uploads/:id` | team | The file bytes, as an attachment. |
 
 `intake_url` is `INTAKE_BASE_URL` + `/client/<slug>?t=<token>`; unset, the request host
 is used. Set the variable to `https://npsa-tools.vercel.app` once the passthrough is live,
@@ -168,6 +169,7 @@ Reads, annotated read-only:
 | `intake_questions` | `section?`, `prefix?` | `GET /api/intake/questions`. The description tells Claude to look keys up here before seeding. |
 | `intake_answers` | `slug`, `section?`, `include_empty?` | `GET /api/clients/:slug/answers` |
 | `intake_status` | `slug` | `GET /api/clients/:slug/status` |
+| `intake_uploads_list` | `slug` | `GET /api/clients/:slug/uploads` (metadata and download path; bytes stay on the backend) |
 
 Writes, description opening `WRITE. Confirm with the user before calling.`, each logged
 with the caller's key fingerprint:
@@ -188,9 +190,7 @@ Script's `jsForInject_` did), and the three `google.script.run` calls replaced b
 `fetch` against `/api/intake/<slug>/answers`, `/api/intake/<slug>/complete` and
 `/api/intake/<slug>/upload`. The token travels in the `X-Intake-Token` header. A 401 on
 any call turns the save pill into "this link is no longer valid" instead of retrying
-forever. Everything a client sees stays the same. Until uploads land, the upload route
-answers 503 with a sentence the Documents tab shows ("email the file to your NPSA
-contact").
+forever. Everything a client sees stays the same.
 
 The page is served two ways:
 
@@ -204,10 +204,12 @@ The page is served two ways:
 `INTAKE_BASE_URL` on Railway sets the host that goes into `intake_url`:
 `https://npsa-tools.vercel.app` once the passthrough is live, and the custom domain
 after it is added to the `npsa-tools` Vercel project with a CNAME in Squarespace DNS.
-`INTAKE_API_BASE` (optional, default relative) points the page's calls at another origin;
-uploads may need it, because Vercel functions cap request bodies at 4.5 MB while the
-form allows 25 MB, so the uploads PR will either post straight to Railway with CORS or
-size the passthrough accordingly.
+`INTAKE_UPLOAD_BASE` (optional) is where the page sends file uploads. Vercel functions
+cap request bodies at 4.5 MB while the form allows 25 MB, so set it to the Railway origin
+(`https://loe-generator-production.up.railway.app`) once the page is served from Vercel;
+the upload route answers CORS preflight for `INTAKE_BASE_URL`'s origin and no other. Every
+other call stays relative. `INTAKE_API_BASE` (optional) does the same for the rest of the
+page's calls, should that ever be wanted.
 
 ## Cutover for existing clients (after uploads)
 
@@ -233,14 +235,34 @@ size the passthrough accordingly.
 - **nsgp-inhouse-closeout** renders the archive from `intake_answers`, then
   `client_update status=closed` (or `cancelled`).
 
-## Uploads (next PR)
+## Uploads
 
-Multipart to `/api/intake/:slug/upload`, one file, PDF/JPG/PNG checked by magic bytes,
-25 MB cap, bytes in `intake_uploads.content`. Team list/download routes and an
-`intake_uploads_list` tool. If `GOOGLE_SERVICE_ACCOUNT_JSON` is set, a best-effort push
-into `upload_folder_id` (JWT-signed access token, Drive multipart upload with
-`supportsAllDrives=true`); failure leaves the Postgres copy intact and the client never
-sees a Drive error.
+The Documents tab posts multipart to `/api/intake/:slug/upload`. The server reads it with
+Node's own `Response.formData()` (no new dependency; works on the Node 18 image),
+decides the type from the file's first bytes (`%PDF`, JPEG and PNG signatures) rather
+than the declared type, caps it at 25 MB, and stores the bytes in `intake_uploads`.
+The `up_*` answer becomes "<filename> (uploaded <date>)" so the form shows "Uploaded ✓"
+on the next visit, and the client's quiet clock resets. The team reads the list through
+`GET /api/clients/:slug/uploads` or `intake_uploads_list`, and the bytes through
+`GET /api/clients/:slug/uploads/:id` with a bearer key.
+
+### Drive mirror (optional)
+
+Set `GOOGLE_SERVICE_ACCOUNT_JSON` on Railway to the contents of a service account's key
+file and every upload is also pushed into the client's `upload_folder_id` (their Phase 2
+folder) by `server/drive.js`: the account signs a JWT, trades it for an access token, and
+sends one multipart upload with `supportsAllDrives=true`. The Drive link is recorded on
+the upload row and appended to the `up_*` answer. A Drive failure is logged and the
+Postgres copy stands; the client never sees it. Without the variable nothing is
+attempted.
+
+One-time setup: create a service account in a Google Cloud project, enable the Drive
+API, create a JSON key, paste it into the Railway variable, and add the account's email
+(`…@…iam.gserviceaccount.com`) to the Shared Drive that holds client folders as a
+Content Manager. A folder on someone's My Drive also works if shared with that email,
+but then the service account owns the files and they count against its own 15 GB. If the
+Google Cloud side proves painful, skip it: the files are in Postgres and the tool, and
+clients can always email them.
 
 ## Client email verification (later)
 

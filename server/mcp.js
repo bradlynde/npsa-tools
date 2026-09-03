@@ -40,7 +40,7 @@ import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { getBooking } from './precall-bookings.js';
 
 export const MCP_PATH = '/mcp';
-const SERVER_INFO = { name: 'npsa-tools', version: '1.2.0' };
+const SERVER_INFO = { name: 'npsa-tools', version: '1.3.0' };
 
 const INSTRUCTIONS = `NPSA Sales Toolbox: Nonprofit Security Advisors' internal data.
 Areas: engagement letters and proposals (letters_*), sales reps (rep*), NSGP grant deadlines by
@@ -529,6 +529,13 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     inputSchema: { slug: z.string().min(1) },
     annotations: READ,
   }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/status`)));
+
+  server.registerTool('intake_uploads_list', {
+    title: 'Intake uploads',
+    description: 'The files a client has uploaded through the intake form (mission statement, 501(c)(3) letter, vulnerability assessment, leadership bios): filename, type, size, when and by whom, the Drive link if the file was mirrored into their Phase 2 folder, and the team download path on the backend (needs a bearer key; the file bytes are not returned through MCP).',
+    inputSchema: { slug: z.string().min(1) },
+    annotations: READ,
+  }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/uploads`)));
 
   if (canWrite) {
     server.registerTool('client_create', {

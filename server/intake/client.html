@@ -507,11 +507,12 @@
      server-side as JSON; the page talks to /api/intake/<slug>/* with the token in
      a header. Everything below the API helper is the form as it always was. */
   var CLIENT={{client}},TOKEN={{token}},CLIENT_NAME={{clientName}},STATE={{state}};
-  var CFG={{stateConfig}}, EXISTING={{existing}}, API_BASE={{apiBase}};
+  var CFG={{stateConfig}}, EXISTING={{existing}}, API_BASE={{apiBase}}, UPLOAD_BASE={{uploadBase}};
   var API=API_BASE+'/api/intake/'+encodeURIComponent(CLIENT);
+  var UPLOAD_API=(UPLOAD_BASE||API_BASE)+'/api/intake/'+encodeURIComponent(CLIENT);
   function call(method,path,body,isForm){
     var headers={'X-Intake-Token':TOKEN};if(!isForm)headers['Content-Type']='application/json';
-    return fetch(API+path,{method:method,headers:headers,body:isForm?body:JSON.stringify(body)}).then(function(r){
+    return fetch((isForm?UPLOAD_API:API)+path,{method:method,headers:headers,body:isForm?body:JSON.stringify(body)}).then(function(r){
       return r.text().then(function(t){var d={};try{d=JSON.parse(t);}catch(e){}
         if(!r.ok){var err=new Error(d.error||('HTTP '+r.status));err.status=r.status;throw err;}return d;});});}
   function linkDead(){pill.className='savepill';pill.textContent='This link is no longer valid — please ask Nonprofit Security Advisors for a fresh one.';}

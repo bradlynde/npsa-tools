@@ -22,14 +22,22 @@
  *      Gmail-mangled query rescue).
  *   6. The page. The real template renders with the client's values injected as
  *      JSON, a value that tries to close the script tag cannot, the upload route
- *      answers with a sentence until uploads exist, and a route without the
- *      template answers 503 rather than serving something half-filled.
+ *      answers 401 without the token, and a route without the template answers
+ *      503 rather than serving something half-filled.
+ *   7. Uploads. Multipart in, type decided by the first bytes, size capped, the
+ *      up_* answer written and the quiet clock reset, list and download for the
+ *      team, CORS only for the page's own origin, and the Drive mirror: a real
+ *      RS256 JWT exchanged at a fake token endpoint, the file posted to a fake
+ *      Drive, the link recorded — and a Drive failure that leaves the upload
+ *      intact.
  *
  *   node scripts/intake-smoke.mjs
  */
 import assert from 'node:assert/strict';
 import express from 'express';
-import { registerIntake, createMemoryStore, renderClientPage, QUESTIONS, normaliseAnswers, slugify, healToken } from '../server/intake.js';
+import crypto from 'node:crypto';
+import { registerIntake, createMemoryStore, renderClientPage, QUESTIONS, normaliseAnswers, slugify, healToken, sniffUploadType, UPLOAD_MAX_BYTES } from '../server/intake.js';
+import { accessToken, uploadToDrive } from '../server/drive.js';
 
 const INTERNAL = 'boot-secret-for-test';
 const BASE = 'https://npsa-tools.vercel.app';
@@ -293,6 +301,7 @@ await check('token rotation kills the old link and issues a new one', async () =
   assert.equal((await call('GET', `/client/${created.slug}?t=${old}`)).status, 404);
   assert.equal((await call('GET', `/client/${created.slug}?t=${fresh}`)).status, 200);
   assert.equal((await call('PUT', `/api/intake/${created.slug}/answers`, { headers: { 'X-Intake-Token': old }, body: { answers: { q_1_1_1: 'x' } } })).status, 401);
+  created.intake_url = r.data.intake_url; // later sections use the live token
 });
 // ── 6. The page ───────────────────────────────────────────────────────────────
 await check('renderClientPage fills every placeholder and escapes a script-closing value', async () => {
@@ -326,12 +335,182 @@ await check('the page route serves the real template by default', async () => {
   const html = await page.text();
   assert.ok(html.includes('var CLIENT="page-test-church"'));
   assert.ok(html.includes('"saa":"FDEM"'));
-  const up = await fetch(`${o3}/api/intake/page-test-church/upload`, { method: 'POST', headers: { 'X-Intake-Token': t } });
-  assert.equal(up.status, 503);
-  assert.match((await up.json()).error, /email the file/);
+  assert.ok(html.includes('UPLOAD_BASE=""'));
   assert.equal((await fetch(`${o3}/api/intake/page-test-church/upload`, { method: 'POST' })).status, 401);
   s3.close();
 });
+// ── 7. Uploads ────────────────────────────────────────────────────────────────
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj << >> endobj\n%%EOF');
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(16)]);
+function multipart(key, name, bytes, type = 'application/octet-stream') {
+  const fd = new FormData();
+  if (key !== null) fd.append('key', key);
+  if (name !== null) fd.append('file', new Blob([bytes], { type }), name);
+  return fd;
+}
+const upload = (slug, tok, fd, extra = {}) => fetch(`${origin}/api/intake/${slug}/upload`, { method: 'POST', headers: { ...(tok ? { 'X-Intake-Token': tok } : {}), ...extra }, body: fd });
+
+await check('sniffUploadType decides by the first bytes', async () => {
+  assert.equal(sniffUploadType(PDF), 'application/pdf');
+  assert.equal(sniffUploadType(PNG), 'image/png');
+  assert.equal(sniffUploadType(Buffer.from([0xff, 0xd8, 0xff, 0xe0])), 'image/jpeg');
+  assert.equal(sniffUploadType(Buffer.from('PK\u0003\u0004 a docx')), null);
+  assert.equal(sniffUploadType(Buffer.alloc(0)), null);
+});
+
+await check('an upload needs the token, an upload key, and a real PDF/JPG/PNG', async () => {
+  const t = token();
+  assert.equal((await upload(created.slug, null, multipart('up_mission', 'm.pdf', PDF))).status, 401);
+  assert.equal((await upload(created.slug, 'ffffffffffffffffffff', multipart('up_mission', 'm.pdf', PDF))).status, 401);
+  const badKey = await upload(created.slug, t, multipart('q_1_1_1', 'm.pdf', PDF));
+  assert.equal(badKey.status, 400);
+  assert.match((await badKey.json()).error, /not an upload field/);
+  const docx = await upload(created.slug, t, multipart('up_mission', 'm.docx', Buffer.from('PK\u0003\u0004zip'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'));
+  assert.equal(docx.status, 400);
+  assert.match((await docx.json()).error, /PDF, JPG, or PNG/);
+  const lying = await upload(created.slug, t, multipart('up_mission', 'm.pdf', Buffer.from('not a pdf'), 'application/pdf'));
+  assert.equal(lying.status, 400, 'declared type does not count');
+  const empty = await upload(created.slug, t, multipart('up_mission', 'm.pdf', Buffer.alloc(0), 'application/pdf'));
+  assert.equal(empty.status, 400);
+  const noFile = await upload(created.slug, t, multipart('up_mission', null, PDF));
+  assert.equal(noFile.status, 400);
+  const notMultipart = await fetch(`${origin}/api/intake/${created.slug}/upload`, { method: 'POST', headers: { 'X-Intake-Token': t, 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal(notMultipart.status, 400);
+  assert.match((await notMultipart.json()).error, /multipart/);
+});
+
+await check('a file over 25 MB is refused before it is parsed', async () => {
+  const big = Buffer.alloc(UPLOAD_MAX_BYTES + 2 * 1024 * 1024, 0x20); PDF.copy(big);
+  const r = await upload(created.slug, token(), multipart('up_mission', 'huge.pdf', big, 'application/pdf'));
+  assert.equal(r.status, 413);
+  assert.match((await r.json()).error, /25 MB/);
+});
+
+let uploadId;
+await check('a good upload is stored, listed, downloadable, and written into the up_* answer', async () => {
+  const before = (await call('GET', `/api/clients/${created.slug}`, { headers: TEAM })).data.last_client_activity_at;
+  const r = await upload(created.slug, token(), multipart('up_501c3', '../IRS letter (2018).pdf', PDF, 'application/pdf'));
+  const body = await r.text();
+  assert.equal(r.status, 200, body);
+  const d = JSON.parse(body);
+  assert.equal(d.ok, true);
+  assert.equal(d.filename, 'IRS letter (2018).pdf', 'path stripped');
+  assert.equal(d.mime, 'application/pdf');
+  assert.equal(d.size_bytes, PDF.length);
+  assert.equal(d.drive_url, null, 'no Drive configured here');
+  uploadId = d.id;
+  const list = await call('GET', `/api/clients/${created.slug}/uploads`, { headers: TEAM });
+  assert.equal(list.data.count, 1);
+  assert.equal(list.data.uploads[0].label, '501(c)(3) determination letter (file)');
+  assert.equal(list.data.uploads[0].uploaded_by, 'client:Pat Lee, Exec Pastor');
+  assert.equal(list.data.uploads[0].download_path, `/api/clients/${created.slug}/uploads/${uploadId}`);
+  const dl = await fetch(`${origin}/api/clients/${created.slug}/uploads/${uploadId}`, { headers: TEAM });
+  assert.equal(dl.status, 200);
+  assert.equal(dl.headers.get('content-type'), 'application/pdf');
+  assert.match(dl.headers.get('content-disposition'), /attachment; filename="IRS letter \(2018\).pdf"/);
+  assert.ok(Buffer.from(await dl.arrayBuffer()).equals(PDF), 'bytes round-trip');
+  assert.equal((await fetch(`${origin}/api/clients/${created.slug}/uploads/${uploadId}`)).status, 401, 'download is a team route');
+  assert.equal((await call('GET', `/api/clients/${created.slug}/uploads/999`, { headers: TEAM })).status, 404);
+  const a = await call('GET', `/api/clients/${created.slug}/answers?section=uploads`, { headers: TEAM });
+  assert.equal(a.data.count, 1);
+  assert.match(a.data.answers[0].value, /^IRS letter \(2018\)\.pdf \(uploaded /);
+  const st = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  assert.equal(st.data.uploads.length, 1);
+  assert.equal(st.data.sections.find(x => x.section === 'Uploads').answered, 1);
+  const after = (await call('GET', `/api/clients/${created.slug}`, { headers: TEAM })).data.last_client_activity_at;
+  assert.notEqual(after, before, 'quiet clock reset');
+});
+
+await check('CORS on the upload route answers only for the page origin', async () => {
+  const ok = await fetch(`${origin}/api/intake/${created.slug}/upload`, { method: 'OPTIONS', headers: { Origin: BASE, 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(ok.status, 204);
+  assert.equal(ok.headers.get('access-control-allow-origin'), BASE);
+  assert.match(ok.headers.get('access-control-allow-headers'), /X-Intake-Token/);
+  const other = await fetch(`${origin}/api/intake/${created.slug}/upload`, { method: 'OPTIONS', headers: { Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(other.status, 403);
+  assert.equal(other.headers.get('access-control-allow-origin'), null);
+  const posted = await upload(created.slug, token(), multipart('up_va', 'va.png', PNG, 'image/png'), { Origin: BASE });
+  assert.equal(posted.status, 200);
+  assert.equal(posted.headers.get('access-control-allow-origin'), BASE);
+});
+
+// ── Drive mirror against a fake Google ──
+const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+const SA = { client_email: 'npsa-intake@test.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) };
+const fake = express();
+const seenDrive = [];
+fake.use(express.raw({ type: () => true, limit: '30mb' }));
+fake.post('/token', (req, res) => {
+  const p = new URLSearchParams(req.body.toString());
+  const [h, c, sig] = String(p.get('assertion')).split('.');
+  const claims = JSON.parse(Buffer.from(c, 'base64url').toString());
+  const ok = crypto.verify('RSA-SHA256', Buffer.from(`${h}.${c}`), privateKey, Buffer.from(sig, 'base64url'));
+  if (!ok || claims.iss !== SA.client_email || !claims.scope.includes('auth/drive')) return res.status(401).json({ error: 'invalid_grant' });
+  res.json({ access_token: 'fake-token', expires_in: 3600 });
+});
+fake.post('/upload', (req, res) => {
+  if (req.get('authorization') !== 'Bearer fake-token') return res.status(401).json({ error: { message: 'no token' } });
+  const body = req.body.toString('latin1');
+  const meta = JSON.parse(body.match(/\r\n\r\n(\{.*?\})\r\n/s)[1]);
+  seenDrive.push({ meta, size: req.body.length, ct: req.get('content-type') });
+  if (meta.parents[0] === 'FAIL') return res.status(403).json({ error: { message: 'insufficientFilePermissions' } });
+  res.json({ id: 'drv' + seenDrive.length, name: meta.name, webViewLink: `https://drive.google.com/file/d/drv${seenDrive.length}/view` });
+});
+const fakeServer = await new Promise(resolve => { const s = fake.listen(0, () => resolve(s)); });
+const fakeOrigin = `http://127.0.0.1:${fakeServer.address().port}`;
+const driveOpts = { credentials: { ...SA, token_uri: `${fakeOrigin}/token` }, tokenUrl: `${fakeOrigin}/token`, uploadUrl: `${fakeOrigin}/upload` };
+
+await check('drive.js signs a JWT the token endpoint accepts and posts a multipart upload', async () => {
+  assert.equal(await accessToken(driveOpts), 'fake-token');
+  const r = await uploadToDrive({ ...driveOpts, folderId: 'PHASE2', filename: 'm.pdf', mime: 'application/pdf', content: PDF });
+  assert.equal(r.id, 'drv1');
+  assert.match(r.url, /drive\.google\.com/);
+  assert.deepEqual(seenDrive[0].meta, { name: 'm.pdf', parents: ['PHASE2'] });
+  assert.match(seenDrive[0].ct, /^multipart\/related; boundary=/);
+  await assert.rejects(uploadToDrive({ ...driveOpts, folderId: '', filename: 'm.pdf', mime: 'application/pdf', content: PDF }), /no upload folder/);
+  await assert.rejects(uploadToDrive({ ...driveOpts, folderId: 'FAIL', filename: 'm.pdf', mime: 'application/pdf', content: PDF }), /insufficientFilePermissions/);
+  await assert.rejects(accessToken({ ...driveOpts, credentials: { ...driveOpts.credentials, private_key: crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }) } }), /token request failed/);
+});
+
+await check('with a mirror configured the upload lands in Drive and the link is recorded; a Drive failure keeps the upload', async () => {
+  const app4 = express();
+  app4.use(['/api/clients', '/api/intake'], express.json({ limit: '2mb' }));
+  const store4 = createMemoryStore();
+  registerIntake(app4, { store: store4, internalKey: INTERNAL, publicBase: BASE, drive: { upload: o => uploadToDrive({ ...driveOpts, ...o }) } });
+  const s4 = await new Promise(resolve => { const s = app4.listen(0, () => resolve(s)); });
+  const o4 = `http://127.0.0.1:${s4.address().port}`;
+  const mk = async (name, folder) => {
+    const c = await (await fetch(`${o4}/api/clients`, { method: 'POST', headers: { ...TEAM, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, state: 'FL', upload_folder_id: folder }) })).json();
+    return { slug: c.slug, t: new URL(c.intake_url).searchParams.get('t') };
+  };
+  const good = await mk('Mirror Church', 'PHASE2-GOOD');
+  const r = await fetch(`${o4}/api/intake/${good.slug}/upload`, { method: 'POST', headers: { 'X-Intake-Token': good.t }, body: multipart('up_mission', 'mission.pdf', PDF, 'application/pdf') });
+  const rBody = await r.text();
+  assert.equal(r.status, 200, rBody);
+  const d = JSON.parse(rBody);
+  assert.match(d.drive_url, /drive\.google\.com\/file\/d\/drv/);
+  assert.equal(seenDrive[seenDrive.length - 1].meta.parents[0], 'PHASE2-GOOD');
+  const list = await (await fetch(`${o4}/api/clients/${good.slug}/uploads`, { headers: TEAM })).json();
+  assert.equal(list.uploads[0].drive_url, d.drive_url);
+  const ans = await (await fetch(`${o4}/api/clients/${good.slug}/answers?section=uploads`, { headers: TEAM })).json();
+  assert.ok(ans.answers[0].value.includes(d.drive_url), 'answer carries the Drive link');
+
+  const bad = await mk('No Folder Church', 'FAIL');
+  const warned = [];
+  const origWarn = console.warn; console.warn = (...a) => warned.push(a.join(' '));
+  let r2;
+  try { r2 = await fetch(`${o4}/api/intake/${bad.slug}/upload`, { method: 'POST', headers: { 'X-Intake-Token': bad.t }, body: multipart('up_mission', 'mission.pdf', PDF, 'application/pdf') }); }
+  finally { console.warn = origWarn; }
+  assert.equal(r2.status, 200, 'client never sees the Drive failure');
+  const d2 = await r2.json();
+  assert.equal(d2.drive_url, null);
+  assert.match(warned.join('\n'), /drive mirror failed .*insufficientFilePermissions/);
+  const dl = await fetch(`${o4}/api/clients/${bad.slug}/uploads/${d2.id}`, { headers: TEAM });
+  assert.equal(dl.status, 200, 'the Postgres copy stands');
+  s4.close();
+});
+fakeServer.close();
+
 await check('with no store the team routes say so and the page is a 503', async () => {
   const app2 = express(); app2.use(express.json());
   registerIntake(app2, { store: null, internalKey: INTERNAL, publicBase: BASE });

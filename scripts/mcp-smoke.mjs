@@ -36,7 +36,7 @@ const READ_TOOLS = [
   'precall_bookings_list', 'precall_booking_get',
   'marketing_overview', 'marketing_by_campaign', 'marketing_by_channel', 'marketing_timeseries',
   'marketing_bookings', 'marketing_untracked_wins', 'marketing_revenue_quality',
-  'clients_list', 'client_get', 'intake_questions', 'intake_answers', 'intake_status',
+  'clients_list', 'client_get', 'intake_questions', 'intake_answers', 'intake_status', 'intake_uploads_list',
 ];
 const WRITE_TOOLS = [
   'letter_update', 'rep_add', 'rep_remove',
@@ -91,6 +91,7 @@ app.put('/api/clients/:slug/answers', keyed, (req, res) => {
   record(req, res, { ok: true, written: Object.keys(req.body.answers).length });
 });
 app.get('/api/clients/:slug/status', keyed, (req, res) => res.json({ slug: req.params.slug, core: { answered: 3, total: 130 }, checklist: { completed: 1, total: 24 } }));
+app.get('/api/clients/:slug/uploads', keyed, (req, res) => res.json({ slug: req.params.slug, count: 1, uploads: [{ id: 3, key: 'up_501c3', filename: 'irs.pdf', drive_url: null, download_path: `/api/clients/${req.params.slug}/uploads/3` }] }));
 app.get('/api/intake/questions', keyed, (req, res) => res.json({ count: 2, q: req.query, questions: [{ key: 'chk_status_kickoff_call' }, { key: 'chk_who_state_reg' }] }));
 
 let port = 0;
@@ -321,6 +322,9 @@ await check('client_get, intake_status, intake_answers and intake_questions forw
   assert.equal(missing.isError, true);
   assert.match(missing.content[0].text, /No such client/);
   assert.equal(text(await client.callTool({ name: 'intake_status', arguments: { slug: 'trinity-wellsprings-church' } })).checklist.total, 24);
+  const up = text(await client.callTool({ name: 'intake_uploads_list', arguments: { slug: 'trinity-wellsprings-church' } }));
+  assert.equal(up.uploads[0].filename, 'irs.pdf');
+  assert.match(up.uploads[0].download_path, /\/uploads\/3$/);
   const a = text(await client.callTool({ name: 'intake_answers', arguments: { slug: 'trinity-wellsprings-church', section: '4. Threats', include_empty: true } }));
   assert.deepEqual(a.q, { section: '4. Threats', include_empty: '1' });
   const q = text(await client.callTool({ name: 'intake_questions', arguments: { prefix: 'chk_' } }));
