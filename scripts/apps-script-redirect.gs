@@ -3,9 +3,10 @@
  * registry has been imported into npsa-tools (docs/grant-clients.md, "Cutover").
  *
  * Every link already in a client's inbox keeps working: doGet looks the slug up in the
- * Registry sheet exactly as before, checks the token, and sends the browser to the
- * same slug and token on the new host. Wrong or unknown links get the same error page
- * they always got. The register / seed / track endpoints answer "moved" so any stale
+ * Registry sheet exactly as before, checks the token, and shows a button that opens the
+ * same slug and token on the new host. A button, not an automatic hop: Apps Script serves
+ * the page in a sandbox that only lets a real click leave it, so a script redirect never
+ * fires. Wrong or unknown links get the same error page they always got. The register / seed / track endpoints answer "moved" so any stale
  * automation fails loudly rather than writing to a sheet nobody reads any more.
  *
  * Deploy: paste over Code.gs, delete Index.html (no longer served), then Deploy →
@@ -40,9 +41,10 @@ function doGet(e) {
     '<div style="font-family:system-ui;max-width:560px;margin:80px auto;text-align:center;color:#15242E">' +
     '<div style="font-size:13px;letter-spacing:.1em;color:#6C7732;font-weight:700;text-transform:uppercase">Nonprofit Security Grant Program</div>' +
     '<h2 style="color:#003C60">Your form has moved</h2>' +
-    '<p style="color:#566571">Taking you to it now. Your answers are already there. Bookmark the new address when it opens.</p>' +
-    '<p><a href="' + esc_(url) + '" style="display:inline-block;background:#003C60;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Open the form</a></p>' +
-    '</div><script>try{window.open(' + JSON.stringify(url) + ',"_top");}catch(e){}</script></body></html>';
+    '<p style="color:#566571">Your information collection form now lives at a new address. Everything you have entered is already there.</p>' +
+    '<p><a href="' + esc_(url) + '" style="display:inline-block;background:#003C60;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px">Open the form</a></p>' +
+    '<p style="color:#8a97a1;font-size:13px">Bookmark the new page once it opens, and use it from now on.</p>' +
+    '</div></body></html>';
   return HtmlService.createHtmlOutput(html)
     .setTitle('NSGP — Client Information Collection')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
