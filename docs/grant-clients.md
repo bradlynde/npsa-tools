@@ -146,7 +146,7 @@ pre-registered at 2 MB for `/api/clients` and `/api/intake` so a full seed fits.
 | POST | `/api/clients/:slug/token` | team | Rotate the token; returns the new `intake_url`. The old link stops working at once. |
 | GET | `/api/clients/:slug/answers?section=&include_empty=` | team | Answers in catalog order with `section, label, kind, value, updated_at, updated_by`. Empty values omitted unless asked. |
 | PUT | `/api/clients/:slug/answers` | team | Upsert `{ answers: {key: value}, by? }`. Unknown keys → 400 with `unknown_keys`; nothing written. Values become strings, capped at 20k chars. Does not touch the quiet clock. |
-| GET | `/api/clients/:slug/status` | team | Per-section answered/total, the 24 checklist items with status/due/owner/note, core counts, `filled_by`, `status_line`, submitted and last-activity times, uploads (PR 5). |
+| GET | `/api/clients/:slug/status` | team | Per-section answered/total, `wish_list` (per facility: items with a priority set, each with answered/5 detail fields, plus the facility name from `loc<n>_name`), the 24 checklist items with status/due/owner/note, core counts, `filled_by`, `status_line`, submitted and last-activity times, uploads. |
 | GET | `/client/:slug?t=` | token | The intake page (PR 3). Until then a valid link gets a 503 "not deployed here yet" page. Wrong token → the same "invalid or expired" page as today, HTTP 404. Rescues a Gmail-mangled query (`?client%3Dslug%26t%3Dtoken&source=gmail…`) the way `doGet` did. |
 | PUT | `/api/intake/:slug/answers` | token | Client autosave: `{ answers: {key: value} }`. Catalog keys only, no meta keys. Bumps `last_client_activity_at`. |
 | GET | `/api/intake/:slug/contacts` | token | `{ npsa: [...], client: [...] }` with name, role, email, phone, added_by. |

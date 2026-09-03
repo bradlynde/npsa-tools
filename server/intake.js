@@ -52,6 +52,19 @@ const CORE_SECTIONS = new Set(SECTIONS.filter(s => /^[1-5]\. /.test(s) || s === 
 const CORE_KEYS = QUESTIONS.filter(q => CORE_SECTIONS.has(q.section) && q.kind !== 'meta').map(q => q.key);
 const CHECKLIST_STEMS = QUESTIONS.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length));
 
+// The wish list is 3 facilities × 20 items × 6 fields, and a client only ever
+// fills the items they care about. So the measure is: which items carry a
+// priority (the `_int` select, 1 = fund first), and how many of that item's five
+// detail fields (currently have, what & why, where, quantity, cost) are answered.
+const WISH_DETAILS = ['cur', 'desc', 'where', 'qty', 'cost'];
+const WISH_FACILITIES = [1, 2, 3].map(n => ({
+  n,
+  items: QUESTIONS.filter(q => q.key.startsWith(`wl_f${n}_`) && q.key.endsWith('_int')).map(q => ({
+    stem: q.key.slice(`wl_f${n}_`.length, -'_int'.length),
+    label: q.label.replace(/\s+—\s+Priority.*$/i, ''),
+  })),
+}));
+
 export function stateConfig(state) {
   const st = String(state || '').toUpperCase();
   return STATE_CONFIG.states[st] || { ...STATE_CONFIG.fallback, saa: st };
@@ -219,6 +232,22 @@ function statusView(client, answers, base, uploads = []) {
     const keys = QUESTIONS.filter(q => q.section === section && q.kind !== 'meta');
     return { section, answered: keys.filter(q => val(q.key) !== '').length, total: keys.length };
   });
+  const wish_list = WISH_FACILITIES.map(f => {
+    const items = f.items
+      .map(it => {
+        const priority = val(`wl_f${f.n}_${it.stem}_int`);
+        if (!priority) return null;
+        const answered = WISH_DETAILS.filter(d => val(`wl_f${f.n}_${it.stem}_${d}`) !== '').length;
+        return { stem: it.stem, label: it.label, priority: Number(priority) || priority, answered, total: WISH_DETAILS.length };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.priority > b.priority ? 1 : a.priority < b.priority ? -1 : 0));
+    return {
+      facility: f.n, name: val(`loc${f.n}_name`), prioritized: items.length,
+      details: { answered: items.reduce((n, it) => n + it.answered, 0), total: items.length * WISH_DETAILS.length },
+      items,
+    };
+  });
   const items = CHECKLIST_STEMS.map(stem => ({
     stem, label: checklistLabel(stem),
     status: val(`chk_status_${stem}`) || 'Not started',
@@ -230,7 +259,7 @@ function statusView(client, answers, base, uploads = []) {
     intake_url: intakeUrl(base, client.slug, client.token),
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
-    core: s.core, sections, checklist: { ...s.checklist, items },
+    core: s.core, sections, wish_list, checklist: { ...s.checklist, items },
     uploads: uploads.map(u => uploadView(u, client.slug)),
   };
 }

@@ -236,6 +236,22 @@ await check('status reports sections, checklist items and the headline counts', 
   assert.deepEqual([s1.answered, s1.total], [3, 18]);
   assert.equal(d.status_line, '');
   assert.deepEqual(d.uploads, []);
+  // Nothing prioritized yet: three facilities, all empty.
+  assert.equal(d.wish_list.length, 3);
+  assert.deepEqual(d.wish_list[0], { facility: 1, name: 'Main campus', prioritized: 0, details: { answered: 0, total: 0 }, items: [] });
+});
+await check('wish list counts only prioritized items, and their five detail fields', async () => {
+  await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: {
+    wl_f1_cctv_camera_system_int: '1', wl_f1_cctv_camera_system_desc: '12 cameras', wl_f1_cctv_camera_system_where: 'entrances', wl_f1_cctv_camera_system_cost: '18000',
+    wl_f1_vehicle_bollards_int: '2', wl_f1_vehicle_bollards_desc: 'front walk',
+    wl_f1_lockdown_system_cur: 'none yet', // a detail without a priority does not count
+  } } });
+  const r = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  const f1 = r.data.wish_list[0];
+  assert.equal(f1.prioritized, 2);
+  assert.deepEqual(f1.details, { answered: 4, total: 10 });
+  assert.deepEqual(f1.items.map(i => [i.label, i.priority, i.answered, i.total]), [['CCTV / Camera System', 1, 3, 5], ['Vehicle Bollards', 2, 1, 5]]);
+  assert.equal(r.data.wish_list[1].prioritized, 0);
 });
 await check('complete stamps _status, marks submitted, and shows on the list', async () => {
   const r = await call('POST', `/api/intake/${created.slug}/complete`, { headers: { 'X-Intake-Token': token() } });
