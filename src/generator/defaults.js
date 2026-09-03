@@ -14,7 +14,10 @@ const defaultPreCallForm = {
 
 const defaultForm = {
   clientName:"", clientType:"Church",
-  locations:[{name:"",address:"",city:"",state:"",zip:"",programs:["federal"]}],
+  // No `programs` on a location until someone picks one. An unrecorded list means
+  // every program in the engagement (see locationPrograms); seeding it with
+  // "federal" is what made a California letter count zero locations.
+  locations:[{name:"",address:"",city:"",state:"",zip:""}],
   programs:[{key:"federal",year:"2026"}],
   contactName:"", contactTitle:"", contactEmail:"", contactPhone:"",
   grantYear:"2026", grantType:"Federal", grantState:"other", engagementModel:"pre-only", pricingTier:"undiscounted",

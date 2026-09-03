@@ -65,7 +65,7 @@ const scopeStep = ({ programsKey = "programs", yearLabel = "Grant Year", locatio
         />
       </Field>
       {locations && (
-        <Field label="Locations" hint={`${c.numLocs} location${c.numLocs === 1 ? "" : "s"} · max award ${fmt(totalMaxAward(c.form[programsKey], c.form.locations))} total`}>
+        <Field label="Locations" hint={`${c.numLocs} application${c.numLocs === 1 ? "" : "s"} · max award ${fmt(totalMaxAward(c.form[programsKey], c.form.locations))} total`}>
           <LocationsEditor
             locations={c.form.locations}
             programs={c.form[programsKey]}
