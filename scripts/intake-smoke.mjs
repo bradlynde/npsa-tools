@@ -184,7 +184,7 @@ await check('a good seed lands as seed:<actor> and does not bump client activity
   assert.equal(first.updated_by, 'seed:abcd1234');
   const c = await call('GET', `/api/clients/${created.slug}`, { headers: TEAM });
   assert.equal(c.data.last_client_activity_at, null);
-  assert.deepEqual(c.data.checklist, { completed: 1, total: 24 });
+  assert.deepEqual(c.data.checklist, { completed: 1, total: 24, not_applicable: 0 });
   assert.equal(c.data.core.answered, 3);
 });
 await check('a section filter and include_empty work', async () => {
@@ -260,6 +260,12 @@ await check('site research: loc<n>_infra is accepted and stays out of the core c
   const after = (await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM })).data;
   assert.deepEqual(after.core, before);
   assert.equal(after.sections.find(x => x.section === 'Locations').total, 36);
+});
+await check('checklist: Not applicable leaves the total and is reported', async () => {
+  await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { chk_status_confirm_obtain_ein: 'Not applicable' } } });
+  const r = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  assert.deepEqual([r.data.checklist.completed, r.data.checklist.total, r.data.checklist.not_applicable], [1, 23, 1]);
+  assert.equal(r.data.checklist.items.find(i => i.stem === 'confirm_obtain_ein').status, 'Not applicable');
 });
 await check('programs: 20 slots accepted, status counts the named rows, 3.2.1 is retired but still readable', async () => {
   const w = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { prog1_name: 'Sunday Service', prog12_name: 'GriefShare', prog12_runby: 'Outside', prog20_desc: 'no name yet', q_3_2_1: 'legacy free text' } } });

@@ -218,7 +218,9 @@ export function summarise(answers) {
   const val = k => answers.get(k)?.value || '';
   const core = CORE_KEYS.filter(k => val(k) !== '').length;
   const checklist = CHECKLIST_STEMS.filter(s => val(`chk_status_${s}`) === 'Completed').length;
-  return { core: { answered: core, total: CORE_KEYS.length }, checklist: { completed: checklist, total: CHECKLIST_STEMS.length } };
+  // "Not applicable" tasks leave the count rather than sit unfinished forever.
+  const notApplicable = CHECKLIST_STEMS.filter(s => val(`chk_status_${s}`) === 'Not applicable').length;
+  return { core: { answered: core, total: CORE_KEYS.length }, checklist: { completed: checklist, total: CHECKLIST_STEMS.length - notApplicable, not_applicable: notApplicable } };
 }
 
 function uploadView(u, slug) {
@@ -419,6 +421,7 @@ export function createIntakeStore(pool) {
         `SELECT client_id,
                 COUNT(*) FILTER (WHERE key = ANY($2) AND value <> '')::int AS core_answered,
                 COUNT(*) FILTER (WHERE key LIKE 'chk_status_%' AND value = 'Completed')::int AS checklist_completed,
+                COUNT(*) FILTER (WHERE key LIKE 'chk_status_%' AND value = 'Not applicable')::int AS checklist_na,
                 MAX(value) FILTER (WHERE key = '_filled_by') AS filled_by
            FROM intake_answers WHERE client_id = ANY($1) GROUP BY client_id`, [clientIds, CORE_KEYS]);
       return Object.fromEntries(rows.map(r => [r.client_id, r]));
@@ -497,7 +500,7 @@ export function createMemoryStore() {
     async answerStats(ids) {
       return Object.fromEntries(ids.map(id => {
         const s = summarise(bucket(id));
-        return [id, { core_answered: s.core.answered, checklist_completed: s.checklist.completed, filled_by: bucket(id).get('_filled_by')?.value || null }];
+        return [id, { core_answered: s.core.answered, checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, filled_by: bucket(id).get('_filled_by')?.value || null }];
       }));
     },
     async upsertAnswers(clientId, rows, by, { clientActivity = false } = {}) {
@@ -632,7 +635,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       return {
         ...clientView(r, base(req)),
         core: { answered: s.core_answered || 0, total: CORE_KEYS.length },
-        checklist: { completed: s.checklist_completed || 0, total: CHECKLIST_STEMS.length },
+        checklist: { completed: s.checklist_completed || 0, total: CHECKLIST_STEMS.length - (s.checklist_na || 0), not_applicable: s.checklist_na || 0 },
         filled_by: s.filled_by || '',
       };
     }));
