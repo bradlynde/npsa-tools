@@ -38,6 +38,7 @@ import { splitKeys, keyMatches, fingerprint } from './mcp.js';
 
 const CATALOG = JSON.parse(readFileSync(new URL('./intake-questions.json', import.meta.url), 'utf8'));
 const STATE_CONFIG = JSON.parse(readFileSync(new URL('./intake-state-config.json', import.meta.url), 'utf8'));
+const NPSA_TEAM = JSON.parse(readFileSync(new URL('./intake-team.json', import.meta.url), 'utf8')).contacts;
 
 export const QUESTIONS = CATALOG.questions;
 const QUESTION_BY_KEY = new Map(QUESTIONS.map(q => [q.key, q]));
@@ -111,14 +112,21 @@ function validDate(d, field) {
   return String(d);
 }
 
-function validContacts(list) {
+const SIDES = ['client', 'npsa'];
+function validContact(c, label) {
+  const email = String(c?.email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new BadRequest(`${label}.email is not an email address`);
+  const side = c.side === undefined ? 'client' : String(c.side);
+  if (!SIDES.includes(side)) throw new BadRequest(`${label}.side must be "client" or "npsa"`);
+  return {
+    name: String(c.name || '').trim().slice(0, 120), email, role: String(c.role || '').trim().slice(0, 120),
+    phone: String(c.phone || '').trim().slice(0, 40), side, is_primary: Boolean(c.is_primary),
+  };
+}
+function validContacts(list, field = 'contacts') {
   if (list === undefined) return [];
-  if (!Array.isArray(list)) throw new BadRequest('contacts must be an array');
-  return list.map((c, i) => {
-    const email = String(c?.email || '').trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) throw new BadRequest(`contacts[${i}].email is not an email address`);
-    return { name: String(c.name || '').trim(), email, role: String(c.role || '').trim(), is_primary: Boolean(c.is_primary) };
-  });
+  if (!Array.isArray(list)) throw new BadRequest(`${field} must be an array`);
+  return list.map((c, i) => validContact(c, `${field}[${i}]`));
 }
 
 function validEmails(list, field) {
@@ -227,6 +235,16 @@ function statusView(client, answers, base, uploads = []) {
   };
 }
 
+// What the client page shows on its Contacts tab: the NPSA people first, then the
+// client's own people. added_by tells the page which rows the client may remove.
+function contactsView(contacts) {
+  const pub = c => ({ name: c.name, role: c.role, email: c.email, phone: c.phone || '', added_by: c.added_by || '' });
+  return {
+    npsa: contacts.filter(c => c.side === 'npsa').map(pub),
+    client: contacts.filter(c => c.side !== 'npsa').map(pub),
+  };
+}
+
 function clientView(client, base) {
   const { token, ...rest } = client;
   return { ...rest, intake_url: intakeUrl(base, client.slug, token), saa: STATE_REFERENCE.states[client.state]?.saa || stateConfig(client.state).saa || null };
@@ -269,6 +287,8 @@ export async function ensureIntakeSchema(pool) {
       created_at  TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE (client_id, email)
     );
+    ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+    ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS side  TEXT NOT NULL DEFAULT 'client';
     CREATE TABLE IF NOT EXISTS intake_answers (
       client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       key         TEXT NOT NULL,
@@ -303,7 +323,8 @@ const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track,
 export function createIntakeStore(pool) {
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0] || null;
   const contactsFor = async id => (await pool.query(
-    'SELECT id, name, email, role, is_primary, added_by, created_at FROM client_contacts WHERE client_id=$1 ORDER BY is_primary DESC, id', [id])).rows;
+    `SELECT id, name, email, role, phone, side, is_primary, added_by, created_at FROM client_contacts WHERE client_id=$1
+      ORDER BY (side = 'npsa') DESC, is_primary DESC, id`, [id])).rows;
   const withContacts = async row => row && { ...row, contacts: await contactsFor(row.id) };
 
   return {
@@ -342,11 +363,13 @@ export function createIntakeStore(pool) {
     async addContacts(clientId, contacts, addedBy) {
       for (const c of contacts) {
         await pool.query(
-          `INSERT INTO client_contacts (client_id, name, email, role, is_primary, added_by) VALUES ($1,$2,$3,$4,$5,$6)
+          `INSERT INTO client_contacts (client_id, name, email, role, phone, side, is_primary, added_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
            ON CONFLICT (client_id, email) DO UPDATE SET name = CASE WHEN EXCLUDED.name <> '' THEN EXCLUDED.name ELSE client_contacts.name END,
              role = CASE WHEN EXCLUDED.role <> '' THEN EXCLUDED.role ELSE client_contacts.role END,
+             phone = CASE WHEN EXCLUDED.phone <> '' THEN EXCLUDED.phone ELSE client_contacts.phone END,
+             side = EXCLUDED.side,
              is_primary = client_contacts.is_primary OR EXCLUDED.is_primary`,
-          [clientId, c.name, c.email, c.role, c.is_primary, addedBy]);
+          [clientId, c.name, c.email, c.role, c.phone, c.side, c.is_primary, addedBy]);
       }
     },
     async removeContacts(clientId, emails) {
@@ -405,7 +428,7 @@ export function createMemoryStore() {
   const clients = []; const contacts = []; const answers = new Map(); const uploads = []; let nextId = 1; let nextContactId = 1; let nextUploadId = 1;
   const now = () => new Date();
   const find = slug => clients.find(c => c.slug === slug) || null;
-  const view = c => c && { ...c, contacts: contacts.filter(x => x.client_id === c.id).sort((a, b) => (b.is_primary - a.is_primary) || (a.id - b.id)) };
+  const view = c => c && { ...c, contacts: contacts.filter(x => x.client_id === c.id).sort((a, b) => ((b.side === 'npsa') - (a.side === 'npsa')) || (b.is_primary - a.is_primary) || (a.id - b.id)) };
   const bucket = id => { if (!answers.has(id)) answers.set(id, new Map()); return answers.get(id); };
   return {
     async createClient(c) {
@@ -429,8 +452,8 @@ export function createMemoryStore() {
     async addContacts(clientId, list, addedBy) {
       for (const x of list) {
         const cur = contacts.find(c => c.client_id === clientId && c.email === x.email);
-        if (cur) { if (x.name) cur.name = x.name; if (x.role) cur.role = x.role; cur.is_primary = cur.is_primary || x.is_primary; }
-        else contacts.push({ id: nextContactId++, client_id: clientId, ...x, added_by: addedBy, created_at: now() });
+        if (cur) { if (x.name) cur.name = x.name; if (x.role) cur.role = x.role; if (x.phone) cur.phone = x.phone; cur.side = x.side; cur.is_primary = cur.is_primary || x.is_primary; }
+        else contacts.push({ id: nextContactId++, client_id: clientId, phone: '', side: 'client', ...x, added_by: addedBy, created_at: now() });
       }
     },
     async removeContacts(clientId, emails) {
@@ -512,12 +535,12 @@ function jsForInject(value) {
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-export function renderClientPage({ client, stateConfig, existing, apiBase = '', uploadBase = '' }) {
+export function renderClientPage({ client, stateConfig, existing, contacts = { npsa: [], client: [] }, apiBase = '', uploadBase = '' }) {
   if (pageTemplate === undefined) {
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, apiBase, uploadBase };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, apiBase, uploadBase };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 
@@ -594,6 +617,15 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const status = b.status === undefined ? 'active' : String(b.status);
     if (!STATUSES.includes(status)) throw new BadRequest(`status must be one of ${STATUSES.join(', ')}`);
     const contacts = validContacts(b.contacts);
+    // The NPSA side of the Contacts tab: the standing team from intake-team.json,
+    // plus whoever is named (the sales rep, usually). Pass npsa_contacts: [] to
+    // register a client with no NPSA rows at all.
+    const npsa = b.npsa_contacts === undefined
+      ? NPSA_TEAM.map(c => validContact({ ...c, side: 'npsa' }, 'team'))
+      : validContacts(b.npsa_contacts, 'npsa_contacts').map(c => ({ ...c, side: 'npsa' }));
+    if (b.npsa_contacts !== undefined && b.include_team !== false) {
+      for (const t of NPSA_TEAM) if (!npsa.some(c => c.email === t.email.toLowerCase())) npsa.push(validContact({ ...t, side: 'npsa' }, 'team'));
+    }
     const row = await store.createClient({
       slug, name, state, token, phase, status,
       program_track: text(b.program_track, 'program_track'),
@@ -607,6 +639,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       if (!contacts.some(c => c.is_primary)) contacts[0].is_primary = true;
       await store.addContacts(row.id, contacts, `npsa:${req.actor}`);
     }
+    if (npsa.length) await store.addContacts(row.id, npsa, `npsa:${req.actor}`);
     console.log(`[intake] client_create ${slug} by ${req.actor}`);
     res.status(201).json(clientView(await store.getClient(slug), base(req)));
   }));
@@ -632,7 +665,10 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     for (const k of ['program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid']) if (b[k] !== undefined) patch[k] = text(b[k], k, 200).trim();
     if (b.notes !== undefined) patch.notes = text(b.notes, 'notes', 5000);
     if (b.kickoff_date !== undefined) patch.kickoff_date = validDate(b.kickoff_date, 'kickoff_date');
-    const add = validContacts(b.add_contacts);
+    const add = [
+      ...validContacts(b.add_contacts),
+      ...validContacts(b.add_npsa_contacts, 'add_npsa_contacts').map(x => ({ ...x, side: 'npsa' })),
+    ];
     const remove = validEmails(b.remove_contact_emails, 'remove_contact_emails');
     if (!Object.keys(patch).length && !add.length && !remove.length) throw new BadRequest('Nothing to change');
     if (Object.keys(patch).length) await store.updateClient(c.slug, patch);
@@ -704,7 +740,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (!tokenMatches(t, c.token)) return res.status(404).type('html').send(errorPage(INVALID));
     const answers = await store.getAnswers(c.id);
     const html = renderPage && renderPage({
-      client: c, stateConfig: stateConfig(c.state), apiBase, uploadBase,
+      client: c, stateConfig: stateConfig(c.state), apiBase, uploadBase, contacts: contactsView(c.contacts || []),
       existing: Object.fromEntries([...answers.values()].filter(a => a.value !== '').map(a => [a.key, a.value])),
     });
     if (!html) return res.status(503).type('html').send(errorPage('The intake form has not been deployed here yet.'));
@@ -782,6 +818,43 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     await store.upsertAnswers(c.id, [{ key, value: note }], by, { clientActivity: true });
     console.log(`[intake] upload ${c.slug} ${key} ${filename} ${content.length}b${driveUrl ? ' → drive' : ''}`);
     res.json({ ok: true, id: row.id, key, filename, mime, size_bytes: content.length, drive_url: driveUrl || null });
+  }));
+
+  // The Contacts tab. The client sees the NPSA team and their own people, and can
+  // add or remove their own; the NPSA rows are the team's to manage.
+  app.get('/api/intake/:slug/contacts', guard(async (req, res) => {
+    const c = await clientAuth(req, res); if (!c) return;
+    res.json(contactsView(c.contacts || []));
+  }));
+
+  app.post('/api/intake/:slug/contacts', guard(async (req, res) => {
+    const c = await clientAuth(req, res); if (!c) return;
+    const b = req.body || {};
+    if (!String(b.name || '').trim()) throw new BadRequest('Please give the person\'s name.');
+    let contact;
+    try { contact = validContact({ name: b.name, email: b.email, role: b.role, phone: b.phone, side: 'client' }, 'contact'); }
+    catch { throw new BadRequest('Please give a valid email address.'); }
+    if ((c.contacts || []).some(x => x.email === contact.email && x.side === 'npsa')) throw new BadRequest('That address belongs to the NPSA team.');
+    const existing = await store.getAnswers(c.id);
+    const who = existing.get('_filled_by')?.value || '';
+    await store.addContacts(c.id, [contact], who ? `client:${who.slice(0, 80)}` : 'client');
+    await store.upsertAnswers(c.id, [], 'client', { clientActivity: true }).catch(() => {});
+    await store.updateClient(c.slug, {}).catch(() => {});
+    const fresh = await store.getClient(c.slug);
+    console.log(`[intake] contact added ${c.slug} ${contact.email}`);
+    res.json({ ok: true, ...contactsView(fresh.contacts || []) });
+  }));
+
+  app.delete('/api/intake/:slug/contacts', guard(async (req, res) => {
+    const c = await clientAuth(req, res); if (!c) return;
+    const email = String(req.query.email || (req.body || {}).email || '').trim().toLowerCase();
+    const row = (c.contacts || []).find(x => x.email === email);
+    if (!row) return res.status(404).json({ error: 'No such contact' });
+    if (row.side === 'npsa') throw new BadRequest('The NPSA team is managed by NPSA.');
+    await store.removeContacts(c.id, [email]);
+    const fresh = await store.getClient(c.slug);
+    console.log(`[intake] contact removed ${c.slug} ${email}`);
+    res.json({ ok: true, ...contactsView(fresh.contacts || []) });
   }));
 
   app.post('/api/intake/:slug/complete', guard(async (req, res) => {

@@ -95,7 +95,8 @@ clients (
   created_at, updated_at, submitted_at,
   last_client_activity_at      -- bumped only by client-page saves: the quiet clock
 )
-client_contacts (id, client_id → clients, name, email, role, is_primary, added_by, created_at, UNIQUE (client_id, email))
+client_contacts (id, client_id → clients, name, email, role, phone, side, is_primary, added_by, created_at, UNIQUE (client_id, email))
+  -- side: 'client' (their people) or 'npsa' (ours: Stuart and Brad from server/intake-team.json, plus the sales rep)
 intake_answers  (client_id → clients, key, value, updated_at, updated_by, PRIMARY KEY (client_id, key))
 intake_uploads  -- PR 5: id, client_id, key, filename, mime, size_bytes, content BYTEA, drive_file_id, drive_url, uploaded_by, uploaded_at
 ```
@@ -139,15 +140,18 @@ pre-registered at 2 MB for `/api/clients` and `/api/intake` so a full seed fits.
 | :-- | :-- | :-- | :-- |
 | GET | `/api/intake/questions?section=&prefix=` | team | The catalog, with the section list. |
 | GET | `/api/clients?status=&phase=&search=` | team | Clients with `intake_url`, contacts, SAA, core answered/total, checklist completed/total, `filled_by`. `status` defaults to `active`; `all` lists everything. |
-| POST | `/api/clients` | team | Create. `name, state` required; `slug` derived from the name when omitted; `contacts[{name,email,role}]` (first becomes primary), `upload_folder_id, drive_folder_id, asana_project_gid, kickoff_date (YYYY-MM-DD), program_track, notes, phase, status`; `token` only for imports. 201 with the row; 409 on a slug clash; 400 with the reason otherwise. |
+| POST | `/api/clients` | team | Create. `name, state` required; `slug` derived from the name when omitted; `contacts[{name,email,role,phone}]` (the client's people; first becomes primary), `npsa_contacts[]` (ours beyond the standing team in `server/intake-team.json`, usually the sales rep), `upload_folder_id, drive_folder_id, asana_project_gid, kickoff_date (YYYY-MM-DD), program_track, notes, phase, status`; `token` only for imports. 201 with the row; 409 on a slug clash; 400 with the reason otherwise. |
 | GET | `/api/clients/:slug` | team | Row, contacts, `intake_url`, SAA, core and checklist counts, `filled_by`, `status_line`. |
-| PATCH | `/api/clients/:slug` | team | Any create field except slug/token, plus `phase`, `status`, `add_contacts[]`, `remove_contact_emails[]`. `status=submitted` stamps `submitted_at`. "Nothing to change" is a 400. |
+| PATCH | `/api/clients/:slug` | team | Any create field except slug/token, plus `phase`, `status`, `add_contacts[]`, `add_npsa_contacts[]`, `remove_contact_emails[]`. `status=submitted` stamps `submitted_at`. "Nothing to change" is a 400. |
 | POST | `/api/clients/:slug/token` | team | Rotate the token; returns the new `intake_url`. The old link stops working at once. |
 | GET | `/api/clients/:slug/answers?section=&include_empty=` | team | Answers in catalog order with `section, label, kind, value, updated_at, updated_by`. Empty values omitted unless asked. |
 | PUT | `/api/clients/:slug/answers` | team | Upsert `{ answers: {key: value}, by? }`. Unknown keys → 400 with `unknown_keys`; nothing written. Values become strings, capped at 20k chars. Does not touch the quiet clock. |
 | GET | `/api/clients/:slug/status` | team | Per-section answered/total, the 24 checklist items with status/due/owner/note, core counts, `filled_by`, `status_line`, submitted and last-activity times, uploads (PR 5). |
 | GET | `/client/:slug?t=` | token | The intake page (PR 3). Until then a valid link gets a 503 "not deployed here yet" page. Wrong token → the same "invalid or expired" page as today, HTTP 404. Rescues a Gmail-mangled query (`?client%3Dslug%26t%3Dtoken&source=gmail…`) the way `doGet` did. |
 | PUT | `/api/intake/:slug/answers` | token | Client autosave: `{ answers: {key: value} }`. Catalog keys only, no meta keys. Bumps `last_client_activity_at`. |
+| GET | `/api/intake/:slug/contacts` | token | `{ npsa: [...], client: [...] }` with name, role, email, phone, added_by. |
+| POST | `/api/intake/:slug/contacts` | token | Adds one of the client's people: `name`, `email` required, `role`, `phone` optional. Same email updates the row. Refuses an NPSA address. Bumps the quiet clock. |
+| DELETE | `/api/intake/:slug/contacts?email=` | token | Removes one of the client's people. NPSA rows are refused. |
 | POST | `/api/intake/:slug/complete` | token | Writes `_status = "Submitted <date> CT by <who>"`, sets `status=submitted` and `submitted_at` if the client was active. No email in this build. |
 | POST | `/api/intake/:slug/upload` | token | Multipart with fields `key` (an upload question) and `file`. PDF/JPG/PNG decided by the file's first bytes, 25 MB cap. Stores the file, writes the `up_*` answer, mirrors to Drive when configured. Answers CORS for the page's origin only. |
 | GET | `/api/clients/:slug/uploads` | team | Uploads with label, filename, type, size, uploader, time, Drive link and download path. |
@@ -183,7 +187,11 @@ with the caller's key fingerprint:
 
 ## The intake page
 
-`server/intake/client.html` is the deployed `Index.html` (Version 24 field set) with the
+`server/intake/client.html` is the deployed `Index.html` (Version 24 field set) plus a seventh
+tab, **Contacts**: "Your NPSA team" (Stuart, Brad and the sales rep, from `client_contacts`
+rows with `side = npsa`) and "Your team" (the client's people, which the client can add to
+and remove from on the page). The rows are injected at render and the tab talks to
+`/api/intake/<slug>/contacts`. Otherwise it is the form with the
 Apps Script template tags turned into `{{placeholders}}` that `renderClientPage` fills
 as JSON (with `<`, `>` and the Unicode line separators escaped, the way the Apps
 Script's `jsForInject_` did), and the three `google.script.run` calls replaced by

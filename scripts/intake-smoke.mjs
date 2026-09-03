@@ -50,7 +50,7 @@ const store = createMemoryStore();
 let rendered = null;
 registerIntake(app, {
   store, internalKey: INTERNAL, publicBase: BASE,
-  renderPage: ({ client, stateConfig, existing }) => { rendered = { client, stateConfig, existing }; return `<html>page for ${client.slug}</html>`; },
+  renderPage: ({ client, stateConfig, existing, contacts }) => { rendered = { client, stateConfig, existing, contacts }; return `<html>page for ${client.slug}</html>`; },
 });
 const server = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -125,10 +125,14 @@ await check('client_create derives the slug, mints a token, builds the link, rec
   assert.equal(created.saa, 'Florida Division of Emergency Management (FDEM)');
   assert.equal(created.token, undefined, 'token is not echoed as a field');
   assert.match(created.intake_url, new RegExp(`^${BASE}/client/trinity-wellsprings-church\\?t=[0-9a-f]{20}$`));
-  assert.equal(created.contacts.length, 2);
-  assert.equal(created.contacts[0].email, 'pat@trinity.org');
-  assert.equal(created.contacts[0].is_primary, true);
-  assert.equal(created.contacts[0].added_by, 'npsa:abcd1234');
+  assert.equal(created.contacts.length, 4, 'two from the request plus the standing NPSA team');
+  assert.deepEqual(created.contacts.map(c => c.side), ['npsa', 'npsa', 'client', 'client'], 'NPSA rows first');
+  assert.equal(created.contacts[0].email, 'stuart@nonprofitsecurityadvisors.com');
+  assert.equal(created.contacts[0].phone, '(815) 550-5222');
+  const pat = created.contacts.find(c => c.email === 'pat@trinity.org');
+  assert.equal(pat.is_primary, true);
+  assert.equal(pat.added_by, 'npsa:abcd1234');
+  assert.equal(pat.side, 'client');
 });
 const token = () => new URL(created.intake_url).searchParams.get('t');
 
@@ -264,10 +268,46 @@ await check('patch changes only what is given and manages contacts', async () =>
   assert.equal(r.data.asana_project_gid, '1217000000000000');
   assert.equal(r.data.phase, 3);
   assert.equal(r.data.name, 'Trinity Wellsprings Church', 'untouched');
-  assert.deepEqual(r.data.contacts.map(c => c.email), ['pat@trinity.org', 'sam@trinity.org']);
+  assert.deepEqual(r.data.contacts.filter(c => c.side === 'client').map(c => c.email), ['pat@trinity.org', 'sam@trinity.org']);
+  const rep2 = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_npsa_contacts: [{ name: 'Jeff Markley', email: 'jeff@nonprofitsecurityadvisors.com', role: 'Sales rep' }] } });
+  assert.equal(rep2.status, 200);
+  const jeff = rep2.data.contacts.find(c => c.email === 'jeff@nonprofitsecurityadvisors.com');
+  assert.equal(jeff.side, 'npsa');
+  assert.equal(rep2.data.contacts.filter(c => c.side === 'npsa').length, 3);
   const missing = await call('PATCH', '/api/clients/nobody', { headers: TEAM, body: { phase: 2 } });
   assert.equal(missing.status, 404);
 });
+await check('the client can list, add and remove their own contacts but not the NPSA team', async () => {
+  const h = { 'X-Intake-Token': token() };
+  assert.equal((await call('GET', `/api/intake/${created.slug}/contacts`)).status, 401);
+  const list = await call('GET', `/api/intake/${created.slug}/contacts`, { headers: h });
+  assert.equal(list.status, 200);
+  assert.equal(list.data.npsa.length, 3);
+  assert.deepEqual(list.data.client.map(c => c.email), ['pat@trinity.org', 'sam@trinity.org']);
+  assert.equal(list.data.npsa[0].added_by, 'npsa:abcd1234');
+  assert.equal(Object.keys(list.data.npsa[0]).includes('is_primary'), false, 'only public fields');
+  const noName = await call('POST', `/api/intake/${created.slug}/contacts`, { headers: h, body: { email: 'x@trinity.org' } });
+  assert.equal(noName.status, 400);
+  const badEmail = await call('POST', `/api/intake/${created.slug}/contacts`, { headers: h, body: { name: 'X', email: 'not-an-email' } });
+  assert.equal(badEmail.status, 400);
+  assert.match(badEmail.data.error, /valid email/);
+  const npsaEmail = await call('POST', `/api/intake/${created.slug}/contacts`, { headers: h, body: { name: 'X', email: 'brad@lyndeconsulting.com' } });
+  assert.equal(npsaEmail.status, 400);
+  const added = await call('POST', `/api/intake/${created.slug}/contacts`, { headers: h, body: { name: 'Lee Park', role: 'Facilities Director', email: 'Lee@Trinity.org', phone: '(555) 555-1212' } });
+  assert.equal(added.status, 200, JSON.stringify(added.data));
+  assert.deepEqual(added.data.client.map(c => c.email), ['pat@trinity.org', 'sam@trinity.org', 'lee@trinity.org']);
+  assert.equal(added.data.client[2].phone, '(555) 555-1212');
+  assert.equal(added.data.client[2].added_by, 'client:Pat Lee, Exec Pastor');
+  const team = await call('GET', `/api/clients/${created.slug}`, { headers: TEAM });
+  assert.equal(team.data.contacts.find(c => c.email === 'lee@trinity.org').side, 'client');
+  const rmNpsa = await call('DELETE', `/api/intake/${created.slug}/contacts?email=stuart%40nonprofitsecurityadvisors.com`, { headers: h });
+  assert.equal(rmNpsa.status, 400);
+  const rm = await call('DELETE', `/api/intake/${created.slug}/contacts?email=lee%40trinity.org`, { headers: h });
+  assert.equal(rm.status, 200);
+  assert.deepEqual(rm.data.client.map(c => c.email), ['pat@trinity.org', 'sam@trinity.org']);
+  assert.equal((await call('DELETE', `/api/intake/${created.slug}/contacts?email=nobody%40trinity.org`, { headers: h })).status, 404);
+});
+
 await check('page route: unknown slug and wrong token get the error page, right token renders', async () => {
   const unknown = await call('GET', '/client/nobody?t=abc');
   assert.equal(unknown.status, 404);
@@ -283,6 +323,8 @@ await check('page route: unknown slug and wrong token get the error page, right 
   assert.equal(rendered.stateConfig.saa, 'FDEM');
   assert.equal(rendered.existing.q_1_1_2, 'Executive Pastor');
   assert.equal(rendered.existing.up_mission, undefined, 'empty answers are not injected');
+  assert.equal(rendered.contacts.npsa.length, 3, 'contacts injected for the tab');
+  assert.equal(rendered.contacts.client[0].email, 'pat@trinity.org');
 });
 await check('page route rescues a Gmail-mangled query string', async () => {
   rendered = null;
@@ -310,6 +352,8 @@ await check('renderClientPage fills every placeholder and escapes a script-closi
     stateConfig: { saa: 'KOHS', registration: ['x — hard gate'], programs: [], perSiteCap: '', stateCap: '' },
     existing: { q_1_1_1: 'line\u2028break', q_2_1: '<b>bold</b>' },
   });
+  const withContacts = renderClientPage({ client: { slug: 'a-b', token: 't', name: 'A', state: 'IL' }, stateConfig: {}, existing: {}, contacts: { npsa: [{ name: 'S', email: 's@x.org' }], client: [{ name: '</script>', email: 'c@x.org' }] } });
+  assert.ok(withContacts.includes('CONTACTS={"npsa":[{"name":"S","email":"s@x.org"}],"client":[{"name":"\\u003c/script\\u003e","email":"c@x.org"}]}'), 'contacts escaped');
   assert.ok(html && html.length > 200000, 'template rendered');
   assert.ok(!/\{\{\w+\}\}/.test(html), 'no placeholder left');
   assert.ok(html.includes('var CLIENT="evil-co",TOKEN="abc123def456"'));
@@ -317,6 +361,8 @@ await check('renderClientPage fills every placeholder and escapes a script-closi
   assert.ok(!html.includes('</script><img'), 'raw closing tag never appears');
   assert.ok(html.includes('"q_1_1_1":"line\\u2028break"'), 'line separator escaped');
   assert.ok(html.includes('API_BASE=""'));
+  assert.ok(html.includes('CONTACTS={"npsa":[],"client":[]}'), 'contacts default to empty');
+  assert.ok(html.includes('data-tab="ct"') && html.includes('id="ctAddBtn"'), 'contacts tab present');
   assert.ok(html.includes('"saa":"KOHS"'));
   assert.ok(!html.includes('google.script'), 'no Apps Script left');
   assert.ok(html.includes('/answers') && html.includes('/complete') && html.includes('/upload'));
