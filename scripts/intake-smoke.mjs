@@ -98,11 +98,11 @@ await check('with MCP_API_KEYS unset only the internal key gets in', async () =>
 });
 
 // ── 2. Registration ───────────────────────────────────────────────────────────
-await check('catalog is served with 676 questions and the section list', async () => {
+await check('catalog is served with 679 questions and the section list', async () => {
   const r = await call('GET', '/api/intake/questions', { headers: TEAM });
   assert.equal(r.status, 200);
-  assert.equal(r.data.count, 676);
-  assert.equal(QUESTIONS.length, 676);
+  assert.equal(r.data.count, 679);
+  assert.equal(QUESTIONS.length, 679);
   assert.ok(r.data.sections.includes('Checklist'));
   const chk = await call('GET', '/api/intake/questions?prefix=chk_who_', { headers: TEAM });
   assert.ok(chk.data.count > 0 && chk.data.questions.every(q => q.key.startsWith('chk_who_')));
@@ -252,6 +252,14 @@ await check('wish list counts only prioritized items, and their five detail fiel
   assert.deepEqual(f1.details, { answered: 4, total: 10 });
   assert.deepEqual(f1.items.map(i => [i.label, i.priority, i.answered, i.total]), [['CCTV / Camera System', 1, 3, 5], ['Vehicle Bollards', 2, 1, 5]]);
   assert.equal(r.data.wish_list[1].prioritized, 0);
+});
+await check('site research: loc<n>_infra is accepted and stays out of the core count', async () => {
+  const before = (await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM })).data.core;
+  const w = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { loc1_infra: 'TRANSIT\n- Station 0.3 mi N', resp_q_4_6: 'legacy blob' } } });
+  assert.equal(w.status, 200);
+  const after = (await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM })).data;
+  assert.deepEqual(after.core, before);
+  assert.equal(after.sections.find(x => x.section === 'Locations').total, 36);
 });
 await check('programs: 20 slots accepted, status counts the named rows, 3.2.1 is retired but still readable', async () => {
   const w = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { prog1_name: 'Sunday Service', prog12_name: 'GriefShare', prog12_runby: 'Outside', prog20_desc: 'no name yet', q_3_2_1: 'legacy free text' } } });

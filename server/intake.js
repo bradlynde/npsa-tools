@@ -52,7 +52,7 @@ export const SECTIONS = [...new Set(QUESTIONS.map(q => q.section))];
 // it is reported as a count of rows rather than folded into the core total.
 const CORE_SECTIONS = new Set(SECTIONS.filter(s => /^[1-5]\. /.test(s) || s === 'Locations' || s === 'Uploads'));
 const PROGRAM_SLOTS = [...new Set(QUESTIONS.filter(q => /^prog\d+_/.test(q.key)).map(q => Number(q.key.match(/^prog(\d+)_/)[1])))];
-const CORE_KEYS = QUESTIONS.filter(q => CORE_SECTIONS.has(q.section) && q.kind !== 'meta').map(q => q.key);
+const CORE_KEYS = QUESTIONS.filter(q => CORE_SECTIONS.has(q.section) && q.kind !== 'meta' && !q.key.endsWith('_infra')).map(q => q.key); // *_infra is NPSA research, not a client answer
 const CHECKLIST_STEMS = QUESTIONS.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length));
 
 // The wish list is 3 facilities × 20 items × 6 fields, and a client only ever

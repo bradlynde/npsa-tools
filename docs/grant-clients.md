@@ -107,7 +107,7 @@ filling this out?" answer), `seed:<actor>` (a team write, actor = key fingerprin
 
 ### The question catalog
 
-Not a table. `server/intake-questions.json` holds the 676 questions the page renders (592 from the Apps Script build, plus 14 more program rows added 2026-09-03):
+Not a table. `server/intake-questions.json` holds the 679 questions the page renders (592 from the Apps Script build, plus 14 more program rows and a per-site `loc<n>_infra` research field added 2026-09-03; `q_3_2_1` and `resp_q_4_6` are retired as meta):
 `key, section, label, ordinal, kind` (`text | textarea | select | upload | meta`). It was
 generated from the deployed Apps Script build (Version 24): the `FIELDS` array in
 `Code.gs` for keys, sections, labels and order, and the element type per `data-key` in
