@@ -1,5 +1,5 @@
 {
-  "_source": "Generated 2026-09-02 from the deployed Apps Script build (NSGP Intake Form v1, Version 24): the FIELDS array in Code.gs for key/section/label/order, and the element type per data-key in Index.html for kind. Edit this file by hand from now on; the Python generator is retired for this form.",
+  "_source": "Generated 2026-09-02 from the deployed Apps Script build (NSGP Intake Form v1, Version 24): the FIELDS array in Code.gs for key/section/label/order, and the element type per data-key in Index.html for kind. Edit this file by hand from now on; the Python generator is retired for this form. 2026-09-03: Programs grew from 6 to 20 rows (the page shows rows as they are added); 3.2.1 retired in favour of the Programs tab and kept as meta so old answers still read.",
   "_kinds": "text | textarea | select | upload | meta. meta keys (_status) are written by the server, never by the page.",
   "questions": [
     {
@@ -257,9 +257,9 @@
     {
       "key": "q_3_2_1",
       "section": "3. Community Role",
-      "label": "3.2.1 List all programs, services, events, and outside organizations that operate from your facility. For each: (1) run by your org or an outside org, (2) how many people participate, (3) the schedule. We have pre-populated items found from",
+      "label": "3.2.1 (retired 2026-09-03; programs are listed on the Programs tab) List all programs, services, events, and outside organizations",
       "ordinal": 37,
-      "kind": "textarea"
+      "kind": "meta"
     },
     {
       "key": "note_q_3_2_1",
@@ -3510,640 +3510,1228 @@
       "kind": "text"
     },
     {
+      "key": "prog7_name",
+      "section": "Programs",
+      "label": "Program 7 — Program Name",
+      "ordinal": 502,
+      "kind": "text"
+    },
+    {
+      "key": "prog7_desc",
+      "section": "Programs",
+      "label": "Program 7 — Description",
+      "ordinal": 503,
+      "kind": "text"
+    },
+    {
+      "key": "prog7_freq",
+      "section": "Programs",
+      "label": "Program 7 — Frequency",
+      "ordinal": 504,
+      "kind": "text"
+    },
+    {
+      "key": "prog7_runby",
+      "section": "Programs",
+      "label": "Program 7 — Run by",
+      "ordinal": 505,
+      "kind": "select"
+    },
+    {
+      "key": "prog7_demo",
+      "section": "Programs",
+      "label": "Program 7 — Demographic",
+      "ordinal": 506,
+      "kind": "text"
+    },
+    {
+      "key": "prog7_people",
+      "section": "Programs",
+      "label": "Program 7 — # People",
+      "ordinal": 507,
+      "kind": "text"
+    },
+    {
+      "key": "prog8_name",
+      "section": "Programs",
+      "label": "Program 8 — Program Name",
+      "ordinal": 508,
+      "kind": "text"
+    },
+    {
+      "key": "prog8_desc",
+      "section": "Programs",
+      "label": "Program 8 — Description",
+      "ordinal": 509,
+      "kind": "text"
+    },
+    {
+      "key": "prog8_freq",
+      "section": "Programs",
+      "label": "Program 8 — Frequency",
+      "ordinal": 510,
+      "kind": "text"
+    },
+    {
+      "key": "prog8_runby",
+      "section": "Programs",
+      "label": "Program 8 — Run by",
+      "ordinal": 511,
+      "kind": "select"
+    },
+    {
+      "key": "prog8_demo",
+      "section": "Programs",
+      "label": "Program 8 — Demographic",
+      "ordinal": 512,
+      "kind": "text"
+    },
+    {
+      "key": "prog8_people",
+      "section": "Programs",
+      "label": "Program 8 — # People",
+      "ordinal": 513,
+      "kind": "text"
+    },
+    {
+      "key": "prog9_name",
+      "section": "Programs",
+      "label": "Program 9 — Program Name",
+      "ordinal": 514,
+      "kind": "text"
+    },
+    {
+      "key": "prog9_desc",
+      "section": "Programs",
+      "label": "Program 9 — Description",
+      "ordinal": 515,
+      "kind": "text"
+    },
+    {
+      "key": "prog9_freq",
+      "section": "Programs",
+      "label": "Program 9 — Frequency",
+      "ordinal": 516,
+      "kind": "text"
+    },
+    {
+      "key": "prog9_runby",
+      "section": "Programs",
+      "label": "Program 9 — Run by",
+      "ordinal": 517,
+      "kind": "select"
+    },
+    {
+      "key": "prog9_demo",
+      "section": "Programs",
+      "label": "Program 9 — Demographic",
+      "ordinal": 518,
+      "kind": "text"
+    },
+    {
+      "key": "prog9_people",
+      "section": "Programs",
+      "label": "Program 9 — # People",
+      "ordinal": 519,
+      "kind": "text"
+    },
+    {
+      "key": "prog10_name",
+      "section": "Programs",
+      "label": "Program 10 — Program Name",
+      "ordinal": 520,
+      "kind": "text"
+    },
+    {
+      "key": "prog10_desc",
+      "section": "Programs",
+      "label": "Program 10 — Description",
+      "ordinal": 521,
+      "kind": "text"
+    },
+    {
+      "key": "prog10_freq",
+      "section": "Programs",
+      "label": "Program 10 — Frequency",
+      "ordinal": 522,
+      "kind": "text"
+    },
+    {
+      "key": "prog10_runby",
+      "section": "Programs",
+      "label": "Program 10 — Run by",
+      "ordinal": 523,
+      "kind": "select"
+    },
+    {
+      "key": "prog10_demo",
+      "section": "Programs",
+      "label": "Program 10 — Demographic",
+      "ordinal": 524,
+      "kind": "text"
+    },
+    {
+      "key": "prog10_people",
+      "section": "Programs",
+      "label": "Program 10 — # People",
+      "ordinal": 525,
+      "kind": "text"
+    },
+    {
+      "key": "prog11_name",
+      "section": "Programs",
+      "label": "Program 11 — Program Name",
+      "ordinal": 526,
+      "kind": "text"
+    },
+    {
+      "key": "prog11_desc",
+      "section": "Programs",
+      "label": "Program 11 — Description",
+      "ordinal": 527,
+      "kind": "text"
+    },
+    {
+      "key": "prog11_freq",
+      "section": "Programs",
+      "label": "Program 11 — Frequency",
+      "ordinal": 528,
+      "kind": "text"
+    },
+    {
+      "key": "prog11_runby",
+      "section": "Programs",
+      "label": "Program 11 — Run by",
+      "ordinal": 529,
+      "kind": "select"
+    },
+    {
+      "key": "prog11_demo",
+      "section": "Programs",
+      "label": "Program 11 — Demographic",
+      "ordinal": 530,
+      "kind": "text"
+    },
+    {
+      "key": "prog11_people",
+      "section": "Programs",
+      "label": "Program 11 — # People",
+      "ordinal": 531,
+      "kind": "text"
+    },
+    {
+      "key": "prog12_name",
+      "section": "Programs",
+      "label": "Program 12 — Program Name",
+      "ordinal": 532,
+      "kind": "text"
+    },
+    {
+      "key": "prog12_desc",
+      "section": "Programs",
+      "label": "Program 12 — Description",
+      "ordinal": 533,
+      "kind": "text"
+    },
+    {
+      "key": "prog12_freq",
+      "section": "Programs",
+      "label": "Program 12 — Frequency",
+      "ordinal": 534,
+      "kind": "text"
+    },
+    {
+      "key": "prog12_runby",
+      "section": "Programs",
+      "label": "Program 12 — Run by",
+      "ordinal": 535,
+      "kind": "select"
+    },
+    {
+      "key": "prog12_demo",
+      "section": "Programs",
+      "label": "Program 12 — Demographic",
+      "ordinal": 536,
+      "kind": "text"
+    },
+    {
+      "key": "prog12_people",
+      "section": "Programs",
+      "label": "Program 12 — # People",
+      "ordinal": 537,
+      "kind": "text"
+    },
+    {
+      "key": "prog13_name",
+      "section": "Programs",
+      "label": "Program 13 — Program Name",
+      "ordinal": 538,
+      "kind": "text"
+    },
+    {
+      "key": "prog13_desc",
+      "section": "Programs",
+      "label": "Program 13 — Description",
+      "ordinal": 539,
+      "kind": "text"
+    },
+    {
+      "key": "prog13_freq",
+      "section": "Programs",
+      "label": "Program 13 — Frequency",
+      "ordinal": 540,
+      "kind": "text"
+    },
+    {
+      "key": "prog13_runby",
+      "section": "Programs",
+      "label": "Program 13 — Run by",
+      "ordinal": 541,
+      "kind": "select"
+    },
+    {
+      "key": "prog13_demo",
+      "section": "Programs",
+      "label": "Program 13 — Demographic",
+      "ordinal": 542,
+      "kind": "text"
+    },
+    {
+      "key": "prog13_people",
+      "section": "Programs",
+      "label": "Program 13 — # People",
+      "ordinal": 543,
+      "kind": "text"
+    },
+    {
+      "key": "prog14_name",
+      "section": "Programs",
+      "label": "Program 14 — Program Name",
+      "ordinal": 544,
+      "kind": "text"
+    },
+    {
+      "key": "prog14_desc",
+      "section": "Programs",
+      "label": "Program 14 — Description",
+      "ordinal": 545,
+      "kind": "text"
+    },
+    {
+      "key": "prog14_freq",
+      "section": "Programs",
+      "label": "Program 14 — Frequency",
+      "ordinal": 546,
+      "kind": "text"
+    },
+    {
+      "key": "prog14_runby",
+      "section": "Programs",
+      "label": "Program 14 — Run by",
+      "ordinal": 547,
+      "kind": "select"
+    },
+    {
+      "key": "prog14_demo",
+      "section": "Programs",
+      "label": "Program 14 — Demographic",
+      "ordinal": 548,
+      "kind": "text"
+    },
+    {
+      "key": "prog14_people",
+      "section": "Programs",
+      "label": "Program 14 — # People",
+      "ordinal": 549,
+      "kind": "text"
+    },
+    {
+      "key": "prog15_name",
+      "section": "Programs",
+      "label": "Program 15 — Program Name",
+      "ordinal": 550,
+      "kind": "text"
+    },
+    {
+      "key": "prog15_desc",
+      "section": "Programs",
+      "label": "Program 15 — Description",
+      "ordinal": 551,
+      "kind": "text"
+    },
+    {
+      "key": "prog15_freq",
+      "section": "Programs",
+      "label": "Program 15 — Frequency",
+      "ordinal": 552,
+      "kind": "text"
+    },
+    {
+      "key": "prog15_runby",
+      "section": "Programs",
+      "label": "Program 15 — Run by",
+      "ordinal": 553,
+      "kind": "select"
+    },
+    {
+      "key": "prog15_demo",
+      "section": "Programs",
+      "label": "Program 15 — Demographic",
+      "ordinal": 554,
+      "kind": "text"
+    },
+    {
+      "key": "prog15_people",
+      "section": "Programs",
+      "label": "Program 15 — # People",
+      "ordinal": 555,
+      "kind": "text"
+    },
+    {
+      "key": "prog16_name",
+      "section": "Programs",
+      "label": "Program 16 — Program Name",
+      "ordinal": 556,
+      "kind": "text"
+    },
+    {
+      "key": "prog16_desc",
+      "section": "Programs",
+      "label": "Program 16 — Description",
+      "ordinal": 557,
+      "kind": "text"
+    },
+    {
+      "key": "prog16_freq",
+      "section": "Programs",
+      "label": "Program 16 — Frequency",
+      "ordinal": 558,
+      "kind": "text"
+    },
+    {
+      "key": "prog16_runby",
+      "section": "Programs",
+      "label": "Program 16 — Run by",
+      "ordinal": 559,
+      "kind": "select"
+    },
+    {
+      "key": "prog16_demo",
+      "section": "Programs",
+      "label": "Program 16 — Demographic",
+      "ordinal": 560,
+      "kind": "text"
+    },
+    {
+      "key": "prog16_people",
+      "section": "Programs",
+      "label": "Program 16 — # People",
+      "ordinal": 561,
+      "kind": "text"
+    },
+    {
+      "key": "prog17_name",
+      "section": "Programs",
+      "label": "Program 17 — Program Name",
+      "ordinal": 562,
+      "kind": "text"
+    },
+    {
+      "key": "prog17_desc",
+      "section": "Programs",
+      "label": "Program 17 — Description",
+      "ordinal": 563,
+      "kind": "text"
+    },
+    {
+      "key": "prog17_freq",
+      "section": "Programs",
+      "label": "Program 17 — Frequency",
+      "ordinal": 564,
+      "kind": "text"
+    },
+    {
+      "key": "prog17_runby",
+      "section": "Programs",
+      "label": "Program 17 — Run by",
+      "ordinal": 565,
+      "kind": "select"
+    },
+    {
+      "key": "prog17_demo",
+      "section": "Programs",
+      "label": "Program 17 — Demographic",
+      "ordinal": 566,
+      "kind": "text"
+    },
+    {
+      "key": "prog17_people",
+      "section": "Programs",
+      "label": "Program 17 — # People",
+      "ordinal": 567,
+      "kind": "text"
+    },
+    {
+      "key": "prog18_name",
+      "section": "Programs",
+      "label": "Program 18 — Program Name",
+      "ordinal": 568,
+      "kind": "text"
+    },
+    {
+      "key": "prog18_desc",
+      "section": "Programs",
+      "label": "Program 18 — Description",
+      "ordinal": 569,
+      "kind": "text"
+    },
+    {
+      "key": "prog18_freq",
+      "section": "Programs",
+      "label": "Program 18 — Frequency",
+      "ordinal": 570,
+      "kind": "text"
+    },
+    {
+      "key": "prog18_runby",
+      "section": "Programs",
+      "label": "Program 18 — Run by",
+      "ordinal": 571,
+      "kind": "select"
+    },
+    {
+      "key": "prog18_demo",
+      "section": "Programs",
+      "label": "Program 18 — Demographic",
+      "ordinal": 572,
+      "kind": "text"
+    },
+    {
+      "key": "prog18_people",
+      "section": "Programs",
+      "label": "Program 18 — # People",
+      "ordinal": 573,
+      "kind": "text"
+    },
+    {
+      "key": "prog19_name",
+      "section": "Programs",
+      "label": "Program 19 — Program Name",
+      "ordinal": 574,
+      "kind": "text"
+    },
+    {
+      "key": "prog19_desc",
+      "section": "Programs",
+      "label": "Program 19 — Description",
+      "ordinal": 575,
+      "kind": "text"
+    },
+    {
+      "key": "prog19_freq",
+      "section": "Programs",
+      "label": "Program 19 — Frequency",
+      "ordinal": 576,
+      "kind": "text"
+    },
+    {
+      "key": "prog19_runby",
+      "section": "Programs",
+      "label": "Program 19 — Run by",
+      "ordinal": 577,
+      "kind": "select"
+    },
+    {
+      "key": "prog19_demo",
+      "section": "Programs",
+      "label": "Program 19 — Demographic",
+      "ordinal": 578,
+      "kind": "text"
+    },
+    {
+      "key": "prog19_people",
+      "section": "Programs",
+      "label": "Program 19 — # People",
+      "ordinal": 579,
+      "kind": "text"
+    },
+    {
+      "key": "prog20_name",
+      "section": "Programs",
+      "label": "Program 20 — Program Name",
+      "ordinal": 580,
+      "kind": "text"
+    },
+    {
+      "key": "prog20_desc",
+      "section": "Programs",
+      "label": "Program 20 — Description",
+      "ordinal": 581,
+      "kind": "text"
+    },
+    {
+      "key": "prog20_freq",
+      "section": "Programs",
+      "label": "Program 20 — Frequency",
+      "ordinal": 582,
+      "kind": "text"
+    },
+    {
+      "key": "prog20_runby",
+      "section": "Programs",
+      "label": "Program 20 — Run by",
+      "ordinal": 583,
+      "kind": "select"
+    },
+    {
+      "key": "prog20_demo",
+      "section": "Programs",
+      "label": "Program 20 — Demographic",
+      "ordinal": 584,
+      "kind": "text"
+    },
+    {
+      "key": "prog20_people",
+      "section": "Programs",
+      "label": "Program 20 — # People",
+      "ordinal": 585,
+      "kind": "text"
+    },
+    {
       "key": "up_mission",
       "section": "Uploads",
       "label": "Mission statement on letterhead (file)",
-      "ordinal": 502,
+      "ordinal": 586,
       "kind": "upload"
     },
     {
       "key": "up_501c3",
       "section": "Uploads",
       "label": "501(c)(3) determination letter (file)",
-      "ordinal": 503,
+      "ordinal": 587,
       "kind": "upload"
     },
     {
       "key": "up_va",
       "section": "Uploads",
       "label": "Vulnerability assessment (if you have one) (file)",
-      "ordinal": 504,
+      "ordinal": 588,
       "kind": "upload"
     },
     {
       "key": "up_bios",
       "section": "Uploads",
       "label": "Leadership bios & resumes (PII-scrubbed) (file)",
-      "ordinal": 505,
+      "ordinal": 589,
       "kind": "upload"
     },
     {
       "key": "_filled_by",
       "section": "About this response",
       "label": "Who is filling this out? (name / role)",
-      "ordinal": 506,
+      "ordinal": 590,
       "kind": "text"
     },
     {
       "key": "_status",
       "section": "About this response",
       "label": "Submission status",
-      "ordinal": 507,
+      "ordinal": 591,
       "kind": "meta"
     },
     {
       "key": "chk_status_kickoff_call",
       "section": "Checklist",
       "label": "Kickoff call — status",
-      "ordinal": 508,
+      "ordinal": 592,
       "kind": "select"
     },
     {
       "key": "chk_due_kickoff_call",
       "section": "Checklist",
       "label": "Kickoff call — due date",
-      "ordinal": 509,
+      "ordinal": 593,
       "kind": "text"
     },
     {
       "key": "chk_note_kickoff_call",
       "section": "Checklist",
       "label": "Kickoff call — notes",
-      "ordinal": 510,
+      "ordinal": 594,
       "kind": "textarea"
     },
     {
       "key": "chk_who_sam_gov_uei_registration",
       "section": "Checklist",
       "label": "SAM.gov / UEI registration — owner",
-      "ordinal": 511,
+      "ordinal": 595,
       "kind": "text"
     },
     {
       "key": "chk_status_sam_gov_uei_registration",
       "section": "Checklist",
       "label": "SAM.gov / UEI registration — status",
-      "ordinal": 512,
+      "ordinal": 596,
       "kind": "select"
     },
     {
       "key": "chk_due_sam_gov_uei_registration",
       "section": "Checklist",
       "label": "SAM.gov / UEI registration — due date",
-      "ordinal": 513,
+      "ordinal": 597,
       "kind": "text"
     },
     {
       "key": "chk_note_sam_gov_uei_registration",
       "section": "Checklist",
       "label": "SAM.gov / UEI registration — notes",
-      "ordinal": 514,
+      "ordinal": 598,
       "kind": "textarea"
     },
     {
       "key": "chk_who_confirm_obtain_ein",
       "section": "Checklist",
       "label": "Confirm / obtain EIN — owner",
-      "ordinal": 515,
+      "ordinal": 599,
       "kind": "text"
     },
     {
       "key": "chk_status_confirm_obtain_ein",
       "section": "Checklist",
       "label": "Confirm / obtain EIN — status",
-      "ordinal": 516,
+      "ordinal": 600,
       "kind": "select"
     },
     {
       "key": "chk_due_confirm_obtain_ein",
       "section": "Checklist",
       "label": "Confirm / obtain EIN — due date",
-      "ordinal": 517,
+      "ordinal": 601,
       "kind": "text"
     },
     {
       "key": "chk_note_confirm_obtain_ein",
       "section": "Checklist",
       "label": "Confirm / obtain EIN — notes",
-      "ordinal": 518,
+      "ordinal": 602,
       "kind": "textarea"
     },
     {
       "key": "chk_who_501_c_3_determination_letter",
       "section": "Checklist",
       "label": "501(c)(3) determination letter — owner",
-      "ordinal": 519,
+      "ordinal": 603,
       "kind": "text"
     },
     {
       "key": "chk_status_501_c_3_determination_letter",
       "section": "Checklist",
       "label": "501(c)(3) determination letter — status",
-      "ordinal": 520,
+      "ordinal": 604,
       "kind": "select"
     },
     {
       "key": "chk_due_501_c_3_determination_letter",
       "section": "Checklist",
       "label": "501(c)(3) determination letter — due date",
-      "ordinal": 521,
+      "ordinal": 605,
       "kind": "text"
     },
     {
       "key": "chk_note_501_c_3_determination_letter",
       "section": "Checklist",
       "label": "501(c)(3) determination letter — notes",
-      "ordinal": 522,
+      "ordinal": 606,
       "kind": "textarea"
     },
     {
       "key": "chk_status_confirm_legal_org_name_w_secretary",
       "section": "Checklist",
       "label": "Confirm legal org name w/ Secretary of State — status",
-      "ordinal": 523,
+      "ordinal": 607,
       "kind": "select"
     },
     {
       "key": "chk_due_confirm_legal_org_name_w_secretary",
       "section": "Checklist",
       "label": "Confirm legal org name w/ Secretary of State — due date",
-      "ordinal": 524,
+      "ordinal": 608,
       "kind": "text"
     },
     {
       "key": "chk_note_confirm_legal_org_name_w_secretary",
       "section": "Checklist",
       "label": "Confirm legal org name w/ Secretary of State — notes",
-      "ordinal": 525,
+      "ordinal": 609,
       "kind": "textarea"
     },
     {
       "key": "chk_status_schedule_follow_up_call",
       "section": "Checklist",
       "label": "Schedule follow-up call — status",
-      "ordinal": 526,
+      "ordinal": 610,
       "kind": "select"
     },
     {
       "key": "chk_due_schedule_follow_up_call",
       "section": "Checklist",
       "label": "Schedule follow-up call — due date",
-      "ordinal": 527,
+      "ordinal": 611,
       "kind": "text"
     },
     {
       "key": "chk_note_schedule_follow_up_call",
       "section": "Checklist",
       "label": "Schedule follow-up call — notes",
-      "ordinal": 528,
+      "ordinal": 612,
       "kind": "textarea"
     },
     {
       "key": "chk_who_state_reg",
       "section": "Checklist",
       "label": "State registration — owner",
-      "ordinal": 529,
+      "ordinal": 613,
       "kind": "text"
     },
     {
       "key": "chk_status_state_reg",
       "section": "Checklist",
       "label": "State registration — status",
-      "ordinal": 530,
+      "ordinal": 614,
       "kind": "select"
     },
     {
       "key": "chk_due_state_reg",
       "section": "Checklist",
       "label": "State registration — due date",
-      "ordinal": 531,
+      "ordinal": 615,
       "kind": "text"
     },
     {
       "key": "chk_note_state_reg",
       "section": "Checklist",
       "label": "State registration — notes",
-      "ordinal": 532,
+      "ordinal": 616,
       "kind": "textarea"
     },
     {
       "key": "chk_who_information_collection_workbook_co",
       "section": "Checklist",
       "label": "Information-collection workbook complete — owner",
-      "ordinal": 533,
+      "ordinal": 617,
       "kind": "text"
     },
     {
       "key": "chk_status_information_collection_workbook_co",
       "section": "Checklist",
       "label": "Information-collection workbook complete — status",
-      "ordinal": 534,
+      "ordinal": 618,
       "kind": "select"
     },
     {
       "key": "chk_due_information_collection_workbook_co",
       "section": "Checklist",
       "label": "Information-collection workbook complete — due date",
-      "ordinal": 535,
+      "ordinal": 619,
       "kind": "text"
     },
     {
       "key": "chk_note_information_collection_workbook_co",
       "section": "Checklist",
       "label": "Information-collection workbook complete — notes",
-      "ordinal": 536,
+      "ordinal": 620,
       "kind": "textarea"
     },
     {
       "key": "chk_who_mission_statement_on_letterhead",
       "section": "Checklist",
       "label": "Mission statement on letterhead — owner",
-      "ordinal": 537,
+      "ordinal": 621,
       "kind": "text"
     },
     {
       "key": "chk_status_mission_statement_on_letterhead",
       "section": "Checklist",
       "label": "Mission statement on letterhead — status",
-      "ordinal": 538,
+      "ordinal": 622,
       "kind": "select"
     },
     {
       "key": "chk_due_mission_statement_on_letterhead",
       "section": "Checklist",
       "label": "Mission statement on letterhead — due date",
-      "ordinal": 539,
+      "ordinal": 623,
       "kind": "text"
     },
     {
       "key": "chk_note_mission_statement_on_letterhead",
       "section": "Checklist",
       "label": "Mission statement on letterhead — notes",
-      "ordinal": 540,
+      "ordinal": 624,
       "kind": "textarea"
     },
     {
       "key": "chk_who_preparedness_efforts_law_enforceme",
       "section": "Checklist",
       "label": "Preparedness efforts (law-enforcement relationships) — owner",
-      "ordinal": 541,
+      "ordinal": 625,
       "kind": "text"
     },
     {
       "key": "chk_status_preparedness_efforts_law_enforceme",
       "section": "Checklist",
       "label": "Preparedness efforts (law-enforcement relationships) — status",
-      "ordinal": 542,
+      "ordinal": 626,
       "kind": "select"
     },
     {
       "key": "chk_due_preparedness_efforts_law_enforceme",
       "section": "Checklist",
       "label": "Preparedness efforts (law-enforcement relationships) — due date",
-      "ordinal": 543,
+      "ordinal": 627,
       "kind": "text"
     },
     {
       "key": "chk_note_preparedness_efforts_law_enforceme",
       "section": "Checklist",
       "label": "Preparedness efforts (law-enforcement relationships) — notes",
-      "ordinal": 544,
+      "ordinal": 628,
       "kind": "textarea"
     },
     {
       "key": "chk_who_leadership_bios_resumes_pii_scrubb",
       "section": "Checklist",
       "label": "Leadership bios & resumes (PII-scrubbed) — owner",
-      "ordinal": 545,
+      "ordinal": 629,
       "kind": "text"
     },
     {
       "key": "chk_status_leadership_bios_resumes_pii_scrubb",
       "section": "Checklist",
       "label": "Leadership bios & resumes (PII-scrubbed) — status",
-      "ordinal": 546,
+      "ordinal": 630,
       "kind": "select"
     },
     {
       "key": "chk_due_leadership_bios_resumes_pii_scrubb",
       "section": "Checklist",
       "label": "Leadership bios & resumes (PII-scrubbed) — due date",
-      "ordinal": 547,
+      "ordinal": 631,
       "kind": "text"
     },
     {
       "key": "chk_note_leadership_bios_resumes_pii_scrubb",
       "section": "Checklist",
       "label": "Leadership bios & resumes (PII-scrubbed) — notes",
-      "ordinal": 548,
+      "ordinal": 632,
       "kind": "textarea"
     },
     {
       "key": "chk_who_vulnerability_assessment_request",
       "section": "Checklist",
       "label": "Vulnerability assessment — request — owner",
-      "ordinal": 549,
+      "ordinal": 633,
       "kind": "text"
     },
     {
       "key": "chk_status_vulnerability_assessment_request",
       "section": "Checklist",
       "label": "Vulnerability assessment — request — status",
-      "ordinal": 550,
+      "ordinal": 634,
       "kind": "select"
     },
     {
       "key": "chk_due_vulnerability_assessment_request",
       "section": "Checklist",
       "label": "Vulnerability assessment — request — due date",
-      "ordinal": 551,
+      "ordinal": 635,
       "kind": "text"
     },
     {
       "key": "chk_note_vulnerability_assessment_request",
       "section": "Checklist",
       "label": "Vulnerability assessment — request — notes",
-      "ordinal": 552,
+      "ordinal": 636,
       "kind": "textarea"
     },
     {
       "key": "chk_who_vulnerability_assessment_scheduled",
       "section": "Checklist",
       "label": "Vulnerability assessment — scheduled — owner",
-      "ordinal": 553,
+      "ordinal": 637,
       "kind": "text"
     },
     {
       "key": "chk_status_vulnerability_assessment_scheduled",
       "section": "Checklist",
       "label": "Vulnerability assessment — scheduled — status",
-      "ordinal": 554,
+      "ordinal": 638,
       "kind": "select"
     },
     {
       "key": "chk_due_vulnerability_assessment_scheduled",
       "section": "Checklist",
       "label": "Vulnerability assessment — scheduled — due date",
-      "ordinal": 555,
+      "ordinal": 639,
       "kind": "text"
     },
     {
       "key": "chk_note_vulnerability_assessment_scheduled",
       "section": "Checklist",
       "label": "Vulnerability assessment — scheduled — notes",
-      "ordinal": 556,
+      "ordinal": 640,
       "kind": "textarea"
     },
     {
       "key": "chk_who_vulnerability_assessment_received",
       "section": "Checklist",
       "label": "Vulnerability assessment — received — owner",
-      "ordinal": 557,
+      "ordinal": 641,
       "kind": "text"
     },
     {
       "key": "chk_status_vulnerability_assessment_received",
       "section": "Checklist",
       "label": "Vulnerability assessment — received — status",
-      "ordinal": 558,
+      "ordinal": 642,
       "kind": "select"
     },
     {
       "key": "chk_due_vulnerability_assessment_received",
       "section": "Checklist",
       "label": "Vulnerability assessment — received — due date",
-      "ordinal": 559,
+      "ordinal": 643,
       "kind": "text"
     },
     {
       "key": "chk_note_vulnerability_assessment_received",
       "section": "Checklist",
       "label": "Vulnerability assessment — received — notes",
-      "ordinal": 560,
+      "ordinal": 644,
       "kind": "textarea"
     },
     {
       "key": "chk_who_wish_list_ideation_per_location",
       "section": "Checklist",
       "label": "Wish-list ideation (per location) — owner",
-      "ordinal": 561,
+      "ordinal": 645,
       "kind": "text"
     },
     {
       "key": "chk_status_wish_list_ideation_per_location",
       "section": "Checklist",
       "label": "Wish-list ideation (per location) — status",
-      "ordinal": 562,
+      "ordinal": 646,
       "kind": "select"
     },
     {
       "key": "chk_due_wish_list_ideation_per_location",
       "section": "Checklist",
       "label": "Wish-list ideation (per location) — due date",
-      "ordinal": 563,
+      "ordinal": 647,
       "kind": "text"
     },
     {
       "key": "chk_note_wish_list_ideation_per_location",
       "section": "Checklist",
       "label": "Wish-list ideation (per location) — notes",
-      "ordinal": 564,
+      "ordinal": 648,
       "kind": "textarea"
     },
     {
       "key": "chk_status_wish_list_prioritization",
       "section": "Checklist",
       "label": "Wish-list prioritization — status",
-      "ordinal": 565,
+      "ordinal": 649,
       "kind": "select"
     },
     {
       "key": "chk_due_wish_list_prioritization",
       "section": "Checklist",
       "label": "Wish-list prioritization — due date",
-      "ordinal": 566,
+      "ordinal": 650,
       "kind": "text"
     },
     {
       "key": "chk_note_wish_list_prioritization",
       "section": "Checklist",
       "label": "Wish-list prioritization — notes",
-      "ordinal": 567,
+      "ordinal": 651,
       "kind": "textarea"
     },
     {
       "key": "chk_who_vendor_quotes_for_wish_list_items",
       "section": "Checklist",
       "label": "Vendor quotes for wish-list items — owner",
-      "ordinal": 568,
+      "ordinal": 652,
       "kind": "text"
     },
     {
       "key": "chk_status_vendor_quotes_for_wish_list_items",
       "section": "Checklist",
       "label": "Vendor quotes for wish-list items — status",
-      "ordinal": 569,
+      "ordinal": 653,
       "kind": "select"
     },
     {
       "key": "chk_due_vendor_quotes_for_wish_list_items",
       "section": "Checklist",
       "label": "Vendor quotes for wish-list items — due date",
-      "ordinal": 570,
+      "ordinal": 654,
       "kind": "text"
     },
     {
       "key": "chk_note_vendor_quotes_for_wish_list_items",
       "section": "Checklist",
       "label": "Vendor quotes for wish-list items — notes",
-      "ordinal": 571,
+      "ordinal": 655,
       "kind": "textarea"
     },
     {
       "key": "chk_status_wish_list_budget_finalization",
       "section": "Checklist",
       "label": "Wish-list / budget finalization — status",
-      "ordinal": 572,
+      "ordinal": 656,
       "kind": "select"
     },
     {
       "key": "chk_due_wish_list_budget_finalization",
       "section": "Checklist",
       "label": "Wish-list / budget finalization — due date",
-      "ordinal": 573,
+      "ordinal": 657,
       "kind": "text"
     },
     {
       "key": "chk_note_wish_list_budget_finalization",
       "section": "Checklist",
       "label": "Wish-list / budget finalization — notes",
-      "ordinal": 574,
+      "ordinal": 658,
       "kind": "textarea"
     },
     {
       "key": "chk_status_investment_justification_ij_prepar",
       "section": "Checklist",
       "label": "Investment Justification (IJ) preparation — status",
-      "ordinal": 575,
+      "ordinal": 659,
       "kind": "select"
     },
     {
       "key": "chk_due_investment_justification_ij_prepar",
       "section": "Checklist",
       "label": "Investment Justification (IJ) preparation — due date",
-      "ordinal": 576,
+      "ordinal": 660,
       "kind": "text"
     },
     {
       "key": "chk_note_investment_justification_ij_prepar",
       "section": "Checklist",
       "label": "Investment Justification (IJ) preparation — notes",
-      "ordinal": 577,
+      "ordinal": 661,
       "kind": "textarea"
     },
     {
       "key": "chk_status_application_drafting",
       "section": "Checklist",
       "label": "Application drafting — status",
-      "ordinal": 578,
+      "ordinal": 662,
       "kind": "select"
     },
     {
       "key": "chk_due_application_drafting",
       "section": "Checklist",
       "label": "Application drafting — due date",
-      "ordinal": 579,
+      "ordinal": 663,
       "kind": "text"
     },
     {
       "key": "chk_note_application_drafting",
       "section": "Checklist",
       "label": "Application drafting — notes",
-      "ordinal": 580,
+      "ordinal": 664,
       "kind": "textarea"
     },
     {
       "key": "chk_status_final_review_edits",
       "section": "Checklist",
       "label": "Final review & edits — status",
-      "ordinal": 581,
+      "ordinal": 665,
       "kind": "select"
     },
     {
       "key": "chk_due_final_review_edits",
       "section": "Checklist",
       "label": "Final review & edits — due date",
-      "ordinal": 582,
+      "ordinal": 666,
       "kind": "text"
     },
     {
       "key": "chk_note_final_review_edits",
       "section": "Checklist",
       "label": "Final review & edits — notes",
-      "ordinal": 583,
+      "ordinal": 667,
       "kind": "textarea"
     },
     {
       "key": "chk_status_review_application_with_you",
       "section": "Checklist",
       "label": "Review application with you — status",
-      "ordinal": 584,
+      "ordinal": 668,
       "kind": "select"
     },
     {
       "key": "chk_due_review_application_with_you",
       "section": "Checklist",
       "label": "Review application with you — due date",
-      "ordinal": 585,
+      "ordinal": 669,
       "kind": "text"
     },
     {
       "key": "chk_note_review_application_with_you",
       "section": "Checklist",
       "label": "Review application with you — notes",
-      "ordinal": 586,
+      "ordinal": 670,
       "kind": "textarea"
     },
     {
       "key": "chk_status_assemble_submission_package",
       "section": "Checklist",
       "label": "Assemble submission package — status",
-      "ordinal": 587,
+      "ordinal": 671,
       "kind": "select"
     },
     {
       "key": "chk_due_assemble_submission_package",
       "section": "Checklist",
       "label": "Assemble submission package — due date",
-      "ordinal": 588,
+      "ordinal": 672,
       "kind": "text"
     },
     {
       "key": "chk_note_assemble_submission_package",
       "section": "Checklist",
       "label": "Assemble submission package — notes",
-      "ordinal": 589,
+      "ordinal": 673,
       "kind": "textarea"
     },
     {
       "key": "chk_status_submit_application",
       "section": "Checklist",
       "label": "Submit application — status",
-      "ordinal": 590,
+      "ordinal": 674,
       "kind": "select"
     },
     {
       "key": "chk_due_submit_application",
       "section": "Checklist",
       "label": "Submit application — due date",
-      "ordinal": 591,
+      "ordinal": 675,
       "kind": "text"
     },
     {
       "key": "chk_note_submit_application",
       "section": "Checklist",
       "label": "Submit application — notes",
-      "ordinal": 592,
+      "ordinal": 676,
       "kind": "textarea"
     }
   ]
