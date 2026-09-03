@@ -334,13 +334,16 @@ await check('client_get, intake_status, intake_answers and intake_questions forw
 await check('client_create POSTs with the state normalised', async () => {
   const r = await client.callTool({ name: 'client_create', arguments: {
     name: 'Trinity Wellsprings Church', state: 'fl', kickoff_date: '2026-09-08', upload_folder_id: 'PHASE2',
-    contacts: [{ name: 'Pat Lee', email: 'pat@trinity.org', role: 'Executive Pastor' }],
+    contacts: [{ name: 'Pat Lee', email: 'pat@trinity.org', role: 'Executive Pastor', phone: '(555) 555-1212' }],
+    npsa_contacts: [{ name: 'Jeff Markley', email: 'jeff@nonprofitsecurityadvisors.com', role: 'Sales rep' }],
   } });
   assert.ok(!r.isError, r.content?.[0]?.text);
   const w = lastWrite();
   assert.deepEqual([w.method, w.path], ['POST', '/api/clients']);
   assert.equal(w.body.state, 'FL');
   assert.equal(w.body.contacts[0].email, 'pat@trinity.org');
+  assert.equal(w.body.contacts[0].phone, '(555) 555-1212');
+  assert.equal(w.body.npsa_contacts[0].role, 'Sales rep');
   assert.equal(w.body.upload_folder_id, 'PHASE2');
   assert.match(text(r).intake_url, /^https:\/\/npsa-tools\.vercel\.app\/client\//);
   const bad = await client.callTool({ name: 'client_create', arguments: { name: 'X', state: 'FL', kickoff_date: '9/8/2026' } });

@@ -40,7 +40,7 @@ import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { getBooking } from './precall-bookings.js';
 
 export const MCP_PATH = '/mcp';
-const SERVER_INFO = { name: 'npsa-tools', version: '1.3.0' };
+const SERVER_INFO = { name: 'npsa-tools', version: '1.3.1' };
 
 const INSTRUCTIONS = `NPSA Sales Toolbox: Nonprofit Security Advisors' internal data.
 Areas: engagement letters and proposals (letters_*), sales reps (rep*), NSGP grant deadlines by
@@ -57,7 +57,8 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const contactShape = z.object({
   name: z.string().optional(),
   email: z.string().email(),
-  role: z.string().optional().describe('e.g. "Executive Pastor"'),
+  role: z.string().optional().describe('e.g. "Executive Pastor", or for NPSA people "Sales rep"'),
+  phone: z.string().optional(),
 });
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -540,12 +541,13 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
   if (canWrite) {
     server.registerTool('client_create', {
       title: 'Register grant client',
-      description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. Contacts are recorded on the client (the first becomes primary). Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
+      description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. contacts are the client\'s people (the first becomes primary); they appear under "Your team" on the form\'s Contacts tab, where the client can add more. npsa_contacts are NPSA people shown under "Your NPSA team": Stuart and Brad are added automatically, so pass only the sales rep here (name, email, role "Sales rep"). Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
       inputSchema: {
         name: z.string().min(1).describe('Organization name as the client uses it'),
         state: z.string().length(2).describe('Two-letter state code'),
         slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).min(3).max(60).optional().describe('Override the derived slug'),
-        contacts: z.array(contactShape).optional(),
+        contacts: z.array(contactShape).optional().describe('The client\'s people'),
+        npsa_contacts: z.array(contactShape).optional().describe('NPSA people beyond Stuart and Brad, usually the sales rep'),
         upload_folder_id: z.string().optional().describe('Drive Phase 2 folder id'),
         drive_folder_id: z.string().optional().describe('Drive client root folder id'),
         asana_project_gid: z.string().optional(),
@@ -561,7 +563,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
     server.registerTool('client_update', {
       title: 'Update grant client',
-      description: `WRITE. Confirm with the user before calling. Changes fields on a client: name, state, phase (1–4), status (${CLIENT_STATUSES.join(', ')}), program_track, Drive folder ids, Asana project, kickoff date, notes; adds or removes contacts by email. Only the fields given change. Setting status to "submitted" stamps the submission time; use "cancelled" or "closed" at closeout. The slug and token never change here (see client_token_rotate).`,
+      description: `WRITE. Confirm with the user before calling. Changes fields on a client: name, state, phase (1–4), status (${CLIENT_STATUSES.join(', ')}), program_track, Drive folder ids, Asana project, kickoff date, notes; adds or removes contacts by email (add_contacts for the client\'s people, add_npsa_contacts for NPSA people such as the sales rep; remove_contact_emails for either). Only the fields given change. Setting status to "submitted" stamps the submission time; use "cancelled" or "closed" at closeout. The slug and token never change here (see client_token_rotate).`,
       inputSchema: {
         slug: z.string().min(1),
         name: z.string().min(1).optional(),
@@ -574,7 +576,8 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         asana_project_gid: z.string().optional(),
         kickoff_date: z.string().regex(ISO_DATE).optional(),
         notes: z.string().optional(),
-        add_contacts: z.array(contactShape).optional(),
+        add_contacts: z.array(contactShape).optional().describe('The client\'s people'),
+        add_npsa_contacts: z.array(contactShape).optional().describe('NPSA people, e.g. the sales rep'),
         remove_contact_emails: z.array(z.string().email()).optional(),
       },
       annotations: WRITE,

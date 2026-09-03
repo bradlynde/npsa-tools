@@ -1,0 +1,7 @@
+{
+  "_what": "The NPSA people every grant client sees on the Contacts tab of their intake page. Added to a client automatically when it is registered (side = npsa); the sales rep is added per client by client_create / client_update. Edit here to change the defaults for future clients; existing clients are changed with client_update.",
+  "contacts": [
+    { "name": "Stuart Reese", "role": "Director of Grants, your grant writer", "email": "stuart@nonprofitsecurityadvisors.com", "phone": "(815) 550-5222" },
+    { "name": "Brad Lynde", "role": "Managing Partner", "email": "brad@lyndeconsulting.com", "phone": "" }
+  ]
+}
