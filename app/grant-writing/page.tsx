@@ -70,6 +70,8 @@ type Status = {
   sections: { section: string; answered: number; total: number }[];
   /** Per facility: items with a priority set and how complete each is. Absent until the backend that reports it is deployed. */
   wish_list?: WishFacility[];
+  /** Program rows with a name, out of the slots the page offers. */
+  programs?: { listed: number; slots: number };
   checklist: { completed: number; total: number; items: ChecklistItem[] };
   uploads: Upload[];
 };
@@ -398,12 +400,20 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {/* The sections the client is asked to fill. NPSA notes, the wish list, the
                         response stamp and the checklist are bookkeeping or shown elsewhere. */}
-                    {s.sections.filter((x) => CORE_SECTION.test(x.section)).map((x) => (
+                    {s.sections.filter((x) => CORE_SECTION.test(x.section) && !(s.programs && x.section === "Programs")).map((x) => (
                       <div key={x.section} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13 }}>
                         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.section}</span>
                         <Progress a={x.answered} b={x.total} width={120} />
                       </div>
                     ))}
+                    {s.programs && (
+                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13 }}>
+                        <span>Programs</span>
+                        <span className="mono" style={{ fontSize: 12, color: s.programs.listed ? "var(--sec)" : "var(--faint)", fontVariantNumeric: "tabular-nums" }}>
+                          {s.programs.listed ? `${s.programs.listed} listed` : "none listed"}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
