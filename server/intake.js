@@ -48,7 +48,10 @@ export const SECTIONS = [...new Set(QUESTIONS.map(q => q.section))];
 // wish list is excluded on purpose: 363 of its keys are legitimately blank for a
 // one-site client with six interests, so counting them makes every client look
 // half done. It gets its own per-section line instead.
-const CORE_SECTIONS = new Set(SECTIONS.filter(s => /^[1-5]\. /.test(s) || s === 'Locations' || s === 'Programs' || s === 'Uploads'));
+// Programs is a grow-as-you-go list (20 slots, most unused), so like the wish list
+// it is reported as a count of rows rather than folded into the core total.
+const CORE_SECTIONS = new Set(SECTIONS.filter(s => /^[1-5]\. /.test(s) || s === 'Locations' || s === 'Uploads'));
+const PROGRAM_SLOTS = [...new Set(QUESTIONS.filter(q => /^prog\d+_/.test(q.key)).map(q => Number(q.key.match(/^prog(\d+)_/)[1])))];
 const CORE_KEYS = QUESTIONS.filter(q => CORE_SECTIONS.has(q.section) && q.kind !== 'meta').map(q => q.key);
 const CHECKLIST_STEMS = QUESTIONS.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length));
 
@@ -259,7 +262,9 @@ function statusView(client, answers, base, uploads = []) {
     intake_url: intakeUrl(base, client.slug, client.token),
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
-    core: s.core, sections, wish_list, checklist: { ...s.checklist, items },
+    core: s.core, sections, wish_list,
+    programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
+    checklist: { ...s.checklist, items },
     uploads: uploads.map(u => uploadView(u, client.slug)),
   };
 }

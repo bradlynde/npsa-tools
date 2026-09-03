@@ -98,11 +98,11 @@ await check('with MCP_API_KEYS unset only the internal key gets in', async () =>
 });
 
 // ── 2. Registration ───────────────────────────────────────────────────────────
-await check('catalog is served with 592 questions and the section list', async () => {
+await check('catalog is served with 676 questions and the section list', async () => {
   const r = await call('GET', '/api/intake/questions', { headers: TEAM });
   assert.equal(r.status, 200);
-  assert.equal(r.data.count, 592);
-  assert.equal(QUESTIONS.length, 592);
+  assert.equal(r.data.count, 676);
+  assert.equal(QUESTIONS.length, 676);
   assert.ok(r.data.sections.includes('Checklist'));
   const chk = await call('GET', '/api/intake/questions?prefix=chk_who_', { headers: TEAM });
   assert.ok(chk.data.count > 0 && chk.data.questions.every(q => q.key.startsWith('chk_who_')));
@@ -252,6 +252,17 @@ await check('wish list counts only prioritized items, and their five detail fiel
   assert.deepEqual(f1.details, { answered: 4, total: 10 });
   assert.deepEqual(f1.items.map(i => [i.label, i.priority, i.answered, i.total]), [['CCTV / Camera System', 1, 3, 5], ['Vehicle Bollards', 2, 1, 5]]);
   assert.equal(r.data.wish_list[1].prioritized, 0);
+});
+await check('programs: 20 slots accepted, status counts the named rows, 3.2.1 is retired but still readable', async () => {
+  const w = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { prog1_name: 'Sunday Service', prog12_name: 'GriefShare', prog12_runby: 'Outside', prog20_desc: 'no name yet', q_3_2_1: 'legacy free text' } } });
+  assert.equal(w.status, 200);
+  const r = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  assert.deepEqual(r.data.programs, { listed: 2, slots: 20 });
+  assert.ok(!r.data.sections.find(x => x.section === '3. Community Role').total.toString().includes('x'));
+  const a = await call('GET', `/api/clients/${created.slug}/answers?section=3.%20Community%20Role`, { headers: TEAM });
+  const legacy = a.data.answers.find(x => x.key === 'q_3_2_1');
+  assert.equal(legacy.value, 'legacy free text');
+  assert.equal(legacy.kind, 'meta');
 });
 await check('complete stamps _status, marks submitted, and shows on the list', async () => {
   const r = await call('POST', `/api/intake/${created.slug}/complete`, { headers: { 'X-Intake-Token': token() } });
