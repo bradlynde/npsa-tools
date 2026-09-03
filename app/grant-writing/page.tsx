@@ -98,6 +98,13 @@ const fmtDue = (s: string) => {
   return m ? fmtDate(`${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`) : s;
 };
 
+/** "Idaho Office of Emergency Management (IOEM)" → "IOEM" for the list; the full name stays in the dialog and the hover. */
+const saaShort = (saa: string | null) => {
+  if (!saa) return "—";
+  const m = saa.match(/\(([^)]+)\)/);
+  return m ? m[1] : saa;
+};
+
 const pct = (a: number, b: number) => (b ? Math.round((100 * a) / b) : 0);
 
 const lastSave = (row: { last_client_activity_at: string | null }) => {
@@ -372,12 +379,6 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                   </div>
                 )}
 
-                {c.notes && (
-                  <div>
-                    <Label>notes</Label>
-                    <div style={{ fontSize: 12.5, color: "var(--sec)", whiteSpace: "pre-wrap", lineHeight: 1.55, maxHeight: 180, overflow: "auto", paddingRight: 6 }}>{c.notes}</div>
-                  </div>
-                )}
               </div>
 
               {/* Right: how far along */}
@@ -531,8 +532,8 @@ export default function GrantWritingPage() {
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5, minWidth: 860 }}>
               <thead>
                 <tr>
-                  <th className="mono" style={{ ...th, width: "30%" }}>client</th>
-                  <th className="mono" style={th}>state · saa</th>
+                  <th className="mono" style={{ ...th, width: "34%" }}>client</th>
+                  <th className="mono" style={{ ...th, width: 150 }}>state · saa</th>
                   <th className="mono" style={th}>phase</th>
                   <th className="mono" style={th}>status</th>
                   <th className="mono" style={th}>intake</th>
@@ -556,10 +557,10 @@ export default function GrantWritingPage() {
                       <div style={{ fontWeight: 600, color: "var(--ink)", lineHeight: 1.3 }}>{r.name}</div>
                       <div className="mono" style={{ fontSize: 11, color: "var(--faint)", marginTop: 2 }}>{r.slug}</div>
                     </td>
-                    <td style={{ ...td, maxWidth: 260 }}>
+                    <td style={{ ...td, maxWidth: 150 }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
                         <span className="mono" style={{ fontWeight: 600, fontSize: 12.5 }}>{r.state}</span>
-                        <span title={r.saa || undefined} style={{ color: "var(--mute)", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{r.saa || "—"}</span>
+                        <span title={r.saa || undefined} style={{ color: "var(--mute)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{saaShort(r.saa)}</span>
                       </div>
                     </td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}><PhaseChip phase={r.phase} /></td>
