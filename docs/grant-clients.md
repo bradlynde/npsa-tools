@@ -3,9 +3,9 @@
 Phase 2, step 2 of the roadmap in [mcp.md](mcp.md). Written 2026-09-02 as the plan for the
 work; it is kept current as each PR lands, so the "Status" line below says what is real.
 
-**Status:** schema and routes, MCP tools, the client page with its Vercel passthrough,
-and uploads are in. What remains is the import of the Apps Script registry and the
-cutover.
+**Status:** all five PRs are in: schema and routes, MCP tools, the client page with its
+Vercel passthrough, uploads, and the import script with the Apps Script redirect stub.
+What remains is the cutover itself (below) and the skill edits after it.
 
 ## Why
 
@@ -211,20 +211,67 @@ the upload route answers CORS preflight for `INTAKE_BASE_URL`'s origin and no ot
 other call stays relative. `INTAKE_API_BASE` (optional) does the same for the rest of the
 page's calls, should that ever be wanted.
 
-## Cutover for existing clients (after uploads)
+## Cutover for existing clients
 
-1. `scripts/intake-import.mjs` reads an `.xlsx` export of the Registry spreadsheet
-   (Registry tab plus every `R · <slug>` tab; the hidden `_key` column exports) and POSTs
-   each client and their answers to the team routes with an MCP key. Slug, token and the
-   Phase 2 folder id (Registry column F) are preserved; `updated_by = import`; `--dry-run`
-   first. Cancelled clients import as `status=cancelled`.
-2. An Apps Script stub replaces `Code.gs` on the same deployment id, so no URL changes:
-   `doGet` looks up the Registry row and, on a matching token, shows "This form has moved"
-   and sends the browser to `<INTAKE_BASE_URL>/client/<slug>?t=<token>`; `doPost` returns
-   `{ error: "moved" }` so any stale skill call fails loudly.
-3. Every imported client's old link is opened once to confirm the redirect and the
-   answers, then `intake_status` for each.
-4. The spreadsheet stays as an archive. Nothing writes to it after the stub deploys.
+Two files do it: `scripts/intake-import.mjs` and `scripts/apps-script-redirect.gs`.
+
+### 1. Set the Railway variables
+
+- `INTAKE_BASE_URL=https://npsa-tools.vercel.app` (or the custom domain once it is on
+  the Vercel project), so links mint on the address clients will keep.
+- `INTAKE_UPLOAD_BASE=https://loe-generator-production.up.railway.app`, so files over
+  Vercel's 4.5 MB body cap still upload.
+- `GOOGLE_SERVICE_ACCOUNT_JSON` only if the Drive mirror is wanted (see Uploads).
+
+Redeploy, then open `https://npsa-tools.vercel.app/client/nobody?t=x` and confirm the
+"link not recognized" page comes back through Vercel.
+
+### 2. Export the spreadsheet
+
+In the intake spreadsheet (`14nx-G0dZbqn0js0a9Yb3rCD-IV1Fdsf7fHF9kNAG2qk`): File →
+Download → Microsoft Excel. Keep it out of `~/Documents` (it holds tokens); scratch space
+or Downloads is fine, and delete it afterwards.
+
+### 3. Dry run, then import
+
+```bash
+node scripts/intake-import.mjs ~/Downloads/registry.xlsx --dry-run
+```
+
+The dry run needs no key. It reads every `R · <slug>` tab, lists each client with the
+number of answers it would write, the keys the form no longer renders (old seeds that
+landed in the sheet's "Other" bucket, which are skipped rather than sent), and warnings
+for a missing tab, a missing token, or a missing Phase 2 folder id. Decide statuses from
+it: cancelled or closed clients import with `--status slug=cancelled,slug=closed`; a
+client to leave out goes in `--skip`. Then:
+
+```bash
+MCP_API_KEY=… node scripts/intake-import.mjs ~/Downloads/registry.xlsx --status masters-academy=cancelled
+```
+
+Slug and token are kept, so old links redirect to the same client; the Phase 2 folder id
+comes from Registry column F; answers land with `updated_by = import`. The sheet's
+"Updated" timestamps are not carried over (every imported answer is dated by the import).
+Re-running is safe: an existing client is left as it is and its answers are written
+again.
+
+### 4. Check, then redirect
+
+Open `intake_status` (or `clients_list`) for each imported client and spot-check a
+couple of answers against the sheet. Then, in the Apps Script editor for "NSGP Intake
+Form v1": paste `scripts/apps-script-redirect.gs` over `Code.gs` (set `NEW_BASE` to the
+same value as `INTAKE_BASE_URL` first), delete `Index.html`, and Deploy → Manage
+deployments → edit the active deployment → Version: New version → Deploy. Editing the
+existing deployment keeps every URL already sent; "New deployment" would not.
+
+From then on an old link looks the slug up in the Registry, checks the token, and sends
+the browser to `<NEW_BASE>/client/<slug>?t=<token>` with a button as a fallback. The
+register / seed / track endpoints answer `{ "error": "moved" }` so a stale skill call
+fails loudly instead of writing to a sheet nobody reads.
+
+Open one old link per client to see it land, then tell the installed skills (kickoff,
+IJ draft, closeout) about the new tools; those edits are a separate step with Stuart.
+The spreadsheet stays as an archive; nothing writes to it after the stub deploys.
 
 ## Skill migration (after PR 2; edits only with Stuart's go-ahead)
 
@@ -278,7 +325,8 @@ can be enabled per client to trial.
 
 ```bash
 node scripts/intake-smoke.mjs   # routes against the in-memory store: gates, registration, answers, status, updates
-node scripts/mcp-smoke.mjs      # the MCP layer, including the nine grant-client tools
+node scripts/mcp-smoke.mjs      # the MCP layer, including the grant-client tools
+node scripts/intake-import-smoke.mjs   # the workbook reader and the import against a fake API
 ```
 
 Both run with no database or network. Railway runs `node:18-alpine` while local and CI run
@@ -299,7 +347,7 @@ call returns `[]` until the first client is created.
 1. Hostname for the client link once a custom domain is added to the Vercel project.
 2. Email on submit. `markComplete` used to email Stuart. Skipped here; `clients_list`
    with `status=submitted` and the daily run surface it. Revisit if missed.
-3. The Registry export for the import: download the spreadsheet as `.xlsx` when PR 4 is
-   ready, and confirm which clients are still active.
+3. Which clients are active vs cancelled or closed at import time; the dry run lists
+   them and `--status` sets it per client.
 4. Where client folders live (Shared Drive vs My Drive) only matters for the optional
    Drive mirror in PR 5.
