@@ -159,7 +159,11 @@ await check('the import creates clients with slug and token kept, applies status
   const report = await runImport(clients, { api, catalogKeys, statuses: { 'masters-academy': 'cancelled' }, log: quiet });
   assert.deepEqual(report.map(r => [r.created, r.existed, r.written]), [[true, false, 6], [true, false, 1], [true, false, 0]]);
   const post = received.find(x => x.m === 'POST' && x.b.slug === 'new-life-ky');
-  assert.deepEqual(post.b, { slug: 'new-life-ky', name: 'New Life Church', state: 'KY', status: 'active', upload_folder_id: '1Lt5N4-phase2', token: 'abc123def456' });
+  const { notes, ...rest } = post.b;
+  assert.deepEqual(rest, { slug: 'new-life-ky', name: 'New Life Church', state: 'KY', status: 'active', upload_folder_id: '1Lt5N4-phase2', token: 'abc123def456' });
+  assert.match(notes, /Keys the form does not render/);
+  assert.match(notes, /- chk_note_10: stale seed\n- chk_who_investment_justification: me/);
+  assert.match(received.find(x => x.m === 'POST' && x.b.slug === 'masters-academy').b.notes, /^Imported from the Apps Script registry on \d{4}-\d{2}-\d{2}\.$/);
   const noTok = received.find(x => x.m === 'POST' && x.b.slug === 'no-tab-church');
   assert.equal(noTok.b.token, undefined, 'no empty token sent');
   assert.equal(received.find(x => x.m === 'POST' && x.b.slug === 'masters-academy').b.status, 'cancelled');
@@ -184,9 +188,9 @@ await check('the CLI dry run reads the file and uses the repo catalog without a 
   const out = execFileSync(process.execPath, [new URL('./intake-import.mjs', import.meta.url).pathname, file, '--dry-run', '--status', 'masters-academy=cancelled', '--skip', 'no-tab-church'], { env: { ...process.env, MCP_API_KEY: '' }, encoding: 'utf8' });
   assert.match(out, /2 client\(s\) to import \(dry run\)/);
   assert.match(out, /new-life-ky: New Life Church \(KY\) status=active answers=6 skipped=2/);
-  assert.match(out, /skipped keys not on the form: chk_note_10, chk_who_investment_justification/);
+  assert.match(out, /not on the form, kept in the client's notes: chk_note_10, chk_who_investment_justification/);
   assert.match(out, /masters-academy: .* status=cancelled/);
-  assert.match(out, /Dry run: 2 client\(s\), 7 answer\(s\) would be written, 2 key\(s\) skipped/);
+  assert.match(out, /Dry run: 2 client\(s\), 7 answer\(s\) would be written, 2 key\(s\) kept in notes instead/);
 });
 
 server.close();

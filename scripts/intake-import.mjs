@@ -14,8 +14,11 @@
  * answers go through PUT /api/clients/:slug/answers with by = "import". Keys the
  * form no longer renders (old seeds that landed in the sheet's "Other" bucket) are
  * skipped and listed, never sent, since the route refuses a batch with unknown
- * keys. A client that already exists is not recreated; its answers are still
- * written, so the script can be re-run.
+ * keys — but their values are not lost: they go into the client's notes as an
+ * "imported keys not on the form" list, so a seeded fact the sheet held (a
+ * letters-of-support status, a note on 1.3.1) is still readable in client_get.
+ * A client that already exists is not recreated; its answers are still written
+ * and its notes are left alone, so the script can be re-run.
  *
  *   MCP_API_KEY=… LOE_API_URL=https://loe-generator-production.up.railway.app \
  *     node scripts/intake-import.mjs registry.xlsx --dry-run
@@ -135,9 +138,13 @@ export async function runImport(clients, { api, catalogKeys, dryRun = false, sta
     if (!c.token) entry.warnings.push('no token in the Registry; a new one will be minted and old links will not redirect');
     if (!c.upload_folder_id) entry.warnings.push('no Phase 2 folder id');
     log(`${dryRun ? '[dry-run] ' : ''}${c.slug}: ${c.name} (${c.state}) status=${status} answers=${entry.answers}${unknown.length ? ` skipped=${unknown.length}` : ''}${entry.warnings.length ? ` ⚠ ${entry.warnings.join('; ')}` : ''}`);
-    if (unknown.length) log(`    skipped keys not on the form: ${unknown.join(', ')}`);
+    if (unknown.length) log(`    not on the form, kept in the client's notes: ${unknown.join(', ')}`);
     if (!dryRun) {
-      const body = { slug: c.slug, name: c.name, state: c.state, status, upload_folder_id: c.upload_folder_id, ...(c.token ? { token: c.token } : {}) };
+      const notes = unknown.length
+        ? `Imported from the Apps Script registry on ${new Date().toISOString().slice(0, 10)}. Keys the form does not render, kept here so nothing is lost:\n` +
+          unknown.map(k => `- ${k}: ${c.answers[k]}`).join('\n')
+        : `Imported from the Apps Script registry on ${new Date().toISOString().slice(0, 10)}.`;
+      const body = { slug: c.slug, name: c.name, state: c.state, status, upload_folder_id: c.upload_folder_id, notes, ...(c.token ? { token: c.token } : {}) };
       const created = await api('POST', '/api/clients', body);
       if (created.status === 201) entry.created = true;
       else if (created.status === 409) { entry.existed = true; log(`    already registered; answers will still be written`); }
@@ -193,6 +200,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const created = report.filter(r => r.created).length, existed = report.filter(r => r.existed).length;
   const written = report.reduce((a, r) => a + r.written, 0), skipped = report.reduce((a, r) => a + r.unknown.length, 0);
   console.log(dryRun
-    ? `\nDry run: ${report.length} client(s), ${report.reduce((a, r) => a + r.answers, 0) } answer(s) would be written, ${skipped} key(s) skipped.`
-    : `\nDone: ${created} created, ${existed} already existed, ${written} answer(s) written, ${skipped} key(s) skipped.`);
+    ? `\nDry run: ${report.length} client(s), ${report.reduce((a, r) => a + r.answers, 0) } answer(s) would be written, ${skipped} key(s) kept in notes instead.`
+    : `\nDone: ${created} created, ${existed} already existed, ${written} answer(s) written, ${skipped} key(s) kept in notes instead.`);
 }
