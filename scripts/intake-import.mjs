@@ -59,11 +59,31 @@ const unescapeXml = s => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/
 const textOf = xml => unescapeXml([...xml.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map(m => m[1]).join(''));
 const colIndex = ref => { let n = 0; for (const ch of ref.replace(/\d+$/, '')) n = n * 26 + (ch.charCodeAt(0) - 64); return n - 1; };
 
+// Sheets stores a typed date as a date, and the export writes it as a serial
+// number (days since 1899-12-30) with a date number format on the cell. The
+// style table says which cells those are; they come back as M/D/YYYY, which is
+// what the client typed and what the form's due-date boxes expect.
+const BUILTIN_DATE_FORMATS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47]);
+function dateStyles(stylesXml) {
+  if (!stylesXml) return new Set();
+  const custom = new Map([...stylesXml.matchAll(/<numFmt\b[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g)].map(m => [Number(m[1]), unescapeXml(m[2])]));
+  const isDate = id => BUILTIN_DATE_FORMATS.has(id) || /[dmyh]/i.test((custom.get(id) || '').replace(/"[^"]*"/g, '').replace(/\[[^\]]*\]/g, ''));
+  const xfs = [...(stylesXml.match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/)?.[1] || '').matchAll(/<xf\b([^>]*)\/?>/g)].map(m => Number(m[1].match(/\bnumFmtId="(\d+)"/)?.[1] || 0));
+  return new Set(xfs.map((id, i) => (isDate(id) ? i : -1)).filter(i => i >= 0));
+}
+function serialToDate(n) {
+  const ms = Math.round((n - 25569) * 86400000); // 25569 = 1970-01-01 as a serial
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return String(n);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+}
+
 /** Sheets as { name → rows[][] } with every cell a string ('' when empty). */
 export function readWorkbook(buf) {
   const files = unzip(buf);
   const get = name => { const f = files.get(name); if (!f) throw new Error(`${name} missing from workbook`); return f.toString('utf8'); };
   const shared = [...get('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m => textOf(m[1]));
+  const dated = dateStyles(files.get('xl/styles.xml')?.toString('utf8'));
   const rels = Object.fromEntries([...get('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b([^>]*)\/?>/g)].map(m => {
     const id = m[1].match(/\bId="([^"]+)"/)[1]; const target = m[1].match(/\bTarget="([^"]+)"/)[1];
     return [id, target.startsWith('/') ? target.slice(1) : `xl/${target}`];
@@ -80,11 +100,15 @@ export function readWorkbook(buf) {
         const attrs = c[1], inner = c[2] || '';
         const ref = attrs.match(/\br="([A-Z]+)\d+"/)?.[1] || '';
         const type = attrs.match(/\bt="([^"]+)"/)?.[1] || '';
+        const style = Number(attrs.match(/\bs="(\d+)"/)?.[1] ?? -1);
         let v = '';
         if (type === 's') v = shared[parseInt(inner.match(/<v>([^<]*)<\/v>/)?.[1] ?? '-1', 10)] ?? '';
         else if (type === 'inlineStr') v = textOf(inner);
         else if (type === 'b') v = (inner.match(/<v>([^<]*)<\/v>/)?.[1] === '1') ? 'TRUE' : 'FALSE';
-        else v = unescapeXml(inner.match(/<v>([^<]*)<\/v>/)?.[1] ?? '');
+        else {
+          v = unescapeXml(inner.match(/<v>([^<]*)<\/v>/)?.[1] ?? '');
+          if (v !== '' && dated.has(style) && /^-?\d+(\.\d+)?$/.test(v)) v = serialToDate(Number(v));
+        }
         if (ref) row[colIndex(ref + '1')] = v; else row.push(v);
       }
       rows.push(Array.from(row, x => x ?? ''));
@@ -147,7 +171,13 @@ export async function runImport(clients, { api, catalogKeys, dryRun = false, sta
       const body = { slug: c.slug, name: c.name, state: c.state, status, upload_folder_id: c.upload_folder_id, notes, ...(c.token ? { token: c.token } : {}) };
       const created = await api('POST', '/api/clients', body);
       if (created.status === 201) entry.created = true;
-      else if (created.status === 409) { entry.existed = true; log(`    already registered; answers will still be written`); }
+      else if (created.status === 409) {
+        entry.existed = true; log(`    already registered; answers will still be written`);
+        const cur = await api('GET', `/api/clients/${encodeURIComponent(c.slug)}`);
+        if (cur.status === 200 && /^Imported from the Apps Script registry/.test(cur.data.notes || '')) {
+          await api('PATCH', `/api/clients/${encodeURIComponent(c.slug)}`, { notes });
+        }
+      }
       else throw new Error(`${c.slug}: create failed ${created.status} ${JSON.stringify(created.data)}`);
       if (entry.answers) {
         const put = await api('PUT', `/api/clients/${encodeURIComponent(c.slug)}/answers`, { answers, by: 'import' });
