@@ -72,7 +72,7 @@ type Status = {
   wish_list?: WishFacility[];
   /** Program rows with a name, out of the slots the page offers. */
   programs?: { listed: number; slots: number };
-  checklist: { completed: number; total: number; items: ChecklistItem[] };
+  checklist: { completed: number; total: number; not_applicable?: number; items: ChecklistItem[] };
   uploads: Upload[];
 };
 
@@ -450,12 +450,13 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                 )}
 
                 <div>
-                  <Label>checklist · {s.checklist.completed} of {s.checklist.total} completed</Label>
+                  <Label>checklist · {s.checklist.completed} of {s.checklist.total} completed{s.checklist.not_applicable ? ` · ${s.checklist.not_applicable} not applicable` : ""}</Label>
                   <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column" }}>
                     {s.checklist.items.map((it, i) => {
                       const done = it.status === "Completed";
                       const prog = it.status === "In progress";
-                      const meta = [prog ? "in progress" : "", it.due ? fmtDue(it.due) : "", it.owner].filter(Boolean).join(" · ");
+                      const na = it.status === "Not applicable";
+                      const meta = na ? "n/a" : [prog ? "in progress" : "", it.due ? fmtDue(it.due) : "", it.owner].filter(Boolean).join(" · ");
                       return (
                         <li
                           key={it.stem}
@@ -469,10 +470,11 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                             style={{
                               width: 10, height: 10, borderRadius: "50%", justifySelf: "center",
                               border: `2px solid ${done ? "var(--ok-fg)" : prog ? "var(--warn-fg)" : "var(--bd2)"}`,
-                              background: done ? "var(--ok-fg)" : prog ? "var(--warn-bg)" : "transparent",
+                              background: done ? "var(--ok-fg)" : prog ? "var(--warn-bg)" : na ? "var(--bd2)" : "transparent",
+                              opacity: na ? 0.5 : 1,
                             }}
                           />
-                          <span style={{ minWidth: 0, color: done ? "var(--mute)" : "var(--ink)", lineHeight: 1.35 }}>
+                          <span style={{ minWidth: 0, color: done || na ? "var(--mute)" : "var(--ink)", lineHeight: 1.35, textDecoration: na ? "line-through" : undefined, opacity: na ? 0.6 : 1 }}>
                             {it.label}
                           </span>
                           <span className="mono" style={{ fontSize: 11.5, color: prog ? "var(--warn-fg)" : "var(--faint)", whiteSpace: "nowrap", textAlign: "right" }}>{meta}</span>
