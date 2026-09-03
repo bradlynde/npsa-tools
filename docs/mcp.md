@@ -4,7 +4,7 @@ The Sales Toolbox backend exposes its data to Claude through the Model Context
 Protocol at `POST /mcp` on the Railway service (the `loe-generator` lineage). Claude
 Code and Claude Desktop connect to it directly and get tools for letters, reps,
 NSGP deadlines, pre-call bookings, the marketing dashboard figures, and the in-house
-grant clients with their intake forms -- twenty-one reads, and eleven writes for keys
+grant clients with their intake forms -- twenty-two reads, and eleven writes for keys
 allowed them.
 
 Code: `server/mcp.js`. Mounted from `server/index.js` ahead of the SPA fallback.
@@ -143,6 +143,7 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `intake_questions` | The intake form's key catalog; look keys up here before seeding |
 | `intake_answers` | A client's intake answers in form order, filterable by section |
 | `intake_status` | Per-section counts, the 24 checklist tasks, submission stamp, uploads |
+| `intake_uploads_list` | A client's uploaded files with Drive link and team download path |
 
 ### Write tools
 

@@ -994,6 +994,7 @@ registerIntake(app, {
   internalKey: INTERNAL_KEY,
   publicBase: process.env.INTAKE_BASE_URL,
   apiBase: process.env.INTAKE_API_BASE || '',
+  uploadBase: process.env.INTAKE_UPLOAD_BASE || '',
 });
 registerMcp(app, { port: () => PORT, internalKey: INTERNAL_KEY });
 

@@ -28,7 +28,9 @@
 //   registerIntake(app, { store, internalKey, publicBase })   // before the SPA fallback
 
 import crypto from 'crypto';
+import express from 'express';
 import { readFileSync } from 'fs';
+import { driveConfigured, uploadToDrive } from './drive.js';
 import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { splitKeys, keyMatches, fingerprint } from './mcp.js';
 
@@ -63,6 +65,24 @@ const TOKEN_RE = /^[a-z0-9]{8,64}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_VALUE = 20000;
+
+// Uploads: the same guards the Apps Script had, plus the file's own first bytes as
+// the deciding word on type, since a browser's declared type is whatever the
+// extension says.
+export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const UPLOAD_MAGIC = [
+  ['application/pdf', Buffer.from('%PDF')],
+  ['image/jpeg', Buffer.from([0xff, 0xd8, 0xff])],
+  ['image/png', Buffer.from([0x89, 0x50, 0x4e, 0x47])],
+];
+export function sniffUploadType(buf) {
+  for (const [mime, magic] of UPLOAD_MAGIC) if (buf.length >= magic.length && buf.subarray(0, magic.length).equals(magic)) return mime;
+  return null;
+}
+function safeFilename(name) {
+  const n = String(name || '').split(/[\\/]/).pop().replace(/[\u0000-\u001f]/g, '').trim();
+  return (n || 'file').slice(0, 200);
+}
 
 class BadRequest extends Error {
   constructor(message, extra) { super(message); this.status = 400; this.extra = extra; }
@@ -177,7 +197,15 @@ export function summarise(answers) {
   return { core: { answered: core, total: CORE_KEYS.length }, checklist: { completed: checklist, total: CHECKLIST_STEMS.length } };
 }
 
-function statusView(client, answers, base) {
+function uploadView(u, slug) {
+  return {
+    id: u.id, key: u.key, label: QUESTION_BY_KEY.get(u.key)?.label || u.key, filename: u.filename, mime: u.mime, size_bytes: u.size_bytes,
+    uploaded_by: u.uploaded_by, uploaded_at: u.uploaded_at, drive_url: u.drive_url || null,
+    download_path: `/api/clients/${encodeURIComponent(slug)}/uploads/${u.id}`,
+  };
+}
+
+function statusView(client, answers, base, uploads = []) {
   const val = k => answers.get(k)?.value || '';
   const sections = SECTIONS.map(section => {
     const keys = QUESTIONS.filter(q => q.section === section && q.kind !== 'meta');
@@ -195,7 +223,7 @@ function statusView(client, answers, base) {
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
     core: s.core, sections, checklist: { ...s.checklist, items },
-    uploads: [],
+    uploads: uploads.map(u => uploadView(u, client.slug)),
   };
 }
 
@@ -249,8 +277,23 @@ export async function ensureIntakeSchema(pool) {
       updated_by  TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (client_id, key)
     );
+    CREATE TABLE IF NOT EXISTS intake_uploads (
+      id            SERIAL PRIMARY KEY,
+      client_id     INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      key           TEXT NOT NULL,
+      filename      TEXT NOT NULL,
+      mime          TEXT NOT NULL,
+      size_bytes    INT  NOT NULL,
+      content       BYTEA,
+      drive_file_id TEXT NOT NULL DEFAULT '',
+      drive_url     TEXT NOT NULL DEFAULT '',
+      uploaded_by   TEXT NOT NULL DEFAULT 'client',
+      uploaded_at   TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 }
+
+const UPLOAD_COLS = 'id, client_id, key, filename, mime, size_bytes, drive_file_id, drive_url, uploaded_by, uploaded_at';
 
 const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track, drive_folder_id, upload_folder_id,
   asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, created_at, updated_at,
@@ -339,12 +382,27 @@ export function createIntakeStore(pool) {
       finally { client.release(); }
       return rows.length;
     },
+    async addUpload(clientId, u) {
+      return one(
+        `INSERT INTO intake_uploads (client_id, key, filename, mime, size_bytes, content, uploaded_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING ${UPLOAD_COLS}`,
+        [clientId, u.key, u.filename, u.mime, u.size_bytes, u.content, u.uploaded_by]);
+    },
+    async setUploadDrive(id, { drive_file_id, drive_url }) {
+      await pool.query('UPDATE intake_uploads SET drive_file_id=$2, drive_url=$3 WHERE id=$1', [id, drive_file_id, drive_url]);
+    },
+    async listUploads(clientId) {
+      return (await pool.query(`SELECT ${UPLOAD_COLS} FROM intake_uploads WHERE client_id=$1 ORDER BY uploaded_at DESC, id DESC`, [clientId])).rows;
+    },
+    async getUpload(clientId, id) {
+      return one(`SELECT ${UPLOAD_COLS}, content FROM intake_uploads WHERE client_id=$1 AND id=$2`, [clientId, id]);
+    },
   };
 }
 
 /** In-memory store with the same surface, for the smoke test. */
 export function createMemoryStore() {
-  const clients = []; const contacts = []; const answers = new Map(); let nextId = 1; let nextContactId = 1;
+  const clients = []; const contacts = []; const answers = new Map(); const uploads = []; let nextId = 1; let nextContactId = 1; let nextUploadId = 1;
   const now = () => new Date();
   const find = slug => clients.find(c => c.slug === slug) || null;
   const view = c => c && { ...c, contacts: contacts.filter(x => x.client_id === c.id).sort((a, b) => (b.is_primary - a.is_primary) || (a.id - b.id)) };
@@ -391,6 +449,14 @@ export function createMemoryStore() {
       if (clientActivity) clients.find(c => c.id === clientId).last_client_activity_at = now();
       return rows.length;
     },
+    async addUpload(clientId, u) {
+      const row = { id: nextUploadId++, client_id: clientId, ...u, drive_file_id: '', drive_url: '', uploaded_at: now() };
+      uploads.push(row);
+      const { content, ...meta } = row; return meta;
+    },
+    async setUploadDrive(id, { drive_file_id, drive_url }) { Object.assign(uploads.find(u => u.id === id), { drive_file_id, drive_url }); },
+    async listUploads(clientId) { return uploads.filter(u => u.client_id === clientId).map(({ content, ...m }) => m).reverse(); },
+    async getUpload(clientId, id) { return uploads.find(u => u.client_id === clientId && u.id === id) || null; },
   };
 }
 
@@ -446,18 +512,20 @@ function jsForInject(value) {
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-export function renderClientPage({ client, stateConfig, existing, apiBase = '' }) {
+export function renderClientPage({ client, stateConfig, existing, apiBase = '', uploadBase = '' }) {
   if (pageTemplate === undefined) {
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, apiBase };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, apiBase, uploadBase };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-export function registerIntake(app, { store, internalKey, publicBase, renderPage = renderClientPage, apiBase = '' } = {}) {
+export function registerIntake(app, { store, internalKey, publicBase, renderPage = renderClientPage, apiBase = '', uploadBase = '', drive } = {}) {
+  // Drive mirror: injectable for tests, otherwise on only when the key is set.
+  if (drive === undefined) drive = driveConfigured() ? { upload: uploadToDrive } : null;
   const base = req => publicBaseFor(req, publicBase);
   const team = teamGate({ internalKey });
 
@@ -604,7 +672,25 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
 
   app.get('/api/clients/:slug/status', team, guard(async (req, res) => {
     const c = await loadClient(req, res); if (!c) return;
-    res.json(statusView(c, await store.getAnswers(c.id), base(req)));
+    res.json(statusView(c, await store.getAnswers(c.id), base(req), await store.listUploads(c.id)));
+  }));
+
+  app.get('/api/clients/:slug/uploads', team, guard(async (req, res) => {
+    const c = await loadClient(req, res); if (!c) return;
+    const rows = await store.listUploads(c.id);
+    res.json({ slug: c.slug, count: rows.length, uploads: rows.map(u => uploadView(u, c.slug)) });
+  }));
+
+  app.get('/api/clients/:slug/uploads/:id', team, guard(async (req, res) => {
+    const c = await loadClient(req, res); if (!c) return;
+    const id = parseInt(req.params.id, 10);
+    const u = Number.isInteger(id) ? await store.getUpload(c.id, id) : null;
+    if (!u) return res.status(404).json({ error: 'No such upload' });
+    if (!u.content) return res.status(404).json({ error: 'This file is not stored here' + (u.drive_url ? `; see ${u.drive_url}` : '') });
+    res.set('Content-Type', u.mime);
+    res.set('Content-Disposition', `attachment; filename="${u.filename.replace(/["\r\n]/g, "_")}"`);
+    res.set('Cache-Control', 'no-store');
+    res.send(Buffer.from(u.content));
   }));
 
   // ── Client ──
@@ -618,7 +704,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (!tokenMatches(t, c.token)) return res.status(404).type('html').send(errorPage(INVALID));
     const answers = await store.getAnswers(c.id);
     const html = renderPage && renderPage({
-      client: c, stateConfig: stateConfig(c.state), apiBase,
+      client: c, stateConfig: stateConfig(c.state), apiBase, uploadBase,
       existing: Object.fromEntries([...answers.values()].filter(a => a.value !== '').map(a => [a.key, a.value])),
     });
     if (!html) return res.status(503).type('html').send(errorPage('The intake form has not been deployed here yet.'));
@@ -634,11 +720,68 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     res.json({ ok: true, saved: n });
   }));
 
-  // Uploads arrive in a later PR. Until then the page's Documents tab gets a
-  // plain answer it can show, rather than a 404 that reads as "broken".
-  app.post('/api/intake/:slug/upload', guard(async (req, res) => {
+  // Uploads. The page may post these straight to this origin rather than through
+  // the Vercel passthrough (its functions cap bodies at 4.5 MB), so the route
+  // answers CORS for the page's own origin — and only that one.
+  const uploadCors = (req, res, next) => {
+    const origin = req.get('origin');
+    let allowed = false;
+    if (origin && publicBase) { try { allowed = new URL(origin).origin === new URL(publicBase).origin; } catch { allowed = false; } }
+    if (allowed) {
+      res.set('Access-Control-Allow-Origin', origin);
+      res.set('Vary', 'Origin');
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'X-Intake-Token, Content-Type');
+      res.set('Access-Control-Max-Age', '600');
+    }
+    if (req.method === 'OPTIONS') return res.status(allowed ? 204 : 403).end();
+    next();
+  };
+  const uploadBody = express.raw({ type: 'multipart/form-data', limit: UPLOAD_MAX_BYTES + 1024 * 1024 });
+  const uploadBodyError = (err, req, res, next) => {
+    if (err?.type === 'entity.too.large') return res.status(413).json({ error: 'File too large — please keep uploads under 25 MB.' });
+    return res.status(400).json({ error: 'Could not read the upload. Please try again.' });
+  };
+
+  app.options('/api/intake/:slug/upload', uploadCors);
+  app.post('/api/intake/:slug/upload', uploadCors, uploadBody, uploadBodyError, guard(async (req, res) => {
     const c = await clientAuth(req, res); if (!c) return;
-    res.status(503).json({ error: 'File uploads are not available here yet. Please email the file to your NPSA contact.' });
+    if (!Buffer.isBuffer(req.body)) throw new BadRequest('Send the file as multipart form data with fields "key" and "file".');
+    let form;
+    try { form = await new Response(req.body, { headers: { 'content-type': req.get('content-type') } }).formData(); }
+    catch { throw new BadRequest('Could not read the upload. Please try again.'); }
+    const key = String(form.get('key') || '');
+    const file = form.get('file');
+    const q = QUESTION_BY_KEY.get(key);
+    if (!q || q.kind !== 'upload') throw new BadRequest(`"${key}" is not an upload field`);
+    if (!file || typeof file !== 'object' || typeof file.arrayBuffer !== 'function') throw new BadRequest('No file was attached.');
+    const content = Buffer.from(await file.arrayBuffer());
+    if (!content.length) throw new BadRequest('The file is empty.');
+    if (content.length > UPLOAD_MAX_BYTES) { const e = new Error('File too large — please keep uploads under 25 MB.'); e.status = 413; throw e; }
+    const mime = sniffUploadType(content);
+    if (!mime) throw new BadRequest('Unsupported file type — please upload a PDF, JPG, or PNG.');
+    const filename = safeFilename(file.name);
+    const existing = await store.getAnswers(c.id);
+    const who = existing.get('_filled_by')?.value || '';
+    const by = who ? `client:${who.slice(0, 80)}` : 'client';
+
+    const row = await store.addUpload(c.id, { key, filename, mime, size_bytes: content.length, content, uploaded_by: by });
+
+    let driveUrl = '';
+    if (drive) {
+      try {
+        const d = await drive.upload({ folderId: c.upload_folder_id, filename, mime, content });
+        await store.setUploadDrive(row.id, { drive_file_id: d.id, drive_url: d.url });
+        driveUrl = d.url;
+      } catch (err) {
+        console.warn(`[intake] drive mirror failed for ${c.slug}/${key}: ${err.message}`);
+      }
+    }
+    const when = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium' }).format(new Date());
+    const note = `${filename} (uploaded ${when})${driveUrl ? `  ${driveUrl}` : ''}`;
+    await store.upsertAnswers(c.id, [{ key, value: note }], by, { clientActivity: true });
+    console.log(`[intake] upload ${c.slug} ${key} ${filename} ${content.length}b${driveUrl ? ' → drive' : ''}`);
+    res.json({ ok: true, id: row.id, key, filename, mime, size_bytes: content.length, drive_url: driveUrl || null });
   }));
 
   app.post('/api/intake/:slug/complete', guard(async (req, res) => {
