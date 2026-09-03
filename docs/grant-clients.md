@@ -3,8 +3,9 @@
 Phase 2, step 2 of the roadmap in [mcp.md](mcp.md). Written 2026-09-02 as the plan for the
 work; it is kept current as each PR lands, so the "Status" line below says what is real.
 
-**Status:** PR 1 (schema, catalog, routes) and PR 2 (MCP tools) are in. The client page,
-the import and uploads follow in that order.
+**Status:** PR 1 (schema, catalog, routes), PR 2 (MCP tools) and PR 3 (the client page,
+with its Vercel passthrough on the `frontend` branch) are in. Uploads come next, then
+the import and cutover, so no client loses the Documents tab in between.
 
 ## Why
 
@@ -178,21 +179,37 @@ with the caller's key fingerprint:
 | `intake_seed` | `slug`, `answers` (key → string), `by?` | `PUT /api/clients/:slug/answers`. Unknown keys come back as a tool error naming them. |
 | `client_token_rotate` | `slug` | `POST /api/clients/:slug/token`. Destructive: the old link dies. |
 
-## The intake page (PR 3)
+## The intake page
 
 `server/intake/client.html` is the deployed `Index.html` (Version 24 field set) with the
-Apps Script template tags replaced by placeholders the server fills, and the three
-`google.script.run` calls replaced by `fetch` against `/api/intake/<slug>/answers`,
-`/api/intake/<slug>/complete` and, in PR 5, `/api/intake/<slug>/upload`. Token in the
-`X-Intake-Token` header. Everything a client sees stays the same.
+Apps Script template tags turned into `{{placeholders}}` that `renderClientPage` fills
+as JSON (with `<`, `>` and the Unicode line separators escaped, the way the Apps
+Script's `jsForInject_` did), and the three `google.script.run` calls replaced by
+`fetch` against `/api/intake/<slug>/answers`, `/api/intake/<slug>/complete` and
+`/api/intake/<slug>/upload`. The token travels in the `X-Intake-Token` header. A 401 on
+any call turns the save pill into "this link is no longer valid" instead of retrying
+forever. Everything a client sees stays the same. Until uploads land, the upload route
+answers 503 with a sentence the Documents tab shows ("email the file to your NPSA
+contact").
 
-Served two ways: directly by Railway at `GET /client/:slug`, and through the Vercel app by
-a passthrough on the `frontend` branch (`app/client/[slug]/route.ts` for the page,
-`app/api/intake/[...path]/route.ts` for the client API, neither behind the team login).
-Custom domain: add it to the `npsa-tools` Vercel project and a CNAME in Squarespace DNS,
-then set `INTAKE_BASE_URL`.
+The page is served two ways:
 
-## Cutover for existing clients (PR 4)
+- Directly by Railway at `GET /client/:slug`.
+- Through the Vercel app by a passthrough on the `frontend` branch:
+  `app/client/[slug]/route.ts` forwards the page, `app/api/intake/[...path]/route.ts`
+  forwards the two client verbs under `/api/intake` with the token header. Neither is
+  behind the team login, and the keyed `/api/clients` routes are not reachable through
+  it. The page uses relative URLs, so it works on either host.
+
+`INTAKE_BASE_URL` on Railway sets the host that goes into `intake_url`:
+`https://npsa-tools.vercel.app` once the passthrough is live, and the custom domain
+after it is added to the `npsa-tools` Vercel project with a CNAME in Squarespace DNS.
+`INTAKE_API_BASE` (optional, default relative) points the page's calls at another origin;
+uploads may need it, because Vercel functions cap request bodies at 4.5 MB while the
+form allows 25 MB, so the uploads PR will either post straight to Railway with CORS or
+size the passthrough accordingly.
+
+## Cutover for existing clients (after uploads)
 
 1. `scripts/intake-import.mjs` reads an `.xlsx` export of the Registry spreadsheet
    (Registry tab plus every `R · <slug>` tab; the hidden `_key` column exports) and POSTs
@@ -216,7 +233,7 @@ then set `INTAKE_BASE_URL`.
 - **nsgp-inhouse-closeout** renders the archive from `intake_answers`, then
   `client_update status=closed` (or `cancelled`).
 
-## Uploads (PR 5)
+## Uploads (next PR)
 
 Multipart to `/api/intake/:slug/upload`, one file, PDF/JPG/PNG checked by magic bytes,
 25 MB cap, bytes in `intake_uploads.content`. Team list/download routes and an
