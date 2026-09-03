@@ -62,7 +62,13 @@ export async function proxyRequest(
   prefix: string,
   segments: string[],
   allowed: Set<string>,
-  method: "GET" | "POST" | "PATCH" = "GET"
+  method: "GET" | "POST" | "PATCH" = "GET",
+  options: {
+    /** Bearer sent upstream. The grant-client routes on the LOE service are keyed. */
+    upstreamKey?: string;
+    /** Allow the request when the first segment passes this test, not only when it is in `allowed`. */
+    allowIf?: (segments: string[]) => boolean;
+  } = {}
 ): Promise<NextResponse> {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!token || !tokenIsValid(token)) {
@@ -71,7 +77,7 @@ export async function proxyRequest(
 
   // An empty segment list means the collection root (e.g. /api/letters).
   const first = segments[0] ?? "";
-  if (!allowed.has(first)) {
+  if (!allowed.has(first) && !(options.allowIf && options.allowIf(segments))) {
     return NextResponse.json({ error: "Endpoint not allowed" }, { status: 404 });
   }
 
@@ -89,6 +95,7 @@ export async function proxyRequest(
       headers: {
         Accept: "application/json",
         ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
+        ...(options.upstreamKey ? { Authorization: `Bearer ${options.upstreamKey}` } : {}),
       },
       body: method === "GET" ? undefined : body || "{}",
       cache: "no-store",

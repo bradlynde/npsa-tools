@@ -15,6 +15,11 @@ const NAV = [
     match: (p: string) => p.startsWith("/toolbox") || p.startsWith("/loe"),
   },
   {
+    href: "/grant-writing",
+    label: "Grant Writing",
+    match: (p: string) => p.startsWith("/grant-writing"),
+  },
+  {
     href: "/scraper",
     label: "Scraper",
     // /school and /church remain as deep links into run details.
