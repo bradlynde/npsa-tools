@@ -3,8 +3,9 @@
 The Sales Toolbox backend exposes its data to Claude through the Model Context
 Protocol at `POST /mcp` on the Railway service (the `loe-generator` lineage). Claude
 Code and Claude Desktop connect to it directly and get tools for letters, reps,
-NSGP deadlines, pre-call bookings and the marketing dashboard figures -- sixteen
-reads, and seven writes for keys allowed them.
+NSGP deadlines, pre-call bookings, the marketing dashboard figures, and the in-house
+grant clients with their intake forms -- twenty-one reads, and eleven writes for keys
+allowed them.
 
 Code: `server/mcp.js`. Mounted from `server/index.js` ahead of the SPA fallback.
 
@@ -137,6 +138,11 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `marketing_bookings` | Individual booking rows with attribution |
 | `marketing_untracked_wins` | Wins with no matching booking |
 | `marketing_revenue_quality` | Reconciliation of the two revenue totals |
+| `clients_list` | In-house grant clients with phase, status, intake link, counts and quiet clock |
+| `client_get` | One client's record, contacts and headline intake counts |
+| `intake_questions` | The intake form's key catalog; look keys up here before seeding |
+| `intake_answers` | A client's intake answers in form order, filterable by section |
+| `intake_status` | Per-section counts, the 24 checklist tasks, submission stamp, uploads |
 
 ### Write tools
 
@@ -156,6 +162,10 @@ until keys map to people.
 | `nsgp_deadline_delete` | Deletes one deadline row (destructive) |
 | `marketing_booking_update` | Held, became-client, exclusion reason, channel or campaign override on one booking. Same overrides as the dashboard toggles. |
 | `marketing_refresh` | Re-enriches bookings, like the dashboard's "Refresh data" |
+| `client_create` | Registers a grant client and mints their intake link |
+| `client_update` | Fields, phase, status and contacts on a client |
+| `intake_seed` | Writes intake answers; an unknown key fails the whole call by name |
+| `client_token_rotate` | Re-issues the intake link (destructive: the old one dies) |
 
 Not exposed on purpose: creating or deleting letters (the generator owns the form
 data shape), the ingest and reconcile endpoints (those belong to the Zaps), and the
@@ -174,7 +184,10 @@ Calendly backfill.
   lands the way the UI's own button would land it (the booking PATCH re-enriches,
   the deadline PUT marks the row manual). The two exceptions are
   `nsgp_state_reference` (static data, imported directly) and `precall_booking_get`
-  (no route exists; it calls `getBooking`).
+  (no route exists; it calls `getBooking`). The grant-client routes are keyed; the
+  loopback calls present the key the process minted at boot (`X-Internal-Key`) and the
+  caller's fingerprint (`X-Actor`), so the route's log line names the same person the
+  MCP audit line does. See [grant-clients.md](grant-clients.md).
 - **Errors come back as tool errors**, not protocol failures. "Storage not
   configured" or "Calendly is not connected" reach Claude as text it can act on.
 - **Fail closed.** No `MCP_API_KEYS`, no service. Keys are compared with
@@ -189,9 +202,11 @@ node scripts/mcp-smoke.mjs
 Runs with no database or network: stands up the MCP layer against fake `/api`
 routes and checks the gate (503 / 401 / 405 / accepted), the protocol (a real SDK
 client lists and calls tools), the plumbing (loopback reads, deadline filtering,
-`saved_html` omission, upstream errors surfacing as tool errors), and the writes
+`saved_html` omission, upstream errors surfacing as tool errors), the writes
 (annotations and confirm wording, method and body forwarded per tool, the audit
-line, and `MCP_WRITE_KEYS` hiding the write tools from a read-only key).
+line, and `MCP_WRITE_KEYS` hiding the write tools from a read-only key), and the
+grant-client tools (internal key and fingerprint on the loopback call, shapes per
+tool, an unknown-key seed refusal surfacing by name).
 
 ## What comes next
 
@@ -201,11 +216,9 @@ read-only so the connection and the shape of the tools can be proven first. The
 follow-up, in order:
 
 1. ~~**Write tools with confirmation.**~~ Done: the write tools above.
-2. **Grant clients module.** New tables (`clients`, `intake_answers`, `intake_uploads`)
-   and routes mirroring what the Apps Script registry does today: register a client,
-   mint a tokenised intake link, seed intake questions, read answers as they land.
-   Then MCP tools on top: `client_create`, `client_get`, `intake_seed`,
-   `intake_answers`, `intake_status`.
+2. ~~**Grant clients module.**~~ Tables, routes and the nine tools above are in; the
+   client page, the import from the Apps Script registry and uploads follow, per
+   [grant-clients.md](grant-clients.md).
 3. **Per-user identity.** Once writes exist it matters who made them. Either tie each
    key to a user record, or move to OAuth against the auth service, which also
    unlocks claude.ai and Cowork connectors.

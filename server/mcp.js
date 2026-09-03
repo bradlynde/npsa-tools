@@ -40,16 +40,25 @@ import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { getBooking } from './precall-bookings.js';
 
 export const MCP_PATH = '/mcp';
-const SERVER_INFO = { name: 'npsa-tools', version: '1.1.0' };
+const SERVER_INFO = { name: 'npsa-tools', version: '1.2.0' };
 
 const INSTRUCTIONS = `NPSA Sales Toolbox: Nonprofit Security Advisors' internal data.
 Areas: engagement letters and proposals (letters_*), sales reps (rep*), NSGP grant deadlines by
 state (nsgp_*), upcoming Calendly consultation bookings (precall_*), and the marketing dashboard
-figures (marketing_*). Tools whose description begins with WRITE change data; confirm the exact
-change with the user before calling one. Dollar figures are USD. Dates are ISO (YYYY-MM-DD)
+figures (marketing_*), and in-house NSGP grant-writing clients with their intake forms (clients_*,
+client_*, intake_*). Tools whose description begins with WRITE change data; confirm the exact
+change with the user before calling one. Before seeding intake answers, look the keys up with
+intake_questions; a seed naming a key that is not in the catalog is refused. Dollar figures are USD. Dates are ISO (YYYY-MM-DD)
 unless a field says otherwise. State codes are two-letter USPS abbreviations.`;
 
 const EXCLUSION_REASONS = ['unqualified', 'double_booking', 'cancelled', 'rescheduled'];
+const CLIENT_STATUSES = ['active', 'submitted', 'cancelled', 'closed'];
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const contactShape = z.object({
+  name: z.string().optional(),
+  email: z.string().email(),
+  role: z.string().optional().describe('e.g. "Executive Pastor"'),
+});
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -454,18 +463,162 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     }, write('marketing_refresh', async ({ all = false }) => api(`/marketing/enrich${all ? '?all=1' : ''}`, { method: 'POST', body: {} })));
   }
 
+  // ── Grant clients and intake ──────────────────────────────────────────────
+
+  server.registerTool('clients_list', {
+    title: 'List grant clients',
+    description: 'In-house NSGP grant-writing clients with where each one stands: phase (1 sales, 2 grant writing, 3 compliance, 4 implementation), status, the intake link, contacts, core intake questions answered vs total, checklist tasks completed vs total, who is filling the form in, when the client last saved anything (the quiet clock), and when they marked it complete. Defaults to active clients; status "all" lists everyone.',
+    inputSchema: {
+      status: z.enum([...CLIENT_STATUSES, 'all']).optional().describe('Default "active"'),
+      phase: z.number().int().min(1).max(4).optional(),
+      search: z.string().optional().describe('Substring match on name or slug'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max rows (default 100)'),
+    },
+    annotations: READ,
+  }, tool(async ({ status = 'active', phase, search = '', limit = 100 }) => {
+    const params = new URLSearchParams({ status });
+    if (phase) params.set('phase', String(phase));
+    if (search) params.set('search', search);
+    const rows = await api(`/clients?${params}`);
+    return { count: rows.length, clients: rows.slice(0, limit) };
+  }));
+
+  server.registerTool('client_get', {
+    title: 'Get grant client',
+    description: 'One grant client by slug: the record, contacts, intake link, SAA, and the headline intake counts. Use intake_status for the per-section and checklist detail, intake_answers for the answers themselves.',
+    inputSchema: { slug: z.string().min(1).describe('Client slug from clients_list, e.g. "trinity-wellsprings-church"') },
+    annotations: READ,
+  }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}`)));
+
+  server.registerTool('intake_questions', {
+    title: 'Intake question catalog',
+    description: 'The keys the client intake form renders, with section, label, order and kind (text, textarea, select, upload, meta). This is the source of truth for intake_seed: look keys up here rather than guessing them, since several checklist stems are stored truncated (e.g. "chk_who_information_collection_workbook_co"). Filter by section (exact name, e.g. "Checklist") or key prefix (e.g. "chk_status_", "wl_f1_", "loc2_").',
+    inputSchema: {
+      section: z.string().optional(),
+      prefix: z.string().optional(),
+    },
+    annotations: READ,
+  }, tool(async ({ section = '', prefix = '' }) => {
+    const params = new URLSearchParams();
+    if (section) params.set('section', section);
+    if (prefix) params.set('prefix', prefix);
+    const qs = params.toString();
+    return api(`/intake/questions${qs ? `?${qs}` : ''}`);
+  }));
+
+  server.registerTool('intake_answers', {
+    title: 'Intake answers',
+    description: 'A client\'s intake answers in form order, each with its section, question label, value, when it was last saved and by whom ("client:<name>" from the form, "seed:<key>" from a team seed, "import"). Empty questions are left out unless include_empty is true. Filter to one section to keep the payload small; the wish list alone is 363 keys.',
+    inputSchema: {
+      slug: z.string().min(1),
+      section: z.string().optional().describe('Exact section name, e.g. "4. Threats", "Locations", "Wish List — Facility 1", "Checklist"'),
+      include_empty: z.boolean().optional().describe('Include unanswered questions (default false)'),
+    },
+    annotations: READ,
+  }, tool(async ({ slug, section = '', include_empty = false }) => {
+    const params = new URLSearchParams();
+    if (section) params.set('section', section);
+    if (include_empty) params.set('include_empty', '1');
+    const qs = params.toString();
+    return api(`/clients/${encodeURIComponent(slug)}/answers${qs ? `?${qs}` : ''}`);
+  }));
+
+  server.registerTool('intake_status', {
+    title: 'Intake status',
+    description: 'Where a client\'s intake stands: answered vs total per section, the 24 checklist tasks with status, due date, owner and note, who is filling it in, the submission stamp if they marked it complete, when they last saved anything, and their uploads. The place to look before a nudge or before drafting the IJ.',
+    inputSchema: { slug: z.string().min(1) },
+    annotations: READ,
+  }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/status`)));
+
+  if (canWrite) {
+    server.registerTool('client_create', {
+      title: 'Register grant client',
+      description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. Contacts are recorded on the client (the first becomes primary). Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
+      inputSchema: {
+        name: z.string().min(1).describe('Organization name as the client uses it'),
+        state: z.string().length(2).describe('Two-letter state code'),
+        slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).min(3).max(60).optional().describe('Override the derived slug'),
+        contacts: z.array(contactShape).optional(),
+        upload_folder_id: z.string().optional().describe('Drive Phase 2 folder id'),
+        drive_folder_id: z.string().optional().describe('Drive client root folder id'),
+        asana_project_gid: z.string().optional(),
+        kickoff_date: z.string().regex(ISO_DATE).optional().describe('Day 0, YYYY-MM-DD'),
+        program_track: z.string().optional().describe('e.g. "2026 federal NSGP + NSGP-IL"'),
+        notes: z.string().optional(),
+      },
+      annotations: WRITE,
+    }, write('client_create', async (args) => {
+      const body = { ...args, state: normState(args.state) };
+      return api('/clients', { method: 'POST', body });
+    }));
+
+    server.registerTool('client_update', {
+      title: 'Update grant client',
+      description: `WRITE. Confirm with the user before calling. Changes fields on a client: name, state, phase (1–4), status (${CLIENT_STATUSES.join(', ')}), program_track, Drive folder ids, Asana project, kickoff date, notes; adds or removes contacts by email. Only the fields given change. Setting status to "submitted" stamps the submission time; use "cancelled" or "closed" at closeout. The slug and token never change here (see client_token_rotate).`,
+      inputSchema: {
+        slug: z.string().min(1),
+        name: z.string().min(1).optional(),
+        state: z.string().length(2).optional(),
+        phase: z.number().int().min(1).max(4).optional(),
+        status: z.enum(CLIENT_STATUSES).optional(),
+        program_track: z.string().optional(),
+        drive_folder_id: z.string().optional(),
+        upload_folder_id: z.string().optional(),
+        asana_project_gid: z.string().optional(),
+        kickoff_date: z.string().regex(ISO_DATE).optional(),
+        notes: z.string().optional(),
+        add_contacts: z.array(contactShape).optional(),
+        remove_contact_emails: z.array(z.string().email()).optional(),
+      },
+      annotations: WRITE,
+    }, write('client_update', async ({ slug, ...fields }) => {
+      const body = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+      if (body.state) body.state = normState(body.state);
+      if (!Object.keys(body).length) throw new Error('Nothing to change: give at least one field to update');
+      return api(`/clients/${encodeURIComponent(slug)}`, { method: 'PATCH', body });
+    }));
+
+    server.registerTool('intake_seed', {
+      title: 'Seed intake answers',
+      description: 'WRITE. Confirm with the user before calling. Writes intake answers for a client: pre-filling known facts at kickoff (legal name, EIN, contacts, programs found on the website), the checklist statuses, owners and due dates, and NPSA notes; also how the team corrects an answer later. Every key must exist in intake_questions — an unknown key makes the whole call fail with the offending keys and nothing is written. Values are text; an existing answer for the same key is overwritten. Client-side "who is filling this out" and last-activity are not affected.',
+      inputSchema: {
+        slug: z.string().min(1),
+        answers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).describe('Map of intake key → value, e.g. {"q_1_3_1": "Trinity Wellsprings Church, Inc.", "chk_status_kickoff_call": "Completed"}'),
+        by: z.string().optional().describe('Attribution label instead of the default "seed:<key>"'),
+      },
+      annotations: WRITE,
+    }, write('intake_seed', async ({ slug, answers, by }) => {
+      if (!answers || !Object.keys(answers).length) throw new Error('Nothing to seed: answers is empty');
+      return api(`/clients/${encodeURIComponent(slug)}/answers`, { method: 'PUT', body: { answers, ...(by ? { by } : {}) } });
+    }));
+
+    server.registerTool('client_token_rotate', {
+      title: 'Re-issue intake link',
+      description: 'WRITE, destructive. Confirm with the user before calling, naming the client. Mints a new token for the client, so the link they have stops working at once and the new intake_url must be sent to them. Use when a link has leaked or been sent to the wrong person. Answers are untouched.',
+      inputSchema: { slug: z.string().min(1) },
+      annotations: DESTRUCTIVE,
+    }, write('client_token_rotate', async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/token`, { method: 'POST', body: {} })));
+  }
+
   return server;
 }
 
 // ── Express wiring ────────────────────────────────────────────────────────────
 
-export function registerMcp(app, { port }) {
+export function registerMcp(app, { port, internalKey }) {
   const base = () => `http://127.0.0.1:${typeof port === 'function' ? port() : port}/api`;
 
-  async function api(path, { method = 'GET', body } = {}) {
+  // The grant-client routes are keyed. Loopback calls get in with the key this
+  // process minted at boot, plus the caller's fingerprint so the route's own log
+  // line names the same actor the MCP audit line does.
+  async function api(path, { method = 'GET', body, actor } = {}) {
     const r = await fetch(`${base()}${path}`, {
       method,
-      headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: {
+        Accept: 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(internalKey ? { 'X-Internal-Key': internalKey, 'X-Actor': actor || 'mcp' } : {}),
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await r.text();
@@ -479,7 +632,8 @@ export function registerMcp(app, { port }) {
   }
 
   app.post(MCP_PATH, requireMcpKey, async (req, res) => {
-    const server = buildMcpServer({ api, canWrite: req.mcp.canWrite, actor: req.mcp.actor });
+    const { actor } = req.mcp;
+    const server = buildMcpServer({ api: (path, opts) => api(path, { ...opts, actor }), canWrite: req.mcp.canWrite, actor });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless: nothing to resume, nothing to leak
       enableJsonResponse: true,

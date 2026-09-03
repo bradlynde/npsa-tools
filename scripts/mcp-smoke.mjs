@@ -18,6 +18,9 @@
  *      instruction, forwards the right method and body to the right route, is
  *      logged with the caller's key fingerprint, and disappears entirely for a
  *      key that MCP_WRITE_KEYS leaves out.
+ *   5. Grant clients. The nine client/intake tools reach the keyed /api/clients
+ *      routes with the internal key and the caller's fingerprint, forward the
+ *      right shapes, and surface an unknown-key seed refusal as a tool error.
  *
  *   node scripts/mcp-smoke.mjs
  */
@@ -33,11 +36,13 @@ const READ_TOOLS = [
   'precall_bookings_list', 'precall_booking_get',
   'marketing_overview', 'marketing_by_campaign', 'marketing_by_channel', 'marketing_timeseries',
   'marketing_bookings', 'marketing_untracked_wins', 'marketing_revenue_quality',
+  'clients_list', 'client_get', 'intake_questions', 'intake_answers', 'intake_status',
 ];
 const WRITE_TOOLS = [
   'letter_update', 'rep_add', 'rep_remove',
   'nsgp_deadline_upsert', 'nsgp_deadline_delete',
   'marketing_booking_update', 'marketing_refresh',
+  'client_create', 'client_update', 'intake_seed', 'client_token_rotate',
 ];
 
 const FAKE_STATS = { total: 7, total_fees: 12345, by_rep: [{ rep_name: 'Chad', count: 4 }] };
@@ -70,8 +75,26 @@ app.patch('/api/marketing/bookings/:id', (req, res) => record(req, res));
 app.post('/api/marketing/enrich', (req, res) => record(req, res, { ok: true, refreshed: 3, all: req.query.all === '1' }));
 app.get('/api/marketing/stats', (_req, res) => res.status(503).json({ error: 'Storage not configured' }));
 
+// Grant-client routes are keyed; the fakes insist on the internal key the same way.
+const INTERNAL = 'boot-secret';
+const keyed = (req, res, next) => req.get('x-internal-key') === INTERNAL ? next() : res.status(401).json({ error: 'Unauthorized' });
+const FAKE_CLIENT = { id: 1, slug: 'trinity-wellsprings-church', name: 'Trinity Wellsprings Church', state: 'FL', phase: 2, status: 'active', intake_url: 'https://npsa-tools.vercel.app/client/trinity-wellsprings-church?t=abc', contacts: [] };
+app.get('/api/clients', keyed, (req, res) => res.json(req.query.status === 'cancelled' ? [] : [{ ...FAKE_CLIENT, actor: req.get('x-actor'), q: req.query }]));
+app.post('/api/clients', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, slug: req.body.slug || 'derived', state: req.body.state }));
+app.get('/api/clients/:slug', keyed, (req, res) => req.params.slug === FAKE_CLIENT.slug ? res.json(FAKE_CLIENT) : res.status(404).json({ error: 'No such client' }));
+app.patch('/api/clients/:slug', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, ...req.body }));
+app.post('/api/clients/:slug/token', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, intake_url: 'https://npsa-tools.vercel.app/client/trinity-wellsprings-church?t=new' }));
+app.get('/api/clients/:slug/answers', keyed, (req, res) => res.json({ slug: req.params.slug, count: 1, q: req.query, answers: [{ key: 'q_1_1_1', value: 'Pat' }] }));
+app.put('/api/clients/:slug/answers', keyed, (req, res) => {
+  const unknown = Object.keys(req.body.answers || {}).filter(k => k.startsWith('bad_'));
+  if (unknown.length) return res.status(400).json({ error: `Unknown intake keys: ${unknown.join(', ')}. Use the question catalog for the exact keys.`, unknown_keys: unknown });
+  record(req, res, { ok: true, written: Object.keys(req.body.answers).length });
+});
+app.get('/api/clients/:slug/status', keyed, (req, res) => res.json({ slug: req.params.slug, core: { answered: 3, total: 130 }, checklist: { completed: 1, total: 24 } }));
+app.get('/api/intake/questions', keyed, (req, res) => res.json({ count: 2, q: req.query, questions: [{ key: 'chk_status_kickoff_call' }, { key: 'chk_who_state_reg' }] }));
+
 let port = 0;
-registerMcp(app, { port: () => port });
+registerMcp(app, { port: () => port, internalKey: INTERNAL });
 const httpServer = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
 port = httpServer.address().port;
 const url = `http://127.0.0.1:${port}${MCP_PATH}`;
@@ -139,7 +162,7 @@ await check('read tools are annotated read-only, write tools are not', async () 
     }
   }
   const destructive = (await client.listTools()).tools.filter(t => t.annotations?.destructiveHint).map(t => t.name).sort();
-  assert.deepEqual(destructive, ['nsgp_deadline_delete', 'rep_remove']);
+  assert.deepEqual(destructive, ['client_token_rotate', 'nsgp_deadline_delete', 'rep_remove']);
 });
 
 await check('nsgp_state_reference answers without a database', async () => {
@@ -277,6 +300,84 @@ await check('every write is logged with the caller\'s key fingerprint', async ()
   assert.ok(line, 'audit line present');
   assert.match(line, /by [0-9a-f]{8} /, 'fingerprint, not the key');
   assert.ok(!line.includes('first-key'), 'the key itself never appears');
+});
+
+// ── 5. Grant clients ──────────────────────────────────────────────────────────
+await check('clients_list reaches the keyed route with the internal key and the caller fingerprint', async () => {
+  const r = await client.callTool({ name: 'clients_list', arguments: { status: 'all', search: 'trin' } });
+  assert.ok(!r.isError, r.content?.[0]?.text);
+  const d = text(r);
+  assert.equal(d.count, 1);
+  assert.equal(d.clients[0].slug, 'trinity-wellsprings-church');
+  assert.match(d.clients[0].actor, /^[0-9a-f]{8}$/, 'X-Actor is the key fingerprint');
+  assert.deepEqual(d.clients[0].q, { status: 'all', search: 'trin' });
+  const none = text(await client.callTool({ name: 'clients_list', arguments: { status: 'cancelled' } }));
+  assert.equal(none.count, 0);
+});
+
+await check('client_get, intake_status, intake_answers and intake_questions forward their filters', async () => {
+  assert.equal(text(await client.callTool({ name: 'client_get', arguments: { slug: 'trinity-wellsprings-church' } })).name, 'Trinity Wellsprings Church');
+  const missing = await client.callTool({ name: 'client_get', arguments: { slug: 'nobody' } });
+  assert.equal(missing.isError, true);
+  assert.match(missing.content[0].text, /No such client/);
+  assert.equal(text(await client.callTool({ name: 'intake_status', arguments: { slug: 'trinity-wellsprings-church' } })).checklist.total, 24);
+  const a = text(await client.callTool({ name: 'intake_answers', arguments: { slug: 'trinity-wellsprings-church', section: '4. Threats', include_empty: true } }));
+  assert.deepEqual(a.q, { section: '4. Threats', include_empty: '1' });
+  const q = text(await client.callTool({ name: 'intake_questions', arguments: { prefix: 'chk_' } }));
+  assert.deepEqual(q.q, { prefix: 'chk_' });
+});
+
+await check('client_create POSTs with the state normalised', async () => {
+  const r = await client.callTool({ name: 'client_create', arguments: {
+    name: 'Trinity Wellsprings Church', state: 'fl', kickoff_date: '2026-09-08', upload_folder_id: 'PHASE2',
+    contacts: [{ name: 'Pat Lee', email: 'pat@trinity.org', role: 'Executive Pastor' }],
+  } });
+  assert.ok(!r.isError, r.content?.[0]?.text);
+  const w = lastWrite();
+  assert.deepEqual([w.method, w.path], ['POST', '/api/clients']);
+  assert.equal(w.body.state, 'FL');
+  assert.equal(w.body.contacts[0].email, 'pat@trinity.org');
+  assert.equal(w.body.upload_folder_id, 'PHASE2');
+  assert.match(text(r).intake_url, /^https:\/\/npsa-tools\.vercel\.app\/client\//);
+  const bad = await client.callTool({ name: 'client_create', arguments: { name: 'X', state: 'FL', kickoff_date: '9/8/2026' } });
+  assert.equal(bad.isError, true);
+  assert.match(bad.content[0].text, /Invalid arguments/);
+});
+
+await check('client_update PATCHes only the fields given and refuses an empty change', async () => {
+  const r = await client.callTool({ name: 'client_update', arguments: { slug: 'trinity-wellsprings-church', status: 'submitted', add_contacts: [{ email: 'sam@trinity.org' }] } });
+  assert.ok(!r.isError, r.content?.[0]?.text);
+  const w = lastWrite();
+  assert.deepEqual([w.method, w.path], ['PATCH', '/api/clients/trinity-wellsprings-church']);
+  assert.deepEqual(w.body, { status: 'submitted', add_contacts: [{ email: 'sam@trinity.org' }] });
+  const empty = await client.callTool({ name: 'client_update', arguments: { slug: 'trinity-wellsprings-church' } });
+  assert.equal(empty.isError, true);
+  const before = received.length;
+  const typo = await client.callTool({ name: 'client_update', arguments: { slug: 'trinity-wellsprings-church', status: 'done' } });
+  assert.equal(typo.isError, true);
+  assert.equal(received.length, before, 'a bad status never reaches the route');
+});
+
+await check('intake_seed PUTs the answers and surfaces an unknown-key refusal by name', async () => {
+  const ok = await client.callTool({ name: 'intake_seed', arguments: { slug: 'trinity-wellsprings-church', answers: { q_1_1_1: 'Pat Lee', q_1_3_7: 12, chk_status_kickoff_call: 'Completed' } } });
+  assert.ok(!ok.isError, ok.content?.[0]?.text);
+  assert.equal(text(ok).written, 3);
+  const w = lastWrite();
+  assert.deepEqual([w.method, w.path], ['PUT', '/api/clients/trinity-wellsprings-church/answers']);
+  assert.equal(w.body.answers.q_1_3_7, 12);
+  assert.equal(w.body.by, undefined);
+  const bad = await client.callTool({ name: 'intake_seed', arguments: { slug: 'trinity-wellsprings-church', answers: { q_1_1_1: 'x', bad_key: 'y' } } });
+  assert.equal(bad.isError, true);
+  assert.match(bad.content[0].text, /Unknown intake keys: bad_key/);
+  const empty = await client.callTool({ name: 'intake_seed', arguments: { slug: 'trinity-wellsprings-church', answers: {} } });
+  assert.equal(empty.isError, true);
+});
+
+await check('client_token_rotate POSTs and returns the new link', async () => {
+  const r = await client.callTool({ name: 'client_token_rotate', arguments: { slug: 'trinity-wellsprings-church' } });
+  assert.ok(!r.isError);
+  assert.deepEqual([lastWrite().method, lastWrite().path], ['POST', '/api/clients/trinity-wellsprings-church/token']);
+  assert.match(text(r).intake_url, /t=new$/);
 });
 
 await client.close();

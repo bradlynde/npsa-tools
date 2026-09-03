@@ -3,8 +3,8 @@
 Phase 2, step 2 of the roadmap in [mcp.md](mcp.md). Written 2026-09-02 as the plan for the
 work; it is kept current as each PR lands, so the "Status" line below says what is real.
 
-**Status:** PR 1 (schema, catalog, routes). MCP tools, the client page, the import and
-uploads follow in that order.
+**Status:** PR 1 (schema, catalog, routes) and PR 2 (MCP tools) are in. The client page,
+the import and uploads follow in that order.
 
 ## Why
 
@@ -156,7 +156,7 @@ is used. Set the variable to `https://npsa-tools.vercel.app` once the passthroug
 and to the custom domain after that. Links already sent keep working across the change
 because the `.vercel.app` alias stays.
 
-## MCP tools (PR 2)
+## MCP tools
 
 Reads, annotated read-only:
 
@@ -239,7 +239,7 @@ can be enabled per client to trial.
 
 ```bash
 node scripts/intake-smoke.mjs   # routes against the in-memory store: gates, registration, answers, status, updates
-node scripts/mcp-smoke.mjs      # unchanged in PR 1; gains the nine tools in PR 2
+node scripts/mcp-smoke.mjs      # the MCP layer, including the nine grant-client tools
 ```
 
 Both run with no database or network. Railway runs `node:18-alpine` while local and CI run
