@@ -163,6 +163,38 @@ function isoDatePlus(days = 0) {
 }
 
 /**
+ * Which of this engagement's programs a location applies under.
+ *
+ * A location records its own list only when there is a choice to record: the
+ * per-location chips appear when the engagement runs more than one program, and
+ * a one-program letter has nothing to pick between. So an unrecorded list means
+ * "all of them", not "none of them".
+ *
+ * A list is also intersected with the engagement rather than trusted whole. A
+ * letter that started federal and moved to CSNSGP leaves "federal" written on
+ * its locations, naming a program the engagement no longer runs — the stale
+ * value is dropped, and a location left naming nothing this engagement runs
+ * falls back to all of them, the same as one that never recorded a choice.
+ *
+ * This was thirteen copies of `l.programs || ["federal"]`, which answered the
+ * question with a literal program key. Federal is the common case and the
+ * default location carried ["federal"] to match, so every federal letter was
+ * right and every state-program letter counted ZERO locations: a $0 maximum
+ * award on the page, and multi-site CSNSGP, NSGP-IL and NYSCAHC engagements
+ * priced as a single application.
+ */
+function locationPrograms(location, programs) {
+  const keys = (programs || []).map((p) => p.key);
+  const recorded = Array.isArray(location?.programs) ? location.programs.filter((k) => keys.includes(k)) : [];
+  return recorded.length ? recorded : keys;
+}
+
+/** Does this location apply under this program? */
+function locationInProgram(location, programKey, programs) {
+  return locationPrograms(location, programs).includes(programKey);
+}
+
+/**
  * Applications in an engagement: one per location, per program it applies
  * under. Fees scale on this rather than on the location count — a single site
  * applying to two programs is two applications and is priced as two.
@@ -170,7 +202,7 @@ function isoDatePlus(days = 0) {
 function applicationCount(programs, locations) {
   const list = programs && programs.length ? programs : [{ key: "federal" }];
   return list.reduce(
-    (sum, pg) => sum + (locations || []).filter((l) => (l.programs || ["federal"]).includes(pg.key)).length,
+    (sum, pg) => sum + (locations || []).filter((l) => locationInProgram(l, pg.key, list)).length,
     0,
   ) || 1;
 }
@@ -186,7 +218,7 @@ function applicationCount(programs, locations) {
 function totalMaxAward(programs, locations) {
   return (programs || []).reduce((sum, pg) => {
     const cfg = PROGRAMS[pg.key] || PROGRAMS.federal;
-    const n = (locations || []).filter((l) => (l.programs || ["federal"]).includes(pg.key)).length;
+    const n = (locations || []).filter((l) => locationInProgram(l, pg.key, programs)).length;
     return sum + n * (parseFloat(String(cfg.maxAward).replace(/,/g, "")) || 0);
   }, 0);
 }
@@ -205,5 +237,5 @@ export {
   calcFees, buildInstallmentText, buildCompBlock,
   SHARED_FIELDS, POST_FIELDS,
   PROGRAMS, NPSA_SIGNATURES,
-  totalMaxAward, applicationCount, isoDatePlus,
+  totalMaxAward, applicationCount, locationPrograms, locationInProgram, isoDatePlus,
 };

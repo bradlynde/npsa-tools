@@ -9,7 +9,7 @@
  * control writes through setF, exactly as the sidebar did.
  */
 
-import { PROGRAMS, TIER_LABELS, fmt } from "./engine.js";
+import { PROGRAMS, TIER_LABELS, fmt, locationPrograms, locationInProgram } from "./engine.js";
 
 /* ── small primitives ────────────────────────────────────────────────── */
 
@@ -113,7 +113,7 @@ export function ProgramsPicker({
         // Applications == how many locations opted into this program. Only the
         // document types that collect locations can show it.
         const apps = locations
-          ? locations.filter((l) => (l.programs || ["federal"]).includes(pg.key)).length
+          ? locations.filter((l) => locationInProgram(l, pg.key, list)).length
           : null;
         return (
           <div key={i} className="wz-row">
@@ -462,7 +462,7 @@ export function LocationsEditor({ locations, onChange, programs }) {
             <Field label="Applies To">
               <div className="wz-chips">
                 {chosen.map((pk) => {
-                  const on = (loc.programs || ["federal"]).includes(pk);
+                  const on = locationInProgram(loc, pk, programs);
                   return (
                     <button
                       key={pk}
@@ -470,10 +470,17 @@ export function LocationsEditor({ locations, onChange, programs }) {
                       className="wz-chip"
                       aria-pressed={on}
                       onClick={() => {
-                        const cur = loc.programs || ["federal"];
-                        set(i, {
-                          programs: on ? cur.filter((x) => x !== pk) : [...cur, pk],
-                        });
+                        // Read the effective list, not the stored one: a location
+                        // that never recorded a choice applies to every program,
+                        // and the first click has to turn one OFF rather than
+                        // re-assert what the chips already show as pressed.
+                        const cur = locationPrograms(loc, programs);
+                        const next = on ? cur.filter((x) => x !== pk) : [...cur, pk];
+                        // A site in the engagement applies under something. Empty
+                        // means "unrecorded", which reads back as all of them, so
+                        // unsetting the last chip would flip every chip back on.
+                        if (!next.length) return;
+                        set(i, { programs: next });
                       }}
                     >
                       {(PROGRAMS[pk] || PROGRAMS.federal).label}

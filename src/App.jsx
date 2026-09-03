@@ -3,7 +3,7 @@ import html2pdf from "html2pdf.js";
 import { marked } from "marked";
 import { LOGO_SRC } from "./generator/logo.js";
 import {
-  fmt, calcFees, buildCompBlock, applicationCount,
+  fmt, calcFees, buildCompBlock, applicationCount, totalMaxAward, locationInProgram,
   PROGRAMS, NPSA_SIGNATURES,
 } from "./generator/engine.js";
 import {
@@ -219,9 +219,10 @@ export default function App() {
     }
   };
   // Total applications = sum over programs of locations that include that program
-  const programApps = (form.programs||[{key:"federal",year:"2026"}]).map(pg => ({
+  const appPrograms = form.programs||[{key:"federal",year:"2026"}];
+  const programApps = appPrograms.map(pg => ({
     ...pg,
-    appCount: (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length || 0
+    appCount: (form.locations||[]).filter(l=>locationInProgram(l,pg.key,appPrograms)).length || 0
   }));
   const totalApps = applicationCount(form.programs, form.locations);
   const numLocs = totalApps; // fees scale on total applications
@@ -471,7 +472,7 @@ export default function App() {
       ? `3. NPSA already believes, but does not guarantee, that CLIENT is likely eligible for the following grant programs:\n` +
         progs.map((pg,i) => {
           const cfg = PROGRAMS[pg.key] || PROGRAMS.federal;
-          const pgLocs = (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key));
+          const pgLocs = (form.locations||[]).filter(l=>locationInProgram(l,pg.key,progs));
           const n = pgLocs.length;
           const nWord = numWords[n] || String(n);
           const appWord = n===1?"application":"applications";
@@ -487,7 +488,7 @@ export default function App() {
       : (() => {
           const pg = progs[0] || {key:"federal",year:form.grantYear};
           const cfg = PROGRAMS[pg.key] || PROGRAMS.federal;
-          const pgLocs = (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key));
+          const pgLocs = (form.locations||[]).filter(l=>locationInProgram(l,pg.key,progs));
           const n = pgLocs.length || (form.locations||[]).length || 1;
           const nWord = numWords[n] || String(n);
           const appWord = n===1?"application":"applications";
@@ -509,7 +510,7 @@ export default function App() {
       const perAppFee = fees.upfront / Math.max(totalApps, 1);
       const lines = progs.map(pg => {
         const cfg = PROGRAMS[pg.key]||PROGRAMS.federal;
-        const n = (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length || 0;
+        const n = (form.locations||[]).filter(l=>locationInProgram(l,pg.key,progs)).length || 0;
         return `   ${cfg.label}: ${n} application${n!==1?"s":""} × ${fmt(perAppFee)} = ${fmt(perAppFee*n)}`;
       });
       const totalStr = fmt(fees.upfront);
@@ -590,7 +591,7 @@ export default function App() {
       ? `3. NPSA already believes, but does not guarantee, that CLIENT is likely eligible for the following grant programs:\n` +
         progs.map((pg,i) => {
           const cfg = PROGRAMS[pg.key] || PROGRAMS.federal;
-          const pgLocs = (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key));
+          const pgLocs = (form.locations||[]).filter(l=>locationInProgram(l,pg.key,progs));
           const n = pgLocs.length;
           const nWord = numWords2[n] || String(n);
           const appWord = n===1?"application":"applications";
@@ -604,7 +605,7 @@ export default function App() {
       : (() => {
           const pg = progs[0]||{key:"federal",year:form.grantYear};
           const cfg = PROGRAMS[pg.key]||PROGRAMS.federal;
-          const pgLocs = (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key));
+          const pgLocs = (form.locations||[]).filter(l=>locationInProgram(l,pg.key,progs));
           const n = pgLocs.length || (form.locations||[]).length || 1;
           const nWord = numWords2[n] || String(n);
           const appWord = n===1?"application":"applications";
@@ -742,11 +743,7 @@ export default function App() {
     const cfg = PROGRAMS[p.key] || PROGRAMS.federal;
     return cfg.fullName(p.year||form.grantYear).replace(/[“”"]/g,"");
   }).join(" and the ");
-  const proposalMaxFunding = proposalProgs.reduce((s,pg)=>{
-    const cfg = PROGRAMS[pg.key]||PROGRAMS.federal;
-    const n = (form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length || 0;
-    return s + n*(parseFloat(cfg.maxAward.replace(/,/g,""))||200000);
-  }, 0);
+  const proposalMaxFunding = totalMaxAward(proposalProgs, form.locations);
   const interpolateProposal = (t) => t
     .replace(/\[CLIENT_NAME\]/g, form.clientName || "[CLIENT NAME]")
     .replace(/\[PROPOSAL_PROGRAM_LIST\]/g, proposalProgramList)
@@ -1934,7 +1931,7 @@ export default function App() {
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#888",marginBottom:2}}>Total</div>
                   <div style={{fontSize:18,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fmt(fees.total)}</div>
-                  <div style={{fontSize:10,color:"#888",marginTop:2}}>Max grant: {fmt((form.programs||[{key:"federal"}]).reduce((s,pg)=>{const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;const n=(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length||0;return s+n*(parseFloat(cfg.maxAward.replace(/,/g,""))||200000);},0))}</div>
+                  <div style={{fontSize:10,color:"#888",marginTop:2}}>Max grant: {fmt(totalMaxAward(form.programs?.length ? form.programs : [{key:"federal"}], form.locations))}</div>
                 </div>
               </div>
             </div>
@@ -1991,7 +1988,7 @@ export default function App() {
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#888",marginBottom:2}}>Total</div>
                   <div style={{fontSize:18,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fmt(inhFees.total)}</div>
-                  <div style={{fontSize:10,color:"#888",marginTop:2}}>Max grant: {fmt((form.programs||[{key:"federal"}]).reduce((s,pg)=>{const cfg=PROGRAMS[pg.key]||PROGRAMS.federal;const n=(form.locations||[]).filter(l=>(l.programs||["federal"]).includes(pg.key)).length||0;return s+n*(parseFloat(cfg.maxAward.replace(/,/g,""))||200000);},0))}</div>
+                  <div style={{fontSize:10,color:"#888",marginTop:2}}>Max grant: {fmt(totalMaxAward(form.programs?.length ? form.programs : [{key:"federal"}], form.locations))}</div>
                 </div>
               </div>
             </div>
