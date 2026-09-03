@@ -471,7 +471,7 @@
   .fcell input,.fcell textarea{border:1px solid var(--green-cell-line);background:var(--green-cell);border-radius:7px;
     padding:9px 11px;font:inherit;font-size:14.5px;color:var(--ink);width:100%;}
   .fcell input:focus,.fcell textarea:focus{outline:none;border-color:var(--sage);background:#fff;box-shadow:0 0 0 3px rgba(144,156,72,.18);}
-  .fcell textarea{min-height:90px;resize:vertical;}
+  .fcell textarea{min-height:90px;resize:vertical;overflow-y:hidden;}
   @media (max-width:760px){.fgrid{grid-template-columns:1fr;}}
   /* Contacts */
   .ct-group{margin:0 0 26px;}
@@ -563,12 +563,19 @@
     var id=t.getAttribute('data-tab');
     tabs.forEach(function(x){x.classList.toggle('active',x===t);});
     sheets.forEach(function(s){s.classList.toggle('active',s.getAttribute('data-sheet')===id);});
+    growAll();
     window.scrollTo({top:0,behavior:'smooth'});});});
+  /* text boxes grow with what is typed, so nothing has to be dragged open to read or write */
+  function grow(el){el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
+  function growAll(){document.querySelectorAll('.sheet.active textarea').forEach(grow);}
+  document.querySelectorAll('textarea').forEach(function(el){el.addEventListener('input',function(){grow(el);});});
+  window.addEventListener('resize',growAll);
   /* prefill */
   function val(el){return el.type==='checkbox'?el.checked:el.value;}
   document.querySelectorAll('[data-key]').forEach(function(el){var k=el.getAttribute('data-key');
     if(EXISTING.hasOwnProperty(k)){if(el.type==='checkbox')el.checked=(EXISTING[k]===true||EXISTING[k]==='true'||EXISTING[k]==='TRUE');else{var v=EXISTING[k];if(k.startsWith('chk_due_')&&/^\d{4}-\d{2}-\d{2}/.test(v)){var d=v.substring(0,10);var p=d.split('-');v=p[1]+'/'+p[2]+'/'+p[0].slice(2);}el.value=v;}}});
   ["up_mission", "up_501c3", "up_va", "up_bios"].forEach(function(k){if(EXISTING[k]){var s=document.getElementById('u_'+k);if(s)s.innerHTML='Uploaded ✓';}});
+  growAll();
   /* autosave */
   var pill=document.getElementById('savepill');
   function setPill(s){pill.className='savepill '+s;pill.textContent=(s==='saving')?'Saving…':'All changes saved';}
