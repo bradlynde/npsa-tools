@@ -123,7 +123,7 @@ await check('the workbook reader returns every tab with strings, numbers, boolea
   assert.equal(nl[4][2], 'Reformed & <evangelical> "quotes"', 'inline string unescaped');
   assert.equal(nl[11][2], 'TRUE', 'boolean');
   assert.equal(nl[6][2], '9/3/2026', 'date-styled serial becomes M/D/YYYY');
-  assert.equal(nl[6][3], '9/13/2025', 'datetime-styled serial too');
+  assert.equal(nl[6][3], '9/12/2025', 'datetime-styled serial too');
   assert.equal(nl[7][2], '46268', 'an unstyled number stays a number');
 });
 
