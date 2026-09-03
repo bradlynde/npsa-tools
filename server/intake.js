@@ -429,9 +429,35 @@ export function errorPage(message) {
 const NOT_RECOGNISED = 'This link isn’t recognized. Please check with Nonprofit Security Advisors.';
 const INVALID = 'This link is invalid or has expired.';
 
+// ── The page ──────────────────────────────────────────────────────────────────
+//
+// server/intake/client.html is the form the Apps Script app served, with its six
+// template tags turned into {{placeholders}} that are filled here as JSON. The
+// values land inside an inline <script>, so the JSON is made safe for that spot
+// the way the Apps Script did it: '<' and '>' escaped so a value can never close
+// the script tag, and the two Unicode line separators that break JS strings.
+
+const TEMPLATE_URL = new URL('./intake/client.html', import.meta.url);
+let pageTemplate;
+
+function jsForInject(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
+export function renderClientPage({ client, stateConfig, existing, apiBase = '' }) {
+  if (pageTemplate === undefined) {
+    try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
+  }
+  if (!pageTemplate) return null;
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, apiBase };
+  return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-export function registerIntake(app, { store, internalKey, publicBase, renderPage } = {}) {
+export function registerIntake(app, { store, internalKey, publicBase, renderPage = renderClientPage, apiBase = '' } = {}) {
   const base = req => publicBaseFor(req, publicBase);
   const team = teamGate({ internalKey });
 
@@ -590,12 +616,13 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (!c) return res.status(404).type('html').send(errorPage(NOT_RECOGNISED));
     const t = healToken(req.query, req.originalUrl.split('?')[1]);
     if (!tokenMatches(t, c.token)) return res.status(404).type('html').send(errorPage(INVALID));
-    if (!renderPage) return res.status(503).type('html').send(errorPage('The intake form has not been deployed here yet.'));
     const answers = await store.getAnswers(c.id);
-    res.set('Cache-Control', 'no-store').type('html').send(renderPage({
-      client: c, stateConfig: stateConfig(c.state),
+    const html = renderPage && renderPage({
+      client: c, stateConfig: stateConfig(c.state), apiBase,
       existing: Object.fromEntries([...answers.values()].filter(a => a.value !== '').map(a => [a.key, a.value])),
-    }));
+    });
+    if (!html) return res.status(503).type('html').send(errorPage('The intake form has not been deployed here yet.'));
+    res.set('Cache-Control', 'no-store').type('html').send(html);
   });
 
   app.put('/api/intake/:slug/answers', guard(async (req, res) => {
@@ -605,6 +632,13 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const who = rows.find(r => r.key === '_filled_by')?.value || existing.get('_filled_by')?.value || '';
     const n = await store.upsertAnswers(c.id, rows, who ? `client:${who.slice(0, 80)}` : 'client', { clientActivity: true });
     res.json({ ok: true, saved: n });
+  }));
+
+  // Uploads arrive in a later PR. Until then the page's Documents tab gets a
+  // plain answer it can show, rather than a 404 that reads as "broken".
+  app.post('/api/intake/:slug/upload', guard(async (req, res) => {
+    const c = await clientAuth(req, res); if (!c) return;
+    res.status(503).json({ error: 'File uploads are not available here yet. Please email the file to your NPSA contact.' });
   }));
 
   app.post('/api/intake/:slug/complete', guard(async (req, res) => {

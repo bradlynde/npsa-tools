@@ -20,12 +20,16 @@
  *   5. Updates. Patch, contact add/remove, submitted stamping, token rotation
  *      killing the old link, and the page route's token handling (including the
  *      Gmail-mangled query rescue).
+ *   6. The page. The real template renders with the client's values injected as
+ *      JSON, a value that tries to close the script tag cannot, the upload route
+ *      answers with a sentence until uploads exist, and a route without the
+ *      template answers 503 rather than serving something half-filled.
  *
  *   node scripts/intake-smoke.mjs
  */
 import assert from 'node:assert/strict';
 import express from 'express';
-import { registerIntake, createMemoryStore, QUESTIONS, normaliseAnswers, slugify, healToken } from '../server/intake.js';
+import { registerIntake, createMemoryStore, renderClientPage, QUESTIONS, normaliseAnswers, slugify, healToken } from '../server/intake.js';
 
 const INTERNAL = 'boot-secret-for-test';
 const BASE = 'https://npsa-tools.vercel.app';
@@ -289,6 +293,44 @@ await check('token rotation kills the old link and issues a new one', async () =
   assert.equal((await call('GET', `/client/${created.slug}?t=${old}`)).status, 404);
   assert.equal((await call('GET', `/client/${created.slug}?t=${fresh}`)).status, 200);
   assert.equal((await call('PUT', `/api/intake/${created.slug}/answers`, { headers: { 'X-Intake-Token': old }, body: { answers: { q_1_1_1: 'x' } } })).status, 401);
+});
+// ── 6. The page ───────────────────────────────────────────────────────────────
+await check('renderClientPage fills every placeholder and escapes a script-closing value', async () => {
+  const html = renderClientPage({
+    client: { slug: 'evil-co', token: 'abc123def456', name: 'Evil </script><img src=x onerror=alert(1)> Co', state: 'KY' },
+    stateConfig: { saa: 'KOHS', registration: ['x — hard gate'], programs: [], perSiteCap: '', stateCap: '' },
+    existing: { q_1_1_1: 'line\u2028break', q_2_1: '<b>bold</b>' },
+  });
+  assert.ok(html && html.length > 200000, 'template rendered');
+  assert.ok(!/\{\{\w+\}\}/.test(html), 'no placeholder left');
+  assert.ok(html.includes('var CLIENT="evil-co",TOKEN="abc123def456"'));
+  assert.ok(html.includes('CLIENT_NAME="Evil \\u003c/script\\u003e'), 'script close escaped');
+  assert.ok(!html.includes('</script><img'), 'raw closing tag never appears');
+  assert.ok(html.includes('"q_1_1_1":"line\\u2028break"'), 'line separator escaped');
+  assert.ok(html.includes('API_BASE=""'));
+  assert.ok(html.includes('"saa":"KOHS"'));
+  assert.ok(!html.includes('google.script'), 'no Apps Script left');
+  assert.ok(html.includes('/answers') && html.includes('/complete') && html.includes('/upload'));
+  const remote = renderClientPage({ client: { slug: 'a-b', token: 't', name: 'A', state: 'IL' }, stateConfig: {}, existing: {}, apiBase: 'https://loe.example' });
+  assert.ok(remote.includes('API_BASE="https://loe.example"'));
+});
+await check('the page route serves the real template by default', async () => {
+  const app3 = express(); app3.use(express.json());
+  registerIntake(app3, { store: createMemoryStore(), internalKey: INTERNAL, publicBase: BASE });
+  const s3 = await new Promise(resolve => { const s = app3.listen(0, () => resolve(s)); });
+  const o3 = `http://127.0.0.1:${s3.address().port}`;
+  const c = await (await fetch(`${o3}/api/clients`, { method: 'POST', headers: { ...TEAM, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Page Test Church', state: 'FL' }) })).json();
+  const t = new URL(c.intake_url).searchParams.get('t');
+  const page = await fetch(`${o3}/client/page-test-church?t=${t}`);
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.ok(html.includes('var CLIENT="page-test-church"'));
+  assert.ok(html.includes('"saa":"FDEM"'));
+  const up = await fetch(`${o3}/api/intake/page-test-church/upload`, { method: 'POST', headers: { 'X-Intake-Token': t } });
+  assert.equal(up.status, 503);
+  assert.match((await up.json()).error, /email the file/);
+  assert.equal((await fetch(`${o3}/api/intake/page-test-church/upload`, { method: 'POST' })).status, 401);
+  s3.close();
 });
 await check('with no store the team routes say so and the page is a 503', async () => {
   const app2 = express(); app2.use(express.json());
