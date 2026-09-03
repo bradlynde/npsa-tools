@@ -328,11 +328,31 @@ export async function applyFinancialsRaw(pool, records) {
 
 export const APPLIERS = {
   salesforce_wins: applyWins,
-  salesforce_financials: applyFinancials,
   // Salesforce's own field names, mapped server-side. Preferred over the mapped
   // form: the mapping is testable here and cannot be silently misaligned in transit.
   salesforce_financials_raw: applyFinancialsRaw,
   salesforce_applications: applyApplications,
+};
+
+/**
+ * Push sources that were replaced, and by what.
+ *
+ * `salesforce_financials` took financials already mapped into this app's column
+ * names, which meant the mapping lived in a Zapier Code step. #137 moved it here
+ * as `salesforce_financials_raw` and repointed the Zap the same day; the mapped
+ * key has not been posted since, and is dropped from APPLIERS above so the shape
+ * that caused the comma-shift misattribution cannot be delivered again.
+ *
+ * Retiring a push source leaves its last run behind. The freshness strip reads
+ * one row per source, newest first, so a source nothing will ever write again
+ * keeps whatever it finished on — here a refusal, sitting red on the dashboard
+ * permanently while the feed it names is healthy under its new one.
+ *
+ * Keyed by source rather than removed from sync_runs so the history stays
+ * readable, and so the row comes back on its own if the source is ever revived.
+ */
+const SUPERSEDED_PUSH_SOURCES = {
+  salesforce_financials: 'salesforce_financials_raw',
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -534,10 +554,17 @@ export function registerSalesforceConnector(app, pool) {
   // always present, so the strip can report "not configured" rather than nothing.
   app.get('/api/marketing/sync/status', async (req, res) => {
     try {
+      // A superseded source is hidden only while the pull transport is off. The
+      // pull path writes its runs under the SAME name as the retired push source
+      // (SOURCES.salesforce_financials), so filtering by name unconditionally
+      // would hide a feed that had genuinely come back to life. Configuring
+      // Salesforce credentials brings the row back with it.
+      const hidden = salesforceConfigured() ? [] : Object.keys(SUPERSEDED_PUSH_SOURCES);
       const { rows } = await pool.query(`
         SELECT DISTINCT ON (source) source, started_at, finished_at, ok, rows_seen, rows_removed, note, error
           FROM sync_runs
-         ORDER BY source, started_at DESC`);
+         WHERE NOT (source = ANY($1))
+         ORDER BY source, started_at DESC`, [hidden]);
       // pull_configured says only whether THIS app can query Salesforce itself.
       // It is not the same question as "is the dashboard current" — a scheduled Zap
       // delivering to /sync/push keeps everything fresh with pull_configured false.
@@ -597,7 +624,7 @@ export function registerSalesforceConnector(app, pool) {
       received_keys: Object.keys(req.body || {}),
       received_content_type: req.headers['content-type'] || null,
       records_type: Array.isArray(records) ? `array(${records.length})` : typeof records,
-      expected: '{"source":"salesforce_financials","records":[{...}]}',
+      expected: '{"source":"salesforce_financials_raw","records":[{...}]}',
       hint: Object.keys(req.body || {}).length === 0
         ? 'nothing was parsed from the body — send a raw JSON string with Content-Type: application/json (in Zapier, Webhooks → Custom Request, not POST)'
         : 'the body parsed, but the fields above are not the ones expected',
