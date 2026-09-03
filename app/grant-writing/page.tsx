@@ -102,7 +102,10 @@ const fmtDue = (s: string) => {
 const saaShort = (saa: string | null) => {
   if (!saa) return "—";
   const m = saa.match(/\(([^)]+)\)/);
-  return m ? m[1] : saa;
+  if (m) return m[1];
+  // Agencies the reference lists without one.
+  if (/^Illinois Emergency Management Agency/.test(saa)) return "IEMA-OHS";
+  return saa;
 };
 
 const pct = (a: number, b: number) => (b ? Math.round((100 * a) / b) : 0);
