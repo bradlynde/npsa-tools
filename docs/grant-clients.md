@@ -264,8 +264,9 @@ same value as `INTAKE_BASE_URL` first), delete `Index.html`, and Deploy → Mana
 deployments → edit the active deployment → Version: New version → Deploy. Editing the
 existing deployment keeps every URL already sent; "New deployment" would not.
 
-From then on an old link looks the slug up in the Registry, checks the token, and sends
-the browser to `<NEW_BASE>/client/<slug>?t=<token>` with a button as a fallback. The
+From then on an old link looks the slug up in the Registry, checks the token, and shows a
+button that opens `<NEW_BASE>/client/<slug>?t=<token>`. A button rather than an automatic
+hop: Apps Script serves the page in a sandbox that only lets a real click leave it. The
 register / seed / track endpoints answer `{ "error": "moved" }` so a stale skill call
 fails loudly instead of writing to a sheet nobody reads.
 
