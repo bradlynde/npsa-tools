@@ -53,7 +53,7 @@ const EXCLUSION_REASONS = ['unqualified', 'double_booking', 'cancelled', 'resche
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-function splitKeys(raw) {
+export function splitKeys(raw) {
   return String(raw || '').split(',').map(s => s.trim()).filter(Boolean);
 }
 
@@ -61,7 +61,7 @@ function configuredKeys() {
   return splitKeys(process.env.MCP_API_KEYS || process.env.MCP_API_KEY);
 }
 
-function keyMatches(presented, keys) {
+export function keyMatches(presented, keys) {
   const a = Buffer.from(presented);
   return keys.some(k => {
     const b = Buffer.from(k);
@@ -70,7 +70,7 @@ function keyMatches(presented, keys) {
 }
 
 // Enough of a hash to tell keys apart in a log line, not enough to recover one.
-function fingerprint(key) {
+export function fingerprint(key) {
   return crypto.createHash('sha256').update(key).digest('hex').slice(0, 8);
 }
 

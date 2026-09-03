@@ -1,0 +1,724 @@
+{
+  "_source": "Generated 2026-09-02 from getStateConfig_ in the deployed Apps Script build (Version 24, which carries the 2026-08-26 Kentucky eClearinghouse correction). Feeds the intake page's checklist banner: SAA short name, programs, registration steps (\"— hard gate\" suffix marks blockers), per-site and state caps. SAA names and deadlines for reps live in nsgp-data.json; merging the two is a follow-up.",
+  "fallback": {
+    "saa": "",
+    "programs": [
+      "Federal NSGP-S"
+    ],
+    "registration": [
+      "SAM.gov / UEI registration"
+    ],
+    "perSiteCap": "per annual NOFO",
+    "stateCap": "—"
+  },
+  "states": {
+    "AK": {
+      "saa": "DHS&EM",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "DHS&EM Signatory Authority Form"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "AL": {
+      "saa": "ALEA",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register in ALEA grants portal (grants.alabama.gov) — hard gate",
+        "Alabama STAARS vendor registration"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "AR": {
+      "saa": "ADEM",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "AS": {
+      "saa": "ASDHS",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "ASDHS applicant intake / any territorial registration step — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "AZ": {
+      "saa": "AZDOHS",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "State of Arizona Nonprofit Security Grant Program (AZ-NSGP) — state-funded"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$100k/site, $100k/applicant"
+    },
+    "CA": {
+      "saa": "Cal OES",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "California State Nonprofit Security Grant Program (state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$250k/site, $500k/applicant"
+    },
+    "CO": {
+      "saa": "DHSEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Colorado Nonprofit Security Grant Program (state-funded — denied-federal-applicants backstop)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "CO EMGrants account / DHSEM grants portal access — hard gate",
+        "Apply to FEDERAL NSGP first and NOT be selected — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$25k/applicant"
+    },
+    "CT": {
+      "saa": "DEMHS",
+      "programs": [
+        "Federal NSGP-S",
+        "Connecticut Nonprofit Security Grant Program (state-funded — reimbursement)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "DEMHS EM Grants account (emgrants.despp.ct.gov) — hard gate",
+        "Nonprofit must OWN the facility/building applied for — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$50k/applicant"
+    },
+    "DC": {
+      "saa": "HSEMA",
+      "programs": [
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "DE": {
+      "saa": "DEMA",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "DSHS Grant Management Suite (SmartSimple) account — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "FL": {
+      "saa": "FDEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Florida Nonprofit Security Grant Program (state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "MyFloridaMarketplace (MFMP) vendor registration + valid W-9 — hard gate",
+        "DEMES account + per-user entity access (request access to entity account) — hard gate"
+      ],
+      "perSiteCap": "$200k/site (current NOFO) · up to 3 sites",
+      "stateCap": "$150k/site, $450k/applicant"
+    },
+    "GA": {
+      "saa": "GEMA/HS",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Non-Profit Security Grant Funds for Protection of Communities (FPC) — state-funded"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "ga.emgrants.com (EMGrantsPro) account registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "unknown_needs_research/site, unknown_needs_research/applicant"
+    },
+    "GU": {
+      "saa": "GHS/OCD",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "GHS/OCD applicant intake / any state registration step — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "HI": {
+      "saa": "HI OHS",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Schedule OHS informational briefing (Glen Badua)"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "IA": {
+      "saa": "HSEM",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register org in EMGrantsPro + receive password — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "ID": {
+      "saa": "IOEM",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "IL": {
+      "saa": "IEMA",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Illinois state-funded NSGP"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "GATA Grantee Portal registration — hard gate",
+        "Internal Controls Questionnaire (ICQ) — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$150k/site, $450k/applicant"
+    },
+    "IN": {
+      "saa": "IDHS",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "KS": {
+      "saa": "KHP",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register as Astra user (nsgp.astrakansas.com) — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "KY": {
+      "saa": "KOHS",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Kentucky eClearinghouse — client self-registers on the KY DLG Portal (Dept for Local Government, NOT KOHS), then files the project for EO 12372 state review — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "LA": {
+      "saa": "GOHSEP",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Louisiana Center for Safe Schools Grant Program (state-funded; formerly LSNSGP)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register / confirm GMPro account access — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$50k/site, $50k/applicant"
+    },
+    "MA": {
+      "saa": "OGR",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Commonwealth Nonprofit Security Grant Program (MA state-funded — equipment/physical security)",
+        "Commonwealth Nonprofit Security Personnel Grant Program (MA state-funded — contracted security staff)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "unknown_needs_research/site, unknown_needs_research/applicant"
+    },
+    "MD": {
+      "saa": "MDEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Protecting Against Hate Crimes (Maryland state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register / confirm GOCPP GMS access — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "unknown_needs_research/applicant"
+    },
+    "ME": {
+      "saa": "MEMA",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Create MEMA Grant Portal login — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "MI": {
+      "saa": "MSP/EMHSD",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "MN": {
+      "saa": "HSEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Minnesota Supplemental Nonprofit Security Grant Program (state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register org in IGX (IntelliGrants) Grants Management System — hard gate",
+        "SWIFT (Statewide Integrated Financial Tools) vendor registration"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$75k/applicant"
+    },
+    "MO": {
+      "saa": "DPS/OHS",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register in MO DPS WebGrants System — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "MP": {
+      "saa": "CNMI HSEM",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "CNMI HSEM applicant intake / any territorial registration step — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "MS": {
+      "saa": "MOHS",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "MT": {
+      "saa": "MT DES",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "AmpliFund / Euna Grants account + applicant registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "NC": {
+      "saa": "NCEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "NCEM Salesforce org + per-user registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "ND": {
+      "saa": "NDDES",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "NDDES grants portal account (grants.des.nd.gov) — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "NE": {
+      "saa": "NEMA",
+      "programs": [
+        "Federal NSGP-S",
+        "Nebraska Nonprofit Security Grant Program (state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$50k/applicant"
+    },
+    "NH": {
+      "saa": "NH DOS (Grants Management Bureau)",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "NJ": {
+      "saa": "NJOHSP",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "NJ NSGP — Target Hardening Equipment (NJ state-funded)",
+        "NJ NSGP — Security Personnel (NJ state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "NJOHSP submission portal account/registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$100k/applicant"
+    },
+    "NM": {
+      "saa": "NMDHSEM",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "NV": {
+      "saa": "NV OEM (DEM)",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Nevada Nonprofit Security Grant Pilot Program (state-funded, SB 413 / 2025)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$50k/applicant"
+    },
+    "NY": {
+      "saa": "DHSES",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Securing Communities Against Hate Crimes (NY state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "NY Grants Gateway prequalification — hard gate",
+        "Register / confirm DCJS GMS access — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$250k/applicant"
+    },
+    "OH": {
+      "saa": "Ohio EMA",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "State of Ohio Security Grant (OSG) — state-funded"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Active Nonprofit Corporation filing with Ohio Secretary of State — hard gate",
+        "OSG online application access (Ohio Security Grant webpage) — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$125k/site"
+    },
+    "OK": {
+      "saa": "OKOHS",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "OR": {
+      "saa": "OEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Submit OEM NSGP registration form — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "PA": {
+      "saa": "PEMA",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Nonprofit Security Grant Fund Program (PA state-funded)"
+      ],
+      "registration": [
+        "Active UEI matching applicant name/address on IJ — hard gate",
+        "Register for Keystone Login (commonwealth) for ESA access — hard gate",
+        "Register / confirm PCCD Egrants access — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$150k/applicant"
+    },
+    "PR": {
+      "saa": "OASP",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "OASP applicant intake / any state registration step — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "RI": {
+      "saa": "RIEMA",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "Register / access RI eCivis (Euna) grants portal — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "SC": {
+      "saa": "SLED OHS",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "SD": {
+      "saa": "SD OHS",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "TN": {
+      "saa": "TEMA",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA",
+        "Tennessee Houses of Worship Security Grant (state-funded)"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "$70k/site"
+    },
+    "TX": {
+      "saa": "TDEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "TDEM Grants Portal account registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "UT": {
+      "saa": "Utah DEM",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "VA": {
+      "saa": "VDEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "VDEM EM Grants portal account — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "VI": {
+      "saa": "VITEMA",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "VITEMA applicant intake / any territorial registration step — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "VT": {
+      "saa": "VT DPS HSGU",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "WA": {
+      "saa": "WA EMD",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "Notice of Intent (NOI) — Washington state gate — hard gate",
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "WI": {
+      "saa": "WEM",
+      "programs": [
+        "Federal NSGP-S",
+        "Federal NSGP-UA"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "WV": {
+      "saa": "WV EMD / HSSAA",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    },
+    "WY": {
+      "saa": "WOHS",
+      "programs": [
+        "Federal NSGP-S"
+      ],
+      "registration": [
+        "SAM.gov / UEI registration — hard gate",
+        "ZoomGrants account (WOHS)"
+      ],
+      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "stateCap": "—"
+    }
+  },
+  "_kentucky": "The KY registration line was corrected live in the Apps Script editor on 2026-08-26 (Version 24) and never landed in the local Code.gs copy; it is transcribed here from the deploy note. Check it against the live form at cutover."
+}

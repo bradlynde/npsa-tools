@@ -19,6 +19,8 @@ import {
 } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 import { registerMcp } from './mcp.js';
+import { ensureIntakeSchema, createIntakeStore, registerIntake } from './intake.js';
+import crypto from 'crypto';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,7 +59,13 @@ if (process.env.DATABASE_URL) {
     ALTER TABLE letters ADD COLUMN IF NOT EXISTS total_fee NUMERIC DEFAULT 0;
   `).catch(err => console.error('DB init error:', err.message));
   ensureDeadlineSchema(pool).catch(err => console.error('Deadline init error:', err.message));
+  ensureIntakeSchema(pool).catch(err => console.error('Intake init error:', err.message));
 }
+
+// Minted per process and never stored: the MCP layer presents it on its loopback
+// calls to the grant-client routes, which is what lets those routes require a key
+// from outside without a second secret to configure or rotate.
+const INTERNAL_KEY = crypto.randomBytes(24).toString('hex');
 
 // The scheduled Salesforce sync delivers its whole record set in one request, which
 // outgrows the 100kb default as the business does. This has to be registered BEFORE
@@ -66,6 +74,8 @@ if (process.env.DATABASE_URL) {
 // route itself would never get a look in. body-parser marks the request as read, so
 // the general parser below simply skips what this one already handled.
 app.use('/api/marketing/sync/push', express.json({ limit: '10mb' }));
+// A full intake seed (592 keys of prose) can pass 100kb; same trick, smaller limit.
+app.use(['/api/clients', '/api/intake'], express.json({ limit: '2mb' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
@@ -977,7 +987,14 @@ registerMarketing(app, pool);
 registerSalesforceConnector(app, pool);
 // MCP lives at /mcp, outside /api, so it must be mounted ahead of the SPA
 // fallback below or the catch-all would answer for it with index.html.
-registerMcp(app, { port: () => PORT });
+// Grant clients: team routes keyed, client routes token-only, and the client page
+// at /client/:slug — which, like /mcp, has to beat the SPA fallback.
+registerIntake(app, {
+  store: pool ? createIntakeStore(pool) : null,
+  internalKey: INTERNAL_KEY,
+  publicBase: process.env.INTAKE_BASE_URL,
+});
+registerMcp(app, { port: () => PORT, internalKey: INTERNAL_KEY });
 
 // An API route that does not exist must say so. Without this the fallback below
 // answers for it, so a JSON caller gets 200 and a page of HTML — which reads as a
