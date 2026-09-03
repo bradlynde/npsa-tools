@@ -60,17 +60,24 @@ type ClientRow = {
 
 type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string };
 type Upload = { id: number; key: string; label: string; filename: string; size_bytes: number; uploaded_at: string; drive_url: string | null };
+type WishItem = { stem: string; label: string; priority: number | string; answered: number; total: number };
+type WishFacility = { facility: number; name: string; prioritized: number; details: { answered: number; total: number }; items: WishItem[] };
 type Status = {
   slug: string;
   filled_by: string;
   status_line: string;
   core: { answered: number; total: number };
   sections: { section: string; answered: number; total: number }[];
+  /** Per facility: items with a priority set and how complete each is. Absent until the backend that reports it is deployed. */
+  wish_list?: WishFacility[];
   checklist: { completed: number; total: number; items: ChecklistItem[] };
   uploads: Upload[];
 };
 
 type Filter = "active" | "submitted" | "all";
+
+/** The sections the client is asked to fill; matches CORE_SECTIONS on the backend. */
+const CORE_SECTION = /^([1-5]\. |Locations$|Programs$|Uploads$)/;
 
 const PHASE: Record<number, string> = { 1: "Sales", 2: "Grant writing", 3: "Compliance", 4: "Implementation" };
 
@@ -389,7 +396,9 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                 <div>
                   <Label>intake by section · {s.core.answered} of {s.core.total} core answers</Label>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {s.sections.filter((x) => !/^Wish List/.test(x.section) || x.answered > 0).map((x) => (
+                    {/* The sections the client is asked to fill. NPSA notes, the wish list, the
+                        response stamp and the checklist are bookkeeping or shown elsewhere. */}
+                    {s.sections.filter((x) => CORE_SECTION.test(x.section)).map((x) => (
                       <div key={x.section} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13 }}>
                         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.section}</span>
                         <Progress a={x.answered} b={x.total} width={120} />
@@ -397,6 +406,38 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     ))}
                   </div>
                 </div>
+
+                {s.wish_list && (
+                  <div>
+                    <Label>wish list · {s.wish_list.reduce((n, f) => n + f.prioritized, 0)} items prioritized</Label>
+                    {s.wish_list.every((f) => f.prioritized === 0) && (
+                      <div style={{ fontSize: 13, color: "var(--faint)" }}>No items prioritized yet. An item counts once the client gives it a priority.</div>
+                    )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      {s.wish_list.filter((f) => f.prioritized > 0).map((f) => (
+                        <div key={f.facility}>
+                          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13, marginBottom: 6 }}>
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <span style={{ fontWeight: 600 }}>Facility {f.facility}</span>
+                              {f.name && <span style={{ color: "var(--mute)" }}> · {f.name}</span>}
+                              <span className="mono" style={{ color: "var(--faint)", fontSize: 11.5 }}> · {f.prioritized} item{f.prioritized === 1 ? "" : "s"}</span>
+                            </span>
+                            <Progress a={f.details.answered} b={f.details.total} width={120} />
+                          </div>
+                          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+                            {f.items.map((it) => (
+                              <li key={it.stem} style={{ display: "grid", gridTemplateColumns: "22px minmax(0, 1fr) auto", gap: 10, alignItems: "center", fontSize: 12.5 }}>
+                                <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ok-fg)", background: "var(--ok-bg)", borderRadius: 6, textAlign: "center", padding: "1px 0" }}>{it.priority}</span>
+                                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--sec)" }}>{it.label}</span>
+                                <span className="mono" style={{ fontSize: 11.5, color: it.answered === it.total ? "var(--ok-fg)" : "var(--faint)", fontVariantNumeric: "tabular-nums" }}>{it.answered}/{it.total}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <Label>checklist · {s.checklist.completed} of {s.checklist.total} completed</Label>
