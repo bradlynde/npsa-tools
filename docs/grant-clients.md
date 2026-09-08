@@ -96,7 +96,7 @@ clients (
   last_client_activity_at      -- bumped only by client-page saves: the quiet clock
 )
 client_contacts (id, client_id → clients, name, email, role, phone, side, is_primary, added_by, created_at, UNIQUE (client_id, email))
-  -- side: 'client' (their people) or 'npsa' (ours: Stuart and Brad from server/intake-team.json, plus the sales rep)
+  -- side: 'client' (their people) or 'npsa' (ours: Stuart and Brad from server/intake-team.json, plus the consultant who brought the client in, role "Consultant")
 intake_answers  (client_id → clients, key, value, updated_at, updated_by, PRIMARY KEY (client_id, key))
 intake_uploads  -- PR 5: id, client_id, key, filename, mime, size_bytes, content BYTEA, drive_file_id, drive_url, uploaded_by, uploaded_at
 ```
@@ -189,7 +189,7 @@ with the caller's key fingerprint:
 ## The intake page
 
 `server/intake/client.html` is the deployed `Index.html` (Version 24 field set) plus a seventh
-tab, **Contacts**: "Your NPSA team" (Stuart, Brad and the sales rep, from `client_contacts`
+tab, **Contacts**: "Your NPSA team" (Stuart, Brad and the consultant, from `client_contacts`
 rows with `side = npsa`) and "Your team" (the client's people, which the client can add to
 and remove from on the page). The rows are injected at render and the tab talks to
 `/api/intake/<slug>/contacts`. Otherwise it is the form with the

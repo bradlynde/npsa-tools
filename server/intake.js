@@ -766,7 +766,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (!STATUSES.includes(status)) throw new BadRequest(`status must be one of ${STATUSES.join(', ')}`);
     const contacts = validContacts(b.contacts);
     // The NPSA side of the Contacts tab: the standing team from intake-team.json,
-    // plus whoever is named (the sales rep, usually). Pass npsa_contacts: [] to
+    // plus whoever is named (the consultant who brought the client in, usually). Pass npsa_contacts: [] to
     // register a client with no NPSA rows at all.
     const npsa = b.npsa_contacts === undefined
       ? NPSA_TEAM.map(c => validContact({ ...c, side: 'npsa' }, 'team'))

@@ -57,7 +57,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const contactShape = z.object({
   name: z.string().optional(),
   email: z.string().email(),
-  role: z.string().optional().describe('e.g. "Executive Pastor", or for NPSA people "Sales rep"'),
+  role: z.string().optional().describe('e.g. "Executive Pastor", or for NPSA people "Consultant" (never "Sales rep"; the client sees this)'),
   phone: z.string().optional(),
 });
 
@@ -541,13 +541,13 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
   if (canWrite) {
     server.registerTool('client_create', {
       title: 'Register grant client',
-      description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. contacts are the client\'s people (the first becomes primary); they appear under "Your team" on the form\'s Contacts tab, where the client can add more. npsa_contacts are NPSA people shown under "Your NPSA team": Stuart and Brad are added automatically, so pass only the sales rep here (name, email, role "Sales rep"). Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
+      description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. contacts are the client\'s people (the first becomes primary); they appear under "Your team" on the form\'s Contacts tab, where the client can add more. npsa_contacts are NPSA people shown under "Your NPSA team": Stuart and Brad are added automatically, so pass only the consultant who brought the client in (name, email, role "Consultant"). Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
       inputSchema: {
         name: z.string().min(1).describe('Organization name as the client uses it'),
         state: z.string().length(2).describe('Two-letter state code'),
         slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).min(3).max(60).optional().describe('Override the derived slug'),
         contacts: z.array(contactShape).optional().describe('The client\'s people'),
-        npsa_contacts: z.array(contactShape).optional().describe('NPSA people beyond Stuart and Brad, usually the sales rep'),
+        npsa_contacts: z.array(contactShape).optional().describe('NPSA people beyond Stuart and Brad, usually the consultant who brought the client in (role "Consultant")'),
         upload_folder_id: z.string().optional().describe('Drive Phase 2 folder id'),
         drive_folder_id: z.string().optional().describe('Drive client root folder id'),
         asana_project_gid: z.string().optional(),
@@ -578,7 +578,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         kickoff_date: z.string().regex(ISO_DATE).optional(),
         notes: z.string().optional(),
         add_contacts: z.array(contactShape).optional().describe('The client\'s people'),
-        add_npsa_contacts: z.array(contactShape).optional().describe('NPSA people, e.g. the sales rep'),
+        add_npsa_contacts: z.array(contactShape).optional().describe('NPSA people, e.g. the consultant who brought the client in (role "Consultant")'),
         add_reference_contacts: z.array(contactShape).optional().describe('Helpful people outside NPSA and the client, shown read-only on the client\'s Contacts tab: the SAA program contact or help desk, the CISA protective security advisor'),
         remove_contact_emails: z.array(z.string().email()).optional().describe('Removes a contact of any side by email'),
         documents: z.array(documentShape).nullable().optional().describe('Replace the Documents-tab list outright; null resets to the defaults (standard four plus the state\'s extras)'),
