@@ -1,5 +1,5 @@
 {
-  "_source": "Generated 2026-09-02 from getStateConfig_ in the deployed Apps Script build (Version 24, which carries the 2026-08-26 Kentucky eClearinghouse correction). Feeds the intake page's checklist banner: SAA short name, programs, registration steps (\"— hard gate\" suffix marks blockers), per-site and state caps. SAA names and deadlines for reps live in nsgp-data.json; merging the two is a follow-up.",
+  "_source": "Generated 2026-09-02 from getStateConfig_ in the deployed Apps Script build (Version 24, which carries the 2026-08-26 Kentucky eClearinghouse correction). Feeds the intake page's checklist banner: SAA short name, programs, registration steps (\"— hard gate\" suffix marks blockers), per-site and state caps. SAA names and deadlines for reps live in nsgp-data.json; merging the two is a follow-up. 2026-09-08: a registration entry may be an object {label, note, hard_gate}; the label is the checklist row and banner text, the note pre-fills the row's Notes box.",
   "fallback": {
     "saa": "",
     "programs": [
@@ -619,8 +619,11 @@
       ],
       "registration": [
         "SAM.gov / UEI registration — hard gate",
-        "Texas eGrants (egrants.gov.texas.gov) account AND application created, submitted and certified in Stage 1 — opens about January, closes about March, months before the federal NOFO; needs a 9-digit State Payee ID or your EIN to start; missing it locks you out of the year — hard gate",
-        "Grant.Vendor tab in eGrants: Direct Deposit Authorization, Application for Payee ID Number, IRS W-9; plus contact info for three separate grant officials — eGrants blocks submission without them"
+        {
+          "label": "Texas eGrants (egrants.gov.texas.gov) account",
+          "hard_gate": true,
+          "note": "Two stages. Stage 1: create the eGrants account AND submit and certify the application. It opens about January and closes about March, months before the federal NOFO; you need a 9-digit State Payee ID or your EIN to start, and missing it locks you out of the year. Grant.Vendor tab: Direct Deposit Authorization, Application for Payee ID Number, IRS W-9, plus contact info for three separate grant officials; eGrants blocks submission without them. Stage 2: documents uploaded to eGrants in July."
+        }
       ],
       "perSiteCap": "$200,000 per site · up to 3 sites",
       "stateCap": "—"
