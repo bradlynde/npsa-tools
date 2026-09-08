@@ -38,7 +38,7 @@ Understand posture.
 ## NSGP Funding Snapshot
 **Federal NSGP**
 - **Potential Award:** Up to $200,000
-- **Administered By:** Texas Division of Emergency Management (TDEM)
+- **Administered By:** Office of the Governor — Public Safety Office (PSO)
 
 ## NSGP Deadlines
 <<FUNDING_DEADLINES>>
@@ -169,8 +169,8 @@ const checks = {
   // The booking form asks no state question, so this has to come off the website.
   // A blank one previously cost the briefing its SAA, its deadlines and the
   // state's own stackable program all at once.
-  'state derived from the site, not the form': n.includes('TDEM'),
-  'SAA name comes from the knowledge base': n.includes('Texas Division of Emergency Management'),
+  'state derived from the site, not the form': n.includes('(PSO)'),
+  'SAA name comes from the knowledge base': n.includes('Office of the Governor'),
   'deadline section keyed to the derived state': /TX sub-applicant deadlines/.test(n),
   'award figures survived': n.includes('Up to $200,000'),
   'deadline section present even with no table': /## NSGP Deadlines/.test(n) && /not recorded|confirm with/i.test(n),
