@@ -636,9 +636,13 @@
         if(!r.ok){var err=new Error(d.error||('HTTP '+r.status));err.status=r.status;throw err;}return d;});});}
   function linkDead(){pill.className='savepill';pill.textContent='This link is no longer valid — please ask Nonprofit Security Advisors for a fresh one.';}
   document.getElementById('hello').textContent=CLIENT_NAME+" — "+STATE;
-  try{var sp=[];(CFG.registration||[]).forEach(function(r){sp.push(r);});
-    var sp2=sp.filter(function(r){return !/SAM\.gov/i.test(r);}).map(function(r){return r.replace(/\s*[—-]+\s*hard gate\s*$/i,'');});
+  /* a registration step is a string ("… — hard gate") or {label, note, hard_gate}; the note pre-fills the row's Notes box */
+  var REGS=(CFG.registration||[]).map(function(r){return typeof r==='string'?{label:r.replace(/\s*[—-]+\s*hard gate\s*$/i,''),hard_gate:/hard gate/i.test(r),note:''}:{label:String(r.label||''),hard_gate:!!r.hard_gate,note:String(r.note||'')};});
+  try{var sp=REGS.map(function(r){return r.label+(r.hard_gate?' — hard gate':'');});
+    var stateRegs=REGS.filter(function(r){return !/SAM\.gov/i.test(r.label);}),sp2=stateRegs.map(function(r){return r.label;});
     var s2=document.getElementById('s2tasks'); if(s2&&sp2.length)s2.innerHTML=sp2.join(' · ');
+    var s2n=document.querySelector('textarea[data-key="chk_note_state_reg"]'),notes=stateRegs.map(function(r){return r.note;}).filter(Boolean).join('\n\n');
+    if(s2n&&notes&&!EXISTING.hasOwnProperty('chk_note_state_reg'))s2n.value=notes;
     if(sp.length)document.getElementById('stateline').innerHTML='<b>'+STATE+' steps:</b> '+sp.join(' · ')+
       ' &nbsp;•&nbsp; <b>Caps:</b> federal '+(CFG.perSiteCap||'')+', state '+(CFG.stateCap||'');}catch(e){}
   /* tabs */
@@ -777,8 +781,7 @@
       ['Investment Justification finalized — one per site',['chk_status_investment_justification_ij_prepar','chk_status_final_review_edits']],
       ['Application submitted to __SAA__',['chk_status_assemble_submission_package','chk_status_submit_application']]
     ];
-    var extraReg=(CFG.registration||[]).filter(function(r){return !/SAM\.gov/i.test(r);})
-      .map(function(r){return r.replace(/\s*[—-]+\s*hard gate\s*$/i,'');});
+    var extraReg=REGS.filter(function(r){return !/SAM\.gov/i.test(r.label);}).map(function(r){return r.label;});
     var srItems=[];
     SRDEF.forEach(function(it){var lbl=it[0];
       if(lbl==='__STATEREG__'){if(!extraReg.length)return;lbl=STATE+' registration: '+extraReg.join(' · ');}
