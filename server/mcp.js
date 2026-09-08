@@ -561,9 +561,10 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
       return api('/clients', { method: 'POST', body });
     }));
 
+    const documentShape = z.object({ key: z.string().regex(/^up_[a-z0-9_]{2,40}$/), label: z.string().min(1).max(140), hint: z.string().max(80).optional() });
     server.registerTool('client_update', {
       title: 'Update grant client',
-      description: `WRITE. Confirm with the user before calling. Changes fields on a client: name, state, phase (1–4), status (${CLIENT_STATUSES.join(', ')}), program_track, Drive folder ids, Asana project, kickoff date, notes; adds or removes contacts by email (add_contacts for the client\'s people, add_npsa_contacts for NPSA people such as the sales rep; remove_contact_emails for either). Only the fields given change. Setting status to "submitted" stamps the submission time; use "cancelled" or "closed" at closeout. The slug and token never change here (see client_token_rotate).`,
+      description: `WRITE. Confirm with the user before calling. Changes fields on a client: name, state, phase (1–4), status (${CLIENT_STATUSES.join(', ')}), program_track, Drive folder ids, Asana project, kickoff date, notes; adds or removes contacts by email (add_contacts for the client\'s people, add_npsa_contacts for NPSA people such as the sales rep, add_reference_contacts for outside helpers such as the SAA contact and the CISA advisor; remove_contact_emails for any of them); changes which documents the Documents tab asks for (documents, add_documents, remove_document_keys; client_get shows the current list). Only the fields given change. Setting status to "submitted" stamps the submission time; use "cancelled" or "closed" at closeout. The slug and token never change here (see client_token_rotate).`,
       inputSchema: {
         slug: z.string().min(1),
         name: z.string().min(1).optional(),
@@ -578,7 +579,11 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         notes: z.string().optional(),
         add_contacts: z.array(contactShape).optional().describe('The client\'s people'),
         add_npsa_contacts: z.array(contactShape).optional().describe('NPSA people, e.g. the sales rep'),
-        remove_contact_emails: z.array(z.string().email()).optional(),
+        add_reference_contacts: z.array(contactShape).optional().describe('Helpful people outside NPSA and the client, shown read-only on the client\'s Contacts tab: the SAA program contact or help desk, the CISA protective security advisor'),
+        remove_contact_emails: z.array(z.string().email()).optional().describe('Removes a contact of any side by email'),
+        documents: z.array(documentShape).nullable().optional().describe('Replace the Documents-tab list outright; null resets to the defaults (standard four plus the state\'s extras)'),
+        add_documents: z.array(documentShape).optional().describe('Add document rows to the client\'s Documents tab (key up_something, a label, optional hint)'),
+        remove_document_keys: z.array(z.string()).optional().describe('Take document rows off the client\'s Documents tab, e.g. ["up_bios"] where the state does not ask for bios'),
       },
       annotations: WRITE,
     }, write('client_update', async ({ slug, ...fields }) => {
