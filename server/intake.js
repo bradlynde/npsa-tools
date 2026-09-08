@@ -89,6 +89,18 @@ const CHECKLIST_STEMS = QUESTIONS.filter(q => q.key.startsWith('chk_status_')).m
 // priority (the `_int` select, 1 = fund first), and how many of that item's five
 // detail fields (currently have, what & why, where, quantity, cost) are answered.
 const WISH_DETAILS = ['cur', 'desc', 'where', 'qty', 'cost'];
+// Federal NSGP caps (FY26): $200,000 per site, three sites, so $600,000 per applicant.
+// M&A may be up to 5% of the award; the default line is 5% of the items requested.
+export const BUDGET = { siteCap: 200000, maRate: 0.05 };
+/** "$52,000", "18000", "about 18k" → 52000 / 18000 / 18000; anything without a number → null. */
+export function parseMoney(v) {
+  const t = String(v || '').replace(/,/g, '');
+  const m = t.match(/(\d+(?:\.\d+)?)\s*(k|m)?/i);
+  if (!m) return null;
+  let n = Number(m[1]);
+  if (m[2]) n *= m[2].toLowerCase() === 'k' ? 1000 : 1000000;
+  return Math.round(n);
+}
 const WISH_FACILITIES = [1, 2, 3].map(n => ({
   n,
   items: QUESTIONS.filter(q => q.key.startsWith(`wl_f${n}_`) && q.key.endsWith('_int')).map(q => ({
@@ -97,9 +109,47 @@ const WISH_FACILITIES = [1, 2, 3].map(n => ({
   })),
 }));
 
+/** The state's own security grant, if it has one, with the caps the reference records (null = not published). */
+export function stateProgram(state) {
+  const p = (STATE_REFERENCE.states[String(state || '').toUpperCase()]?.programs || [])[0];
+  return p ? { acronym: p.acronym, name: p.name, perSite: p.perSite ?? null, perApplicant: p.perApplicant ?? null } : null;
+}
 export function stateConfig(state) {
   const st = String(state || '').toUpperCase();
-  return STATE_CONFIG.states[st] || { ...STATE_CONFIG.fallback, saa: st };
+  const cfg = STATE_CONFIG.states[st] || { ...STATE_CONFIG.fallback, saa: st };
+  return { ...cfg, stateProgram: stateProgram(st) };
+}
+
+/**
+ * What the applications being written could add up to. Each active site chooses
+ * its programs on the Locations tab ("Federal NSGP-S", "Federal NSGP-UA", "State
+ * Program", "Federal + State"; blank counts as federal). Federal is $200,000 a
+ * site; the state program adds its per-site cap, held to its per-applicant cap
+ * across sites (California: $250,000 a site, $500,000 an applicant). A state
+ * program with only a per-applicant cap counts once, at the applicant level.
+ */
+export function capsFor(state, sites) {
+  const sp = stateProgram(state);
+  const out = { sites: [], federal: 0, state: 0, state_program: null, state_cap_unknown: false, assumed_federal: false };
+  let statePerSite = 0, stateSites = 0;
+  for (const site of sites) {
+    const v = String(site.programs || '');
+    const federal = !v || /Federal/.test(v);
+    const stateOn = /State/.test(v);
+    if (!v) out.assumed_federal = true;
+    const cap = { facility: site.facility, programs: [federal ? 'NSGP' : null, stateOn && sp ? sp.acronym : null].filter(Boolean), federal: federal ? BUDGET.siteCap : 0, state: 0, assumed: !v };
+    if (stateOn && sp) {
+      stateSites++;
+      if (sp.perSite) { cap.state = sp.perSite; statePerSite += sp.perSite; }
+      else if (!sp.perApplicant) out.state_cap_unknown = true;
+    }
+    cap.cap = cap.federal + cap.state;
+    out.sites.push(cap);
+    out.federal += cap.federal;
+  }
+  if (stateSites) { out.state = sp.perApplicant ? Math.min(sp.perApplicant, statePerSite || sp.perApplicant) : statePerSite; out.state_program = sp.acronym; }
+  out.cap = out.federal + out.state;
+  return out;
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -276,12 +326,29 @@ function statusView(client, answers, base, uploads = []) {
       })
       .filter(Boolean)
       .sort((a, b) => (a.priority > b.priority ? 1 : a.priority < b.priority ? -1 : 0));
+    const costed = items.map(it => ({ ...it, cost: parseMoney(val(`wl_f${f.n}_${it.stem}_cost`)) }));
+    const itemsTotal = costed.reduce((n, it) => n + (it.cost || 0), 0);
+    const maOn = val(`wl_f${f.n}_ma_on`) !== 'off';
+    const maEntered = parseMoney(val(`wl_f${f.n}_ma_amount`));
+    const ma = maOn ? (maEntered ?? Math.round(itemsTotal * BUDGET.maRate)) : 0;
+    const total = itemsTotal + ma;
     return {
       facility: f.n, name: val(`loc${f.n}_name`), prioritized: items.length,
       details: { answered: items.reduce((n, it) => n + it.answered, 0), total: items.length * WISH_DETAILS.length },
-      items,
+      items: costed,
+      budget: { items: itemsTotal, ma, ma_on: maOn, ma_default: maEntered === null, total, programs: val(`loc${f.n}_programs`), uncosted: costed.filter(it => it.cost === null).length },
     };
   });
+  // A site is in play once it has a name, an address or anything on its wish list.
+  const active = wish_list.filter(f => f.facility === 1 || f.name || val(`loc${f.facility}_addr`) || f.prioritized > 0 || f.budget.items > 0);
+  const caps = capsFor(client.state, active.map(f => ({ facility: f.facility, programs: f.budget.programs })));
+  for (const f of wish_list) {
+    const cap = caps.sites.find(x => x.facility === f.facility);
+    f.budget.cap = cap ? cap.cap : 0; f.budget.programs = cap ? cap.programs : []; f.budget.cap_assumed = cap ? cap.assumed : false;
+    f.budget.room = f.budget.cap - f.budget.total;
+  }
+  const requested = wish_list.reduce((n, f) => n + f.budget.total, 0);
+  const budget = { requested, cap: caps.cap, room: caps.cap - requested, sites: active.length, federal: caps.federal, state: caps.state, state_program: caps.state_program, state_cap_unknown: caps.state_cap_unknown, assumed_federal: caps.assumed_federal };
   const items = CHECKLIST_STEMS.map(stem => ({
     stem, label: checklistLabel(stem),
     status: val(`chk_status_${stem}`) || 'Not started',
@@ -293,7 +360,7 @@ function statusView(client, answers, base, uploads = []) {
     intake_url: intakeUrl(base, client.slug, client.token),
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
-    core: s.core, sections, wish_list,
+    core: s.core, sections, wish_list, budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
     checklist: { ...s.checklist, items },
     uploads: uploads.map(u => uploadView(u, client.slug, documentsFor(client))),
