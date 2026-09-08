@@ -29,6 +29,9 @@ const defaultForm = {
   installment3Pct:"", installment3Label:"",
   optNofo:false, optStateSwitch:false, optPostAwardScope:true, optShortNotice:false,
   earlySigningDate:"", earlySigningAmount:"500",
+  // Blank, deliberately: a value here reduces the contingent fee, and every letter
+  // saved before this field existed must keep the pricing table's discount.
+  contingentDiscount:"",
   postAwardFee:"10,000",
   customClause:"", polishedClause:"",
   // In-house pre-award fields
@@ -38,7 +41,7 @@ const defaultForm = {
   inhInstallment2Pct:"50", inhInstallment2Label:"upon award notification",
   inhInstallment3Pct:"", inhInstallment3Label:"",
   inhOptNofo:false, inhOptStateSwitch:false, inhOptPostAwardScope:true, inhOptShortNotice:false,
-  inhEarlySigningDate:"", inhEarlySigningAmount:"1,500",
+  inhEarlySigningDate:"", inhEarlySigningAmount:"1,500", inhContingentDiscount:"",
   inhPostAwardFee:"0",
   inhCustomClause:"", inhPolishedClause:"",
   postFee:"7,000", postPmt1:"40", postPmt2:"30", postPmt3:"30",

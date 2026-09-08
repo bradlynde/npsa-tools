@@ -268,12 +268,23 @@ export function FeeCalculator({ form, setF, prefix = "", fees, numLocs, showPost
               onChange={(v) => setF(k("earlySigningAmount"), v)}
             />
           ) : (
-            <Text
-              label="Discount Applied"
-              hint="Set by the pricing table for partial contingency."
-              value={fmt(fees.discount)}
-              readOnly
-            />
+            <>
+              <Text
+                label="Contingent Fee Discount ($ per location)"
+                hint="Comes off the contingent fee and holds the upfront at full. Leave blank to use the pricing table, which discounts both."
+                value={g("contingentDiscount")}
+                placeholder="e.g. 2,000"
+                onChange={(v) => setF(k("contingentDiscount"), v)}
+              />
+              <Text
+                label="Discount Applied"
+                hint={fees.discountOn === "contingent"
+                  ? "Off the contingent fee. The upfront fee stays at its full amount."
+                  : "Set by the pricing table, off the upfront and contingent fees both."}
+                value={fmt(fees.discount)}
+                readOnly
+              />
+            </>
           )}
         </>
       )}
@@ -302,19 +313,24 @@ export function FeeCalculator({ form, setF, prefix = "", fees, numLocs, showPost
 }
 
 export function FeeSummary({ fees, numLocs, discounted }) {
+  // The struck-through figure has to sit on the fee that actually moved. A
+  // discount taken off the contingent fee holds the upfront at full, so striking
+  // the upfront there printed the same number twice — "$3,000 $3,000".
+  const onContingent = fees.discountOn === "contingent";
+  const showDiscount = discounted && fees.discount > 0;
   return (
     <div className="wz-fees">
       <div className="wz-fee-line">
         <span>Upfront fee</span>
         <b>
-          {discounted && fees.discount > 0 && (
+          {showDiscount && !onContingent && (
             <span className="wz-was">{fmt(fees.baseUpfront)}</span>
           )}
           {fmt(fees.upfront)}
         </b>
       </div>
 
-      {discounted && fees.discount > 0 && (
+      {showDiscount && (
         <div className="wz-fee-line">
           <span>Early signing discount</span>
           <b>−{fmt(fees.discount)}</b>
@@ -324,7 +340,12 @@ export function FeeSummary({ fees, numLocs, discounted }) {
       {fees.contingent !== null && (
         <div className="wz-fee-line">
           <span>Contingent fee, on award</span>
-          <b>{fmt(fees.contingent)}</b>
+          <b>
+            {showDiscount && onContingent && (
+              <span className="wz-was">{fmt(fees.contingentBase)}</span>
+            )}
+            {fmt(fees.contingent)}
+          </b>
         </div>
       )}
 
@@ -340,9 +361,9 @@ export function FeeSummary({ fees, numLocs, discounted }) {
         <b>{fmt(fees.total)}</b>
       </div>
 
-      {discounted && fees.discount > 0 && (
+      {showDiscount && (
         <div className="wz-save">
-          Discounted fee {fmt(fees.upfront)} — saves {fmt(fees.discount)}
+          Discounted {onContingent ? "contingent fee" : "fee"} {fmt(onContingent ? fees.contingent : fees.upfront)} — saves {fmt(fees.discount)}
         </div>
       )}
     </div>
