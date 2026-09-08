@@ -372,7 +372,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     ))}
                     {npsa.length > 0 && (
                       <div style={{ marginTop: 2, color: "var(--faint)", fontSize: 12 }}>
-                        NPSA side: {npsa.map((x) => `${x.name.split(" ")[0]}${/rep/i.test(x.role) ? " (rep)" : ""}`).join(", ")}
+                        NPSA side: {npsa.map((x) => `${x.name.split(" ")[0]}${/consultant|sales rep/i.test(x.role) ? " (consultant)" : ""}`).join(", ")}
                       </div>
                     )}
                   </div>
