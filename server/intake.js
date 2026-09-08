@@ -39,6 +39,35 @@ import { splitKeys, keyMatches, fingerprint } from './mcp.js';
 const CATALOG = JSON.parse(readFileSync(new URL('./intake-questions.json', import.meta.url), 'utf8'));
 const STATE_CONFIG = JSON.parse(readFileSync(new URL('./intake-state-config.json', import.meta.url), 'utf8'));
 const NPSA_TEAM = JSON.parse(readFileSync(new URL('./intake-team.json', import.meta.url), 'utf8')).contacts;
+const DOCUMENTS = JSON.parse(readFileSync(new URL('./intake-documents.json', import.meta.url), 'utf8'));
+const DOC_KEY_RE = /^up_[a-z0-9_]{2,40}$/;
+
+/** The upload rows a client's Documents tab shows: their own list if the team changed it, else standard + state. */
+export function documentsFor(client) {
+  if (Array.isArray(client.documents)) return client.documents.map(d => ({ ...d, source: d.source || 'custom' }));
+  return [
+    ...DOCUMENTS.standard.map(d => ({ ...d, source: 'standard' })),
+    ...((DOCUMENTS.by_state[String(client.state || '').toUpperCase()] || []).map(d => ({ ...d, source: 'state' }))),
+  ];
+}
+function validDocument(d, label) {
+  const key = String(d?.key || '').trim().toLowerCase();
+  if (!DOC_KEY_RE.test(key)) throw new BadRequest(`${label}.key must look like up_something (letters, digits, underscores)`);
+  const text = String(d.label || '').trim().slice(0, 140);
+  if (!text) throw new BadRequest(`${label}.label cannot be blank`);
+  const out = { key, label: text, hint: String(d.hint || '').trim().slice(0, 80) };
+  if (d.source && ['standard', 'state', 'custom'].includes(d.source)) out.source = d.source;
+  return out;
+}
+function validDocuments(list, field) {
+  if (list === undefined) return undefined;
+  if (list === null) return null;
+  if (!Array.isArray(list)) throw new BadRequest(`${field} must be an array (or null to go back to the defaults)`);
+  const out = list.map((d, i) => validDocument(d, `${field}[${i}]`));
+  const seen = new Set();
+  for (const d of out) { if (seen.has(d.key)) throw new BadRequest(`${field}: "${d.key}" appears twice`); seen.add(d.key); }
+  return out;
+}
 
 export const QUESTIONS = CATALOG.questions;
 const QUESTION_BY_KEY = new Map(QUESTIONS.map(q => [q.key, q]));
@@ -128,12 +157,12 @@ function validDate(d, field) {
   return String(d);
 }
 
-const SIDES = ['client', 'npsa'];
+const SIDES = ['client', 'npsa', 'reference']; // reference = helpful people outside NPSA and the client (SAA, CISA)
 function validContact(c, label) {
   const email = String(c?.email || '').trim().toLowerCase();
   if (!EMAIL_RE.test(email)) throw new BadRequest(`${label}.email is not an email address`);
   const side = c.side === undefined ? 'client' : String(c.side);
-  if (!SIDES.includes(side)) throw new BadRequest(`${label}.side must be "client" or "npsa"`);
+  if (!SIDES.includes(side)) throw new BadRequest(`${label}.side must be "client", "npsa" or "reference"`);
   return {
     name: String(c.name || '').trim().slice(0, 120), email, role: String(c.role || '').trim().slice(0, 120),
     phone: String(c.phone || '').trim().slice(0, 40), side, is_primary: Boolean(c.is_primary),
@@ -223,9 +252,9 @@ export function summarise(answers) {
   return { core: { answered: core, total: CORE_KEYS.length }, checklist: { completed: checklist, total: CHECKLIST_STEMS.length - notApplicable, not_applicable: notApplicable } };
 }
 
-function uploadView(u, slug) {
+function uploadView(u, slug, docs = []) {
   return {
-    id: u.id, key: u.key, label: QUESTION_BY_KEY.get(u.key)?.label || u.key, filename: u.filename, mime: u.mime, size_bytes: u.size_bytes,
+    id: u.id, key: u.key, label: docs.find(d => d.key === u.key)?.label || QUESTION_BY_KEY.get(u.key)?.label || u.key, filename: u.filename, mime: u.mime, size_bytes: u.size_bytes,
     uploaded_by: u.uploaded_by, uploaded_at: u.uploaded_at, drive_url: u.drive_url || null,
     download_path: `/api/clients/${encodeURIComponent(slug)}/uploads/${u.id}`,
   };
@@ -267,7 +296,7 @@ function statusView(client, answers, base, uploads = []) {
     core: s.core, sections, wish_list,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
     checklist: { ...s.checklist, items },
-    uploads: uploads.map(u => uploadView(u, client.slug)),
+    uploads: uploads.map(u => uploadView(u, client.slug, documentsFor(client))),
   };
 }
 
@@ -277,18 +306,22 @@ function contactsView(contacts) {
   const pub = c => ({ name: c.name, role: c.role, email: c.email, phone: c.phone || '', added_by: c.added_by || '' });
   return {
     npsa: contacts.filter(c => c.side === 'npsa').map(pub),
-    client: contacts.filter(c => c.side !== 'npsa').map(pub),
+    client: contacts.filter(c => c.side !== 'npsa' && c.side !== 'reference').map(pub),
+    reference: contacts.filter(c => c.side === 'reference').map(pub),
   };
 }
 
 function clientView(client, base) {
-  const { token, ...rest } = client;
-  return { ...rest, intake_url: intakeUrl(base, client.slug, token), saa: STATE_REFERENCE.states[client.state]?.saa || stateConfig(client.state).saa || null };
+  const { token, documents, ...rest } = client;
+  return {
+    ...rest, intake_url: intakeUrl(base, client.slug, token), saa: STATE_REFERENCE.states[client.state]?.saa || stateConfig(client.state).saa || null,
+    documents: documentsFor(client), documents_customised: Array.isArray(documents),
+  };
 }
 
 // ── Stores ────────────────────────────────────────────────────────────────────
 
-const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes'];
+const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes', 'documents'];
 
 export async function ensureIntakeSchema(pool) {
   if (!pool) return;
@@ -325,6 +358,7 @@ export async function ensureIntakeSchema(pool) {
     );
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS side  TEXT NOT NULL DEFAULT 'client';
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents JSONB;
     CREATE TABLE IF NOT EXISTS intake_answers (
       client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       key         TEXT NOT NULL,
@@ -352,7 +386,7 @@ export async function ensureIntakeSchema(pool) {
 const UPLOAD_COLS = 'id, client_id, key, filename, mime, size_bytes, drive_file_id, drive_url, uploaded_by, uploaded_at';
 
 const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track, drive_folder_id, upload_folder_id,
-  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, created_at, updated_at,
+  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, documents, created_at, updated_at,
   submitted_at, last_client_activity_at`;
 
 /** Postgres-backed store. Every method takes and returns plain objects. */
@@ -389,7 +423,7 @@ export function createIntakeStore(pool) {
       const sets = fields.map((k, i) => `${k}=$${i + 2}`);
       if (patch.submitted_at !== undefined) sets.push(`submitted_at=$${fields.length + 2}`);
       sets.push('updated_at=NOW()');
-      const params = [slug, ...fields.map(k => patch[k])];
+      const params = [slug, ...fields.map(k => (k === 'documents' && patch[k] !== null ? JSON.stringify(patch[k]) : patch[k]))];
       if (patch.submitted_at !== undefined) params.push(patch.submitted_at);
       return withContacts(await one(`UPDATE clients SET ${sets.join(', ')} WHERE slug=$1 RETURNING ${CLIENT_COLS}`, params));
     },
@@ -410,6 +444,12 @@ export function createIntakeStore(pool) {
     },
     async removeContacts(clientId, emails) {
       if (emails.length) await pool.query('DELETE FROM client_contacts WHERE client_id=$1 AND email = ANY($2)', [clientId, emails]);
+    },
+    async updateContact(clientId, email, patch) {
+      const { rows } = await pool.query(
+        `UPDATE client_contacts SET name=$3, role=$4, phone=$5, email=$6 WHERE client_id=$1 AND email=$2 RETURNING id`,
+        [clientId, email, patch.name, patch.role, patch.phone, patch.email]);
+      return rows.length > 0;
     },
     async getAnswers(clientId) {
       const { rows } = await pool.query('SELECT key, value, updated_at, updated_by FROM intake_answers WHERE client_id=$1', [clientId]);
@@ -470,7 +510,7 @@ export function createMemoryStore() {
   return {
     async createClient(c) {
       if (find(c.slug)) { const e = new Error(`slug "${c.slug}" is already registered`); e.status = 409; throw e; }
-      const row = { id: nextId++, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
+      const row = { id: nextId++, documents: null, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
       clients.push(row); return view(row);
     },
     async getClient(slug) { return view(find(slug)); },
@@ -495,6 +535,10 @@ export function createMemoryStore() {
     },
     async removeContacts(clientId, emails) {
       for (let i = contacts.length - 1; i >= 0; i--) if (contacts[i].client_id === clientId && emails.includes(contacts[i].email)) contacts.splice(i, 1);
+    },
+    async updateContact(clientId, email, patch) {
+      const cur = contacts.find(c => c.client_id === clientId && c.email === email); if (!cur) return false;
+      Object.assign(cur, { name: patch.name, role: patch.role, phone: patch.phone, email: patch.email }); return true;
     },
     async getAnswers(clientId) { return new Map(bucket(clientId)); },
     async answerStats(ids) {
@@ -572,12 +616,12 @@ function jsForInject(value) {
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-export function renderClientPage({ client, stateConfig, existing, contacts = { npsa: [], client: [] }, apiBase = '', uploadBase = '' }) {
+export function renderClientPage({ client, stateConfig, existing, contacts = { npsa: [], client: [], reference: [] }, documents = documentsFor(client), uploaded = [], apiBase = '', uploadBase = '' }) {
   if (pageTemplate === undefined) {
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, apiBase, uploadBase };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, uploaded, apiBase, uploadBase };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 
@@ -702,9 +746,19 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     for (const k of ['program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid']) if (b[k] !== undefined) patch[k] = text(b[k], k, 200).trim();
     if (b.notes !== undefined) patch.notes = text(b.notes, 'notes', 5000);
     if (b.kickoff_date !== undefined) patch.kickoff_date = validDate(b.kickoff_date, 'kickoff_date');
+    // Documents: replace the list, reset it (null), or add/remove against the current one.
+    if (b.documents !== undefined) patch.documents = validDocuments(b.documents, 'documents');
+    if (b.add_documents !== undefined || b.remove_document_keys !== undefined) {
+      const adds = validDocuments(b.add_documents, 'add_documents') || [];
+      const removes = b.remove_document_keys === undefined ? [] : (Array.isArray(b.remove_document_keys) ? b.remove_document_keys.map(k => String(k).toLowerCase()) : (() => { throw new BadRequest('remove_document_keys must be an array'); })());
+      const current = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
+      const list = current.filter(d => !removes.includes(d.key) && !adds.some(a => a.key === d.key)).concat(adds.map(a => ({ ...a, source: 'custom' })));
+      patch.documents = list;
+    }
     const add = [
       ...validContacts(b.add_contacts),
       ...validContacts(b.add_npsa_contacts, 'add_npsa_contacts').map(x => ({ ...x, side: 'npsa' })),
+      ...validContacts(b.add_reference_contacts, 'add_reference_contacts').map(x => ({ ...x, side: 'reference' })),
     ];
     const remove = validEmails(b.remove_contact_emails, 'remove_contact_emails');
     if (!Object.keys(patch).length && !add.length && !remove.length) throw new BadRequest('Nothing to change');
@@ -776,8 +830,10 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const t = healToken(req.query, req.originalUrl.split('?')[1]);
     if (!tokenMatches(t, c.token)) return res.status(404).type('html').send(errorPage(INVALID));
     const answers = await store.getAnswers(c.id);
+    const uploads = await store.listUploads(c.id);
     const html = renderPage && renderPage({
       client: c, stateConfig: stateConfig(c.state), apiBase, uploadBase, contacts: contactsView(c.contacts || []),
+      documents: documentsFor(c), uploaded: [...new Set(uploads.map(u => u.key))],
       existing: Object.fromEntries([...answers.values()].filter(a => a.value !== '').map(a => [a.key, a.value])),
     });
     if (!html) return res.status(503).type('html').send(errorPage('The intake form has not been deployed here yet.'));
@@ -826,7 +882,8 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const key = String(form.get('key') || '');
     const file = form.get('file');
     const q = QUESTION_BY_KEY.get(key);
-    if (!q || q.kind !== 'upload') throw new BadRequest(`"${key}" is not an upload field`);
+    const isCatalogUpload = q && q.kind === 'upload';
+    if (!isCatalogUpload && !documentsFor(c).some(d => d.key === key)) throw new BadRequest(`"${key}" is not one of this client's documents`);
     if (!file || typeof file !== 'object' || typeof file.arrayBuffer !== 'function') throw new BadRequest('No file was attached.');
     const content = Buffer.from(await file.arrayBuffer());
     if (!content.length) throw new BadRequest('The file is empty.');
@@ -852,7 +909,8 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     }
     const when = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium' }).format(new Date());
     const note = `${filename} (uploaded ${when})${driveUrl ? `  ${driveUrl}` : ''}`;
-    await store.upsertAnswers(c.id, [{ key, value: note }], by, { clientActivity: true });
+    if (isCatalogUpload) await store.upsertAnswers(c.id, [{ key, value: note }], by, { clientActivity: true });
+    else await store.upsertAnswers(c.id, [], by, { clientActivity: true }).catch(() => {});
     console.log(`[intake] upload ${c.slug} ${key} ${filename} ${content.length}b${driveUrl ? ' → drive' : ''}`);
     res.json({ ok: true, id: row.id, key, filename, mime, size_bytes: content.length, drive_url: driveUrl || null });
   }));
@@ -882,12 +940,33 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     res.json({ ok: true, ...contactsView(fresh.contacts || []) });
   }));
 
+  // The client can correct their own people (a phone number added later, a
+  // role change). NPSA and reference rows stay with NPSA.
+  app.put('/api/intake/:slug/contacts', guard(async (req, res) => {
+    const c = await clientAuth(req, res); if (!c) return;
+    const b = req.body || {};
+    const email = String(b.email || '').trim().toLowerCase();
+    const row = (c.contacts || []).find(x => x.email === email);
+    if (!row) return res.status(404).json({ error: 'No such contact' });
+    if (row.side !== 'client') throw new BadRequest('That contact is managed by NPSA.');
+    let next;
+    try { next = validContact({ name: b.name, email: b.new_email || email, role: b.role, phone: b.phone }, 'contact'); }
+    catch { throw new BadRequest('Please give a valid email address.'); }
+    if (!next.name) throw new BadRequest('Please give the person\'s name.');
+    if (next.email !== email && (c.contacts || []).some(x => x.email === next.email)) throw new BadRequest('Someone with that email is already listed.');
+    await store.updateContact(c.id, email, next);
+    await store.upsertAnswers(c.id, [], 'client', { clientActivity: true }).catch(() => {});
+    const fresh = await store.getClient(c.slug);
+    console.log(`[intake] contact edited ${c.slug} ${email}`);
+    res.json({ ok: true, ...contactsView(fresh.contacts || []) });
+  }));
+
   app.delete('/api/intake/:slug/contacts', guard(async (req, res) => {
     const c = await clientAuth(req, res); if (!c) return;
     const email = String(req.query.email || (req.body || {}).email || '').trim().toLowerCase();
     const row = (c.contacts || []).find(x => x.email === email);
     if (!row) return res.status(404).json({ error: 'No such contact' });
-    if (row.side === 'npsa') throw new BadRequest('The NPSA team is managed by NPSA.');
+    if (row.side !== 'client') throw new BadRequest('That contact is managed by NPSA.');
     await store.removeContacts(c.id, [email]);
     const fresh = await store.getClient(c.slug);
     console.log(`[intake] contact removed ${c.slug} ${email}`);

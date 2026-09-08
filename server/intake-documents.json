@@ -1,0 +1,15 @@
+{
+  "_what": "The documents a client is asked to upload on the Documents tab. Every client gets `standard`; a state in `by_state` adds its own. A client's list can be changed per client (client_update documents / add_documents / remove_document_keys, or the Grant Writing page); once changed, the stored list wins until it is reset. Keys must start with up_ and are the upload's key in intake_uploads.",
+  "standard": [
+    { "key": "up_mission", "label": "Mission statement on letterhead", "hint": "PDF / DOCX" },
+    { "key": "up_501c3", "label": "501(c)(3) determination letter", "hint": "PDF" },
+    { "key": "up_va", "label": "Vulnerability assessment (if you have one)", "hint": "PDF" },
+    { "key": "up_bios", "label": "Leadership bios & resumes (PII-scrubbed)", "hint": "PDF / DOCX" }
+  ],
+  "by_state": {
+    "TX": [
+      { "key": "up_gov_resolution", "label": "Resolution from your governing body", "hint": "PDF · Texas FY26 requirement; sample posted in eGrants" },
+      { "key": "up_tx_payee", "label": "Texas payee forms: Direct Deposit Authorization, Application for Payee ID Number, IRS W-9", "hint": "PDF · Grant.Vendor tab in eGrants" }
+    ]
+  }
+}
