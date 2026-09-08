@@ -60,8 +60,9 @@ type ClientRow = {
 
 type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string };
 type Upload = { id: number; key: string; label: string; filename: string; size_bytes: number; uploaded_at: string; drive_url: string | null };
-type WishItem = { stem: string; label: string; priority: number | string; answered: number; total: number };
-type WishFacility = { facility: number; name: string; prioritized: number; details: { answered: number; total: number }; items: WishItem[] };
+type WishItem = { stem: string; label: string; priority: number | string; answered: number; total: number; cost?: number | null };
+type SiteBudget = { items: number; ma: number; ma_on: boolean; ma_default: boolean; total: number; cap: number; room: number; uncosted: number };
+type WishFacility = { facility: number; name: string; prioritized: number; details: { answered: number; total: number }; items: WishItem[]; budget?: SiteBudget };
 type Status = {
   slug: string;
   filled_by: string;
@@ -72,6 +73,8 @@ type Status = {
   wish_list?: WishFacility[];
   /** Program rows with a name, out of the slots the page offers. */
   programs?: { listed: number; slots: number };
+  /** What the client has asked for across sites, against the federal applicant cap. */
+  budget?: { requested: number; cap: number; room: number; sites: number };
   checklist: { completed: number; total: number; not_applicable?: number; items: ChecklistItem[] };
   uploads: Upload[];
 };
@@ -118,6 +121,7 @@ const saaShort = (saa: string | null) => {
 };
 
 const pct = (a: number, b: number) => (b ? Math.round((100 * a) / b) : 0);
+const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 const lastSave = (row: { last_client_activity_at: string | null }) => {
   const d = daysSince(row.last_client_activity_at);
@@ -419,7 +423,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
 
                 {s.wish_list && (
                   <div>
-                    <Label>wish list · {s.wish_list.reduce((n, f) => n + f.prioritized, 0)} items prioritized</Label>
+                    <Label>wish list · {s.wish_list.reduce((n, f) => n + f.prioritized, 0)} items prioritized{s.budget && s.budget.requested > 0 ? ` · ${usd(s.budget.requested)} of ${usd(s.budget.cap)} requested` : ""}</Label>
                     {s.wish_list.every((f) => f.prioritized === 0) && (
                       <div style={{ fontSize: 13, color: "var(--faint)" }}>No items prioritized yet. An item counts once the client gives it a priority.</div>
                     )}
@@ -436,13 +440,24 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                           </div>
                           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
                             {f.items.map((it) => (
-                              <li key={it.stem} style={{ display: "grid", gridTemplateColumns: "22px minmax(0, 1fr) auto", gap: 10, alignItems: "center", fontSize: 12.5 }}>
+                              <li key={it.stem} style={{ display: "grid", gridTemplateColumns: "22px minmax(0, 1fr) auto auto", gap: 10, alignItems: "center", fontSize: 12.5 }}>
                                 <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ok-fg)", background: "var(--ok-bg)", borderRadius: 6, textAlign: "center", padding: "1px 0" }}>{it.priority}</span>
                                 <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--sec)" }}>{it.label}</span>
+                                <span className="mono" style={{ fontSize: 11.5, color: it.cost ? "var(--sec)" : "var(--faint)", fontVariantNumeric: "tabular-nums", minWidth: 60, textAlign: "right" }}>{it.cost ? usd(it.cost) : it.cost === null || it.cost === undefined ? "" : usd(0)}</span>
                                 <span className="mono" style={{ fontSize: 11.5, color: it.answered === it.total ? "var(--ok-fg)" : "var(--faint)", fontVariantNumeric: "tabular-nums" }}>{it.answered}/{it.total}</span>
                               </li>
                             ))}
                           </ul>
+                          {f.budget && (f.budget.total > 0 || f.budget.uncosted > 0) && (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, marginBottom: 4 }}>
+                                <span><span style={{ fontWeight: 600 }}>{usd(f.budget.total)}</span> <Faint>of {usd(f.budget.cap)}{f.budget.ma_on ? ` · M&A ${usd(f.budget.ma)}${f.budget.ma_default ? " (5%)" : ""}` : " · no M&A"}</Faint></span>
+                                <span className="mono" style={{ fontSize: 11.5, color: f.budget.room < 0 ? "var(--err-fg)" : "var(--ok-fg)" }}>{f.budget.room < 0 ? `${usd(-f.budget.room)} over` : `${usd(f.budget.room)} room`}</span>
+                              </div>
+                              <Bar pct={Math.min(100, pct(f.budget.total, f.budget.cap))} color={f.budget.room < 0 ? "var(--err-fg)" : "var(--olive)"} height={8} radius={4} animate={false} />
+                              {f.budget.uncosted > 0 && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 3 }}>{f.budget.uncosted} item{f.budget.uncosted === 1 ? "" : "s"} without a cost yet</div>}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
