@@ -11,9 +11,11 @@ export const dynamic = "force-dynamic";
  * contacts and security incidents). This proxy adds that key from a server-side
  * variable so it never reaches the browser, and requires the team login first.
  *
- * GET only. Registering, seeding and updating clients stay with the MCP tools
- * (client_create, intake_seed, client_update), where each write is confirmed
- * and logged.
+ * Reads, plus one narrow write: PATCH /api/clients/<slug> with only the keys
+ * the Grant Writing dialog edits (the Documents-tab list and the helpful
+ * outside contacts). Registering, seeding and every other update stay with
+ * the MCP tools (client_create, intake_seed, client_update), where each write
+ * is confirmed and logged.
  *
  *   /api/clients                     the list, with ?status= &search=
  *   /api/clients/<slug>              one client with contacts and counts
@@ -37,4 +39,19 @@ export async function GET(req: NextRequest, { params }: { params: { path?: strin
     upstreamKey: key,
     allowIf: (s) => s.length >= 1 && s.length <= 2 && SLUG.test(s[0]) && (s.length === 1 || SUB.has(s[1])),
   });
+}
+
+/** The only fields the dialog may change. Anything else goes through client_update. */
+const PATCHABLE = new Set(["documents", "add_documents", "remove_document_keys", "add_reference_contacts", "remove_contact_emails"]);
+
+export async function PATCH(req: NextRequest, { params }: { params: { path?: string[] } }) {
+  const key = process.env.LOE_API_KEY || process.env.NPSA_MCP_KEY || "";
+  if (!key) return NextResponse.json({ error: "The grant clients proxy is not configured (LOE_API_KEY is unset on Vercel)" }, { status: 503 });
+  const segments = params.path || [];
+  if (segments.length !== 1 || !SLUG.test(segments[0])) return NextResponse.json({ error: "Endpoint not allowed" }, { status: 404 });
+  let raw: Record<string, unknown>;
+  try { raw = await req.json(); } catch { return NextResponse.json({ error: "Body must be JSON" }, { status: 400 }); }
+  const body = Object.fromEntries(Object.entries(raw || {}).filter(([k]) => PATCHABLE.has(k)));
+  if (!Object.keys(body).length) return NextResponse.json({ error: `Nothing to change: this route accepts ${[...PATCHABLE].join(", ")}` }, { status: 400 });
+  return proxyRequest(req, "clients", segments, new Set([""]), "PATCH", { upstreamKey: key, allowIf: (s) => s.length === 1 && SLUG.test(s[0]), body: JSON.stringify(body) });
 }

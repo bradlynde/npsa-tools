@@ -31,9 +31,11 @@ type Contact = {
   email: string;
   role: string;
   phone?: string;
-  side?: "npsa" | "client";
+  side?: "npsa" | "client" | "reference";
   is_primary?: boolean;
 };
+
+type Doc = { key: string; label: string; hint?: string; source?: "standard" | "state" | "custom" };
 
 type ClientRow = {
   id: number;
@@ -53,6 +55,8 @@ type ClientRow = {
   intake_url: string;
   saa: string | null;
   contacts?: Contact[]; // present on the single-client route, not the list
+  documents?: Doc[]; // the Documents-tab rows; single-client route only
+  documents_customised?: boolean;
   core: { answered: number; total: number };
   checklist: { completed: number; total: number };
   filled_by: string;
@@ -87,6 +91,16 @@ function authHeaders(): Record<string, string> {
   const token = typeof window === "undefined" ? null : localStorage.getItem("auth_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
+
+async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(path, { method: "PATCH", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((data as { error?: string }).error || `HTTP ${r.status}`);
+  return data as T;
+}
+
+/** "Board roster (PDF)" → "up_board_roster_pdf": the upload key the backend expects for a custom document. */
+const docKeyFor = (label: string) => "up_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 36);
 
 async function getJson<T>(path: string): Promise<T> {
   const r = await fetch(path, { headers: authHeaders(), cache: "no-store" });
@@ -212,6 +226,97 @@ function Ext({ href, children }: { href: string; children: React.ReactNode }) {
 
 const Faint = ({ children }: { children: React.ReactNode }) => <span style={{ color: "var(--faint)" }}>{children}</span>;
 
+const inputStyle: React.CSSProperties = { fontSize: 12.5, padding: "6px 9px", borderRadius: 8, border: "1px solid var(--bd2)", background: "var(--bg)", color: "var(--ink)", minWidth: 0, width: "100%" };
+const smallBtn: React.CSSProperties = { fontSize: 11.5, padding: "5px 10px", borderRadius: 999, border: "1px solid var(--bd2)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", whiteSpace: "nowrap" };
+const xBtn: React.CSSProperties = { border: 0, background: "transparent", color: "var(--faint)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 4px" };
+
+/* ── Team edits inside the dialog ─────────────────────────────── */
+
+/** The Documents-tab rows for this client: remove one, add one, or go back to the defaults. */
+function DocumentsEditor({ client, onSaved }: { client: ClientRow; onSaved: (c: ClientRow) => void }) {
+  const [label, setLabel] = useState("");
+  const [hint, setHint] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const docs = client.documents || [];
+  const run = async (body: unknown) => {
+    setBusy(true); setErr(null);
+    try { onSaved(await patchJson<ClientRow>(`/api/clients/${client.slug}`, body)); setLabel(""); setHint(""); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div>
+      <Label>documents asked for · {docs.length}{client.documents_customised ? " · customised" : ""}</Label>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5, fontSize: 13 }}>
+        {docs.map((d) => (
+          <li key={d.key} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {d.label}
+              {d.source && d.source !== "standard" && <span className="mono" style={{ marginLeft: 8, fontSize: 10.5, color: "var(--faint)" }}>{d.source}</span>}
+            </span>
+            <button type="button" aria-label={`Remove ${d.label}`} title="Take this off the client's Documents tab" disabled={busy} onClick={() => run({ remove_document_keys: [d.key] })} style={xBtn}>×</button>
+          </li>
+        ))}
+      </ul>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) auto", gap: 6, marginTop: 8 }}>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Add a document, e.g. Board roster" aria-label="Document label" style={inputStyle} />
+        <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Hint (PDF, where to get it)" aria-label="Document hint" style={inputStyle} />
+        <button type="button" disabled={busy || !label.trim()} onClick={() => run({ add_documents: [{ key: docKeyFor(label), label: label.trim(), hint: hint.trim() }] })} style={smallBtn}>Add</button>
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 6, fontSize: 11.5, color: "var(--faint)" }}>
+        <span>The client sees these rows on their Documents tab. Files already uploaded stay either way.</span>
+        {client.documents_customised && <button type="button" disabled={busy} onClick={() => run({ documents: null })} style={{ ...xBtn, fontSize: 11.5, textDecoration: "underline" }}>Reset to defaults</button>}
+      </div>
+      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+    </div>
+  );
+}
+
+/** Helpful people outside NPSA and the client (the SAA contact, the CISA advisor); read-only for the client. */
+function ReferenceContactsEditor({ client, onSaved }: { client: ClientRow; onSaved: (c: ClientRow) => void }) {
+  const [f, setF] = useState({ name: "", role: "", email: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const refs = (client.contacts || []).filter((x) => x.side === "reference");
+  const run = async (body: unknown) => {
+    setBusy(true); setErr(null);
+    try { onSaved(await patchJson<ClientRow>(`/api/clients/${client.slug}`, body)); setF({ name: "", role: "", email: "", phone: "" }); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  return (
+    <div>
+      <Label>helpful contacts · SAA, CISA</Label>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
+        {refs.length === 0 && <Faint>None yet. These show read-only on the client&rsquo;s Contacts tab.</Faint>}
+        {refs.map((x) => (
+          <div key={x.email} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 8, alignItems: "baseline" }}>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ fontWeight: 600 }}>{x.name || x.email}</span>
+              {x.role && <span style={{ color: "var(--mute)" }}> · {x.role}</span>}
+              {x.phone && <span className="mono" style={{ color: "var(--faint)", fontSize: 11.5 }}> · {x.phone}</span>}
+            </span>
+            <a href={`mailto:${x.email}`} className="mono" style={{ fontSize: 11.5, color: "var(--navy)", textDecoration: "none", whiteSpace: "nowrap" }}>{x.email}</a>
+            <button type="button" aria-label={`Remove ${x.name || x.email}`} disabled={busy} onClick={() => run({ remove_contact_emails: [x.email] })} style={xBtn}>×</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8 }}>
+        <input value={f.name} onChange={set("name")} placeholder="Name" aria-label="Name" style={inputStyle} />
+        <input value={f.role} onChange={set("role")} placeholder="Role, e.g. Texas SAA help desk" aria-label="Role" style={inputStyle} />
+        <input value={f.email} onChange={set("email")} placeholder="Email" aria-label="Email" style={inputStyle} />
+        <div style={{ display: "flex", gap: 6 }}>
+          <input value={f.phone} onChange={set("phone")} placeholder="Phone" aria-label="Phone" style={inputStyle} />
+          <button type="button" disabled={busy || !f.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)} onClick={() => run({ add_reference_contacts: [{ name: f.name.trim(), role: f.role.trim(), email: f.email.trim(), phone: f.phone.trim() }] })} style={smallBtn}>Add</button>
+        </div>
+      </div>
+      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+    </div>
+  );
+}
+
 /* ── Client dialog ────────────────────────────────────────────── */
 
 function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void }) {
@@ -248,7 +353,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
   const c = detail?.client || row;
   const s = detail?.status;
   const npsa = (c.contacts || []).filter((x) => x.side === "npsa");
-  const own = (c.contacts || []).filter((x) => x.side !== "npsa");
+  const own = (c.contacts || []).filter((x) => x.side !== "npsa" && x.side !== "reference");
 
   const dt: React.CSSProperties = { color: "var(--faint)", fontSize: 11.5, paddingTop: 2, whiteSpace: "nowrap" };
   const dd: React.CSSProperties = { margin: 0, minWidth: 0 };
@@ -373,6 +478,10 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     )}
                   </div>
                 </div>
+
+                <ReferenceContactsEditor client={c} onSaved={(fresh) => setDetail((d) => (d ? { ...d, client: fresh } : d))} />
+
+                <DocumentsEditor client={c} onSaved={(fresh) => setDetail((d) => (d ? { ...d, client: fresh } : d))} />
 
                 {s.uploads.length > 0 && (
                   <div>
