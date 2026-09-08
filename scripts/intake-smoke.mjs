@@ -402,7 +402,7 @@ await check('renderClientPage fills every placeholder and escapes a script-closi
   assert.ok(!html.includes('</script><img'), 'raw closing tag never appears');
   assert.ok(html.includes('"q_1_1_1":"line\\u2028break"'), 'line separator escaped');
   assert.ok(html.includes('API_BASE=""'));
-  assert.ok(html.includes('CONTACTS={"npsa":[],"client":[]}'), 'contacts default to empty');
+  assert.ok(html.includes('CONTACTS={"npsa":[],"client":[],"reference":[]}'), 'contacts default to empty');
   assert.ok(html.includes('data-tab="ct"') && html.includes('id="ctAddBtn"'), 'contacts tab present');
   assert.ok(html.includes('"saa":"KOHS"'));
   assert.ok(!html.includes('google.script'), 'no Apps Script left');
@@ -451,7 +451,7 @@ await check('an upload needs the token, an upload key, and a real PDF/JPG/PNG', 
   assert.equal((await upload(created.slug, 'ffffffffffffffffffff', multipart('up_mission', 'm.pdf', PDF))).status, 401);
   const badKey = await upload(created.slug, t, multipart('q_1_1_1', 'm.pdf', PDF));
   assert.equal(badKey.status, 400);
-  assert.match((await badKey.json()).error, /not an upload field/);
+  assert.match((await badKey.json()).error, /not one of this client's documents/);
   const docx = await upload(created.slug, t, multipart('up_mission', 'm.docx', Buffer.from('PK\u0003\u0004zip'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'));
   assert.equal(docx.status, 400);
   assert.match((await docx.json()).error, /PDF, JPG, or PNG/);
@@ -521,6 +521,44 @@ await check('CORS on the upload route answers only for the page origin', async (
   assert.equal(posted.headers.get('access-control-allow-origin'), BASE);
 });
 
+// ── 8. Documents and contacts ─────────────────────────────────────────────────
+await check('documents: defaults by state, team edits, custom keys upload', async () => {
+  const c = await call('GET', `/api/clients/${created.slug}`, { headers: TEAM });
+  assert.deepEqual(c.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_bios']);
+  assert.equal(c.data.documents_customised, false);
+  const tx = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Lone Star Chapel', state: 'TX' } });
+  assert.deepEqual(tx.data.documents.map(d => d.key).slice(4), ['up_gov_resolution', 'up_tx_payee']);
+  await call('PATCH', '/api/clients/lone-star-chapel', { headers: TEAM, body: { status: 'cancelled' } });
+  const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { remove_document_keys: ['up_bios'], add_documents: [{ key: 'up_board_list', label: 'Board roster', hint: 'PDF' }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_board_list']);
+  assert.equal(r.data.documents_customised, true);
+  const bad = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_documents: [{ key: 'board', label: 'x' }] } });
+  assert.equal(bad.status, 400);
+  const reset = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { documents: null } });
+  assert.equal(reset.data.documents_customised, false);
+  await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_documents: [{ key: 'up_board_list', label: 'Board roster' }] } });
+  const up = await upload(created.slug, token(), multipart('up_board_list', 'board.pdf', PDF, 'application/pdf'));
+  assert.equal(up.status, 200, await up.text());
+  const st = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  assert.ok(st.data.uploads.some(u => u.key === 'up_board_list' && u.label === 'Board roster'));
+  const nope = await upload(created.slug, token(), multipart('up_nothing', 'x.pdf', PDF, 'application/pdf'));
+  assert.equal(nope.status, 400);
+});
+await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
+  const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const view = await call('GET', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() } });
+  assert.equal(view.data.reference.length, 1);
+  assert.ok(!view.data.client.some(x => x.email === 'egrants@gov.texas.gov'));
+  const edit = await call('PUT', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() }, body: { email: 'pat@example.org', name: 'Pat Lee', role: 'Executive Pastor', phone: '555-0100' } });
+  assert.equal(edit.status, 200, JSON.stringify(edit.data));
+  assert.equal(edit.data.client.find(x => x.email === 'pat@example.org').phone, '555-0100');
+  const refuse = await call('PUT', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() }, body: { email: 'egrants@gov.texas.gov', name: 'x' } });
+  assert.equal(refuse.status, 400);
+  const del = await call('DELETE', `/api/intake/${created.slug}/contacts?email=egrants@gov.texas.gov`, { headers: { 'X-Intake-Token': token() } });
+  assert.equal(del.status, 400);
+});
 // ── Drive mirror against a fake Google ──
 const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
 const SA = { client_email: 'npsa-intake@test.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) };
