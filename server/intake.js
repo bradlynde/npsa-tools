@@ -60,6 +60,18 @@ const CHECKLIST_STEMS = QUESTIONS.filter(q => q.key.startsWith('chk_status_')).m
 // priority (the `_int` select, 1 = fund first), and how many of that item's five
 // detail fields (currently have, what & why, where, quantity, cost) are answered.
 const WISH_DETAILS = ['cur', 'desc', 'where', 'qty', 'cost'];
+// Federal NSGP caps (FY26): $200,000 per site, three sites, so $600,000 per applicant.
+// M&A may be up to 5% of the award; the default line is 5% of the items requested.
+export const BUDGET = { siteCap: 200000, applicantCap: 600000, maRate: 0.05 };
+/** "$52,000", "18000", "about 18k" → 52000 / 18000 / 18000; anything without a number → null. */
+export function parseMoney(v) {
+  const t = String(v || '').replace(/,/g, '');
+  const m = t.match(/(\d+(?:\.\d+)?)\s*(k|m)?/i);
+  if (!m) return null;
+  let n = Number(m[1]);
+  if (m[2]) n *= m[2].toLowerCase() === 'k' ? 1000 : 1000000;
+  return Math.round(n);
+}
 const WISH_FACILITIES = [1, 2, 3].map(n => ({
   n,
   items: QUESTIONS.filter(q => q.key.startsWith(`wl_f${n}_`) && q.key.endsWith('_int')).map(q => ({
@@ -247,12 +259,21 @@ function statusView(client, answers, base, uploads = []) {
       })
       .filter(Boolean)
       .sort((a, b) => (a.priority > b.priority ? 1 : a.priority < b.priority ? -1 : 0));
+    const costed = items.map(it => ({ ...it, cost: parseMoney(val(`wl_f${f.n}_${it.stem}_cost`)) }));
+    const itemsTotal = costed.reduce((n, it) => n + (it.cost || 0), 0);
+    const maOn = val(`wl_f${f.n}_ma_on`) !== 'off';
+    const maEntered = parseMoney(val(`wl_f${f.n}_ma_amount`));
+    const ma = maOn ? (maEntered ?? Math.round(itemsTotal * BUDGET.maRate)) : 0;
+    const total = itemsTotal + ma;
     return {
       facility: f.n, name: val(`loc${f.n}_name`), prioritized: items.length,
       details: { answered: items.reduce((n, it) => n + it.answered, 0), total: items.length * WISH_DETAILS.length },
-      items,
+      items: costed,
+      budget: { items: itemsTotal, ma, ma_on: maOn, ma_default: maEntered === null, total, cap: BUDGET.siteCap, room: BUDGET.siteCap - total, uncosted: costed.filter(it => it.cost === null).length },
     };
   });
+  const requested = wish_list.reduce((n, f) => n + f.budget.total, 0);
+  const budget = { requested, cap: BUDGET.applicantCap, room: BUDGET.applicantCap - requested, sites: wish_list.filter(f => f.budget.total > 0).length };
   const items = CHECKLIST_STEMS.map(stem => ({
     stem, label: checklistLabel(stem),
     status: val(`chk_status_${stem}`) || 'Not started',
@@ -264,7 +285,7 @@ function statusView(client, answers, base, uploads = []) {
     intake_url: intakeUrl(base, client.slug, client.token),
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
-    core: s.core, sections, wish_list,
+    core: s.core, sections, wish_list, budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
     checklist: { ...s.checklist, items },
     uploads: uploads.map(u => uploadView(u, client.slug)),

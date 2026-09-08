@@ -98,11 +98,11 @@ await check('with MCP_API_KEYS unset only the internal key gets in', async () =>
 });
 
 // ── 2. Registration ───────────────────────────────────────────────────────────
-await check('catalog is served with 679 questions and the section list', async () => {
+await check('catalog is served with 685 questions and the section list', async () => {
   const r = await call('GET', '/api/intake/questions', { headers: TEAM });
   assert.equal(r.status, 200);
-  assert.equal(r.data.count, 679);
-  assert.equal(QUESTIONS.length, 679);
+  assert.equal(r.data.count, 685);
+  assert.equal(QUESTIONS.length, 685);
   assert.ok(r.data.sections.includes('Checklist'));
   const chk = await call('GET', '/api/intake/questions?prefix=chk_who_', { headers: TEAM });
   assert.ok(chk.data.count > 0 && chk.data.questions.every(q => q.key.startsWith('chk_who_')));
@@ -238,7 +238,7 @@ await check('status reports sections, checklist items and the headline counts', 
   assert.deepEqual(d.uploads, []);
   // Nothing prioritized yet: three facilities, all empty.
   assert.equal(d.wish_list.length, 3);
-  assert.deepEqual(d.wish_list[0], { facility: 1, name: 'Main campus', prioritized: 0, details: { answered: 0, total: 0 }, items: [] });
+  assert.deepEqual(d.wish_list[0], { facility: 1, name: 'Main campus', prioritized: 0, details: { answered: 0, total: 0 }, items: [], budget: { items: 0, ma: 0, ma_on: true, ma_default: true, total: 0, cap: 200000, room: 200000, uncosted: 0 } });
 });
 await check('wish list counts only prioritized items, and their five detail fields', async () => {
   await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: {
@@ -252,6 +252,16 @@ await check('wish list counts only prioritized items, and their five detail fiel
   assert.deepEqual(f1.details, { answered: 4, total: 10 });
   assert.deepEqual(f1.items.map(i => [i.label, i.priority, i.answered, i.total]), [['CCTV / Camera System', 1, 3, 5], ['Vehicle Bollards', 2, 1, 5]]);
   assert.equal(r.data.wish_list[1].prioritized, 0);
+  // Budget: costs parse loosely, M&A defaults to 5% of the items, and can be turned off or set.
+  const b1 = r.data.wish_list[0].budget;
+  assert.deepEqual([b1.items, b1.ma, b1.ma_on, b1.ma_default, b1.total, b1.cap, b1.room, b1.uncosted], [18000, 900, true, true, 18900, 200000, 181100, 1]);
+  assert.deepEqual(r.data.budget, { requested: 18900, cap: 600000, room: 581100, sites: 1 });
+  await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { wl_f1_vehicle_bollards_cost: '$52,000', wl_f1_ma_amount: '3,500' } } });
+  const r2 = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  assert.deepEqual([r2.data.wish_list[0].budget.items, r2.data.wish_list[0].budget.ma, r2.data.wish_list[0].budget.total], [70000, 3500, 73500]);
+  await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { wl_f1_ma_on: 'off' } } });
+  const r3 = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  assert.deepEqual([r3.data.wish_list[0].budget.ma, r3.data.wish_list[0].budget.ma_on, r3.data.wish_list[0].budget.total], [0, false, 70000]);
 });
 await check('site research: loc<n>_infra is accepted and stays out of the core count', async () => {
   const before = (await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM })).data.core;
