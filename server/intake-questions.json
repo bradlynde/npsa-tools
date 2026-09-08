@@ -131,14 +131,14 @@
     {
       "key": "q_2_1",
       "section": "2. Identity",
-      "label": "2.1 Please provide a detailed breakdown of your organization's ideology. What are your public stances on key issues (e.g., pro-life, support for Israel, traditional marriage)? Please provide a link to your statement of faith or beliefs.",
+      "label": "2.1 Describe your organization's ideology and the public positions it is known for. Name the specific theological, social, or political stances your organization holds publicly, especially any that have drawn criticism, protest, or outside attention. Examples: an affirming or Reconciling stance on inclusion, a pro-life or pro-choice position, support for Israel or for Palestinian rights, refugee resettlement or immigrant sanctuary work, traditional teaching on marriage, racial justice advocacy, or a denominational position that has put your organization in the public eye. Organizations across the entire spectrum receive NSGP awards. Be specific and honest; this is the question the risk narrative is built on. Please include a link to your statement of faith, beliefs, or values.",
       "ordinal": 19,
       "kind": "textarea"
     },
     {
       "key": "note_q_2_1",
       "section": "NPSA Notes",
-      "label": "Note — 2.1 Please provide a detailed breakdown of your organization's ideology. What are your public stances on key issues (e.g., pro-life, support for Israel, traditional marriage)? Please provide a link to your statement of faith or belie",
+      "label": "Note — 2.1 Describe your organization's ideology and the public positions it is known for. Name the specific theological, social, or political stances your organization holds publicly, especially any that have drawn criticism, protest, or outside attention. Examples: an affirming or Reconciling stance on inclusion, a pro-life or pro-choice position, support for Israel or for Palestinian rights, refugee resettlement or immigrant sanctuary work, traditional teaching on marriage, racial justice advocacy, or a denominational position that has put your organization in the public eye. Organizations across the entire spectrum receive NSGP awards. Be specific and honest; this is the question the risk narrative is built on. Please include a link to your statement of faith, beliefs, or values.",
       "ordinal": 20,
       "kind": "textarea"
     },
