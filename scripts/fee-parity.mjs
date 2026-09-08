@@ -74,6 +74,38 @@ function* cases() {
       }
     }
   }
+  /*
+   * The negotiated contingent discount. Chad asked for a custom discount on a
+   * contingency letter and there was none; a typed amount now holds the upfront
+   * at full and comes off the contingent fee. No case above reaches it — the
+   * field is blank everywhere, which is the point: a saved letter must not move.
+   */
+  for (const model of ["partial-contingency", "inh-partial-contingency"]) {
+    for (const locs of [1, 2]) {
+      for (const cd of ["2,000", "20,000"]) {   // the second exceeds the contingent fee
+        yield {
+          name: `${model}|discounted|${locs}loc|contingent-discount=${cd}`,
+          model, tier: "discounted", locs,
+          optPostAwardScope: false, postAwardFee: "2,500",
+          customFee: "", earlySigningAmount: "500", customContingencyFee: "",
+          contingentDiscount: cd,
+        };
+      }
+    }
+  }
+  // Custom on a contingency engagement, which used to return no contingent fee.
+  for (const model of ["partial-contingency", "inh-partial-contingency"]) {
+    for (const override of ["", "6,000"]) {
+      yield {
+        name: `${model}|custom|1loc|contingency-override=${override || "(blank)"}`,
+        model, tier: "custom", locs: 1,
+        optPostAwardScope: false, postAwardFee: "2,500",
+        customFee: "9,750", earlySigningAmount: "500", customContingencyFee: override,
+        contingentDiscount: "",
+      };
+    }
+  }
+
   // Beyond the pricing table, where calcFees extrapolates from the 2->3 increment.
   for (const locs of [4, 7]) {
     yield {
@@ -92,7 +124,7 @@ async function run() {
   for (const c of cases()) {
     const fees = calcFees(
       c.model, c.tier, c.locs, c.optPostAwardScope, c.postAwardFee,
-      c.customFee, c.earlySigningAmount, c.customContingencyFee,
+      c.customFee, c.earlySigningAmount, c.customContingencyFee, c.contingentDiscount,
     );
 
     // Exercise the compensation block both with and without an installment

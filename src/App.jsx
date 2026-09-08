@@ -226,8 +226,8 @@ export default function App() {
   }));
   const totalApps = applicationCount(form.programs, form.locations);
   const numLocs = totalApps; // fees scale on total applications
-  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee);
-  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee);
+  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee, form.contingentDiscount);
+  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee, form.inhContingentDiscount);
   // Load templates from server on mount; fall back to hardcoded defaults
   useEffect(() => {
     const load = async (type, setter) => {
@@ -906,17 +906,17 @@ export default function App() {
   const SubH = ({label}) => <div style={{fontSize:13,fontWeight:700,fontStyle:"italic",marginTop:14,marginBottom:6,color:"#333",pageBreakAfter:"avoid",breakAfter:"avoid"}}>{label}</div>;
   const Body = ({id,subId}) => {
     const raw = gc(id,subId);
-    const tokenRe = /\[EARLY_SIGNING_DISCOUNT:([^:]+):([^:]+):([^\]]+)\]/;
+    const tokenRe = /\[EARLY_SIGNING_DISCOUNT:([^:]+):([^:]+):([^:\]]+)(?::([^\]]+))?\]/;
     const match = raw.match(tokenRe);
     if (!match) return <div style={{marginBottom:8}}>{renderLines(raw)}</div>;
-    const [full, rawDate, discAmt, baseFee] = match;
+    const [full, rawDate, discAmt, baseFee, appliedTo] = match;
     const date = fmtLetterDate(rawDate);
     const parts = raw.split(full);
     return <>
       <div style={{marginBottom:8}}>{renderLines(parts[0].trimEnd())}</div>
       <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"12px 16px",margin:"10px 0 8px",fontFamily:"Georgia,serif",fontSize:12,lineHeight:1.7,color:"#222"}}>
         <span style={{fontWeight:700,color:"var(--navy)",fontSize:11,textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:5}}>Early Signing Discount</span>
-        {`A ${discAmt} early signing discount has been applied to the standard ${baseFee} consulting fee. To retain this discount, this Agreement must be executed on or before ${date}.`}
+        {`A ${discAmt} early signing discount has been applied to the standard ${baseFee} ${appliedTo === "contingent" ? "contingent" : "consulting"} fee. To retain this discount, this Agreement must be executed on or before ${date}.`}
       </div>
       {parts[1]&&<div style={{marginBottom:8}}>{renderLines(parts[1].trimStart())}</div>}
     </>;

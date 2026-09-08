@@ -194,9 +194,11 @@ export default function Wizard({
   // programs is two applications. App.jsx prices the letter the same way.
   const numLocs = applicationCount(form.programs, form.locations);
   const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope,
-    form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee);
+    form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee,
+    form.contingentDiscount);
   const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope,
-    form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee);
+    form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee,
+    form.inhContingentDiscount);
 
   // Which fee set this document actually quotes. Award Implementation and the
   // grant-writer agreement carry a single flat figure rather than a tiered one.

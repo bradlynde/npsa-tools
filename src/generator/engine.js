@@ -43,8 +43,9 @@ const PRICING = {
 const TIER_LABELS = { undiscounted: "Undiscounted", discounted: "Early Signing Discount", max: "Max Discount", custom: "Custom" };
 const fmt = (n) => n === 0 ? "$0" : `$${Number(n).toLocaleString()}`;
 
-function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount, customContingencyFee) {
+function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount, customContingencyFee, contingentDiscount) {
   const n = Math.max(parseInt(locs) || 1, 1); // no cap — extrapolate beyond 3
+  const money = (v) => parseFloat(String(v).replace(/,/g, "")) || 0;
   const isEarlySigning = tier === "discounted";
   const effectiveTier = isEarlySigning ? "undiscounted" : tier; // use undiscounted base to apply discount cleanly
   const discountPerLoc = isEarlySigning ? (parseFloat(String(earlySigningAmount).replace(/,/g,"")) || 0) : 0;
@@ -56,27 +57,66 @@ function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee,
     if (n <= 3) return tbl[n] || 0;
     return (tbl[3] || 0) + (n - 3) * ((tbl[3] || 0) - (tbl[2] || 0));
   };
-  if (tier === "custom") {
-    const fee = Math.max(0, (parseFloat(String(customFee).replace(/,/g,"")) || 0) - discount);
-    return { upfront: fee, baseUpfront: parseFloat(String(customFee).replace(/,/g,"")) || 0, discount, contingent: null, postAward: optPostAwardScope ? postAward : null, total: fee + postAward };
-  }
   if (isPreOnly) {
+    if (tier === "custom") {
+      const fee = money(customFee);
+      return { upfront: fee, baseUpfront: fee, discount: 0, contingent: null, postAward: optPostAwardScope ? postAward : null, total: fee + postAward };
+    }
     const pricing = PRICING[model] || PRICING["pre-only"];
     const base = lookup(pricing.tiers[effectiveTier] || {});
     const fee = Math.max(0, base - discount);
     return { upfront: fee, baseUpfront: base, discount, contingent: null, postAward: optPostAwardScope ? postAward : null, total: fee + postAward };
   } else {
     const pricing = PRICING[model] || PRICING["partial-contingency"];
+    const baseTier = pricing.tiers.undiscounted || {};
+    const rateTier = pricing.tiers[tier] || baseTier;
+    // The override wins wherever a contingent fee is quoted, so it is read once here
+    // rather than at each of the three exits below.
+    const contingentFrom = (t) => customContingencyFee ? money(customContingencyFee) : lookup(t.contingent || {});
+
+    /*
+     * Custom sets the UPFRONT fee. It used to be handled before this branch was
+     * reached, which returned contingent: null on a contingency engagement — the
+     * letter then printed "CLIENT will pay NPSA an additional $0" while the
+     * Contingency Fee Override sat on screen doing nothing. A rep reaching for
+     * Custom is naming a different upfront number, not converting the deal to a
+     * flat fee; Pre-Award Only is how you do that.
+     */
+    if (tier === "custom") {
+      const up = money(customFee);
+      const con = contingentFrom(baseTier);
+      return { upfront: up, baseUpfront: up, discount: 0, contingent: con, postAward: optPostAwardScope ? postAward : null, total: up + con + postAward };
+    }
+
+    /*
+     * A negotiated discount comes off the CONTINGENT fee.
+     *
+     * Stuart: "it would need to discount the contingent fee, we want to keep as
+     * much up front." So a typed amount holds the upfront at its undiscounted
+     * figure and reduces what is owed on award — the opposite of the pricing
+     * table's discounted row, which cuts the upfront as well and is what a rep is
+     * overriding by typing a number at all.
+     *
+     * It has its own field rather than reusing earlySigningAmount, which is
+     * prefilled ("500", or "1,500" in-house) and invisible on this model: reading
+     * that here would have silently re-priced every contingency letter already
+     * saved at the discounted tier.
+     */
+    const typed = isEarlySigning ? money(contingentDiscount) * n : 0;
+    if (typed > 0) {
+      const up = lookup(baseTier.upfront || {});
+      const contingentBase = contingentFrom(baseTier);
+      const con = Math.max(0, contingentBase - typed);
+      return { upfront: up, baseUpfront: up, discount: typed, discountOn: "contingent", contingentBase,
+               contingent: con, postAward: optPostAwardScope ? postAward : null, total: up + con + postAward };
+    }
+
     // Partial contingency uses the pricing sheet's explicit per-tier schedule rather than a
     // flat per-location discount: the discount differs between the upfront and contingent
     // fees, so it cannot be derived by subtracting a single amount from the undiscounted row.
-    const baseTier = pricing.tiers.undiscounted || {};
-    const rateTier = pricing.tiers[tier] || baseTier;
     const base = lookup(baseTier.upfront || {});
     const up = lookup(rateTier.upfront || {});
-    const con = customContingencyFee
-      ? (parseFloat(String(customContingencyFee).replace(/,/g,"")) || 0)
-      : lookup(rateTier.contingent || {});
+    const con = contingentFrom(rateTier);
     return { upfront: up, baseUpfront: base, discount: Math.max(0, base - up), contingent: con, postAward: optPostAwardScope ? postAward : null, total: up + con + postAward };
   }
 }
@@ -116,7 +156,13 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
   // earlySigningAmount, so keying off that field would drop the execution deadline from
   // a discounted letter — giving the discount away with no date attached to hold it to.
   if (earlySigningDiscount && earlySigningDate && fees.discount > 0) {
-    text += `\n\n[EARLY_SIGNING_DISCOUNT:${earlySigningDate}:${fmt(fees.discount)}:${fmt(fees.baseUpfront)}]`;
+    // Which fee the discount came off is part of the sentence, not a detail: a
+    // contingency letter that says a discount "has been applied to the standard
+    // $3,000 consulting fee" would be describing a reduction the client never got,
+    // since the upfront is held at full and the contingent is what moved.
+    const onContingent = fees.discountOn === "contingent";
+    const against = onContingent ? fees.contingentBase : fees.baseUpfront;
+    text += `\n\n[EARLY_SIGNING_DISCOUNT:${earlySigningDate}:${fmt(fees.discount)}:${fmt(against)}${onContingent ? ":contingent" : ""}]`;
   }
   // Post-Award Consulting and Administrative Support Fee block — shown when toggle is on
   if (optPostAwardScope) {
