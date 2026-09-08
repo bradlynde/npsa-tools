@@ -612,16 +612,17 @@
       "stateCap": "$70k/site"
     },
     "TX": {
-      "saa": "TDEM",
+      "saa": "OOG PSO",
       "programs": [
         "Federal NSGP-S",
         "Federal NSGP-UA"
       ],
       "registration": [
         "SAM.gov / UEI registration — hard gate",
-        "TDEM Grants Portal account registration — hard gate"
+        "Texas eGrants (egrants.gov.texas.gov) account AND application created, submitted and certified in Stage 1 — opens about January, closes about March, months before the federal NOFO; needs a 9-digit State Payee ID or your EIN to start; missing it locks you out of the year — hard gate",
+        "Grant.Vendor tab in eGrants: Direct Deposit Authorization, Application for Payee ID Number, IRS W-9; plus contact info for three separate grant officials — eGrants blocks submission without them"
       ],
-      "perSiteCap": "per annual NOFO · up to 3 sites",
+      "perSiteCap": "$200,000 per site · up to 3 sites",
       "stateCap": "—"
     },
     "UT": {

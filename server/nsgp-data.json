@@ -810,20 +810,20 @@
       "last_verified": "April 2026"
     },
     "TX": {
-      "saa": "Texas Division of Emergency Management (TDEM)",
-      "saa_short": "TDEM",
+      "saa": "Office of the Governor \u2014 Public Safety Office (PSO)",
+      "saa_short": "OOG PSO",
       "deadlines": [
         {
           "program": "federal",
           "cycle": 2026,
           "date": "2026-07-06",
           "confidence": "confirmed",
-          "note": "5:00pm CT, no extensions, and submissions cannot be corrected after the deadline. Applies to NSGP-S and NSGP-UA alike.",
+          "note": "STAGE 2: documents (IJ, VA, mission, governing-body resolution) uploaded to the eGrants Upload.Files tab by 5:00pm CT; no extensions, no corrections after close. STAGE 1 \u2014 the eGrants application created, submitted and certified \u2014 closed 3/12/2026 (system opened 1/12/2026), months before the federal NOFO; missing Stage 1 locks the applicant out of the cycle. Applies to NSGP-S and NSGP-UA alike. Texas NSGP is administered by the Office of the Governor's Public Safety Office through eGrants, not TDEM (older materials name TDEM).",
           "source": "egrants.gov.texas.gov nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026"
         }
       ],
       "state_programs": [],
-      "last_verified": "June 24, 2026"
+      "last_verified": "September 2026 (NPSA audit 2026-08-11: PSO administers via eGrants; two-stage deadline)"
     }
   }
 }
