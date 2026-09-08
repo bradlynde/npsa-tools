@@ -68,6 +68,8 @@ export async function proxyRequest(
     upstreamKey?: string;
     /** Allow the request when the first segment passes this test, not only when it is in `allowed`. */
     allowIf?: (segments: string[]) => boolean;
+    /** Send this JSON body upstream instead of the request's own (after the route has filtered it). */
+    body?: string;
   } = {}
 ): Promise<NextResponse> {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
@@ -86,7 +88,7 @@ export async function proxyRequest(
 
   let body: string | undefined;
   if (method !== "GET") {
-    body = await req.text().catch(() => "");
+    body = options.body ?? (await req.text().catch(() => ""));
   }
 
   try {
