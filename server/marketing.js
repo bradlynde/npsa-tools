@@ -216,6 +216,14 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rescheduled_to   INTEGER;
   `).catch(err => console.error('bookings reschedule-columns error:', err.message));
 
+  // The date a rescheduled appointment is credited to (see ORIGINATED). Settled for
+  // every chain on each boot, which is also the backfill for the chains that were
+  // already linked when this column arrived.
+  await pool.query(`
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS originated_on TIMESTAMPTZ;
+  `).catch(err => console.error('bookings originated-column error:', err.message));
+  await resolveOrigins(pool).catch(err => console.error('bookings origin-backfill error:', err.message));
+
   // When we last asked Calendly to identify a booking that arrived without its
   // identifiers. Recorded so a row Calendly genuinely cannot place — a hand-entered
   // booking, a test row — is retried occasionally rather than on every sweep.
@@ -1134,6 +1142,7 @@ async function enrichBooking(pool, id) {
   // paths — the Zap fills calendly_uri, the backfill fills both.
   let rescheduledFrom = row.rescheduled_from;
   let rescheduledTo = row.rescheduled_to;
+  let linkedNow = false;
   if (rescheduledFrom == null && st.oldInvitee) {
     const prev = await pool.query(
       `SELECT id FROM bookings
@@ -1143,6 +1152,7 @@ async function enrichBooking(pool, id) {
     );
     if (prev.rows[0]) {
       rescheduledFrom = prev.rows[0].id;
+      linkedNow = true;
       // The row it replaced is already excluded as a cancellation — Calendly cancels
       // the old event on every reschedule — so this is a relabel, not a new exclusion.
       // A reason a person chose is left alone.
@@ -1218,6 +1228,10 @@ async function enrichBooking(pool, id) {
      exclusionReason, cancelled, cancelledAt, rescheduledFrom,
      eventUri, inviteeUri, lookupAt, id, campaignId, leadAt, st.host]
   );
+
+  // Only now is this row's rescheduled_from on disk, so only now can the chain it
+  // just joined be dated from its first booking.
+  if (linkedNow) await resolveOrigins(pool);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1526,6 +1540,54 @@ export { recordWin, recordFinancial, recordApplication, rebuildBookingWins };
 // arithmetic, not from the record.
 const COUNTABLE = `exclusion_reason IS NULL`;
 
+// The date an appointment is CREDITED to: the day it was first set, not the day it
+// last moved. Calendly does not move a meeting, it cancels it and books a new one,
+// so the replacement row's own booked_on is the day of the reschedule. Counting
+// that credits the appointment to whichever week or month it was rescheduled in,
+// and a reschedule is a change of status on an appointment that already exists,
+// not a new one being set. Of the first 13 reschedules this moved 11 into a later
+// week and 2 into a later month.
+//
+// originated_on holds the first booking's date on every row in a reschedule chain
+// and is NULL everywhere else, so this is just booked_on unless the row replaced
+// another. Every figure that is bucketed by date goes through it.
+const ORIGINATED = `COALESCE(originated_on, booked_on)`;
+
+/**
+ * Stamps every row in a reschedule chain with the booked_on of the chain's first
+ * booking, and clears it from any row that is no longer in one.
+ *
+ * Recomputed over the whole table rather than patched per link, because links are
+ * made in whatever order enrichment reaches the rows: in A -> B -> C, C can be
+ * linked to B before B is linked to A, and a per-link update would stamp C with
+ * B's date and never come back to it. Walking down from every root settles a whole
+ * chain at once. The table is a few hundred rows, so this costs nothing.
+ *
+ * Walking only from roots (rows that replaced nothing) means a cycle, which no real
+ * reschedule can form, is never reached: its rows resolve to NULL and read as their
+ * own booked_on rather than hanging the query. A root with no booked_on resolves its
+ * chain to NULL the same way, so a replacement is never dated from a blank. The
+ * path check is belt and braces for the cycle.
+ */
+async function resolveOrigins(pool) {
+  await pool.query(`
+    WITH RECURSIVE chain AS (
+      SELECT id, booked_on AS origin, ARRAY[id] AS path
+        FROM bookings WHERE rescheduled_from IS NULL
+      UNION ALL
+      SELECT b.id, c.origin, c.path || b.id
+        FROM bookings b JOIN chain c ON b.rescheduled_from = c.id
+       WHERE NOT b.id = ANY(c.path)
+    ),
+    resolved AS (
+      SELECT b.id, CASE WHEN b.rescheduled_from IS NULL THEN NULL ELSE c.origin END AS origin
+        FROM bookings b LEFT JOIN chain c ON c.id = b.id
+    )
+    UPDATE bookings b SET originated_on = r.origin
+      FROM resolved r
+     WHERE b.id = r.id AND b.originated_on IS DISTINCT FROM r.origin`);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Revenue comes from FINANCIAL RECORDS, not from opportunities. Do not change this
 // back without reading the rest of this comment.
@@ -1790,11 +1852,11 @@ export function registerMarketing(app, pool) {
       const { rows } = await pool.query(`
         SELECT
           COUNT(*)::int AS total_bookings,
-          COUNT(*) FILTER (WHERE date_trunc('month', booked_on) = date_trunc('month', NOW()))::int AS bookings_this_month,
-          COUNT(*) FILTER (WHERE date_trunc('month', booked_on) = date_trunc('month', NOW() - interval '1 month'))::int AS bookings_last_month,
+          COUNT(*) FILTER (WHERE date_trunc('month', ${ORIGINATED}) = date_trunc('month', NOW()))::int AS bookings_this_month,
+          COUNT(*) FILTER (WHERE date_trunc('month', ${ORIGINATED}) = date_trunc('month', NOW() - interval '1 month'))::int AS bookings_last_month,
           -- Sunday 00:00 → Saturday 23:59 (date_trunc('week') is Monday-based, so shift a day to get a Sunday start)
-          COUNT(*) FILTER (WHERE booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
-                             AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS bookings_this_week,
+          COUNT(*) FILTER (WHERE ${ORIGINATED} >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
+                             AND ${ORIGINATED} <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS bookings_this_week,
           COUNT(*) FILTER (WHERE became_client)::int AS clients,
           COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS total_fees_won,
           COUNT(*) FILTER (WHERE attribution_channel='instantly')::int AS instantly_count,
@@ -1811,8 +1873,8 @@ export function registerMarketing(app, pool) {
         SELECT exclusion_reason AS reason,
                COUNT(*)::int AS total,
                COUNT(*) FILTER (WHERE
-                 booked_on >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
-             AND booked_on <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS this_week
+                 ${ORIGINATED} >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
+             AND ${ORIGINATED} <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS this_week
           FROM bookings WHERE exclusion_reason IS NOT NULL
          GROUP BY 1 ORDER BY 2 DESC`);
 
@@ -2045,15 +2107,15 @@ export function registerMarketing(app, pool) {
     // chart's PREVIOUS bar at the same time. Every Sunday, the chart and the number
     // above it told different stories about the same bookings.
     const bucket = g === 'week'
-      ? `date_trunc('week', booked_on + interval '1 day') - interval '1 day'`
-      : `date_trunc('month', booked_on)`;
+      ? `date_trunc('week', ${ORIGINATED} + interval '1 day') - interval '1 day'`
+      : `date_trunc('month', ${ORIGINATED})`;
     const step = g === 'week' ? '1 week' : '1 month';
     try {
       const { rows } = await pool.query(`
         WITH b AS (
           SELECT ${bucket} AS period,
                  held, became_client, won, won_amount
-            FROM bookings WHERE booked_on IS NOT NULL AND ${COUNTABLE}
+            FROM bookings WHERE ${ORIGINATED} IS NOT NULL AND ${COUNTABLE}
         ),
         bounds AS (SELECT MIN(period) AS lo, MAX(period) AS hi FROM b),
         -- A week with no bookings has to read as a gap, not close up and make the
@@ -2147,7 +2209,7 @@ export function registerMarketing(app, pool) {
         // is the whole point of marking rather than deleting them.
         // The two joins carry the dates either side of a reschedule, so the list can
         // say what a moved meeting moved from or to without a second round trip.
-        `SELECT b.id, b.booked_on, b.meeting_date, b.name, b.organization, b.email, b.told_us,
+        `SELECT b.id, b.booked_on, b.originated_on, b.meeting_date, b.name, b.organization, b.email, b.told_us,
                 b.attribution_channel, b.attribution_source, b.instantly_campaign,
                 -- The id as well as the name. The toolbox builds its own campaign
                 -- table in the browser, because that panel is range-scoped and
