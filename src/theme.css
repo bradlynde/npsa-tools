@@ -140,6 +140,23 @@ body {
 .npsa-paper {
   background: #ffffff;
   color: #1a1a1a;
+
+  /*
+   * The brand hues, pinned to their light-mode values.
+   *
+   * --navy and --olive lighten in dark mode so they stay legible on a dark
+   * page. The letter is white paper in either theme, so a lightened navy put
+   * the rule under every section heading at #4a8bc4 while the letterhead above
+   * it — a literal #1e3a5f — held. Two different blues on one page, in the
+   * document that goes to the client.
+   *
+   * Redefining them on the paper rather than at each use insulates the whole
+   * subtree, the same way the background and ink above do: anything added to
+   * the letter later gets the brand colour without its author having to know
+   * dark mode exists.
+   */
+  --navy: #1e3a5f;
+  --olive: #6b8e23;
 }
 
 /*

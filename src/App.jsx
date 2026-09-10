@@ -4,6 +4,7 @@ import { marked } from "marked";
 import { LOGO_SRC } from "./generator/logo.js";
 import {
   fmt, calcFees, buildCompBlock, applicationCount, totalMaxAward, locationInProgram,
+  programsKeyFor, oneApplicationPerLetter, enumerateApplications, divideFee,
   PROGRAMS, NPSA_SIGNATURES,
 } from "./generator/engine.js";
 import {
@@ -129,6 +130,11 @@ export default function App() {
   const [showLetterBrowser, setShowLetterBrowser] = useState(false);
   const [letterSearch, setLetterSearch] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
+  // Set when the rep asked to split; the save modal then writes N letters rather
+  // than one, reusing its rep picker instead of growing a second dialog.
+  const [pendingSplit, setPendingSplit] = useState(false);
+  const [splitNote, setSplitNote] = useState('');
+  const closeSaveModal = () => { setShowSaveModal(false); setPendingSplit(false); };
   const [selectedRep, setSelectedRep] = useState('');
   // Reps were printing letters without ever saving them, so the letters never reached
   // the dashboard. Printing now routes through a save first; these track whether the
@@ -226,8 +232,8 @@ export default function App() {
   }));
   const totalApps = applicationCount(form.programs, form.locations);
   const numLocs = totalApps; // fees scale on total applications
-  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee, form.contingentDiscount);
-  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee, form.inhContingentDiscount);
+  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee, form.contingentDiscount, form.splitShare);
+  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee, form.inhContingentDiscount, form.inhSplitShare);
   // Load templates from server on mount; fall back to hardcoded defaults
   useEffect(() => {
     const load = async (type, setter) => {
@@ -931,6 +937,114 @@ export default function App() {
     setSavedLetters(Array.isArray(rows) ? rows : []);
   };
 
+  /*
+   * One letter per application, without retyping the engagement.
+   *
+   * Brad: "all contingent contracts to be one contract per app", Implementation
+   * too. Stuart asked that reaching that limit duplicate the work rather than
+   * refuse it — "so that they don't have to go back and put in all of the work
+   * again and have potential issues in the engagement letter."
+   *
+   * The client pays what the combined letter quoted. The pricing table gives a
+   * volume rate for two and three applications, so re-pricing each half at the
+   * one-application rate would quietly raise a live quote by thousands: two
+   * contingent applications are $22,000 together and $28,000 apart. The split is
+   * structural, so each letter carries its divided share as a custom figure and
+   * the totals still add up to what the client was told.
+   */
+  const splitPlan = () => {
+    const key = programsKeyFor(docTab);
+    const apps = enumerateApplications(form[key], form.locations);
+    if (apps.length < 2) return null;
+    const money = (v) => parseFloat(String(v || '').replace(/[^0-9.]/g, '')) || 0;
+
+    let parts;
+    if (docTab === 'post') {
+      // postFeeTouched, or the wizard recomputes 5% of the now-smaller max award
+      // and undoes the division on the way in.
+      parts = divideFee(money(form.postFee), apps.length)
+        .map((f) => ({ postFee: f.toLocaleString(), postFeeTouched: true }));
+    } else {
+      const inh = docTab === 'inh';
+      const combined = inh ? inhFees : fees;
+      const n = apps.length;
+      // Every figure the letter quotes is divided, the discount and the bases it
+      // was taken from included — a share that carried only the net fees would
+      // print no early signing clause, giving the discount away with no sign-by
+      // date attached to hold it. The Compliance Period fee is already charged
+      // per application and so is not divided: one each across N letters is the
+      // combined figure again.
+      const up = divideFee(combined.upfront, n);
+      const con = divideFee(combined.contingent || 0, n);
+      const disc = divideFee(combined.discount || 0, n);
+      const baseUp = divideFee(combined.baseUpfront ?? combined.upfront, n);
+      const conBase = divideFee(combined.contingentBase ?? combined.contingent ?? 0, n);
+      const key = inh ? 'inhSplitShare' : 'splitShare';
+      parts = up.map((u, i) => ({
+        [key]: {
+          upfront: u,
+          contingent: combined.contingent == null ? null : con[i],
+          discount: disc[i],
+          baseUpfront: baseUp[i],
+          ...(combined.discountOn ? { discountOn: combined.discountOn, contingentBase: conBase[i] } : {}),
+        },
+      }));
+    }
+
+    return apps.map((a, i) => ({
+      ...form, [key]: [a.program], locations: [a.location], ...parts[i],
+    }));
+  };
+
+  const splitTotal = (f) => {
+    const money = (v) => parseFloat(String(v || '').replace(/[^0-9.]/g, '')) || 0;
+    if (docTab === 'post') return money(f.postFee);
+    const one = docTab === 'inh'
+      ? calcFees(f.inhEngagementModel, f.inhPricingTier, 1, f.inhOptPostAwardScope, f.inhPostAwardFee,
+                 f.inhCustomFee, f.inhEarlySigningAmount, f.inhCustomContingencyFee, f.inhContingentDiscount, f.inhSplitShare)
+      : calcFees(f.engagementModel, f.pricingTier, 1, f.optPostAwardScope, f.postAwardFee,
+                 f.customFee, f.earlySigningAmount, f.customContingencyFee, f.contingentDiscount, f.splitShare);
+    return one.total || 0;
+  };
+
+  const saveSplitLetters = async () => {
+    const forms = splitPlan();
+    if (!forms) return;
+    const ids = [];
+    for (let i = 0; i < forms.length; i++) {
+      const payload = {
+        client_name: form.clientName || 'Untitled',
+        rep_name: selectedRep || 'Unknown',
+        doc_tab: docTab,
+        form_data: forms[i],
+        // The combined letter's saved HTML describes an engagement that no longer
+        // exists; every split letter re-renders from its own form.
+        saved_html: null,
+        total_fee: splitTotal(forms[i]),
+      };
+      // The first replaces the letter being split, so the combined version does
+      // not survive alongside the halves that supersede it.
+      if (i === 0 && currentLetterId) {
+        await fetch(`/api/letters/${currentLetterId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        ids.push(currentLetterId);
+      } else {
+        const data = await fetch('/api/letters', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        }).then((r) => r.json());
+        ids.push(data.id);
+      }
+    }
+    setForm(forms[0]);
+    setCurrentLetterId(ids[0]);
+    setSavedLetterOverride(null);
+    setPendingSplit(false);
+    setShowSaveModal(false);
+    setSplitNote(`Split into ${forms.length} letters — all saved. You are editing the first; the rest are in Load Previous Letter.`);
+    fetch('/api/letters/stats').then((r) => r.json()).then(setDashStats);
+  };
+
   const saveLetter = async () => {
     const parseFee = (s) => parseFloat(String(s||'').replace(/[^0-9.]/g,'')) || 0;
     const computedFee = docTab === 'post' ? parseFee(form.postFee)
@@ -1589,7 +1703,10 @@ export default function App() {
           }
           switchDocType("gw", 1);   // land on the Grant Writer step, not the picker
         } : null}
-        onSave={dbAvailable ? ()=>setShowSaveModal(true) : null}
+        onSave={dbAvailable ? ()=>{ setPendingSplit(false); setShowSaveModal(true); } : null}
+        onSplit={dbAvailable ? ()=>{ setSplitNote(''); setPendingSplit(true); setShowSaveModal(true); } : null}
+        splitNote={splitNote}
+        onDismissSplitNote={()=>setSplitNote('')}
         saveLabel={currentLetterId ? "Update Letter" : "Save Letter"}
         savedNote={currentLetterId ? `Saved as: ${form.clientName||"Untitled"}` : null}
       />
@@ -2446,13 +2563,15 @@ export default function App() {
               )}
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{ setShowSaveModal(false); setPendingPrintAfterSave(false); }}
+              <button onClick={()=>{ closeSaveModal(); setPendingPrintAfterSave(false); }}
                 style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid var(--bd2)",background:"var(--hover)",color:"var(--sec)",fontSize:13,fontWeight:600,cursor:"pointer"}}>
                 Cancel
               </button>
-              <button onClick={saveLetter} disabled={!selectedRep}
+              <button onClick={pendingSplit ? saveSplitLetters : saveLetter} disabled={!selectedRep}
                 style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:selectedRep?"var(--navy)":"var(--track)",color:selectedRep?"var(--on-accent)":"var(--faint)",fontSize:13,fontWeight:700,cursor:selectedRep?"pointer":"not-allowed"}}>
-                {pendingPrintAfterSave ? (currentLetterId ? "Update & Download" : "Save & Download") : (currentLetterId ? "Update" : "Save")}
+                {pendingSplit ? `Save ${(splitPlan() || []).length} Letters`
+                  : pendingPrintAfterSave ? (currentLetterId ? "Update & Download" : "Save & Download")
+                    : (currentLetterId ? "Update" : "Save")}
               </button>
             </div>
           </div>

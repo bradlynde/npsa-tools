@@ -43,7 +43,7 @@ const PRICING = {
 const TIER_LABELS = { undiscounted: "Undiscounted", discounted: "Early Signing Discount", max: "Max Discount", custom: "Custom" };
 const fmt = (n) => n === 0 ? "$0" : `$${Number(n).toLocaleString()}`;
 
-function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount, customContingencyFee, contingentDiscount) {
+function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount, customContingencyFee, contingentDiscount, splitShare) {
   const n = Math.max(parseInt(locs) || 1, 1); // no cap — extrapolate beyond 3
   const money = (v) => parseFloat(String(v).replace(/,/g, "")) || 0;
   const isEarlySigning = tier === "discounted";
@@ -57,6 +57,32 @@ function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee,
     if (n <= 3) return tbl[n] || 0;
     return (tbl[3] || 0) + (n - 3) * ((tbl[3] || 0) - (tbl[2] || 0));
   };
+  /*
+   * One share of an engagement that was split into a letter per application.
+   *
+   * The share carries its own arithmetic — figures, discount and the bases the
+   * discount was taken from — so the letter keeps its pricing TIER rather than
+   * becoming a custom-priced one. That is what lets the early signing clause
+   * still print: it is gated on the tier, so a split letter that quietly became
+   * "custom" dropped its sign-by date and gave the discount away with no
+   * deadline attached to hold the client to. Stuart: "yes it needs to be able to
+   * carry any discounts if they are applied."
+   */
+  if (splitShare && splitShare.upfront != null) {
+    const up = money(splitShare.upfront);
+    const con = splitShare.contingent == null ? null : money(splitShare.contingent);
+    return {
+      upfront: up,
+      baseUpfront: splitShare.baseUpfront != null ? money(splitShare.baseUpfront) : up,
+      discount: money(splitShare.discount),
+      ...(splitShare.discountOn ? { discountOn: splitShare.discountOn } : {}),
+      ...(splitShare.contingentBase != null ? { contingentBase: money(splitShare.contingentBase) } : {}),
+      contingent: con,
+      postAward: optPostAwardScope ? postAward : null,
+      total: up + (con || 0) + postAward,
+    };
+  }
+
   if (isPreOnly) {
     if (tier === "custom") {
       const fee = money(customFee);
@@ -169,13 +195,20 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
      * the meantime.
      */
     const named = (programs || []).filter((p) => PROGRAMS[p.key]);
-    const only = named.length === 1 ? named[0] : null;
-    const cap = only
-      ? ` The program maximum — currently $${PROGRAMS[only.key].maxAward} per site under the ${PROGRAMS[only.key].fullName(only.year || grantYear)} — is stated for reference only and is not used to calculate this fee.`
+    const caps = named.map((p) => `$${PROGRAMS[p.key].maxAward} per site under the ${PROGRAMS[p.key].fullName(p.year || grantYear)}`);
+    const listed = caps.length > 2
+      ? `${caps.slice(0, -1).join(", ")}, and ${caps[caps.length - 1]}`
+      : caps.join(" and ");
+    // Brad's sentence, kept word for word on one program and pluralised on more.
+    // It used to drop out entirely when a letter ran two, which left the reader
+    // with a proportional fee and no idea what it was proportional to — and the
+    // clause reads on every engagement or it is not finished.
+    const cap = caps.length
+      ? ` The program ${caps.length === 1 ? "maximum" : "maximums"} — currently ${listed} — ${caps.length === 1 ? "is" : "are"} stated for reference only and ${caps.length === 1 ? "is" : "are"} not used to calculate this fee.`
       : "";
     const max = fmt(fees.contingent);
     text += `\n\n2. Contingent Grant Award Fee.`;
-    text += `\n   (a) A Contingent Grant Award Fee of up to ${max} is earned only if CLIENT receives a grant award for the application NPSA prepares and submits under this Engagement Letter. If no award is made for that application, no Contingent Grant Award Fee is due.`;
+    text += `\n   (a) A Contingent Grant Award Fee of up to ${max} is earned only if CLIENT receives a grant award for the application NPSA prepares and submits under this Engagement Letter, including any resubmission of that application under a subsequent funding cycle as provided in the Guarantees of NPSA. If no award is made for that application, no Contingent Grant Award Fee is due.`;
     text += `\n   (b) For purposes of this Section, "Amount Requested" means the total dollar amount requested in that application as submitted to the administering agency, and "Amount Awarded" means the total dollar amount awarded to CLIENT for that same application.`;
     text += `\n   (c) If CLIENT is awarded the full Amount Requested, the Contingent Grant Award Fee is the full ${max}. This applies regardless of whether CLIENT elects to request less than the maximum available under the program.${cap}`;
     text += `\n   (d) If CLIENT is awarded less than the Amount Requested, the Contingent Grant Award Fee is reduced in the same proportion, calculated as: Contingent Grant Award Fee = ${max} × (Amount Awarded ÷ Amount Requested), not to exceed ${max}.`;
@@ -285,6 +318,62 @@ function applicationCount(programs, locations) {
 }
 
 /**
+ * Which form key holds a document's programs. Award Implementation, the grant
+ * writer agreement and the addendum each keep their own list.
+ */
+function programsKeyFor(docTab) {
+  return docTab === "post" ? "postPrograms"
+    : docTab === "gw" ? "gwPrograms"
+      : docTab === "addendum" ? "addendumPrograms" : "programs";
+}
+
+/**
+ * Documents that must carry exactly one application.
+ *
+ * Brad, asked whether every multi-program engagement should be split: "No. We
+ * only need Implementation contracts and all contingent contracts to be one
+ * contract per app." So a flat Pre-Award Only letter may still cover a whole
+ * engagement, and these two may not — a contingent fee and an implementation
+ * fee both hang off the outcome of one application, and blending two of them
+ * into one contract is what nobody can answer questions about afterwards.
+ */
+function oneApplicationPerLetter(docTab, model) {
+  if (docTab === "post") return true;
+  return String(model || "").endsWith("partial-contingency");
+}
+
+/**
+ * Every application in an engagement, in the order a rep would read them: each
+ * program paired with each location applying under it.
+ */
+function enumerateApplications(programs, locations) {
+  const list = programs && programs.length ? programs : [{ key: "federal" }];
+  const out = [];
+  for (const program of list) {
+    for (const location of locations || []) {
+      if (locationInProgram(location, program.key, list)) out.push({ program, location });
+    }
+  }
+  return out;
+}
+
+/**
+ * Split a fee into n whole-dollar parts that still add up to it.
+ *
+ * Stuart's rule for the split: the client pays what the combined letter quoted,
+ * so the division has to be exact. $11,000 across three is 3667/3667/3666 — the
+ * remainder goes to the earlier letters rather than being rounded away, because
+ * three letters that sum to $11,001 is a worse answer than an uneven cent.
+ */
+function divideFee(total, n) {
+  const whole = Math.max(0, Math.round(Number(total) || 0));
+  const count = Math.max(1, Math.floor(n) || 1);
+  const base = Math.floor(whole / count);
+  const extra = whole - base * count;
+  return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+/**
  * Total maximum award across an engagement: each program's own cap times the
  * number of locations applying under it. Caps are not uniform — Illinois is
  * $150,000 and California $250,000 against the federal $200,000 — so this
@@ -315,4 +404,5 @@ export {
   SHARED_FIELDS, POST_FIELDS,
   PROGRAMS, NPSA_SIGNATURES,
   totalMaxAward, applicationCount, locationPrograms, locationInProgram, isoDatePlus,
+  programsKeyFor, oneApplicationPerLetter, enumerateApplications, divideFee,
 };

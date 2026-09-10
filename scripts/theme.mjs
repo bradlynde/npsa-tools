@@ -76,6 +76,25 @@ const inkOnPaper = await dark.locator(".wz-preview > div").first()
   .evaluate((el) => getComputedStyle(el).color);
 check("and its text stays dark ink", /rgb\((\d+), \1, \1\)|rgb\(26, 26, 26\)|rgb\(24, 34, 48\)/.test(inkOnPaper)
   || parseInt(inkOnPaper.match(/\d+/)[0], 10) < 120, inkOnPaper);
+
+/*
+ * ...and the brand navy on the paper is the SAME navy top to bottom.
+ *
+ * Stuart: "the blue lines that separate each section are a lighter blue than the
+ * rest of the document, it needs to match the blue that is near the top of the
+ * letter." --navy lightens to #4a8bc4 in dark mode so it stays legible on a dark
+ * page, and the section rules read it while the letterhead above them is a
+ * literal #1e3a5f — two blues on one page, in the document the client receives.
+ * The paper pins the hue now, and this compares the two rather than naming a hex,
+ * because the failure was a relationship between them.
+ */
+const letterhead = await dark.locator(".npsa-paper > div").first()
+  .evaluate((el) => getComputedStyle(el).borderBottomColor);
+const sectionRule = await dark.locator(".npsa-paper div").filter({ hasText: /^I+\.? / }).first()
+  .evaluate((el) => getComputedStyle(el).borderBottomColor).catch(() => null);
+check("the letterhead rule is the brand navy", letterhead === "rgb(30, 58, 95)", letterhead);
+check("and every section rule matches it", sectionRule === letterhead,
+  `letterhead ${letterhead} vs section ${sectionRule}`);
 await dark.close();
 
 // ── light is unchanged ───────────────────────────────────────────────────

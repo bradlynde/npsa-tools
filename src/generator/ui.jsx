@@ -191,6 +191,10 @@ export function FeeCalculator({ form, setF, prefix = "", fees, numLocs, showPost
   const isPartial = form[modelKey] === pc;
   const tier = g("pricingTier");
   const discounted = tier === "discounted";
+  // A letter produced by a split quotes its own share of the engagement, so the
+  // tier and discount controls below no longer drive its figures. Saying so beats
+  // letting a rep edit them and watch nothing move.
+  const share = g("splitShare");
 
   // On partial contingency the discounted fees come straight from the pricing
   // table, so the amount field drives nothing — show what was actually applied.
@@ -198,6 +202,27 @@ export function FeeCalculator({ form, setF, prefix = "", fees, numLocs, showPost
 
   return (
     <div>
+      {share && (
+        <div style={{ background: "var(--bg)", border: "1px solid var(--bd)", borderRadius: 10,
+                      padding: "12px 14px", marginBottom: 12 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
+            One share of a split engagement
+          </div>
+          <div style={{ fontSize: 12, color: "var(--sec)", lineHeight: 1.5, marginBottom: 10 }}>
+            This letter carries {fmt(fees.upfront)} upfront
+            {fees.contingent != null ? ` and ${fmt(fees.contingent)} contingent` : ""}
+            {fees.discount > 0 ? `, with the ${fmt(fees.discount)} discount already applied` : ""}.
+            The figures came from the engagement it was split out of, so the pricing
+            below does not drive them.
+          </div>
+          <button type="button" onClick={() => setF(k("splitShare"), null)}
+            style={{ background: "var(--card)", border: "1px solid var(--bd2)", borderRadius: 8,
+                     padding: "7px 14px", fontSize: 12, fontWeight: 600, color: "var(--sec)",
+                     cursor: "pointer", fontFamily: "var(--font-sans)" }}>
+            Price this letter on its own
+          </button>
+        </div>
+      )}
       <RadioCards
         name={`${prefix || "pre"}-model`}
         value={form[modelKey]}
@@ -439,6 +464,38 @@ export function InstallmentsEditor({ form, setF, prefix = "", upfront }) {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The one-application rule, offered as work rather than a refusal.
+ *
+ * A contingent or Implementation letter covers one application. Told that after
+ * filling in an engagement, a rep's only route used to be to start again — so
+ * this splits what is already entered into one letter per application and keeps
+ * the quoted total intact.
+ */
+export function SplitNotice({ apps, docTab, onSplit }) {
+  const kind = docTab === "post" ? "An Award Implementation letter" : "A contingent letter";
+  return (
+    <div style={{ background: "var(--warn-bg)", border: "1px solid var(--warn-fg)", borderRadius: 10,
+                  padding: "12px 14px", margin: "10px 0 4px" }}>
+      <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--warn-fg)", marginBottom: 4 }}>
+        {apps} applications on one letter
+      </div>
+      <div style={{ fontSize: 12, color: "var(--sec)", lineHeight: 1.5, marginBottom: 10 }}>
+        {kind} covers one application. Splitting keeps everything entered here and
+        divides the quoted fee across {apps} letters, so the client pays the same total.
+      </div>
+      {onSplit && (
+        <button type="button" onClick={onSplit}
+          style={{ background: "var(--navy)", color: "var(--on-accent)", border: "none", borderRadius: 8,
+                   padding: "8px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                   fontFamily: "var(--font-sans)" }}>
+          Split into {apps} letters
+        </button>
       )}
     </div>
   );

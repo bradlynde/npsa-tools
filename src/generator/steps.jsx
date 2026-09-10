@@ -14,8 +14,7 @@
 import { fmt, totalMaxAward } from "./engine.js";
 import {
   Field, Text, Check, Chips, RadioCards,
-  ProgramsPicker, FeeCalculator, InstallmentsEditor, LocationsEditor,
-} from "./ui.jsx";
+  ProgramsPicker, FeeCalculator, InstallmentsEditor, LocationsEditor, SplitNotice } from "./ui.jsx";
 
 /* Collapsed disclosure for the long tail of options. */
 export function Advanced({ label = "Advanced", children }) {
@@ -64,6 +63,7 @@ const scopeStep = ({ programsKey = "programs", yearLabel = "Grant Year", locatio
           onChange={(v) => c.setF(programsKey, v)}
         />
       </Field>
+      {c.mustSplit && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} />}
       {locations && (
         <Field label="Locations" hint={`${c.numLocs} application${c.numLocs === 1 ? "" : "s"} · max award ${fmt(totalMaxAward(c.form[programsKey], c.form.locations))} total`}>
           <LocationsEditor
@@ -179,6 +179,10 @@ const PRE_AWARD = (prefix) => [
     id: "fees",
     title: "Fees",
     render: (c) => (
+      <>
+      {/* Scope comes before Fees, so choosing a contingent model is the other
+          way this rule gets broken — after the applications are already in. */}
+      {c.mustSplit && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} />}
       <FeeCalculator
         form={c.form}
         setF={c.setF}
@@ -186,6 +190,7 @@ const PRE_AWARD = (prefix) => [
         fees={c.fees}
         numLocs={c.numLocs}
       />
+      </>
     ),
   },
   preTermsStep(prefix),
@@ -199,7 +204,12 @@ export const STEPS = {
   post: [
     clientStep(),
     scopeStep({ programsKey: "postPrograms", yearLabel: "Award Year" }),
-    { id: "fees", title: "Fees", render: (c) => <PostFee form={c.form} setF={c.setF} /> },
+    { id: "fees", title: "Fees", render: (c) => (
+      <>
+        {c.mustSplit && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} />}
+        <PostFee form={c.form} setF={c.setF} />
+      </>
+    ) },
     {
       id: "terms",
       title: "Terms",
