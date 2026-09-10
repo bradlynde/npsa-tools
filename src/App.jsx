@@ -522,7 +522,7 @@ export default function App() {
       }
     } else {
       const installmentsObjComp = form.installments ? installmentsObj : null;
-      compBlock = buildCompBlock(form.engagementModel, fees, installmentsObjComp, form.grantYear, form.optPostAwardScope, form.postAwardFee, form.installmentCount, form.installment1Pct, form.installment1Label, form.installment2Pct, form.installment2Label, form.installment3Pct, form.installment3Label, form.pricingTier === "discounted", form.earlySigningDate, form.earlySigningAmount);
+      compBlock = buildCompBlock(form.engagementModel, fees, installmentsObjComp, form.grantYear, form.optPostAwardScope, form.postAwardFee, form.installmentCount, form.installment1Pct, form.installment1Label, form.installment2Pct, form.installment2Label, form.installment3Pct, form.installment3Label, form.pricingTier === "discounted", form.earlySigningDate, form.earlySigningAmount, form.programs);
     }
     // NOFO clause — reference all programs
     const pg0 = progs[0]||{key:"federal",year:form.grantYear};
@@ -635,7 +635,7 @@ export default function App() {
           return `${num}. If the state government does not issue a Notice of Funding Opportunity for a ${pg.year||form.grantYear} ${cfg.acronym}, NPSA will work with CLIENT to apply for the next available ${cfg.acronym} Opportunity, and the scope of the project will apply to that opportunity.`;
         }).join("\n\n") + "\n\n"
       : "";
-    const compBlock = buildCompBlock(form.inhEngagementModel, inhFees, installmentsObj, form.grantYear, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhInstallmentCount, form.inhInstallment1Pct, form.inhInstallment1Label, form.inhInstallment2Pct, form.inhInstallment2Label, form.inhInstallment3Pct, form.inhInstallment3Label, form.inhPricingTier === "discounted", form.inhEarlySigningDate, form.inhEarlySigningAmount);
+    const compBlock = buildCompBlock(form.inhEngagementModel, inhFees, installmentsObj, form.grantYear, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhInstallmentCount, form.inhInstallment1Pct, form.inhInstallment1Label, form.inhInstallment2Pct, form.inhInstallment2Label, form.inhInstallment3Pct, form.inhInstallment3Label, form.inhPricingTier === "discounted", form.inhEarlySigningDate, form.inhEarlySigningAmount, form.programs);
     return t
       .replace(/\[CLIENT_NAME\]/g, form.clientName||"[CLIENT NAME]")
       .replace(/\[GRANT_YEAR_NSGP\]/g, progs.length>1
@@ -1742,7 +1742,7 @@ export default function App() {
                     {pDisc&&pFees.discount>0&&<div>Includes a {fmt(pFees.discount)} early-signing discount from the standard {fmt(pFees.baseUpfront)} fee.</div>}
                     <div>Invoice issued upon execution of the Engagement Letter.</div>
                     <div>Payment Terms: Net 30.</div>
-                    {pFees.contingent!==null&&pFees.contingent>0&&<div>A contingent fee of {fmt(pFees.contingent)} is due upon notification of a grant award.</div>}
+                    {pFees.contingent!==null&&pFees.contingent>0&&<div>A contingent grant award fee of up to {fmt(pFees.contingent)} is due within thirty (30) days of award notification, reduced proportionally if the award is less than the amount requested.</div>}
                     <div>The fee includes all Pre-Award{form.optPostAwardScope?" and Compliance Period":""} services described herein.</div>
                     {complianceIncluded
                       ? <div>Compliance support following award notification is included at no additional charge.</div>

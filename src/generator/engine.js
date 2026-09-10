@@ -130,7 +130,7 @@ function buildInstallmentText(installments, upfront) {
   });
   return `\n\n   By agreement of the parties, this fee shall be paid in ${count === 2 ? "two (2)" : "three (3)"} installments as follows:\n${lines.join("\n")}`;
 }
-function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope, postAwardFee, installmentCount, i1Pct, i1Label, i2Pct, i2Label, i3Pct, i3Label, earlySigningDiscount, earlySigningDate, earlySigningAmount) {
+function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope, postAwardFee, installmentCount, i1Pct, i1Label, i2Pct, i2Label, i3Pct, i3Label, earlySigningDiscount, earlySigningDate, earlySigningAmount, programs) {
   const isInh = model.startsWith("inh-");
   const baseModel = isInh ? model.replace("inh-","") : model;
   let text = "";
@@ -148,7 +148,38 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
     if (fees.upfront === 0) text = `A. NPSA Pre-Award Consulting Fee\n\n1. Upfront Fee. No upfront fee is due upon execution of this Engagement Letter under this engagement model.`;
     if (installments && fees.upfront > 0) text += buildInstallmentText(installments, fees.upfront);
     text += `\n   (a) If CLIENT provides written notice of cancellation after executing this Agreement and prior to NPSA delivering a completed grant application ready for submission, the Agreement will be cancelled but no refunds will be issued.`;
-    text += `\n\n2. Contingent Fee. Upon notification of a grant award, CLIENT will pay NPSA an additional ${fmt(fees.contingent)}. This fee is due upon award notification and is not reimbursable by grant funds.`;
+    /*
+     * Contingent Grant Award Fee — the clause Brad approved on 2026-09-10.
+     *
+     * It replaced "an additional $X ... due upon award notification", which said
+     * nothing about a partial award. A client reading that fairly could not tell
+     * what they owed on an award smaller than the one they asked for, and working
+     * that out in correspondence is what turned the Shelter Cove letter into a
+     * round of clarifications.
+     *
+     * Two things in here are load-bearing. The fee is proportional to
+     * awarded ÷ REQUESTED, never to the program maximum — so the maximum is named
+     * only to reassure a client who asks for less than it, and is labelled
+     * non-operative in the same breath, because a figure sitting in the paragraph
+     * is otherwise an invitation to argue it is the denominator. And the maximum
+     * is only stated when this letter runs ONE program: two programs have two
+     * different caps ($200,000 federal, $250,000 CSNSGP), and naming either as
+     * "the program maximum" would be false. That case should stop existing once a
+     * contingent letter is held to one application, but the clause must not lie in
+     * the meantime.
+     */
+    const named = (programs || []).filter((p) => PROGRAMS[p.key]);
+    const only = named.length === 1 ? named[0] : null;
+    const cap = only
+      ? ` The program maximum — currently $${PROGRAMS[only.key].maxAward} per site under the ${PROGRAMS[only.key].fullName(only.year || grantYear)} — is stated for reference only and is not used to calculate this fee.`
+      : "";
+    const max = fmt(fees.contingent);
+    text += `\n\n2. Contingent Grant Award Fee.`;
+    text += `\n   (a) A Contingent Grant Award Fee of up to ${max} is earned only if CLIENT receives a grant award for the application NPSA prepares and submits under this Engagement Letter. If no award is made for that application, no Contingent Grant Award Fee is due.`;
+    text += `\n   (b) For purposes of this Section, "Amount Requested" means the total dollar amount requested in that application as submitted to the administering agency, and "Amount Awarded" means the total dollar amount awarded to CLIENT for that same application.`;
+    text += `\n   (c) If CLIENT is awarded the full Amount Requested, the Contingent Grant Award Fee is the full ${max}. This applies regardless of whether CLIENT elects to request less than the maximum available under the program.${cap}`;
+    text += `\n   (d) If CLIENT is awarded less than the Amount Requested, the Contingent Grant Award Fee is reduced in the same proportion, calculated as: Contingent Grant Award Fee = ${max} × (Amount Awarded ÷ Amount Requested), not to exceed ${max}.`;
+    text += `\n   (e) The Contingent Grant Award Fee is due within thirty (30) days of CLIENT's receipt of award notification and is not reimbursable from grant funds.`;
     if (!isInh) text += `\n\nB. Third-Party Grant Writer\n\n1. CLIENT will pay a third-party grant writer for grant writing services directly, outside of NPSA's direction or control, to remain in compliance with NSGP rules.`;
   }
   // Gate on the discount actually applied, not on the operator's input field. Partial
