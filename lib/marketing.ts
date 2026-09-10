@@ -40,6 +40,10 @@ export type CampaignRow = {
 export type BookingRow = {
   id: number;
   booked_on: string | null;
+  /** When a rescheduled appointment was first set: the booked_on of the first
+   *  booking in its chain, and null unless this row replaced another. Optional
+   *  because the backend only began sending it alongside this change. */
+  originated_on?: string | null;
   meeting_date: string | null;
   name: string | null;
   organization: string | null;
@@ -365,6 +369,17 @@ export function priorTotalsFor(rows: TimeseriesRow[], range: Range): Totals {
 export const countsTowardTotals = (b: BookingRow): boolean =>
   !b.exclusion_reason && !b.cancelled;
 
+/**
+ * The date a booking is credited to in any range: the day the appointment was
+ * first set, not the day it last moved. A reschedule is a brand new Calendly
+ * booking, so its own booked_on is the day of the reschedule, and counting that
+ * would move the appointment into whichever range it happened to be rescheduled
+ * in. Upstream buckets its tiles and chart on the same date, and these panels sit
+ * directly beneath them, so they have to agree.
+ */
+export const creditedOn = (b: BookingRow): string | null =>
+  b.originated_on ?? b.booked_on;
+
 const ATTRIBUTION_NOTES: Record<string, string> = {
   utm: 'read straight off the booking link',
   reverse_email: 'matched to an Instantly lead by email',
@@ -386,7 +401,8 @@ export function feesInRange(bookings: BookingRow[], range: Range): number {
   const from = rangeStart(range);
   return bookings.reduce((n, b) => {
     if (!countsTowardTotals(b)) return n;
-    if (!b.booked_on || new Date(b.booked_on) < from) return n;
+    const credited = creditedOn(b);
+    if (!credited || new Date(credited) < from) return n;
     return b.became_client ? n + (Number(b.fee) || 0) : n;
   }, 0);
 }
@@ -498,7 +514,10 @@ export function axisLabelIndices(count: number, maxLabels: number): Set<number> 
 export function bookingsInRange(bookings: BookingRow[], range: Range): BookingRow[] {
   if (range === 'all') return bookings;
   const from = rangeStart(range);
-  return bookings.filter((b) => !b.booked_on || new Date(b.booked_on) >= from);
+  return bookings.filter((b) => {
+    const credited = creditedOn(b);
+    return !credited || new Date(credited) >= from;
+  });
 }
 
 /** Range-scoped channel breakdown, computed from raw bookings. */
@@ -510,8 +529,8 @@ export function channelsInRange(
   const map = new Map<string, { booked: number; loes: number; won: number }>();
   for (const b of bookings) {
     if (!countsTowardTotals(b)) continue;
-    if (!b.booked_on) continue;
-    if (new Date(b.booked_on) < from) continue;
+    const credited = creditedOn(b);
+    if (!credited || new Date(credited) < from) continue;
     const key = channelLabel(b.attribution_channel);
     const cur = map.get(key) || { booked: 0, loes: 0, won: 0 };
     cur.booked += 1;
@@ -594,8 +613,8 @@ export function campaignsInRange(
   >();
   for (const b of bookings) {
     if (!countsTowardTotals(b)) continue;
-    if (!b.booked_on) continue;
-    if (new Date(b.booked_on) < from) continue;
+    const credited = creditedOn(b);
+    if (!credited || new Date(credited) < from) continue;
     const stored = b.instantly_campaign?.trim();
     // The id names the campaign when there is one. Failing that -- rows older than
     // the column -- the dead-name map does, and failing that the stored name is
