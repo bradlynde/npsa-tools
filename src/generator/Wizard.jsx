@@ -11,7 +11,10 @@
  */
 
 import { useEffect } from "react";
-import { fmt, calcFees, totalMaxAward, applicationCount, isoDatePlus, PROGRAMS, TIER_LABELS } from "./engine.js";
+import {
+  fmt, calcFees, totalMaxAward, applicationCount, isoDatePlus, PROGRAMS, TIER_LABELS,
+  programsKeyFor, oneApplicationPerLetter,
+} from "./engine.js";
 
 /** Long-form date for display; passes through free text from older letters. */
 const fmtDate = (v) =>
@@ -186,6 +189,9 @@ export default function Wizard({
   onConvertView,
   convertViewLabel,
   onSave,
+  onSplit,
+  splitNote,
+  onDismissSplitNote,
   saveLabel = "Save Letter",
   savedNote,
 }) {
@@ -246,7 +252,19 @@ export default function Wizard({
   const current = steps[clamped];
   const last = clamped === steps.length - 1;
 
-  const ctx = { form, setF, fees: active, inhFees, numLocs, docTab };
+  /*
+   * Award Implementation and contingent letters carry one application each, so
+   * a second one is not an error to refuse but work to divide — see splitPlan()
+   * in App.jsx. The count is read from the document's OWN program list: an
+   * Award Implementation letter keeps its programs under postPrograms, and
+   * reading form.programs there would police the wrong list.
+   */
+  const scopedPrograms = form[programsKeyFor(docTab)];
+  const scopedApps = applicationCount(scopedPrograms, form.locations);
+  const model = docTab === "inh" ? form.inhEngagementModel : form.engagementModel;
+  const mustSplit = oneApplicationPerLetter(docTab, model) && scopedApps > 1;
+
+  const ctx = { form, setF, fees: active, inhFees, numLocs, docTab, mustSplit, scopedApps, onSplit };
 
   // Changing document type re-shapes the flow, so restart from the step after
   // the picker rather than stranding the rep on an index that no longer exists.
@@ -257,6 +275,15 @@ export default function Wizard({
 
   return (
     <div className="wz-form">
+        {splitNote && (
+          <div style={{ background: "var(--ok-bg)", border: "1px solid var(--ok-fg)", borderRadius: 10,
+                        padding: "11px 13px", margin: "0 0 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ fontSize: 12.5, color: "var(--ok-fg)", lineHeight: 1.5, flex: 1 }}>{splitNote}</div>
+            <button type="button" onClick={onDismissSplitNote} aria-label="Dismiss"
+              style={{ background: "none", border: "none", color: "var(--ok-fg)", fontSize: 15,
+                       cursor: "pointer", lineHeight: 1, padding: 0 }}>&times;</button>
+          </div>
+        )}
         {onBack && (
           <button type="button" className="wz-back" onClick={onBack}>
             &#8592; Dashboard

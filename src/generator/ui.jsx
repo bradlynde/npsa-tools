@@ -444,6 +444,38 @@ export function InstallmentsEditor({ form, setF, prefix = "", upfront }) {
   );
 }
 
+/**
+ * The one-application rule, offered as work rather than a refusal.
+ *
+ * A contingent or Implementation letter covers one application. Told that after
+ * filling in an engagement, a rep's only route used to be to start again — so
+ * this splits what is already entered into one letter per application and keeps
+ * the quoted total intact.
+ */
+export function SplitNotice({ apps, docTab, onSplit }) {
+  const kind = docTab === "post" ? "An Award Implementation letter" : "A contingent letter";
+  return (
+    <div style={{ background: "var(--warn-bg)", border: "1px solid var(--warn-fg)", borderRadius: 10,
+                  padding: "12px 14px", margin: "10px 0 4px" }}>
+      <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--warn-fg)", marginBottom: 4 }}>
+        {apps} applications on one letter
+      </div>
+      <div style={{ fontSize: 12, color: "var(--sec)", lineHeight: 1.5, marginBottom: 10 }}>
+        {kind} covers one application. Splitting keeps everything entered here and
+        divides the quoted fee across {apps} letters, so the client pays the same total.
+      </div>
+      {onSplit && (
+        <button type="button" onClick={onSplit}
+          style={{ background: "var(--navy)", color: "var(--on-accent)", border: "none", borderRadius: 8,
+                   padding: "8px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                   fontFamily: "var(--font-sans)" }}>
+          Split into {apps} letters
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ── locations ───────────────────────────────────────────────────────── */
 
 /**

@@ -285,6 +285,62 @@ function applicationCount(programs, locations) {
 }
 
 /**
+ * Which form key holds a document's programs. Award Implementation, the grant
+ * writer agreement and the addendum each keep their own list.
+ */
+function programsKeyFor(docTab) {
+  return docTab === "post" ? "postPrograms"
+    : docTab === "gw" ? "gwPrograms"
+      : docTab === "addendum" ? "addendumPrograms" : "programs";
+}
+
+/**
+ * Documents that must carry exactly one application.
+ *
+ * Brad, asked whether every multi-program engagement should be split: "No. We
+ * only need Implementation contracts and all contingent contracts to be one
+ * contract per app." So a flat Pre-Award Only letter may still cover a whole
+ * engagement, and these two may not — a contingent fee and an implementation
+ * fee both hang off the outcome of one application, and blending two of them
+ * into one contract is what nobody can answer questions about afterwards.
+ */
+function oneApplicationPerLetter(docTab, model) {
+  if (docTab === "post") return true;
+  return String(model || "").endsWith("partial-contingency");
+}
+
+/**
+ * Every application in an engagement, in the order a rep would read them: each
+ * program paired with each location applying under it.
+ */
+function enumerateApplications(programs, locations) {
+  const list = programs && programs.length ? programs : [{ key: "federal" }];
+  const out = [];
+  for (const program of list) {
+    for (const location of locations || []) {
+      if (locationInProgram(location, program.key, list)) out.push({ program, location });
+    }
+  }
+  return out;
+}
+
+/**
+ * Split a fee into n whole-dollar parts that still add up to it.
+ *
+ * Stuart's rule for the split: the client pays what the combined letter quoted,
+ * so the division has to be exact. $11,000 across three is 3667/3667/3666 — the
+ * remainder goes to the earlier letters rather than being rounded away, because
+ * three letters that sum to $11,001 is a worse answer than an uneven cent.
+ */
+function divideFee(total, n) {
+  const whole = Math.max(0, Math.round(Number(total) || 0));
+  const count = Math.max(1, Math.floor(n) || 1);
+  const base = Math.floor(whole / count);
+  const extra = whole - base * count;
+  return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+/**
  * Total maximum award across an engagement: each program's own cap times the
  * number of locations applying under it. Caps are not uniform — Illinois is
  * $150,000 and California $250,000 against the federal $200,000 — so this
@@ -315,4 +371,5 @@ export {
   SHARED_FIELDS, POST_FIELDS,
   PROGRAMS, NPSA_SIGNATURES,
   totalMaxAward, applicationCount, locationPrograms, locationInProgram, isoDatePlus,
+  programsKeyFor, oneApplicationPerLetter, enumerateApplications, divideFee,
 };
