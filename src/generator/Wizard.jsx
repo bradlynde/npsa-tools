@@ -201,10 +201,10 @@ export default function Wizard({
   const numLocs = applicationCount(form.programs, form.locations);
   const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope,
     form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee,
-    form.contingentDiscount);
+    form.contingentDiscount, form.splitShare);
   const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope,
     form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee,
-    form.inhContingentDiscount);
+    form.inhContingentDiscount, form.inhSplitShare);
 
   // Which fee set this document actually quotes. Award Implementation and the
   // grant-writer agreement carry a single flat figure rather than a tiered one.

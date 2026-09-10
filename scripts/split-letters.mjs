@@ -19,7 +19,7 @@
  */
 
 import {
-  calcFees, divideFee, enumerateApplications, oneApplicationPerLetter, programsKeyFor,
+  buildCompBlock, calcFees, divideFee, enumerateApplications, oneApplicationPerLetter, programsKeyFor,
 } from '../src/generator/engine.js';
 
 const fails = [];
@@ -91,6 +91,67 @@ for (const apps of [2, 3]) {
   const { combined, split } = combinedThenSplit('inh-partial-contingency', 'undiscounted', apps,
     { postAwardFee: '2,500', scope: true });
   eq(split, combined.total, `compliance period survives the split at ${apps} applications (${combined.total})`);
+}
+
+/*
+ * A discount survives the split.
+ *
+ * Stuart: "yes it needs to be able to carry any discounts if they are applied."
+ * The share carries the discount and the base it was taken from, so each letter
+ * still prints its early signing clause — a split letter that lost it would be
+ * giving the discount away with no sign-by date attached to hold the client to.
+ */
+const shareOf = (combined, n, i) => ({
+  upfront: divideFee(combined.upfront, n)[i],
+  contingent: combined.contingent == null ? null : divideFee(combined.contingent, n)[i],
+  discount: divideFee(combined.discount || 0, n)[i],
+  baseUpfront: divideFee(combined.baseUpfront ?? combined.upfront, n)[i],
+  ...(combined.discountOn
+    ? { discountOn: combined.discountOn, contingentBase: divideFee(combined.contingentBase ?? 0, n)[i] }
+    : {}),
+});
+
+for (const model of ['partial-contingency', 'inh-partial-contingency']) {
+  for (const n of [2, 3]) {
+    const combined = calcFees(model, 'discounted', n, false, 0, '', '', '');
+    const shares = Array.from({ length: n }, (_, i) =>
+      calcFees(model, 'discounted', 1, false, 0, '', '', '', '', shareOf(combined, n, i)));
+
+    eq(shares.reduce((t, f) => t + f.total, 0), combined.total,
+      `${model}: a discounted engagement across ${n} letters still totals ${combined.total}`);
+    eq(shares.reduce((t, f) => t + f.discount, 0), combined.discount,
+      `  and the ${combined.discount} discount is divided, not dropped`);
+    eq(shares.every((f) => f.discount > 0), true, '  with every letter carrying a share of it');
+
+    // The clause is gated on the tier, which is exactly why the share keeps it.
+    const clause = buildCompBlock(model, shares[0], null, '2026', false, 0, 0, '', '', '', '', '', '',
+      true, '2026-10-01', '', [{ key: 'california', year: '2026' }]);
+    eq(/\[EARLY_SIGNING_DISCOUNT:2026-10-01:/.test(clause), true,
+      '  and the early signing clause still prints on a split letter');
+  }
+}
+
+// A contingent-side discount divides the same way, against the contingent base.
+{
+  const combined = calcFees('partial-contingency', 'discounted', 2, false, 0, '', '500', '', '4000');
+  eq(combined.discountOn, 'contingent', 'a typed discount is taken off the contingent fee');
+  const share = calcFees('partial-contingency', 'discounted', 1, false, 0, '', '500', '', '4000',
+    shareOf(combined, 2, 0));
+  eq(share.discountOn, 'contingent', '  and the share remembers which fee it came off');
+  eq(share.discount * 2, combined.discount, '  and divides it exactly');
+  const clause = buildCompBlock('partial-contingency', share, null, '2026', false, 0, 0, '', '', '', '', '', '',
+    true, '2026-10-01', '', [{ key: 'california', year: '2026' }]);
+  eq(/:contingent\]/.test(clause), true, '  so the letter still says the contingent fee was discounted');
+}
+
+// An undiscounted engagement gains no clause it never had.
+{
+  const combined = calcFees('partial-contingency', 'undiscounted', 2, false, 0, '', '', '');
+  const share = calcFees('partial-contingency', 'undiscounted', 1, false, 0, '', '', '', '', shareOf(combined, 2, 0));
+  eq(share.discount, 0, 'an undiscounted split letter carries no discount');
+  const clause = buildCompBlock('partial-contingency', share, null, '2026', false, 0, 0, '', '', '', '', '', '',
+    false, '', '', [{ key: 'california', year: '2026' }]);
+  eq(/EARLY_SIGNING_DISCOUNT/.test(clause), false, '  and prints no early signing clause');
 }
 
 // The number the split is meant to protect: re-pricing at the table's

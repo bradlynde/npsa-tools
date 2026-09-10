@@ -43,7 +43,7 @@ const PRICING = {
 const TIER_LABELS = { undiscounted: "Undiscounted", discounted: "Early Signing Discount", max: "Max Discount", custom: "Custom" };
 const fmt = (n) => n === 0 ? "$0" : `$${Number(n).toLocaleString()}`;
 
-function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount, customContingencyFee, contingentDiscount) {
+function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee, earlySigningAmount, customContingencyFee, contingentDiscount, splitShare) {
   const n = Math.max(parseInt(locs) || 1, 1); // no cap — extrapolate beyond 3
   const money = (v) => parseFloat(String(v).replace(/,/g, "")) || 0;
   const isEarlySigning = tier === "discounted";
@@ -57,6 +57,32 @@ function calcFees(model, tier, locs, optPostAwardScope, postAwardFee, customFee,
     if (n <= 3) return tbl[n] || 0;
     return (tbl[3] || 0) + (n - 3) * ((tbl[3] || 0) - (tbl[2] || 0));
   };
+  /*
+   * One share of an engagement that was split into a letter per application.
+   *
+   * The share carries its own arithmetic — figures, discount and the bases the
+   * discount was taken from — so the letter keeps its pricing TIER rather than
+   * becoming a custom-priced one. That is what lets the early signing clause
+   * still print: it is gated on the tier, so a split letter that quietly became
+   * "custom" dropped its sign-by date and gave the discount away with no
+   * deadline attached to hold the client to. Stuart: "yes it needs to be able to
+   * carry any discounts if they are applied."
+   */
+  if (splitShare && splitShare.upfront != null) {
+    const up = money(splitShare.upfront);
+    const con = splitShare.contingent == null ? null : money(splitShare.contingent);
+    return {
+      upfront: up,
+      baseUpfront: splitShare.baseUpfront != null ? money(splitShare.baseUpfront) : up,
+      discount: money(splitShare.discount),
+      ...(splitShare.discountOn ? { discountOn: splitShare.discountOn } : {}),
+      ...(splitShare.contingentBase != null ? { contingentBase: money(splitShare.contingentBase) } : {}),
+      contingent: con,
+      postAward: optPostAwardScope ? postAward : null,
+      total: up + (con || 0) + postAward,
+    };
+  }
+
   if (isPreOnly) {
     if (tier === "custom") {
       const fee = money(customFee);
@@ -169,9 +195,16 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
      * the meantime.
      */
     const named = (programs || []).filter((p) => PROGRAMS[p.key]);
-    const only = named.length === 1 ? named[0] : null;
-    const cap = only
-      ? ` The program maximum — currently $${PROGRAMS[only.key].maxAward} per site under the ${PROGRAMS[only.key].fullName(only.year || grantYear)} — is stated for reference only and is not used to calculate this fee.`
+    const caps = named.map((p) => `$${PROGRAMS[p.key].maxAward} per site under the ${PROGRAMS[p.key].fullName(p.year || grantYear)}`);
+    const listed = caps.length > 2
+      ? `${caps.slice(0, -1).join(", ")}, and ${caps[caps.length - 1]}`
+      : caps.join(" and ");
+    // Brad's sentence, kept word for word on one program and pluralised on more.
+    // It used to drop out entirely when a letter ran two, which left the reader
+    // with a proportional fee and no idea what it was proportional to — and the
+    // clause reads on every engagement or it is not finished.
+    const cap = caps.length
+      ? ` The program ${caps.length === 1 ? "maximum" : "maximums"} — currently ${listed} — ${caps.length === 1 ? "is" : "are"} stated for reference only and ${caps.length === 1 ? "is" : "are"} not used to calculate this fee.`
       : "";
     const max = fmt(fees.contingent);
     text += `\n\n2. Contingent Grant Award Fee.`;

@@ -232,8 +232,8 @@ export default function App() {
   }));
   const totalApps = applicationCount(form.programs, form.locations);
   const numLocs = totalApps; // fees scale on total applications
-  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee, form.contingentDiscount);
-  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee, form.inhContingentDiscount);
+  const fees = calcFees(form.engagementModel, form.pricingTier, numLocs, form.optPostAwardScope, form.postAwardFee, form.customFee, form.earlySigningAmount, form.customContingencyFee, form.contingentDiscount, form.splitShare);
+  const inhFees = calcFees(form.inhEngagementModel, form.inhPricingTier, numLocs, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhCustomFee, form.inhEarlySigningAmount, form.inhCustomContingencyFee, form.inhContingentDiscount, form.inhSplitShare);
   // Load templates from server on mount; fall back to hardcoded defaults
   useEffect(() => {
     const load = async (type, setter) => {
@@ -967,13 +967,28 @@ export default function App() {
     } else {
       const inh = docTab === 'inh';
       const combined = inh ? inhFees : fees;
-      const up = divideFee(combined.upfront, apps.length);
-      const con = divideFee(combined.contingent || 0, apps.length);
-      // The Compliance Period fee is already per application, so it is not
-      // divided: one letter each times N letters is the combined figure again.
-      parts = up.map((u, i) => (inh
-        ? { inhPricingTier: 'custom', inhCustomFee: u.toLocaleString(), inhCustomContingencyFee: con[i].toLocaleString() }
-        : { pricingTier: 'custom', customFee: u.toLocaleString(), customContingencyFee: con[i].toLocaleString() }));
+      const n = apps.length;
+      // Every figure the letter quotes is divided, the discount and the bases it
+      // was taken from included — a share that carried only the net fees would
+      // print no early signing clause, giving the discount away with no sign-by
+      // date attached to hold it. The Compliance Period fee is already charged
+      // per application and so is not divided: one each across N letters is the
+      // combined figure again.
+      const up = divideFee(combined.upfront, n);
+      const con = divideFee(combined.contingent || 0, n);
+      const disc = divideFee(combined.discount || 0, n);
+      const baseUp = divideFee(combined.baseUpfront ?? combined.upfront, n);
+      const conBase = divideFee(combined.contingentBase ?? combined.contingent ?? 0, n);
+      const key = inh ? 'inhSplitShare' : 'splitShare';
+      parts = up.map((u, i) => ({
+        [key]: {
+          upfront: u,
+          contingent: combined.contingent == null ? null : con[i],
+          discount: disc[i],
+          baseUpfront: baseUp[i],
+          ...(combined.discountOn ? { discountOn: combined.discountOn, contingentBase: conBase[i] } : {}),
+        },
+      }));
     }
 
     return apps.map((a, i) => ({
@@ -986,9 +1001,9 @@ export default function App() {
     if (docTab === 'post') return money(f.postFee);
     const one = docTab === 'inh'
       ? calcFees(f.inhEngagementModel, f.inhPricingTier, 1, f.inhOptPostAwardScope, f.inhPostAwardFee,
-                 f.inhCustomFee, f.inhEarlySigningAmount, f.inhCustomContingencyFee, f.inhContingentDiscount)
+                 f.inhCustomFee, f.inhEarlySigningAmount, f.inhCustomContingencyFee, f.inhContingentDiscount, f.inhSplitShare)
       : calcFees(f.engagementModel, f.pricingTier, 1, f.optPostAwardScope, f.postAwardFee,
-                 f.customFee, f.earlySigningAmount, f.customContingencyFee, f.contingentDiscount);
+                 f.customFee, f.earlySigningAmount, f.customContingencyFee, f.contingentDiscount, f.splitShare);
     return one.total || 0;
   };
 
