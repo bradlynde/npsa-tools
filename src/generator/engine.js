@@ -208,7 +208,7 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
       : "";
     const max = fmt(fees.contingent);
     text += `\n\n2. Contingent Grant Award Fee.`;
-    text += `\n   (a) A Contingent Grant Award Fee of up to ${max} is earned only if CLIENT receives a grant award for the application NPSA prepares and submits under this Engagement Letter. If no award is made for that application, no Contingent Grant Award Fee is due.`;
+    text += `\n   (a) A Contingent Grant Award Fee of up to ${max} is earned only if CLIENT receives a grant award for the application NPSA prepares and submits under this Engagement Letter, including any resubmission of that application under a subsequent funding cycle as provided in the Guarantees of NPSA. If no award is made for that application, no Contingent Grant Award Fee is due.`;
     text += `\n   (b) For purposes of this Section, "Amount Requested" means the total dollar amount requested in that application as submitted to the administering agency, and "Amount Awarded" means the total dollar amount awarded to CLIENT for that same application.`;
     text += `\n   (c) If CLIENT is awarded the full Amount Requested, the Contingent Grant Award Fee is the full ${max}. This applies regardless of whether CLIENT elects to request less than the maximum available under the program.${cap}`;
     text += `\n   (d) If CLIENT is awarded less than the Amount Requested, the Contingent Grant Award Fee is reduced in the same proportion, calculated as: Contingent Grant Award Fee = ${max} × (Amount Awarded ÷ Amount Requested), not to exceed ${max}.`;
