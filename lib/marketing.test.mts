@@ -1,4 +1,4 @@
-import { campaignsInRange, type BookingRow } from "./marketing.ts";
+import { bookingsInRange, campaignsInRange, channelsInRange, creditedOn, feesInRange, type BookingRow } from "./marketing.ts";
 
 const b = (o: Partial<BookingRow>): BookingRow => ({
   id: 0, booked_on: "2026-08-18", meeting_date: "2026-08-20", name: "n",
@@ -61,6 +61,37 @@ rows = campaignsInRange([
 ], "all");
 ok("E  an uncatalogued rename folds on the id alone", rows.length, 1);
 ok("E2 and both bookings land on it", rows[0].booked, 2);
+
+// RESCHEDULES: credited to the day the appointment was first set, not the day it
+// moved. A replacement row's own booked_on is the day of the reschedule, so a
+// meeting set 45 days ago and moved 5 days ago must NOT land in a 30-day window --
+// upstream's tiles and chart already date it from its origin, and these panels sit
+// right under them. Relative dates, because rangeStart() reads the clock.
+const recent = new Date(Date.now() - 5 * 86_400_000).toISOString();
+const old = new Date(Date.now() - 45 * 86_400_000).toISOString();
+
+ok("F  creditedOn uses the origin when there is one",
+   creditedOn(b({ booked_on: recent, originated_on: old })), old);
+ok("F2 and booked_on when the row replaced nothing",
+   creditedOn(b({ booked_on: recent, originated_on: null })), recent);
+ok("F3 and booked_on from a backend that does not send the field yet",
+   creditedOn(b({ booked_on: recent })), recent);
+
+const moved = b({ id: 11, booked_on: recent, originated_on: old, became_client: true, fee: 9500 });
+const fresh = b({ id: 12, booked_on: recent, became_client: true, fee: 4000 });
+const original = b({ id: 13, booked_on: old, exclusion_reason: "rescheduled", cancelled: true });
+const set = [moved, fresh, original];
+const ids = (r: BookingRow[]) => r.map(x => x.id).sort((x, y) => x - y);
+const booked = (r: { booked: number }[]) => r.reduce((n, x) => n + x.booked, 0);
+
+ok("G  30d list holds the new booking, not the move or its original",
+   ids(bookingsInRange(set, "30d")), [12]);
+ok("G2 30d channel table counts one booking", booked(channelsInRange(set, "30d")), 1);
+ok("G3 30d campaign table counts one booking", booked(campaignsInRange(set, "30d")), 1);
+ok("G4 30d fees leave out the moved client's fee", feesInRange(set, "30d"), 4000);
+ok("G5 90d list holds all three rows", ids(bookingsInRange(set, "90d")), [11, 12, 13]);
+ok("G6 90d fees count the moved client once, the original not at all",
+   feesInRange(set, "90d"), 13500);
 
 console.log(`\n${results.filter(r => r === "P").length}/${results.length} passed`);
 process.exit(results.includes("F") ? 1 : 0);
