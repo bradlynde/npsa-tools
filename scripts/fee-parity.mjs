@@ -93,6 +93,27 @@ function* cases() {
       }
     }
   }
+  /*
+   * The program named in the Contingent Grant Award Fee clause. One program puts
+   * that program's own cap in the letter; two cannot name a single maximum and
+   * the sentence has to drop out rather than pick one.
+   */
+  for (const programs of [
+    [{ key: "federal", year: "2026" }],
+    [{ key: "california", year: "2026" }],
+    [{ key: "illinois", year: "2026" }],
+    [{ key: "newyork", year: "2026" }],
+    [{ key: "federal", year: "2027" }, { key: "california", year: "2026" }],
+  ]) {
+    yield {
+      name: `partial-contingency|undiscounted|1loc|programs=${programs.map((p) => p.key).join("+")}`,
+      model: "partial-contingency", tier: "undiscounted", locs: 1,
+      optPostAwardScope: false, postAwardFee: "2,500",
+      customFee: "", earlySigningAmount: "500", customContingencyFee: "",
+      contingentDiscount: "", programs,
+    };
+  }
+
   // Custom on a contingency engagement, which used to return no contingent fee.
   for (const model of ["partial-contingency", "inh-partial-contingency"]) {
     for (const override of ["", "6,000"]) {
@@ -145,6 +166,7 @@ async function run() {
         c.model, fees, inst, "2026", c.optPostAwardScope, c.postAwardFee,
         inst ? 3 : 0, "40", "at signing", "30", "month 4", "30", "month 8",
         c.tier === "discounted", "March 15, 2026", c.earlySigningAmount,
+        c.programs,
       );
     }
 
