@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyRequest } from "../../../../lib/loeProxy";
+import { proxyRequest, loeBaseUrl } from "../../../../lib/loeProxy";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
  *   /api/clients/<slug>/status       per-section counts, checklist, uploads
  *   /api/clients/<slug>/answers      the answers (optionally ?section=)
  *   /api/clients/<slug>/uploads      the uploaded files (metadata only)
+ *   /api/clients/<slug>/uploads/<id> one uploaded file, bytes streamed through
  */
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const SUB = new Set(["status", "answers", "uploads"]);
@@ -35,6 +36,22 @@ export async function GET(req: NextRequest, { params }: { params: { path?: strin
     );
   }
   const segments = params.path || [];
+  // A file the client uploaded: stream the bytes through as-is (the JSON proxy would mangle them).
+  if (segments.length === 3 && SLUG.test(segments[0]) && segments[1] === "uploads" && /^\d+$/.test(segments[2])) {
+    const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const upstream = await fetch(`${loeBaseUrl()}/api/clients/${segments[0]}/uploads/${segments[2]}`, {
+      headers: { Authorization: `Bearer ${key}` }, cache: "no-store", signal: AbortSignal.timeout(60000),
+    });
+    return new NextResponse(upstream.body, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
+        "Content-Disposition": upstream.headers.get("content-disposition") || "attachment",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
   return proxyRequest(req, "clients", segments, new Set([""]), "GET", {
     upstreamKey: key,
     allowIf: (s) => s.length >= 1 && s.length <= 2 && SLUG.test(s[0]) && (s.length === 1 || SUB.has(s[1])),

@@ -64,6 +64,16 @@ type ClientRow = {
 
 type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string };
 type Upload = { id: number; key: string; label: string; filename: string; size_bytes: number; uploaded_at: string; drive_url: string | null };
+
+/** Fetches a client upload with the login token and hands it to the browser as a download. */
+async function downloadUpload(slug: string, u: Upload) {
+  const r = await fetch(`/api/clients/${slug}/uploads/${u.id}`, { headers: authHeaders() });
+  if (!r.ok) { alert(`Could not download ${u.filename} (HTTP ${r.status})`); return; }
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a");
+  a.href = url; a.download = u.filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 type WishItem = { stem: string; label: string; priority: number | string; answered: number; total: number; cost?: number | null };
 type SiteBudget = { items: number; ma: number; ma_on: boolean; ma_default: boolean; total: number; cap: number; room: number; uncosted: number };
 type WishFacility = { facility: number; name: string; prioritized: number; details: { answered: number; total: number }; items: WishItem[]; budget?: SiteBudget };
@@ -492,12 +502,16 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     <Label>uploads</Label>
                     <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
                       {s.uploads.map((u) => (
-                        <li key={u.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12 }}>
+                        <li key={u.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center" }}>
                           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             <span style={{ color: "var(--mute)" }}>{u.label}:</span>{" "}
                             {u.drive_url ? <Ext href={u.drive_url}>{u.filename}</Ext> : u.filename}
+                            <span className="mono" style={{ color: "var(--faint)", fontSize: 11 }}> · {Math.max(1, Math.round(u.size_bytes / 1024)).toLocaleString("en-US")} KB</span>
                           </span>
-                          <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)", whiteSpace: "nowrap" }}>{fmtDate(u.uploaded_at)}</span>
+                          <span style={{ display: "flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
+                            <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)" }}>{fmtDate(u.uploaded_at)}</span>
+                            <button type="button" onClick={() => downloadUpload(c.slug, u)} style={smallBtn}>Download</button>
+                          </span>
                         </li>
                       ))}
                     </ul>
