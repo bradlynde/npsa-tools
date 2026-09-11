@@ -63,7 +63,7 @@ const scopeStep = ({ programsKey = "programs", yearLabel = "Grant Year", locatio
           onChange={(v) => c.setF(programsKey, v)}
         />
       </Field>
-      {c.mustSplit && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} />}
+      {c.splitOwed && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} required={c.mustSplit} />}
       {locations && (
         <Field label="Locations" hint={`${c.numLocs} application${c.numLocs === 1 ? "" : "s"} · max award ${fmt(totalMaxAward(c.form[programsKey], c.form.locations))} total`}>
           <LocationsEditor
@@ -182,7 +182,7 @@ const PRE_AWARD = (prefix) => [
       <>
       {/* Scope comes before Fees, so choosing a contingent model is the other
           way this rule gets broken — after the applications are already in. */}
-      {c.mustSplit && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} />}
+      {c.splitOwed && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} required={c.mustSplit} />}
       <FeeCalculator
         form={c.form}
         setF={c.setF}
@@ -206,7 +206,7 @@ export const STEPS = {
     scopeStep({ programsKey: "postPrograms", yearLabel: "Award Year" }),
     { id: "fees", title: "Fees", render: (c) => (
       <>
-        {c.mustSplit && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} />}
+        {c.splitOwed && <SplitNotice apps={c.scopedApps} docTab={c.docTab} onSplit={c.onSplit} required={c.mustSplit} />}
         <PostFee form={c.form} setF={c.setF} />
       </>
     ) },

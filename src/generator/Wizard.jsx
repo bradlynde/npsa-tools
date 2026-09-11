@@ -13,7 +13,6 @@
 import { useEffect } from "react";
 import {
   fmt, calcFees, totalMaxAward, applicationCount, isoDatePlus, PROGRAMS, TIER_LABELS,
-  programsKeyFor, oneApplicationPerLetter,
 } from "./engine.js";
 
 /** Long-form date for display; passes through free text from older letters. */
@@ -190,6 +189,9 @@ export default function Wizard({
   convertViewLabel,
   onSave,
   onSplit,
+  mustSplit,
+  splitOwed,
+  scopedApps,
   splitNote,
   onDismissSplitNote,
   saveLabel = "Save Letter",
@@ -255,16 +257,12 @@ export default function Wizard({
   /*
    * Award Implementation and contingent letters carry one application each, so
    * a second one is not an error to refuse but work to divide — see splitPlan()
-   * in App.jsx. The count is read from the document's OWN program list: an
-   * Award Implementation letter keeps its programs under postPrograms, and
-   * reading form.programs there would police the wrong list.
+   * in App.jsx. mustSplit and scopedApps arrive as props: App computes them
+   * because it also has to answer for the download button and saveLetter, and
+   * two copies of the rule is one copy too many.
    */
-  const scopedPrograms = form[programsKeyFor(docTab)];
-  const scopedApps = applicationCount(scopedPrograms, form.locations);
-  const model = docTab === "inh" ? form.inhEngagementModel : form.engagementModel;
-  const mustSplit = oneApplicationPerLetter(docTab, model) && scopedApps > 1;
-
-  const ctx = { form, setF, fees: active, inhFees, numLocs, docTab, mustSplit, scopedApps, onSplit };
+  const ctx = { form, setF, fees: active, inhFees, numLocs, docTab, splitOwed, mustSplit, scopedApps, onSplit };
+  const splitRequiredHint = `Split into ${scopedApps} letters first — one per application`;
 
   // Changing document type re-shapes the flow, so restart from the step after
   // the picker rather than stranding the rep on an index that no longer exists.
@@ -359,8 +357,12 @@ export default function Wizard({
 
           {last ? (
             <>
+              {/* A letter still owing a split is not one NPSA will sign, so the
+                  two ways it could leave the wizard are closed until the rep
+                  takes the split the notice offers. */}
               {onSave && (
-                <button type="button" className="wz-btn" onClick={onSave}>
+                <button type="button" className="wz-btn" onClick={onSave}
+                  disabled={mustSplit} title={mustSplit ? splitRequiredHint : ""}>
                   {saveLabel}
                 </button>
               )}
@@ -368,8 +370,8 @@ export default function Wizard({
                 type="button"
                 className="wz-btn wz-btn-primary"
                 onClick={onDownload}
-                disabled={downloadDisabled}
-                title={downloadDisabled ? downloadHint : ""}
+                disabled={downloadDisabled || mustSplit}
+                title={mustSplit ? splitRequiredHint : downloadDisabled ? downloadHint : ""}
               >
                 {downloadLabel}
               </button>

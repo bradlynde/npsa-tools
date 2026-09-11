@@ -477,7 +477,7 @@ export function InstallmentsEditor({ form, setF, prefix = "", upfront }) {
  * this splits what is already entered into one letter per application and keeps
  * the quoted total intact.
  */
-export function SplitNotice({ apps, docTab, onSplit }) {
+export function SplitNotice({ apps, docTab, onSplit, required }) {
   const kind = docTab === "post" ? "An Award Implementation letter" : "A contingent letter";
   return (
     <div style={{ background: "var(--warn-bg)", border: "1px solid var(--warn-fg)", borderRadius: 10,
@@ -488,6 +488,9 @@ export function SplitNotice({ apps, docTab, onSplit }) {
       <div style={{ fontSize: 12, color: "var(--sec)", lineHeight: 1.5, marginBottom: 10 }}>
         {kind} covers one application. Splitting keeps everything entered here and
         divides the quoted fee across {apps} letters, so the client pays the same total.
+        {required && (
+          <> <strong>This letter cannot be saved or downloaded until it is split.</strong></>
+        )}
       </div>
       {onSplit && (
         <button type="button" onClick={onSplit}
