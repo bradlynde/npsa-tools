@@ -764,6 +764,31 @@ export default function App() {
   // further down this component.
   const docSnapshot = (tab = docTab, override = savedLetterOverride) =>
     JSON.stringify({ form, savedLetterOverride: override || null, docTab: tab });
+  /*
+   * One application per contingent or Implementation letter — enforced, not
+   * merely advised. The notice on Scope and Fees offers the split; until the
+   * rep takes it, the letter describes an engagement NPSA will not sign, so
+   * neither saving nor printing it is allowed. Stuart: "if the split letter
+   * notification pops up then we need the rep to be required to create the
+   * split before they can save or print."
+   *
+   * Computed here rather than inside the wizard because the wizard is only one
+   * of the ways out: the download button, the print routed through the save modal,
+   * and saveLetter itself all have to answer to the same rule.
+   */
+  // The count comes from the document's OWN program list: an Award Implementation
+  // letter keeps its programs under postPrograms, and reading form.programs there
+  // would police the wrong list entirely.
+  const scopedApps = applicationCount(form[programsKeyFor(docTab)], form.locations);
+  const splitOwed = oneApplicationPerLetter(
+    docTab, docTab === "inh" ? form.inhEngagementModel : form.engagementModel) && scopedApps > 1;
+  // Splitting writes the halves to the letters API, so with the database down
+  // there is no split to take — blocking the download would strand the rep with
+  // a letter, a rule, and no way to satisfy it. The notice still shows either way.
+  const mustSplit = splitOwed && dbAvailable;
+  // Names the button the rep is looking for, word for word — see SplitNotice.
+  const SPLIT_REQUIRED = `This letter covers ${scopedApps} applications. Contingent and Award Implementation engagements are one letter per application — use "Split into ${scopedApps} letters" on the Scope or Fees step before saving or downloading.`;
+
   const needsSaveBeforePrint = () => {
     if (lastSavedSnapshot === null) return true;
     if (docSnapshot() === lastSavedSnapshot) return false;
@@ -775,6 +800,10 @@ export default function App() {
     return true;
   };
   const handlePrint = () => {
+    if (mustSplit) {
+      alert(SPLIT_REQUIRED);
+      return;
+    }
     if (!isAddendum && !isProposal && !form.expirationDate) {
       alert("Please set an Expiration Date before downloading or printing.");
       return;
@@ -1046,6 +1075,11 @@ export default function App() {
   };
 
   const saveLetter = async () => {
+    // saveSplitLetters is the way out of this, and it does not come through here.
+    if (mustSplit) {
+      alert(SPLIT_REQUIRED);
+      return;
+    }
     const parseFee = (s) => parseFloat(String(s||'').replace(/[^0-9.]/g,'')) || 0;
     const computedFee = docTab === 'post' ? parseFee(form.postFee)
       : docTab === 'gw' ? parseFee(form.gwProfFee)
@@ -1705,6 +1739,9 @@ export default function App() {
         } : null}
         onSave={dbAvailable ? ()=>{ setPendingSplit(false); setShowSaveModal(true); } : null}
         onSplit={dbAvailable ? ()=>{ setSplitNote(''); setPendingSplit(true); setShowSaveModal(true); } : null}
+        mustSplit={mustSplit}
+        splitOwed={splitOwed}
+        scopedApps={scopedApps}
         splitNote={splitNote}
         onDismissSplitNote={()=>setSplitNote('')}
         saveLabel={currentLetterId ? "Update Letter" : "Save Letter"}
