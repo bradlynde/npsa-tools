@@ -20,6 +20,7 @@
 
 import {
   buildCompBlock, calcFees, divideFee, enumerateApplications, oneApplicationPerLetter, programsKeyFor,
+  engagementModelFor,
 } from '../src/generator/engine.js';
 
 const fails = [];
@@ -37,6 +38,24 @@ eq(oneApplicationPerLetter('pre', 'pre-only'), false, 'a flat Pre-Award Only let
 eq(oneApplicationPerLetter('inh', 'inh-pre-only'), false, 'in-house flat too — Brad said only these two');
 eq(programsKeyFor('post'), 'postPrograms', 'Award Implementation is policed on its own program list');
 eq(programsKeyFor('inh'), 'programs', 'and the letters on theirs');
+
+// ── Which model the rule reads ───────────────────────────────────────────────
+// A proposal prices on whichever side proposalFeeModel names, and its Fees step
+// writes that side's field. Reading engagementModel for every non-inh tab read a
+// field an in-house proposal never writes, so one click of "View as Proposal"
+// turned a letter that was correctly demanding a split into a document that
+// demanded nothing.
+const contingent = { engagementModel: 'pre-only', inhEngagementModel: 'inh-partial-contingency' };
+eq(engagementModelFor('inh', contingent), 'inh-partial-contingency', 'an in-house letter reads its own model');
+eq(engagementModelFor('pre', contingent), 'pre-only', 'a third-party letter reads its own');
+eq(engagementModelFor('proposal', { ...contingent, proposalFeeModel: 'inh' }),
+  'inh-partial-contingency', 'an in-house proposal reads the in-house model');
+eq(engagementModelFor('proposal', { ...contingent, proposalFeeModel: 'pre' }),
+  'pre-only', 'a third-party proposal reads the third-party one');
+eq(engagementModelFor('proposal', contingent), 'inh-partial-contingency',
+  'and with the field unset it follows the Fees step default, in-house');
+eq(oneApplicationPerLetter('proposal', engagementModelFor('proposal', { ...contingent, proposalFeeModel: 'inh' })),
+  true, 'so a contingent in-house proposal is seen as contingent');
 
 // ── Enumerating the applications ─────────────────────────────────────────────
 const site = (name, programs) => (programs ? { name, programs } : { name });

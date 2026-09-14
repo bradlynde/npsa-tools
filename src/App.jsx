@@ -4,7 +4,7 @@ import { marked } from "marked";
 import { LOGO_SRC } from "./generator/logo.js";
 import {
   fmt, calcFees, buildCompBlock, applicationCount, totalMaxAward, locationInProgram,
-  programsKeyFor, oneApplicationPerLetter, enumerateApplications, divideFee,
+  programsKeyFor, oneApplicationPerLetter, engagementModelFor, enumerateApplications, divideFee,
   PROGRAMS, NPSA_SIGNATURES,
 } from "./generator/engine.js";
 import {
@@ -780,12 +780,21 @@ export default function App() {
   // letter keeps its programs under postPrograms, and reading form.programs there
   // would police the wrong list entirely.
   const scopedApps = applicationCount(form[programsKeyFor(docTab)], form.locations);
-  const splitOwed = oneApplicationPerLetter(
-    docTab, docTab === "inh" ? form.inhEngagementModel : form.engagementModel) && scopedApps > 1;
-  // Splitting writes the halves to the letters API, so with the database down
-  // there is no split to take — blocking the download would strand the rep with
-  // a letter, a rule, and no way to satisfy it. The notice still shows either way.
-  const mustSplit = splitOwed && dbAvailable;
+  const splitOwed = oneApplicationPerLetter(docTab, engagementModelFor(docTab, form)) && scopedApps > 1;
+  /*
+   * Two reasons the notice can show without the block.
+   *
+   * A proposal is not a signed contract — Brad's rule named Implementation and
+   * contingent contracts — so it warns that a split is coming and still sends.
+   * The block lands when it becomes an engagement letter. Stuart settled this
+   * when the conversion turned out to be a way around the rule: "notice only on
+   * proposals."
+   *
+   * And splitting writes the halves to the letters API, so with the database
+   * down there is no split to take; blocking the download would strand the rep
+   * with a letter, a rule, and no way to satisfy it.
+   */
+  const mustSplit = splitOwed && dbAvailable && docTab !== "proposal";
   // Names the button the rep is looking for, word for word — see SplitNotice.
   const SPLIT_REQUIRED = `This letter covers ${scopedApps} applications. Contingent and Award Implementation engagements are one letter per application — use "Split into ${scopedApps} letters" on the Scope or Fees step before saving or downloading.`;
 
