@@ -226,10 +226,6 @@ function Progress({ a, b, width = 88 }: { a: number; b: number; width?: number }
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <Eyebrow style={{ marginBottom: 10, fontSize: 11 }}>{children}</Eyebrow>;
-}
-
 function Ext({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a href={href} target="_blank" rel="noreferrer" style={{ color: "var(--navy)", textDecoration: "none", fontWeight: 500 }}>
@@ -246,53 +242,108 @@ const xBtn: React.CSSProperties = { border: 0, background: "transparent", color:
 
 /* ── Team edits inside the dialog ─────────────────────────────── */
 
-/** The Documents-tab rows for this client: remove one, add one, or go back to the defaults. */
-function DocumentsEditor({ client, onSaved }: { client: ClientRow; onSaved: (c: ClientRow) => void }) {
+/** One titled block in the dialog: a quiet eyebrow, an optional right-hand summary, then the content. */
+function Section({ title, meta, children }: { title: string; meta?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section style={{ paddingTop: 18, borderTop: "1px solid var(--hair2)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
+        <Eyebrow style={{ fontSize: 11 }}>{title}</Eyebrow>
+        {meta && <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)", whiteSpace: "nowrap" }}>{meta}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** A small headline number with a caption, for the strip under the dialog header. */
+function Stat({ label, value, sub, bar, tone }: { label: string; value: React.ReactNode; sub?: React.ReactNode; bar?: number; tone?: "ok" | "warn" | "err" }) {
+  const color = tone === "err" ? "var(--err-fg)" : tone === "warn" ? "var(--warn-fg)" : "var(--ink)";
+  return (
+    <div style={{ padding: "12px 14px", background: "var(--bg)", border: "1px solid var(--hair)", borderRadius: 12, minWidth: 0 }}>
+      <Eyebrow style={{ fontSize: 10.5, marginBottom: 6 }}>{label}</Eyebrow>
+      <div className="headline" style={{ fontSize: 20, lineHeight: 1.1, color, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      {bar !== undefined && <div style={{ marginTop: 8 }}><Bar pct={Math.min(100, bar)} color={tone === "err" ? "var(--err-fg)" : "var(--olive)"} height={5} radius={3} animate={false} /></div>}
+      {sub && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+    </div>
+  );
+}
+
+/** The Documents-tab rows with what has come in against each; editing adds remove, add and reset. */
+function DocumentsSection({ client, uploads, editing, onSaved }: { client: ClientRow; uploads: Upload[]; editing: boolean; onSaved: (c: ClientRow) => void }) {
   const [label, setLabel] = useState("");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const docs = client.documents || [];
+  const byKey = new Map<string, Upload[]>();
+  for (const u of uploads) byKey.set(u.key, [...(byKey.get(u.key) || []), u]);
+  const orphans = uploads.filter((u) => !docs.some((d) => d.key === u.key));
+  const received = docs.filter((d) => byKey.has(d.key)).length;
   const run = async (body: unknown) => {
     setBusy(true); setErr(null);
     try { onSaved(await patchJson<ClientRow>(`/api/clients/${client.slug}`, body)); setLabel(""); setHint(""); }
     catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   };
-  return (
-    <div>
-      <Label>documents asked for · {docs.length}{client.documents_customised ? " · customised" : ""}</Label>
-      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5, fontSize: 13 }}>
-        {docs.map((d) => (
-          <li key={d.key} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
-            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {d.label}
-              {d.source && d.source !== "standard" && <span className="mono" style={{ marginLeft: 8, fontSize: 10.5, color: "var(--faint)" }}>{d.source}</span>}
-            </span>
-            <button type="button" aria-label={`Remove ${d.label}`} title="Take this off the client's Documents tab" disabled={busy} onClick={() => run({ remove_document_keys: [d.key] })} style={xBtn}>×</button>
-          </li>
-        ))}
-      </ul>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) auto", gap: 6, marginTop: 8 }}>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Add a document, e.g. Board roster" aria-label="Document label" style={inputStyle} />
-        <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Hint (PDF, where to get it)" aria-label="Document hint" style={inputStyle} />
-        <button type="button" disabled={busy || !label.trim()} onClick={() => run({ add_documents: [{ key: docKeyFor(label), label: label.trim(), hint: hint.trim() }] })} style={smallBtn}>Add</button>
-      </div>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 6, fontSize: 11.5, color: "var(--faint)" }}>
-        <span>The client sees these rows on their Documents tab. Files already uploaded stay either way.</span>
-        {client.documents_customised && <button type="button" disabled={busy} onClick={() => run({ documents: null })} style={{ ...xBtn, fontSize: 11.5, textDecoration: "underline" }}>Reset to defaults</button>}
-      </div>
-      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+  const fileRow = (u: Upload) => (
+    <div key={u.id} style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5 }}>{u.filename}</span>
+      <span className="mono" style={{ fontSize: 11, color: "var(--faint)", whiteSpace: "nowrap" }}>{fmtDate(u.uploaded_at)}</span>
+      {u.drive_url && <Ext href={u.drive_url}>Drive</Ext>}
+      <button type="button" onClick={() => downloadUpload(client.slug, u)} style={smallBtn}>Download</button>
     </div>
+  );
+  return (
+    <Section title="documents" meta={`${received} of ${docs.length} received${client.documents_customised ? " · customised" : ""}`}>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
+        {docs.map((d) => {
+          const files = byKey.get(d.key) || [];
+          return (
+            <li key={d.key} style={{ display: "grid", gridTemplateColumns: "14px minmax(0, 1fr) auto", gap: 10, alignItems: "start" }}>
+              <span aria-hidden style={{ marginTop: 5, width: 10, height: 10, borderRadius: "50%", justifySelf: "center", border: `2px solid ${files.length ? "var(--ok-fg)" : "var(--bd2)"}`, background: files.length ? "var(--ok-fg)" : "transparent" }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: files.length ? "var(--mute)" : "var(--ink)" }}>{d.label}</div>
+                {files.length === 0 && <div style={{ fontSize: 11.5, color: "var(--faint)" }}>not received yet{d.hint ? ` · ${d.hint}` : ""}</div>}
+                {files.map(fileRow)}
+              </div>
+              {editing ? <button type="button" aria-label={`Remove ${d.label}`} title="Take this off the client's Documents tab" disabled={busy} onClick={() => run({ remove_document_keys: [d.key] })} style={xBtn}>×</button> : <span />}
+            </li>
+          );
+        })}
+        {orphans.length > 0 && (
+          <li style={{ display: "grid", gridTemplateColumns: "14px minmax(0, 1fr)", gap: 10 }}>
+            <span />
+            <div><div style={{ color: "var(--mute)", fontSize: 12.5 }}>Also uploaded, no longer asked for</div>{orphans.map(fileRow)}</div>
+          </li>
+        )}
+      </ul>
+      {editing && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) auto", gap: 6, marginTop: 10 }}>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Add a document, e.g. Board roster" aria-label="Document label" style={inputStyle} />
+            <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Hint (PDF, where to get it)" aria-label="Document hint" style={inputStyle} />
+            <button type="button" disabled={busy || !label.trim()} onClick={() => run({ add_documents: [{ key: docKeyFor(label), label: label.trim(), hint: hint.trim() }] })} style={smallBtn}>Add</button>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 6, fontSize: 11.5, color: "var(--faint)" }}>
+            <span>These rows are the client&rsquo;s Documents tab. Files already uploaded stay either way.</span>
+            {client.documents_customised && <button type="button" disabled={busy} onClick={() => run({ documents: null })} style={{ ...xBtn, fontSize: 11.5, textDecoration: "underline" }}>Reset to defaults</button>}
+          </div>
+        </>
+      )}
+      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+    </Section>
   );
 }
 
-/** Helpful people outside NPSA and the client (the SAA contact, the CISA advisor); read-only for the client. */
-function ReferenceContactsEditor({ client, onSaved }: { client: ClientRow; onSaved: (c: ClientRow) => void }) {
+/** Everyone around the application: the client's people, NPSA, and the helpful outside contacts (editable). */
+function PeopleSection({ client, editing, onSaved }: { client: ClientRow; editing: boolean; onSaved: (c: ClientRow) => void }) {
   const [f, setF] = useState({ name: "", role: "", email: "", phone: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const refs = (client.contacts || []).filter((x) => x.side === "reference");
+  const all = client.contacts || [];
+  const own = all.filter((x) => x.side !== "npsa" && x.side !== "reference");
+  const npsa = all.filter((x) => x.side === "npsa");
+  const refs = all.filter((x) => x.side === "reference");
   const run = async (body: unknown) => {
     setBusy(true); setErr(null);
     try { onSaved(await patchJson<ClientRow>(`/api/clients/${client.slug}`, body)); setF({ name: "", role: "", email: "", phone: "" }); }
@@ -300,34 +351,75 @@ function ReferenceContactsEditor({ client, onSaved }: { client: ClientRow; onSav
     finally { setBusy(false); }
   };
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
-  return (
-    <div>
-      <Label>helpful contacts · SAA, CISA</Label>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
-        {refs.length === 0 && <Faint>None yet. These show read-only on the client&rsquo;s Contacts tab.</Faint>}
-        {refs.map((x) => (
-          <div key={x.email} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 8, alignItems: "baseline" }}>
-            <span style={{ minWidth: 0 }}>
-              <span style={{ fontWeight: 600 }}>{x.name || x.email}</span>
-              {x.role && <span style={{ color: "var(--mute)" }}> · {x.role}</span>}
-              {x.phone && <span className="mono" style={{ color: "var(--faint)", fontSize: 11.5 }}> · {x.phone}</span>}
-            </span>
-            <a href={`mailto:${x.email}`} className="mono" style={{ fontSize: 11.5, color: "var(--navy)", textDecoration: "none", whiteSpace: "nowrap" }}>{x.email}</a>
-            <button type="button" aria-label={`Remove ${x.name || x.email}`} disabled={busy} onClick={() => run({ remove_contact_emails: [x.email] })} style={xBtn}>×</button>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8 }}>
-        <input value={f.name} onChange={set("name")} placeholder="Name" aria-label="Name" style={inputStyle} />
-        <input value={f.role} onChange={set("role")} placeholder="Role, e.g. Texas SAA help desk" aria-label="Role" style={inputStyle} />
-        <input value={f.email} onChange={set("email")} placeholder="Email" aria-label="Email" style={inputStyle} />
-        <div style={{ display: "flex", gap: 6 }}>
-          <input value={f.phone} onChange={set("phone")} placeholder="Phone" aria-label="Phone" style={inputStyle} />
-          <button type="button" disabled={busy || !f.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)} onClick={() => run({ add_reference_contacts: [{ name: f.name.trim(), role: f.role.trim(), email: f.email.trim(), phone: f.phone.trim() }] })} style={smallBtn}>Add</button>
-        </div>
-      </div>
-      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+  const person = (x: Contact, removable = false) => (
+    <div key={x.email} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 10, alignItems: "baseline", fontSize: 13 }}>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontWeight: 600 }}>{x.name || x.email}</span>
+        {x.role && <span style={{ color: "var(--mute)" }}> · {x.role}</span>}
+        {x.phone && <span className="mono" style={{ color: "var(--faint)", fontSize: 11.5 }}> · {x.phone}</span>}
+      </span>
+      <a href={`mailto:${x.email}`} className="mono" style={{ fontSize: 11.5, color: "var(--navy)", textDecoration: "none", whiteSpace: "nowrap" }}>{x.email}</a>
+      {removable ? <button type="button" aria-label={`Remove ${x.name || x.email}`} disabled={busy} onClick={() => run({ remove_contact_emails: [x.email] })} style={xBtn}>×</button> : <span />}
     </div>
+  );
+  const sub = (t: string) => <div style={{ fontSize: 11, color: "var(--faint)", letterSpacing: ".06em", textTransform: "uppercase", marginTop: 12, marginBottom: 6 }} className="mono">{t}</div>;
+  return (
+    <Section title="people" meta={`${own.length} at the client`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {own.length === 0 && <Faint>No client contacts on file yet.</Faint>}
+        {own.map((x) => person(x))}
+      </div>
+      {sub("NPSA")}
+      <div style={{ fontSize: 13, color: "var(--sec)" }}>{npsa.map((x) => `${x.name.split(" ")[0]}${/consultant|sales rep/i.test(x.role) ? " (consultant)" : ""}`).join(", ") || <Faint>none</Faint>}</div>
+      {(refs.length > 0 || editing) && sub("Helpful contacts · SAA, CISA")}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {refs.length === 0 && editing && <Faint>None yet. These show read-only on the client&rsquo;s Contacts tab.</Faint>}
+        {refs.map((x) => person(x, editing))}
+      </div>
+      {editing && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8 }}>
+          <input value={f.name} onChange={set("name")} placeholder="Name" aria-label="Name" style={inputStyle} />
+          <input value={f.role} onChange={set("role")} placeholder="Role, e.g. Texas SAA help desk" aria-label="Role" style={inputStyle} />
+          <input value={f.email} onChange={set("email")} placeholder="Email" aria-label="Email" style={inputStyle} />
+          <div style={{ display: "flex", gap: 6 }}>
+            <input value={f.phone} onChange={set("phone")} placeholder="Phone" aria-label="Phone" style={inputStyle} />
+            <button type="button" disabled={busy || !f.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)} onClick={() => run({ add_reference_contacts: [{ name: f.name.trim(), role: f.role.trim(), email: f.email.trim(), phone: f.phone.trim() }] })} style={smallBtn}>Add</button>
+          </div>
+        </div>
+      )}
+      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+    </Section>
+  );
+}
+
+/** The 24 tasks, open ones first; finished and not-applicable ones fold away behind a count. */
+function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
+  const [showDone, setShowDone] = useState(false);
+  const open = checklist.items.filter((it) => it.status !== "Completed" && it.status !== "Not applicable");
+  const rest = checklist.items.filter((it) => it.status === "Completed" || it.status === "Not applicable");
+  const row = (it: ChecklistItem, i: number) => {
+    const done = it.status === "Completed";
+    const prog = it.status === "In progress";
+    const na = it.status === "Not applicable";
+    const meta = na ? "n/a" : done ? "done" : [prog ? "in progress" : "", it.due ? fmtDue(it.due) : "", it.owner].filter(Boolean).join(" · ");
+    return (
+      <li key={it.stem} style={{ display: "grid", gridTemplateColumns: "14px minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "6px 0", borderTop: i ? "1px solid var(--hair2)" : undefined, fontSize: 13 }}>
+        <span aria-hidden style={{ width: 10, height: 10, borderRadius: "50%", justifySelf: "center", border: `2px solid ${done ? "var(--ok-fg)" : prog ? "var(--warn-fg)" : "var(--bd2)"}`, background: done ? "var(--ok-fg)" : prog ? "var(--warn-bg)" : na ? "var(--bd2)" : "transparent", opacity: na ? 0.5 : 1 }} />
+        <span style={{ minWidth: 0, color: done || na ? "var(--mute)" : "var(--ink)", lineHeight: 1.35, textDecoration: na ? "line-through" : undefined, opacity: na ? 0.6 : 1 }}>{it.label}</span>
+        <span className="mono" style={{ fontSize: 11.5, color: prog ? "var(--warn-fg)" : "var(--faint)", whiteSpace: "nowrap", textAlign: "right" }}>{meta}</span>
+      </li>
+    );
+  };
+  return (
+    <Section title="checklist" meta={`${checklist.completed} of ${checklist.total} done${checklist.not_applicable ? ` · ${checklist.not_applicable} n/a` : ""}`}>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>{open.map(row)}</ul>
+      {rest.length > 0 && (
+        <button type="button" onClick={() => setShowDone((v) => !v)} style={{ ...xBtn, fontSize: 11.5, marginTop: 8, textDecoration: "underline", padding: 0 }}>
+          {showDone ? "Hide" : "Show"} {rest.length} finished or n/a
+        </button>
+      )}
+      {showDone && <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", opacity: 0.85 }}>{rest.map(row)}</ul>}
+    </Section>
   );
 }
 
@@ -337,6 +429,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
   const [detail, setDetail] = useState<{ client: ClientRow; status: Status } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const stacked = useMedia("(max-width: 900px)");
 
@@ -363,11 +456,12 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
   const copyLink = async (url: string) => {
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ }
   };
+  const saved = (fresh: ClientRow) => setDetail((d) => (d ? { ...d, client: fresh } : d));
 
   const c = detail?.client || row;
   const s = detail?.status;
-  const npsa = (c.contacts || []).filter((x) => x.side === "npsa");
-  const own = (c.contacts || []).filter((x) => x.side !== "npsa" && x.side !== "reference");
+  const picked = s?.wish_list ? s.wish_list.reduce((n, f) => n + f.prioritized, 0) : 0;
+  const quiet = daysSince(c.last_client_activity_at);
 
   const dt: React.CSSProperties = { color: "var(--faint)", fontSize: 11.5, paddingTop: 2, whiteSpace: "nowrap" };
   const dd: React.CSSProperties = { margin: 0, minWidth: 0 };
@@ -378,10 +472,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
     <div
       onClick={onClose}
       role="presentation"
-      style={{
-        position: "fixed", inset: 0, zIndex: 80, background: "rgba(12,16,24,.55)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: stacked ? 12 : 32,
-      }}
+      style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(12,16,24,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: stacked ? 12 : 32 }}
     >
       <div
         role="dialog"
@@ -389,240 +480,140 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
         aria-labelledby="client-dialog-title"
         onClick={(e) => e.stopPropagation()}
         className="card-surface"
-        style={{
-          width: "100%", maxWidth: 1080, maxHeight: "calc(100vh - 64px)",
-          display: "flex", flexDirection: "column",
-          background: "var(--card)", border: "1px solid var(--bd2)", borderRadius: 18,
-          boxShadow: "var(--shadow-card-hover)", overflow: "hidden",
-        }}
+        style={{ width: "100%", maxWidth: 1080, maxHeight: "calc(100vh - 64px)", display: "flex", flexDirection: "column", background: "var(--card)", border: "1px solid var(--bd2)", borderRadius: 18, boxShadow: "var(--shadow-card-hover)", overflow: "hidden" }}
       >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "22px 26px 18px", borderBottom: "1px solid var(--hair)" }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Eyebrow style={{ marginBottom: 6, fontSize: 11 }}>client profile</Eyebrow>
-            <div id="client-dialog-title" className="headline" style={{ fontSize: 26, lineHeight: 1.15, marginBottom: 8, textWrap: "balance" } as React.CSSProperties}>
-              {c.name}
+        {/* Header: who, where, the link, and the one switch that reveals editing */}
+        <div style={{ padding: "20px 26px 16px", borderBottom: "1px solid var(--hair)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div id="client-dialog-title" className="headline" style={{ fontSize: 26, lineHeight: 1.15, marginBottom: 6, textWrap: "balance" } as React.CSSProperties}>{c.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", color: "var(--mute)", fontSize: 13 }}>
+                <span>{c.state} · {saaShort(c.saa)}</span>
+                <PhaseChip phase={c.phase} />
+                <StatusChip status={c.status} />
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", color: "var(--mute)", fontSize: 13 }}>
-              <span>{c.state} · {c.saa || "—"}</span>
-              <PhaseChip phase={c.phase} />
-              <StatusChip status={c.status} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <button type="button" onClick={() => setEditing((v) => !v)} style={{ ...smallBtn, background: editing ? "var(--navy)" : "var(--card)", color: editing ? "var(--on-accent)" : "var(--ink)", borderColor: editing ? "var(--navy)" : "var(--bd2)" }}>
+                {editing ? "Done editing" : "Edit documents & contacts"}
+              </button>
+              <button
+                ref={closeRef} type="button" aria-label="Close" onClick={onClose}
+                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "1px solid var(--bd2)", borderRadius: 9, color: "var(--sec)", cursor: "pointer", lineHeight: 1, padding: 0 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; e.currentTarget.style.color = "var(--ink)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sec)"; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-            <Eyebrow style={{ fontSize: 10.5 }}>esc to close</Eyebrow>
-            <button
-              ref={closeRef}
-              type="button"
-              aria-label="Close"
-              onClick={onClose}
-              style={{
-                width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
-                background: "transparent", border: "1px solid var(--bd2)", borderRadius: 9,
-                color: "var(--sec)", cursor: "pointer", lineHeight: 1, padding: 0,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; e.currentTarget.style.color = "var(--ink)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sec)"; }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, background: "var(--bg)", border: "1px solid var(--hair)", borderRadius: 10, padding: "6px 6px 6px 12px" }}>
+            <span className="mono" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, color: "var(--sec)" }} title="The link carries the client's token. Send it only to them.">
+              {c.intake_url.replace(/^https?:\/\//, "").replace(/\?t=.*/, "")}
+            </span>
+            <button type="button" onClick={() => copyLink(c.intake_url)} style={smallBtn}>{copied ? "Copied" : "Copy link"}</button>
+            <a href={c.intake_url} target="_blank" rel="noreferrer" className="mono" style={{ ...smallBtn, background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)", textDecoration: "none" }}>Open form</a>
           </div>
         </div>
 
         {/* Body */}
-        <div style={{ overflowY: "auto", padding: "22px 26px 26px" }}>
+        <div style={{ overflowY: "auto", padding: "18px 26px 26px" }}>
           {error && <Note>Could not load {row.slug}: {error}</Note>}
           {!error && !s && <Note>Loading…</Note>}
           {s && (
-            <div style={{ display: "grid", gridTemplateColumns: stacked ? "1fr" : "minmax(0, 5fr) minmax(0, 6fr)", gap: stacked ? 26 : 36, alignItems: "start" }}>
-              {/* Left: who and where */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
-                <div>
-                  <Label>intake link</Label>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ok-bg)", border: "1px solid var(--bd2)", borderRadius: 10, padding: "8px 8px 8px 12px" }}>
-                    <span className="mono" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, color: "var(--ink)" }}>
-                      {c.intake_url.replace(/^https?:\/\//, "").replace(/\?t=.*/, "")}
-                    </span>
-                    <button type="button" onClick={() => copyLink(c.intake_url)} className="mono" style={{ fontSize: 11.5, padding: "6px 12px", borderRadius: 999, border: "1px solid var(--bd2)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", whiteSpace: "nowrap" }}>
-                      {copied ? "Copied" : "Copy link"}
-                    </button>
-                    <a href={c.intake_url} target="_blank" rel="noreferrer" className="mono" style={{ fontSize: 11.5, padding: "6px 12px", borderRadius: 999, background: "var(--navy)", color: "var(--on-accent)", textDecoration: "none", whiteSpace: "nowrap" }}>
-                      Open
-                    </a>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6 }}>The copied link carries the client&rsquo;s token. Send it only to them.</div>
-                </div>
-
-                <div>
-                  <Label>engagement</Label>
-                  <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "8px 16px", fontSize: 13.5, margin: 0 }}>
-                    <dt className="mono" style={dt}>Track</dt><dd style={dd}>{c.program_track || <Faint>not set</Faint>}</dd>
-                    <dt className="mono" style={dt}>Kickoff</dt><dd style={dd}>{c.kickoff_date ? `${fmtDate(c.kickoff_date, { month: "short", day: "numeric", year: "numeric" })} (Day 0)` : <span style={{ color: "var(--warn-fg)" }}>not booked</span>}</dd>
-                    <dt className="mono" style={dt}>Filling it in</dt><dd style={dd}>{s.filled_by || <Faint>nobody yet</Faint>}</dd>
-                    <dt className="mono" style={dt}>Last save</dt><dd style={dd}>{lastSave(c)}</dd>
-                    {c.submitted_at && (<><dt className="mono" style={dt}>Submitted</dt><dd style={dd}>{s.status_line || fmtDate(c.submitted_at)}</dd></>)}
-                    <dt className="mono" style={dt}>Asana</dt><dd style={dd}>{c.asana_project_gid ? <Ext href={`https://app.asana.com/0/${c.asana_project_gid}/list`}>Open project</Ext> : <Faint>not linked</Faint>}</dd>
-                    <dt className="mono" style={dt}>Drive</dt>
-                    <dd style={dd}>
-                      {c.drive_folder_id ? <Ext href={`https://drive.google.com/drive/folders/${c.drive_folder_id}`}>Client folder</Ext> : <Faint>no client folder</Faint>}
-                      {c.upload_folder_id && <> <Faint>·</Faint> <Ext href={`https://drive.google.com/drive/folders/${c.upload_folder_id}`}>Phase 2 uploads</Ext></>}
-                    </dd>
-                  </dl>
-                </div>
-
-                <div>
-                  <Label>contacts</Label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
-                    {own.length === 0 && <Faint>No client contacts on file.</Faint>}
-                    {own.map((x) => (
-                      <div key={x.email} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "baseline" }}>
-                        <span style={{ minWidth: 0 }}>
-                          <span style={{ fontWeight: 600 }}>{x.name || x.email}</span>
-                          {x.role && <span style={{ color: "var(--mute)" }}> · {x.role}</span>}
-                        </span>
-                        <a href={`mailto:${x.email}`} className="mono" style={{ fontSize: 11.5, color: "var(--navy)", textDecoration: "none", whiteSpace: "nowrap" }}>{x.email}</a>
-                      </div>
-                    ))}
-                    {npsa.length > 0 && (
-                      <div style={{ marginTop: 2, color: "var(--faint)", fontSize: 12 }}>
-                        NPSA side: {npsa.map((x) => `${x.name.split(" ")[0]}${/consultant|sales rep/i.test(x.role) ? " (consultant)" : ""}`).join(", ")}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <ReferenceContactsEditor client={c} onSaved={(fresh) => setDetail((d) => (d ? { ...d, client: fresh } : d))} />
-
-                <DocumentsEditor client={c} onSaved={(fresh) => setDetail((d) => (d ? { ...d, client: fresh } : d))} />
-
-                {s.uploads.length > 0 && (
-                  <div>
-                    <Label>uploads</Label>
-                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
-                      {s.uploads.map((u) => (
-                        <li key={u.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center" }}>
-                          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            <span style={{ color: "var(--mute)" }}>{u.label}:</span>{" "}
-                            {u.drive_url ? <Ext href={u.drive_url}>{u.filename}</Ext> : u.filename}
-                            <span className="mono" style={{ color: "var(--faint)", fontSize: 11 }}> · {Math.max(1, Math.round(u.size_bytes / 1024)).toLocaleString("en-US")} KB</span>
-                          </span>
-                          <span style={{ display: "flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
-                            <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)" }}>{fmtDate(u.uploaded_at)}</span>
-                            <button type="button" onClick={() => downloadUpload(c.slug, u)} style={smallBtn}>Download</button>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
+            <>
+              {/* The four numbers that answer "where do they stand" */}
+              <div style={{ display: "grid", gridTemplateColumns: stacked ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10, marginBottom: 8 }}>
+                <Stat label="intake" value={`${pct(s.core.answered, s.core.total)}%`} sub={`${s.core.answered} of ${s.core.total} core answers`} bar={pct(s.core.answered, s.core.total)} />
+                <Stat label="checklist" value={`${s.checklist.completed} / ${s.checklist.total}`} sub={s.checklist.not_applicable ? `${s.checklist.not_applicable} not applicable` : "tasks completed"} bar={pct(s.checklist.completed, s.checklist.total)} />
+                <Stat
+                  label="wish list"
+                  value={picked ? `${picked} item${picked === 1 ? "" : "s"}` : "none yet"}
+                  sub={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)} allowed` : "nothing costed yet"}
+                  bar={s.budget && s.budget.requested > 0 ? pct(s.budget.requested, s.budget.cap) : undefined}
+                  tone={s.budget && s.budget.room < 0 ? "err" : undefined}
+                />
+                <Stat
+                  label="last save"
+                  value={quiet === null ? "never" : quiet === 0 ? "today" : `${quiet}d ago`}
+                  sub={s.filled_by ? `by ${s.filled_by}` : "nobody filling it in yet"}
+                  tone={c.status === "active" && quiet !== null && quiet > 14 ? "warn" : undefined}
+                />
               </div>
 
-              {/* Right: how far along */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
-                <div>
-                  <Label>intake by section · {s.core.answered} of {s.core.total} core answers</Label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {/* The sections the client is asked to fill. NPSA notes, the wish list, the
-                        response stamp and the checklist are bookkeeping or shown elsewhere. */}
-                    {s.sections.filter((x) => CORE_SECTION.test(x.section) && !(s.programs && x.section === "Programs")).map((x) => (
-                      <div key={x.section} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13 }}>
-                        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.section}</span>
-                        <Progress a={x.answered} b={x.total} width={120} />
-                      </div>
-                    ))}
-                    {s.programs && (
-                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13 }}>
-                        <span>Programs</span>
-                        <span className="mono" style={{ fontSize: 12, color: s.programs.listed ? "var(--sec)" : "var(--faint)", fontVariantNumeric: "tabular-nums" }}>
-                          {s.programs.listed ? `${s.programs.listed} listed` : "none listed"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+              <div style={{ display: "grid", gridTemplateColumns: stacked ? "1fr" : "minmax(0, 5fr) minmax(0, 6fr)", gap: stacked ? 0 : 36, alignItems: "start" }}>
+                {/* Left: the engagement and the people and papers around it */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+                  <Section title="engagement">
+                    <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "7px 16px", fontSize: 13.5, margin: 0 }}>
+                      <dt className="mono" style={dt}>Track</dt><dd style={dd}>{c.program_track || <Faint>not set</Faint>}</dd>
+                      <dt className="mono" style={dt}>Kickoff</dt><dd style={dd}>{c.kickoff_date ? `${fmtDate(c.kickoff_date, { month: "short", day: "numeric", year: "numeric" })} (Day 0)` : <span style={{ color: "var(--warn-fg)" }}>not booked</span>}</dd>
+                      {c.submitted_at && (<><dt className="mono" style={dt}>Submitted</dt><dd style={dd}>{s.status_line || fmtDate(c.submitted_at)}</dd></>)}
+                      <dt className="mono" style={dt}>SAA</dt><dd style={dd}>{c.saa || <Faint>unknown</Faint>}</dd>
+                      <dt className="mono" style={dt}>Links</dt>
+                      <dd style={dd}>
+                        {c.asana_project_gid ? <Ext href={`https://app.asana.com/0/${c.asana_project_gid}/list`}>Asana</Ext> : <Faint>no Asana</Faint>}
+                        {" "}<Faint>·</Faint>{" "}
+                        {c.drive_folder_id ? <Ext href={`https://drive.google.com/drive/folders/${c.drive_folder_id}`}>Client folder</Ext> : <Faint>no client folder</Faint>}
+                        {c.upload_folder_id && <> <Faint>·</Faint> <Ext href={`https://drive.google.com/drive/folders/${c.upload_folder_id}`}>Phase 2</Ext></>}
+                      </dd>
+                    </dl>
+                  </Section>
+                  <PeopleSection client={c} editing={editing} onSaved={saved} />
+                  <DocumentsSection client={c} uploads={s.uploads} editing={editing} onSaved={saved} />
                 </div>
 
-                {s.wish_list && (
-                  <div>
-                    <Label>wish list · {s.wish_list.reduce((n, f) => n + f.prioritized, 0)} items prioritized{s.budget && s.budget.requested > 0 ? ` · ${usd(s.budget.requested)} of ${usd(s.budget.cap)} requested` : ""}</Label>
-                    {s.wish_list.every((f) => f.prioritized === 0) && (
-                      <div style={{ fontSize: 13, color: "var(--faint)" }}>No items prioritized yet. An item counts once the client gives it a priority.</div>
-                    )}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                      {s.wish_list.filter((f) => f.prioritized > 0).map((f) => (
-                        <div key={f.facility}>
-                          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13, marginBottom: 6 }}>
-                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              <span style={{ fontWeight: 600 }}>Facility {f.facility}</span>
-                              {f.name && <span style={{ color: "var(--mute)" }}> · {f.name}</span>}
-                              <span className="mono" style={{ color: "var(--faint)", fontSize: 11.5 }}> · {f.prioritized} item{f.prioritized === 1 ? "" : "s"}</span>
-                            </span>
-                            <Progress a={f.details.answered} b={f.details.total} width={120} />
-                          </div>
-                          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
-                            {f.items.map((it) => (
-                              <li key={it.stem} style={{ display: "grid", gridTemplateColumns: "22px minmax(0, 1fr) auto auto", gap: 10, alignItems: "center", fontSize: 12.5 }}>
-                                <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ok-fg)", background: "var(--ok-bg)", borderRadius: 6, textAlign: "center", padding: "1px 0" }}>{it.priority}</span>
-                                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--sec)" }}>{it.label}</span>
-                                <span className="mono" style={{ fontSize: 11.5, color: it.cost ? "var(--sec)" : "var(--faint)", fontVariantNumeric: "tabular-nums", minWidth: 60, textAlign: "right" }}>{it.cost ? usd(it.cost) : it.cost === null || it.cost === undefined ? "" : usd(0)}</span>
-                                <span className="mono" style={{ fontSize: 11.5, color: it.answered === it.total ? "var(--ok-fg)" : "var(--faint)", fontVariantNumeric: "tabular-nums" }}>{it.answered}/{it.total}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          {f.budget && (f.budget.total > 0 || f.budget.uncosted > 0) && (
-                            <div style={{ marginTop: 8 }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, marginBottom: 4 }}>
-                                <span><span style={{ fontWeight: 600 }}>{usd(f.budget.total)}</span> <Faint>of {usd(f.budget.cap)}{f.budget.ma_on ? ` · M&A ${usd(f.budget.ma)}${f.budget.ma_default ? " (5%)" : ""}` : " · no M&A"}</Faint></span>
-                                <span className="mono" style={{ fontSize: 11.5, color: f.budget.room < 0 ? "var(--err-fg)" : "var(--ok-fg)" }}>{f.budget.room < 0 ? `${usd(-f.budget.room)} over` : `${usd(f.budget.room)} room`}</span>
-                              </div>
-                              <Bar pct={Math.min(100, pct(f.budget.total, f.budget.cap))} color={f.budget.room < 0 ? "var(--err-fg)" : "var(--olive)"} height={8} radius={4} animate={false} />
-                              {f.budget.uncosted > 0 && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 3 }}>{f.budget.uncosted} item{f.budget.uncosted === 1 ? "" : "s"} without a cost yet</div>}
-                            </div>
-                          )}
+                {/* Right: how far along */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+                  <Section title="intake by section" meta={s.programs ? `${s.programs.listed} program${s.programs.listed === 1 ? "" : "s"} listed` : undefined}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                      {s.sections.filter((x) => CORE_SECTION.test(x.section) && !(s.programs && x.section === "Programs")).map((x) => (
+                        <div key={x.section} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13 }}>
+                          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: x.answered === x.total ? "var(--mute)" : "var(--ink)" }}>{x.section}</span>
+                          <Progress a={x.answered} b={x.total} width={120} />
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  </Section>
 
-                <div>
-                  <Label>checklist · {s.checklist.completed} of {s.checklist.total} completed{s.checklist.not_applicable ? ` · ${s.checklist.not_applicable} not applicable` : ""}</Label>
-                  <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column" }}>
-                    {s.checklist.items.map((it, i) => {
-                      const done = it.status === "Completed";
-                      const prog = it.status === "In progress";
-                      const na = it.status === "Not applicable";
-                      const meta = na ? "n/a" : [prog ? "in progress" : "", it.due ? fmtDue(it.due) : "", it.owner].filter(Boolean).join(" · ");
-                      return (
-                        <li
-                          key={it.stem}
-                          style={{
-                            display: "grid", gridTemplateColumns: "14px minmax(0, 1fr) auto", gap: 12, alignItems: "center",
-                            padding: "7px 0", borderTop: i ? "1px solid var(--hair2)" : undefined, fontSize: 13,
-                          }}
-                        >
-                          <span
-                            aria-hidden
-                            style={{
-                              width: 10, height: 10, borderRadius: "50%", justifySelf: "center",
-                              border: `2px solid ${done ? "var(--ok-fg)" : prog ? "var(--warn-fg)" : "var(--bd2)"}`,
-                              background: done ? "var(--ok-fg)" : prog ? "var(--warn-bg)" : na ? "var(--bd2)" : "transparent",
-                              opacity: na ? 0.5 : 1,
-                            }}
-                          />
-                          <span style={{ minWidth: 0, color: done || na ? "var(--mute)" : "var(--ink)", lineHeight: 1.35, textDecoration: na ? "line-through" : undefined, opacity: na ? 0.6 : 1 }}>
-                            {it.label}
-                          </span>
-                          <span className="mono" style={{ fontSize: 11.5, color: prog ? "var(--warn-fg)" : "var(--faint)", whiteSpace: "nowrap", textAlign: "right" }}>{meta}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  {s.wish_list && (
+                    <Section title="wish list & budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}` : undefined}>
+                      {picked === 0 && <Faint>Nothing picked yet. An item counts once the client gives it a priority.</Faint>}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        {s.wish_list.filter((f) => f.prioritized > 0).map((f) => (
+                          <div key={f.facility}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, marginBottom: 6 }}>
+                              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <span style={{ fontWeight: 600 }}>{f.name || `Facility ${f.facility}`}</span>
+                                <span className="mono" style={{ color: "var(--faint)", fontSize: 11.5 }}> · {f.prioritized} item{f.prioritized === 1 ? "" : "s"}</span>
+                              </span>
+                              {f.budget && f.budget.total > 0 && (
+                                <span className="mono" style={{ fontSize: 11.5, whiteSpace: "nowrap", color: f.budget.room < 0 ? "var(--err-fg)" : "var(--sec)" }}>
+                                  {usd(f.budget.total)} of {usd(f.budget.cap)}{f.budget.room < 0 ? ` · ${usd(-f.budget.room)} over` : ""}
+                                </span>
+                              )}
+                            </div>
+                            {f.budget && f.budget.total > 0 && <div style={{ marginBottom: 6 }}><Bar pct={Math.min(100, pct(f.budget.total, f.budget.cap))} color={f.budget.room < 0 ? "var(--err-fg)" : "var(--olive)"} height={6} radius={3} animate={false} /></div>}
+                            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+                              {f.items.map((it) => (
+                                <li key={it.stem} style={{ display: "grid", gridTemplateColumns: "22px minmax(0, 1fr) auto", gap: 10, alignItems: "center", fontSize: 12.5 }}>
+                                  <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ok-fg)", background: "var(--ok-bg)", borderRadius: 6, textAlign: "center", padding: "1px 0" }}>{it.priority}</span>
+                                  <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--sec)" }}>{it.label}<span style={{ color: "var(--faint)" }}> · {it.answered}/{it.total} details</span></span>
+                                  <span className="mono" style={{ fontSize: 11.5, color: it.cost ? "var(--sec)" : "var(--faint)", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{it.cost ? usd(it.cost) : "no cost"}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {f.budget && f.budget.ma_on && f.budget.ma > 0 && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 4 }}>M&A {usd(f.budget.ma)}{f.budget.ma_default ? " (5%)" : ""}{f.budget.uncosted ? ` · ${f.budget.uncosted} item${f.budget.uncosted === 1 ? "" : "s"} without a cost` : ""}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+
+                  <ChecklistSection checklist={s.checklist} />
                 </div>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
