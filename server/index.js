@@ -10,7 +10,7 @@ import HTMLtoDOCX from 'html-to-docx';
 import { registerMarketing } from './marketing.js';
 import { listUpcomingBookings, getBooking, roundRobinSchedulingUrl } from './precall-bookings.js';
 import {
-  buildMeetingDetails, buildAttendees, buildVideoConference,
+  buildMeetingDetails, buildAttendees, buildVideoConference, buildBookingAnswers,
   writeInLines, writeInField, substituteBlocks, fillEmptySections, formatCentral, NPSA_TITLES,
 } from './precall-facts.js';
 import {
@@ -288,6 +288,9 @@ OUTPUT EXACTLY THIS MARKDOWN STRUCTURE (replace the {placeholders}; omit a brack
 
 ## Attendees
 <<ATTENDEES>>
+
+## What They Told Us When Booking
+<<BOOKING_ANSWERS>>
 
 ## Verified Campus / Property Locations
 {For each: **{Site name}** — {full postal address}. If none verified: TBD}
@@ -762,7 +765,9 @@ app.post('/api/precall', async (req, res) => {
       `MEETING INFORMATION (background only — the Meeting Details, Attendees and`,
       `Video Conference sections are filled in by the application at their tokens.`,
       `Do not restate any phone number, email address, meeting link, meeting ID or`,
-      `passcode anywhere in your output):`,
+      `passcode anywhere in your output, and do not quote the booking form answers`,
+      `back — they are printed verbatim at the BOOKING_ANSWERS token. Use them to`,
+      `write the Objective, Overview and Stated Needs, which is what they are for):`,
       `Organization: ${orgName || 'Unknown'}`,
       `Type: ${orgType || 'unknown'}`,
       `State: ${orgState || 'unknown'}`,
@@ -806,6 +811,14 @@ app.post('/api/precall', async (req, res) => {
         body: buildMeetingDetails(facts, { orgType, website: resolvedWebsite, hostName: booking?.host?.name }),
       },
       ATTENDEES: { heading: 'Attendees', body: buildAttendees(facts, research, booking?.host) },
+      // Everything else the client typed on the form. Reaching the model as
+      // context was not the same as reaching the page: the answers that say what
+      // an organisation is actually worried about survived only if the model
+      // happened to work them into a paragraph.
+      BOOKING_ANSWERS: {
+        heading: 'What They Told Us When Booking',
+        body: buildBookingAnswers(facts.questions),
+      },
       VIDEO_CONFERENCE: { heading: 'Video Conference Details', body: buildVideoConference(facts.location) },
       WISH_LIST: { heading: 'Top Three Security Wish List Items', body: writeInLines(3) },
       // Total attendance across every campus — the figure that sizes the whole

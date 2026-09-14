@@ -81,6 +81,14 @@ globalThis.fetch = async (url, init) => {
         questions_and_answers: [
           { question: 'Organization Name', answer: 'Greenland Hills UMC', position: 0 },
           { question: 'Contact Phone Number', answer: '2147089835', position: 1 },
+          // The answers the briefing used to lose. They reached the model as
+          // context and stopped there, so whether the rep ever saw what the
+          // client was worried about came down to whether a paragraph happened
+          // to mention it.
+          { question: 'What are your primary security concerns?',
+            answer: 'Break-in during evening services.\nUnsecured side entrances.', position: 2 },
+          { question: 'How did you hear about us?', answer: 'Referred by Merit Dallas', position: 3 },
+          { question: 'Unanswered question', answer: '', position: 4 },
         ],
       }] });
     }
@@ -180,6 +188,20 @@ const checks = {
   'attendee count section survives': /## # Attendees All Campuses/.test(n),
   'attendee count is a rule, not a guess': /## # Attendees All Campuses\s*\n+\\_/.test(n),
   'invented congregation size GONE': !n.includes('About 1,200 members'),
+  // Stuart: "we need it to pull the calendly booking answers into the call
+  // notes." Rendered by code for the same reason as the phone number — the
+  // answer is already known exactly, so a model asked to reproduce it can only
+  // come back right or plausibly wrong.
+  'booking answers section present': /## What They Told Us When Booking/.test(n),
+  'a booking answer is printed verbatim': n.includes('Break-in during evening services.'),
+  'a multi-line answer keeps its second line': n.includes('Unsecured side entrances.'),
+  'every answered question reaches the page': n.includes('Referred by Merit Dallas'),
+  'an unanswered question is not printed': !n.includes('Unanswered question'),
+  // The organization, website and phone are already named fields a few lines up,
+  // and the state is in the title. Printing them again invites a rep to wonder
+  // which copy is right.
+  'the already-rendered fields are not repeated': !/Organization Name:/.test(n)
+    && (n.match(/2147089835/g) || []).length <= 2,
 };
 // Now the degraded run: no reader answers at all.
 globalThis.__READERS_DOWN = true;
@@ -197,6 +219,7 @@ Object.assign(checks, {
   'website survives a reader outage': n2.includes('greenlandhills.org'),
   'website is not reported as TBD': !/Website:\*{0,2}\s*TBD/i.test(n2),
   'submitted facts unaffected by the outage': n2.includes('2147089835') && n2.includes('Jeff Markely'),
+  'booking answers unaffected by the outage': n2.includes('Break-in during evening services.'),
 });
 
 console.log('\n--- assertions ---');

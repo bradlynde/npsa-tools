@@ -12,15 +12,20 @@
  */
 
 import { calendlyGet, answerMatching } from './marketing.js';
+import { KNOWN_BOOKING_QUESTIONS } from './precall-facts.js';
 
 const CAL_API = 'https://api.calendly.com';
 
-// Question text, not question position. A Calendly form can be reordered with a
-// drag and no warning that it has repointed anything downstream.
-const Q_ORGANIZATION = /organi[sz]ation|company/i;
-const Q_PHONE        = /phone|mobile|cell|contact number/i;
-const Q_WEBSITE      = /website|web site|url/i;
-const Q_STATE        = /\bstate\b/i;
+// Question text, not question position — see KNOWN_BOOKING_QUESTIONS. These four
+// become named fields here; precall-facts.js leaves the same four out of the
+// verbatim answer list so nothing prints twice. One definition, so the two halves
+// of that arrangement cannot disagree.
+const {
+  organization: Q_ORGANIZATION,
+  phone:        Q_PHONE,
+  website:      Q_WEBSITE,
+  state:        Q_STATE,
+} = KNOWN_BOOKING_QUESTIONS;
 
 /**
  * Calendly's polymorphic fields (location, and the meeting id inside it) arrive
