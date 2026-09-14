@@ -183,6 +183,36 @@ await advanceTo("Review");
 const freedSave = await saveButton().isDisabled();
 const freedDownload = await downloadButton().isDisabled();
 
+/*
+ * "View as Proposal" was a way around the whole rule. A proposal names its side
+ * with proposalFeeModel and its Fees step writes that side's model field, but
+ * the rule read engagementModel for every tab that was not "inh" — so an
+ * in-house proposal, the default, looked flat. One click turned a letter that
+ * was correctly blocked into a document that saved freely.
+ *
+ * Stuart's call is that a proposal warns and still sends, since it is not a
+ * signed contract. So what this checks is that the notice follows the
+ * conversion even though the block does not.
+ */
+await backTo("Scope");
+await page.locator(".wz-chip-add").first().click();   // back to two applications
+await page.waitForTimeout(400);
+await advanceTo("Review");
+const blockedAgain = await saveButton().isDisabled();
+
+const convert = page.locator('button:has-text("View as Proposal")').first();
+const convertOffered = await convert.count() > 0;
+let proposalWarns = false;
+let proposalSaves = false;
+if (convertOffered) {
+  await convert.click();
+  await page.waitForTimeout(800);
+  await backTo("Scope");
+  proposalWarns = await page.locator("text=/applications on one letter/").count() > 0;
+  await advanceTo("Review");
+  proposalSaves = !(await saveButton().isDisabled());
+}
+
 await browser.close();
 
 const checks = [
@@ -201,6 +231,10 @@ const checks = [
   ["after the split: two letters are saved", db.size === 2],
   ["after the split: Save is available again", freedSave === false],
   ["after the split: Download is available again", freedDownload === false],
+  ["a second application blocks the letter again", blockedAgain === true],
+  ["the conversion to a proposal is still offered", convertOffered === true],
+  ["a contingent proposal still warns about the split", proposalWarns === true],
+  ["but a proposal is not a contract, so it saves", proposalSaves === true],
   ["no page errors", errors.length === 0],
 ];
 

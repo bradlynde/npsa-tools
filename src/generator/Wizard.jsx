@@ -12,7 +12,8 @@
 
 import { useEffect } from "react";
 import {
-  fmt, calcFees, totalMaxAward, applicationCount, isoDatePlus, PROGRAMS, TIER_LABELS,
+  fmt, calcFees, totalMaxAward, applicationCount, engagementModelFor, isoDatePlus, PROGRAMS,
+  TIER_LABELS,
 } from "./engine.js";
 
 /** Long-form date for display; passes through free text from older letters. */
@@ -112,7 +113,7 @@ function ReviewStep({ form, docTab, fees, numLocs, signByKey, tierKey }) {
   // The terms a rep most often needs to sanity-check before sending.
   const terms = [];
   if (docTab === "pre" || docTab === "inh" || docTab === "proposal") {
-    const model = form[isInh ? "inhEngagementModel" : "engagementModel"];
+    const model = engagementModelFor(docTab, form);
     terms.push(String(model || "").includes("partial-contingency")
       ? "Pre-Award + Partial Contingency" : "Pre-Award Only");
     terms.push(TIER_LABELS[form[tierKey]] || "Undiscounted");

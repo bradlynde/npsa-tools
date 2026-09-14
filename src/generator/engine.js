@@ -328,6 +328,28 @@ function programsKeyFor(docTab) {
 }
 
 /**
+ * The engagement model a document actually prices on.
+ *
+ * A proposal can be either side of the business and says which with
+ * proposalFeeModel; its Fees step then writes inhEngagementModel or
+ * engagementModel to match. Reading engagementModel for every tab that is not
+ * "inh" therefore read a field an in-house proposal never writes — and in-house
+ * is the default, so a contingent proposal looked flat. One click of "View as
+ * Proposal" on a letter that was correctly demanding a split produced a
+ * proposal that demanded nothing and saved freely.
+ *
+ * The fallback matches the Fees step's own `proposalFeeModel || "inh"`, for
+ * letters saved before that field existed.
+ */
+function engagementModelFor(docTab, form) {
+  if (docTab === "inh") return form.inhEngagementModel;
+  if (docTab === "proposal") {
+    return (form.proposalFeeModel || "inh") === "inh" ? form.inhEngagementModel : form.engagementModel;
+  }
+  return form.engagementModel;
+}
+
+/**
  * Documents that must carry exactly one application.
  *
  * Brad, asked whether every multi-program engagement should be split: "No. We
@@ -404,5 +426,5 @@ export {
   SHARED_FIELDS, POST_FIELDS,
   PROGRAMS, NPSA_SIGNATURES,
   totalMaxAward, applicationCount, locationPrograms, locationInProgram, isoDatePlus,
-  programsKeyFor, oneApplicationPerLetter, enumerateApplications, divideFee,
+  programsKeyFor, oneApplicationPerLetter, engagementModelFor, enumerateApplications, divideFee,
 };
