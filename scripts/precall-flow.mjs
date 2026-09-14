@@ -158,14 +158,27 @@ check("submitted phone survives to the request body",
   JSON.stringify(generateBody?.formData?.attendees?.[0]));
 
 // ── 4. the deadline editor opens and lists curated rows ──────────────────
+//
+// The editor is a state selector now: it opens on a jurisdiction grid and shows
+// one state's rows once a state is picked. These three checks still expected the
+// old all-states table, so they had been failing since that rewrite — invisibly,
+// because CI only runs `vite build` and nothing else runs this file.
 await page.locator('button:has-text("Deadlines")').first().click();
 await page.waitForTimeout(500);
-check("deadline editor lists the curated row",
-  (await page.locator("text=2025-10-21").count()) > 0);
-check("deadline source is shown so it can be re-checked",
-  (await page.locator("text=in.gov/dhs").count()) > 0);
+check("deadline editor opens on the jurisdiction grid",
+  await page.getByRole("button", { name: /^IN/ }).isVisible());
+
+await page.getByRole("button", { name: /^IN/ }).click();
+await page.waitForTimeout(300);
+const deadlineBody = await page.locator("body").innerText();
+check("the chosen state's curated row is listed", deadlineBody.includes("2025-10-21"));
+check("deadline source is shown so it can be re-checked", deadlineBody.includes("in.gov/dhs"));
+// Indiana's only row is illustrative, so within its view "verify" must be the
+// label and "confirmed" must not appear at all. The old assertion looked for
+// both strings anywhere on the page, which a single mislabelled row would pass.
 check("a date needing checking is labelled, not shown as confirmed",
-  (await page.locator('text="verify"').count()) > 0 && (await page.locator('text="confirmed"').count()) > 0);
+  /verify/.test(deadlineBody) && !/confirmed/.test(deadlineBody));
+check("another state's rows stay out of view", !deadlineBody.includes("egrants.gov.texas.gov"));
 
 // ── 5. the dashboard does NOT carry a second copy of the deadlines ──────
 // This screen is only ever reached inside the toolbox's /loe iframe, which always
