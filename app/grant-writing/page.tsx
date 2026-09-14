@@ -411,14 +411,19 @@ function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
     );
   };
   return (
-    <Section title="checklist" meta={`${checklist.completed} of ${checklist.total} done${checklist.not_applicable ? ` · ${checklist.not_applicable} n/a` : ""}`}>
-      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>{open.map(row)}</ul>
-      {rest.length > 0 && (
-        <button type="button" onClick={() => setShowDone((v) => !v)} style={{ ...xBtn, fontSize: 11.5, marginTop: 8, textDecoration: "underline", padding: 0 }}>
-          {showDone ? "Hide" : "Show"} {rest.length} finished or n/a
+    <Section
+      title={`checklist · ${open.length} left`}
+      meta={rest.length > 0 ? (
+        <button type="button" onClick={() => setShowDone((v) => !v)} style={{ ...xBtn, fontSize: 11.5, padding: 0, textDecoration: "underline", color: "var(--faint)" }}>
+          {showDone ? "hide" : "show"} {checklist.completed} done{checklist.not_applicable ? ` · ${checklist.not_applicable} n/a` : ""}
         </button>
+      ) : "nothing finished yet"}
+    >
+      {open.length === 0 && <Faint>Every task is finished or marked not applicable.</Faint>}
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>{open.map(row)}</ul>
+      {showDone && rest.length > 0 && (
+        <ul style={{ margin: "10px 0 0", padding: "8px 0 0", listStyle: "none", opacity: 0.8, borderTop: "1px dashed var(--bd2)" }}>{rest.map(row)}</ul>
       )}
-      {showDone && <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", opacity: 0.85 }}>{rest.map(row)}</ul>}
     </Section>
   );
 }
