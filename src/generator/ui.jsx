@@ -504,6 +504,52 @@ export function SplitNotice({ apps, docTab, onSplit, required }) {
   );
 }
 
+/**
+ * Why the buttons below this are dead, and what to do about it.
+ *
+ * The split rule is enforced where the letter is priced, but the button it
+ * disables is on Review — so a rep who scrolled past the notice on Scope arrived
+ * at a greyed-out Save with nothing on screen explaining it. A `title` needs a
+ * hover to say anything, which is no help to someone who has already concluded
+ * the tool is broken. Stuart, looking at exactly that screen: "it needs some
+ * sort of notifier so that the rep knows what to fix."
+ *
+ * Every reason a letter cannot leave the wizard belongs here, not just the
+ * split: the expiration date has been a tooltip-only blocker since long before
+ * the split existed.
+ */
+export function BlockerNotice({ items = [] }) {
+  if (!items.length) return null;
+  return (
+    <div style={{ background: "var(--warn-bg)", border: "1px solid var(--warn-fg)", borderRadius: 10,
+                  padding: "12px 14px", margin: "12px 0 0" }}>
+      <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--warn-fg)", marginBottom: 8 }}>
+        {items.length === 1 ? "One thing to fix first" : `${items.length} things to fix first`}
+      </div>
+      {items.map((it, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                              marginTop: i ? 8 : 0 }}>
+          <div style={{ fontSize: 12, color: "var(--sec)", lineHeight: 1.5, flex: "1 1 240px" }}>
+            {it.text}
+            {/* Named per row rather than once at the top: the expiration date
+                stops a download and lets a save through, and a banner that
+                claimed both would be wrong half the time it appears. */}
+            <span style={{ color: "var(--warn-fg)", fontWeight: 700 }}> · blocks {it.blocks}</span>
+          </div>
+          {it.actionLabel && (
+            <button type="button" onClick={it.onAction}
+              style={{ background: "var(--navy)", color: "var(--on-accent)", border: "none", borderRadius: 8,
+                       padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                       fontFamily: "var(--font-sans)", whiteSpace: "nowrap" }}>
+              {it.actionLabel}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── locations ───────────────────────────────────────────────────────── */
 
 /**

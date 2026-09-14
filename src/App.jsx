@@ -1718,7 +1718,7 @@ export default function App() {
         onDownload={handlePrint}
         downloadLabel={isGw ? "Print / Save as PDF" : "Download PDF"}
         downloadDisabled={downloadBlocked}
-        downloadHint="Set an Expiration Date first"
+        downloadHint="Set an Offer Expiration Date"
         onReview={!REVIEW_EDIT_ENABLED || isGw ? null : () => {
           setReviewHtml(previewRef.current ? previewRef.current.innerHTML : "");
           setSavedLetterOverride(null);
