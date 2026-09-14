@@ -74,6 +74,63 @@ function formatInvitee(iso, tz) {
   } catch { return null; }   // an unrecognised IANA zone is not worth failing over
 }
 
+/*
+ * The booking questions this pipeline already renders somewhere else.
+ *
+ * Matched on question TEXT, not position: a Calendly form can be reordered with a
+ * drag and no warning that it has repointed anything downstream.
+ *
+ * They live here rather than beside the reader that uses them because two files
+ * now need the same answer — the reader, to lift these four into named fields,
+ * and buildBookingAnswers below, to leave them out of the verbatim list. Two
+ * copies would drift, and the drift would show up as a duplicated line rather
+ * than as an error.
+ */
+export const KNOWN_BOOKING_QUESTIONS = {
+  organization: /organi[sz]ation|company/i,
+  phone:        /phone|mobile|cell|contact number/i,
+  website:      /website|web site|url/i,
+  state:        /\bstate\b/i,
+};
+
+/**
+ * What the client typed into the booking form, verbatim.
+ *
+ * Everything on a Calendly form reached the model as context and nothing reached
+ * the page. The four questions above became named fields, and every other answer
+ * — which is where a client says what they are actually worried about — survived
+ * only if the model happened to work it into a paragraph. Stuart: "we need it to
+ * pull the calendly booking answers into the call notes."
+ *
+ * Rendered here, by code, for the reason the rest of this file exists: these are
+ * values that are already known exactly, and asking a model to reproduce one can
+ * only come back correct or plausibly wrong.
+ *
+ * The four already-rendered questions are left out. The organization, website and
+ * phone are three lines up in Meeting Details and the state is in the title, and
+ * a briefing that prints the same phone number twice invites a rep to wonder
+ * which one is right.
+ */
+export function buildBookingAnswers(questions = []) {
+  const known = Object.values(KNOWN_BOOKING_QUESTIONS);
+  const rest = questions.filter(
+    (q) => q && q.answer && !known.some((re) => re.test(String(q.question || ''))));
+
+  if (!rest.length) {
+    return '- The booking form asked nothing beyond the details above.';
+  }
+  // Multi-line answers arrive with newlines in them, and a raw newline inside a
+  // bullet ends the bullet — the rest of the client's answer would render as body
+  // text belonging to nothing.
+  return rest.map((q) => {
+    const answer = String(q.answer).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(' / ');
+    // Most of these questions are written as questions, and "concerns?:" reads as
+    // a typo. Punctuate only what is not already punctuated.
+    const label = String(q.question).trim().replace(/[:\s]+$/, '');
+    return `- **${esc(label)}${/[?!.]$/.test(label) ? '' : ':'}** ${esc(answer)}`;
+  }).join('\n');
+}
+
 const WEBSITE_LABEL = { school: 'School Website', church: 'Church Website' };
 
 export function buildMeetingDetails(facts, { orgType, website, hostName } = {}) {

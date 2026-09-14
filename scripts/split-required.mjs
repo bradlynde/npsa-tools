@@ -117,9 +117,23 @@ await advanceTo("Fees");
 await page.locator('.wz-radio:has-text("Partial Contingency") input').first().check();
 await page.waitForTimeout(300);
 
-// The download carries its own guard on the expiration date. Satisfy it, so a
-// disabled button in this run can only mean the split.
-await advanceTo("Terms");
+/*
+ * The download's own guard, on the expiration date, is the older of the two and
+ * had the same defect: a greyed button explaining itself only to a rep who
+ * thought to hover it. Reach Review before satisfying it, and the notice should
+ * name it and offer the way there.
+ */
+await advanceTo("Review");
+const earlyBlocker = await page.locator("text=/things? to fix first/").count() > 0;
+const earlyBlockerText = (await page.locator('.wz-form').innerText());
+// Guarded: with the notice gone there is no button to click, and that should
+// read as a failed check rather than a stack trace three screens from the cause.
+await page.locator('button:has-text("Go to Terms")').click({ timeout: 3000 }).catch(() => {});
+await page.waitForTimeout(400);
+const landedOnTerms = (await caption()).includes("Terms");
+if (!landedOnTerms) await backTo("Terms");   // Terms precedes Review; keep the run on its feet
+
+// Satisfy it, so a disabled button later in this run can only mean the split.
 await page.locator('.wz-input[type="date"]').last().fill("2026-12-31");
 await page.waitForTimeout(300);
 
@@ -127,6 +141,7 @@ await page.waitForTimeout(300);
 await advanceTo("Review");
 const oneAppSave = await saveButton().isDisabled();
 const oneAppDownload = await downloadButton().isDisabled();
+const noBlockerWhenClear = await page.locator("text=/things? to fix first/").count() === 0;
 
 // Add a second program — one campus, two applications.
 await backTo("Scope");
@@ -138,6 +153,13 @@ const noticeSaysBlocked =
 await advanceTo("Review");
 const blockedSave = await saveButton().isDisabled();
 const blockedDownload = await downloadButton().isDisabled();
+// The notice is the whole point of this screen: the buttons are on Review and
+// the rule is enforced on Scope, so without it a rep meets a dead button and
+// nothing that says why.
+const reviewText = await page.locator('.wz-form').innerText();
+const blockerNaming = /covers 2 applications/.test(reviewText)
+  && /blocks Save and Download/.test(reviewText);
+const blockerOffersFix = await page.locator('button:has-text("Split into 2 letters")').count() > 0;
 
 // Clicking anyway must do nothing at all — no write, no print window, no modal.
 // (React refuses to deliver a click to a control its own props mark disabled,
@@ -235,6 +257,12 @@ const checks = [
   ["the conversion to a proposal is still offered", convertOffered === true],
   ["a contingent proposal still warns about the split", proposalWarns === true],
   ["but a proposal is not a contract, so it saves", proposalSaves === true],
+  ["an unset expiration date is named on Review, not left to a tooltip", earlyBlocker === true],
+  ["and it says which button it blocks", /blocks Download/.test(earlyBlockerText)],
+  ["\"Go to Terms\" lands on the step holding the field", landedOnTerms === true],
+  ["with nothing blocking, no notice appears", noBlockerWhenClear === true],
+  ["a blocked letter says on Review why it is blocked", blockerNaming === true],
+  ["and offers the split from that screen", blockerOffersFix === true],
   ["no page errors", errors.length === 0],
 ];
 

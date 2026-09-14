@@ -21,7 +21,7 @@ const fmtDate = (v) =>
   /^\d{4}-\d{2}-\d{2}$/.test(v || "")
     ? new Date(v + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : v || "";
-import { RadioCards, Chips, Field } from "./ui.jsx";
+import { RadioCards, Chips, Field, BlockerNotice } from "./ui.jsx";
 import { stepsFor } from "./steps.jsx";
 
 /*
@@ -265,6 +265,32 @@ export default function Wizard({
   const ctx = { form, setF, fees: active, inhFees, numLocs, docTab, splitOwed, mustSplit, scopedApps, onSplit };
   const splitRequiredHint = `Split into ${scopedApps} letters first — one per application`;
 
+  /*
+   * Everything standing between this letter and a rep who wants to send it.
+   *
+   * Both of these already disabled a button and explained themselves only in a
+   * `title`, which the rep has to guess is worth hovering. Collected here so the
+   * Review step can say it out loud, next to the buttons it is talking about.
+   */
+  const termsIdx = steps.findIndex((st) => st.id === "terms");
+  const blockers = [];
+  if (mustSplit) {
+    blockers.push({
+      text: `This letter covers ${scopedApps} applications, and a contingent or Award Implementation letter carries one.`,
+      blocks: "Save and Download",
+      actionLabel: onSplit ? `Split into ${scopedApps} letters` : null,
+      onAction: onSplit,
+    });
+  }
+  if (downloadDisabled) {
+    blockers.push({
+      text: downloadHint,
+      blocks: "Download",
+      actionLabel: termsIdx >= 0 ? "Go to Terms" : null,
+      onAction: () => onStep(termsIdx),
+    });
+  }
+
   // Changing document type re-shapes the flow, so restart from the step after
   // the picker rather than stranding the rep on an index that no longer exists.
   const changeDocTab = (t) => {
@@ -334,6 +360,8 @@ export default function Wizard({
           )}
           {current.render && current.render(ctx)}
         </div>
+
+        {last && <BlockerNotice items={blockers} />}
 
         <div className="wz-bar">
           <div className="wz-bar-fig">
