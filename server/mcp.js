@@ -84,6 +84,34 @@ export function fingerprint(key) {
   return crypto.createHash('sha256').update(key).digest('hex').slice(0, 8);
 }
 
+// MCP_KEY_NAMES maps a key's fingerprint to the person holding it, e.g.
+// "ab12cd34:Stuart,ef567890:Brad", so an audit line and an edit history can name
+// someone. It is keyed by fingerprint rather than by key so the variable holds
+// nothing worth stealing. A key with no entry is still known by its fingerprint.
+export function nameFor(key) {
+  const fp = fingerprint(key);
+  for (const pair of splitKeys(process.env.MCP_KEY_NAMES)) {
+    const i = pair.indexOf(':');
+    if (i > 0 && pair.slice(0, i).trim().toLowerCase() === fp) return cleanActor(pair.slice(i + 1)) || fp;
+  }
+  return fp;
+}
+
+// An actor is a label in a log line and a history row, never markup or a path.
+export function cleanActor(raw) {
+  return String(raw || '').replace(/[^\p{L}\p{N} .'_:-]/gu, '').trim().slice(0, 40);
+}
+
+// ACTOR_PROXY_KEYS lists the fingerprints of keys that may say who they are
+// acting for with an X-Actor header. In practice that is the one key Vercel holds:
+// the toolbox has already verified the person's login, and the key alone would
+// otherwise make every web edit look like it came from the same caller. Any other
+// key presenting X-Actor is ignored and named for itself.
+export function mayAssertActor(key) {
+  const fp = fingerprint(key);
+  return splitKeys(process.env.ACTOR_PROXY_KEYS).some(k => k.toLowerCase() === fp);
+}
+
 export function requireMcpKey(req, res, next) {
   const keys = configuredKeys();
   if (!keys.length) {
@@ -97,7 +125,7 @@ export function requireMcpKey(req, res, next) {
   // Writes are open to every key unless MCP_WRITE_KEYS narrows them.
   const writeKeys = splitKeys(process.env.MCP_WRITE_KEYS);
   req.mcp = {
-    actor: fingerprint(presented),
+    actor: nameFor(presented),
     canWrite: writeKeys.length ? keyMatches(presented, writeKeys) : true,
   };
   next();
@@ -143,8 +171,8 @@ const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, idempotentHint
 export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log = console.log }) {
   const server = new McpServer(SERVER_INFO, { instructions: INSTRUCTIONS });
 
-  // A write tool that logs who did what. The record is the key fingerprint and
-  // the arguments, which is the audit trail until keys map to people (phase 3).
+  // A write tool that logs who did what. The record is the caller (a name when
+  // MCP_KEY_NAMES maps the key, its fingerprint otherwise) and the arguments.
   const write = (name, fn) => tool(async (args, extra) => {
     log(`[mcp] write ${name} by ${actor} ${JSON.stringify(args)}`);
     return fn(args, extra);
@@ -633,8 +661,8 @@ export function registerMcp(app, { port, internalKey }) {
   const base = () => `http://127.0.0.1:${typeof port === 'function' ? port() : port}/api`;
 
   // The grant-client routes are keyed. Loopback calls get in with the key this
-  // process minted at boot, plus the caller's fingerprint so the route's own log
-  // line names the same actor the MCP audit line does.
+  // process minted at boot, plus the caller's name or fingerprint so the route's
+  // own log line names the same actor the MCP audit line does.
   async function api(path, { method = 'GET', body, actor } = {}) {
     const r = await fetch(`${base()}${path}`, {
       method,
