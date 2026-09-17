@@ -94,6 +94,8 @@ type Status = {
   sections: { section: string; answered: number; total: number }[];
   /** Per facility: items with a priority set and how complete each is. Absent until the backend that reports it is deployed. */
   wish_list?: WishFacility[];
+  /** One wish list per stored application, each against its own caps. */
+  wish_lists?: { application: string; label: string; status: AppStatus; sites: number[]; prioritized: number; facilities: WishFacility[]; budget: { requested: number; cap: number; room: number } }[];
   /** Program rows with a name, out of the slots the page offers. */
   programs?: { listed: number; slots: number };
   /** What the client has asked for across sites, against the federal applicant cap. */
@@ -570,7 +572,11 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
 
   const c = detail?.client || row;
   const s = detail?.status;
-  const picked = s?.wish_list ? s.wish_list.reduce((n, f) => n + f.prioritized, 0) : 0;
+  const picked = s?.wish_lists ? s.wish_lists.reduce((n, w) => n + w.prioritized, 0) : s?.wish_list ? s.wish_list.reduce((n, f) => n + f.prioritized, 0) : 0;
+  // Each application's list, or the single list a client without applications has.
+  const lists = s?.wish_lists
+    ? s.wish_lists.map((w) => ({ key: w.application, label: w.label as string | null, status: w.status, facilities: w.facilities, budget: w.budget }))
+    : s?.wish_list ? [{ key: "a1", label: null, status: "active" as AppStatus, facilities: s.wish_list, budget: s.budget }] : [];
   const quiet = daysSince(c.last_client_activity_at);
 
   const dt: React.CSSProperties = { color: "var(--faint)", fontSize: 11.5, paddingTop: 2, whiteSpace: "nowrap" };
@@ -688,11 +694,19 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     </div>
                   </Section>
 
-                  {s.wish_list && (
-                    <Section title="wish list & budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}` : undefined}>
+                  {lists.length > 0 && (
+                    <Section title="wish list & budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}${s.wish_lists && s.wish_lists.length > 1 ? " now" : ""}` : undefined}>
                       {picked === 0 && <Faint>Nothing picked yet. An item counts once the client gives it a priority.</Faint>}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        {s.wish_list.filter((f) => f.prioritized > 0).map((f) => (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                        {lists.filter((l) => l.facilities.some((f) => f.prioritized > 0)).map((l) => (
+                          <div key={l.key} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            {l.label && (
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, paddingBottom: 4, borderBottom: "1px dashed var(--bd2)" }}>
+                                <span className="mono" style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink)" }}>{l.label}{l.status !== "active" && <span style={{ color: "var(--warn-fg)", fontWeight: 500 }}> · {APP_STATUS_LABEL[l.status]}</span>}</span>
+                                {l.budget && <span className="mono" style={{ fontSize: 11.5, color: l.budget.room < 0 ? "var(--err-fg)" : "var(--faint)", whiteSpace: "nowrap" }}>{usd(l.budget.requested)} of {usd(l.budget.cap)}</span>}
+                              </div>
+                            )}
+                        {l.facilities.filter((f) => f.prioritized > 0).map((f) => (
                           <div key={f.facility}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, marginBottom: 6 }}>
                               <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -716,6 +730,8 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                               ))}
                             </ul>
                             {f.budget && f.budget.ma_on && f.budget.ma > 0 && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 4 }}>M&A {usd(f.budget.ma)}{f.budget.ma_default ? " (5%)" : ""}{f.budget.uncosted ? ` · ${f.budget.uncosted} item${f.budget.uncosted === 1 ? "" : "s"} without a cost` : ""}</div>}
+                          </div>
+                        ))}
                           </div>
                         ))}
                       </div>
