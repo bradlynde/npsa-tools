@@ -1,0 +1,208 @@
+{
+ "_what": "Rulings and hand-entered facts for scripts/gk-extract.mjs. `records` are added to the bundle as written; `patch` changes one extracted record by its import key (data is merged; status, key, verified_by, verified_on, source_url may be set); `skip` leaves one out; `replace` rewrites text across one jurisdiction; `ruled` takes a settled item off the report's open list. Give each a `why`.",
+ "records": [
+  {
+   "import_key": "k:KY:-:cindy-seip",
+   "jurisdiction": "KY",
+   "kind": "contact",
+   "parent": null,
+   "key": "cindy-seip",
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_on": "2026-09-11",
+   "data": {
+    "name": "Cindy Seip",
+    "role": "Program Coordinator, State Single Point of Contact (eClearinghouse)",
+    "org": "Kentucky Department for Local Government (DLG)",
+    "email": "cindy.seip@ky.gov",
+    "phone": "(502) 892-4149",
+    "contact_kind": "other",
+    "last_confirmed": "2026-09-11",
+    "notes": "Prefers the phone to email. Write to her directly: the generic DLG.ECH@ky.gov box took 13 days. General clearinghouse line (502) 573-2382. 100 Airport Road, Frankfort."
+   },
+   "why": "first-hand, New Life engagement; va-context 9/10 to 9/12"
+  },
+  {
+   "import_key": "n:KY:-:eclearinghouse-not-on-kohs-checklist",
+   "jurisdiction": "KY",
+   "kind": "note",
+   "parent": null,
+   "key": "eclearinghouse-not-on-kohs-checklist",
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_on": "2026-08-26",
+   "data": {
+    "category": "gotcha",
+    "severity": "critical",
+    "phase": "before_nofo",
+    "client_slug": "new-life-ky",
+    "observed_on": "2026-08-26",
+    "title": "eClearinghouse is required even though KOHS's checklist never mentions it",
+    "body_md": "This flipped three times in a week before it was settled against primary sources on 8/26/2026.\n\n1. The FY26 NOFO (Section D.2.A) does **not** exempt NSGP from intergovernmental review: applicants must contact their state's Single Point of Contact under Executive Order 12372, and the only way out is a state having no SPOC.\n2. Kentucky's rule is default-on: DLG's eClearinghouse page says all federal program applications in Kentucky are subject to EO 12372 and KRS 45.031 unless the application says otherwise. The NOFO never says otherwise.\n3. Kentucky has a SPOC: the State Clearinghouse at the Department for Local Government.\n\n**Why it kept flipping:** the KOHS NSGP Application Submission Checklist lists seven items and eClearinghouse is not one of them, and KOHS's grants page links eClearinghouse only under SHSGP. Both are true and both are irrelevant: KOHS's checklist governs the package emailed to KOHS; the clearinghouse letter is a separate obligation to a different agency. **Absence from a state agency's submission checklist is not absence of the requirement.**\n\n**Registration is not submission.** Opening the DLG Portal account is step one. The project itself still has to be entered for review, state agencies comment, and the comments compile into one clearinghouse letter. File it once the wish list is final: the filing describes the project, and a description written before the budget is settled will drift from what is submitted."
+   },
+   "why": "Stuart's settled finding of 2026-08-26, recorded in va-context"
+  },
+  {
+   "import_key": "n:KY:-:clearinghouse-letter-goes-with-the-application",
+   "jurisdiction": "KY",
+   "kind": "note",
+   "parent": null,
+   "key": "clearinghouse-letter-goes-with-the-application",
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_on": "2026-09-10",
+   "data": {
+    "category": "process",
+    "severity": "caution",
+    "phase": "submission",
+    "client_slug": "new-life-ky",
+    "observed_on": "2026-09-10",
+    "title": "The eClearinghouse letter goes in the package sent to KOHS",
+    "body_md": "Confirmed in writing by Cindy Seip, the DLG Program Coordinator and state SPOC, on 9/10/2026: the e-Clearinghouse letter goes **with the federal application**. It is the proof that the mandatory intergovernmental review under Executive Order 12372 has been satisfied. It does not simply sit on file with DLG, even though KOHS's own submission checklist never lists it.\n\nA project that is something other than equipment (a program, or similar) goes out to state reviewers, who have **about 30 days**; the letter follows. Build that month into the schedule, and file only once the wish list is final, because the filing describes the project.\n\nDLG publishes instructions for registering a new e-Clearinghouse account on its website, and Cindy will send them on request."
+   },
+   "why": "Cindy Seip's email of 2026-09-10, supplied by Stuart"
+  },
+  {
+   "import_key": "n:KY:-:equipment-only-review",
+   "jurisdiction": "KY",
+   "kind": "note",
+   "parent": null,
+   "key": "equipment-only-review",
+   "status": "unverified",
+   "data": {
+    "category": "open_question",
+    "phase": "before_nofo",
+    "client_slug": "new-life-ky",
+    "title": "Does an equipment-only project skip the 30-day review, and how far ahead of the KOHS deadline should it be filed?",
+    "body_md": "Cindy Seip's 9/10/2026 email implies a project that is only equipment may not need to go out for the full review. Stuart asked her both questions that day (New Life's request is almost entirely equipment: access control, cameras, notification, intrusion detection, lighting, vehicle barriers) and they spoke by phone on 9/11, but the answers are not in the email thread. Record what she said and mark this resolved."
+   },
+   "why": "asked 2026-09-10, answered by phone, not yet written down"
+  }
+ ],
+ "patch": {
+  "d:TX:NSGP-S:2026:table-2": {
+   "data": {
+    "label": "Stage 1: eGrants application created, submitted and certified",
+    "stage_order": 0,
+    "deadline_kind": "stage",
+    "due_time": "17:00",
+    "confidence": "confirmed"
+   },
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_on": "2026-09-17",
+   "why": "Stuart ruled Texas FY26 Stage 1 closed 2/12/2026, not 3/12"
+  },
+  "d:TX:NSGP-S:2026:final": {
+   "data": {
+    "label": "Stage 2: IJ, VA, mission and resolution uploaded to eGrants",
+    "stage_order": 2,
+    "deadline_kind": "stage",
+    "confidence": "confirmed"
+   },
+   "status": "verified",
+   "why": "Texas runs two stages; the July date is the second, as Drive's audit verified. It was only in doubt while Stage 1 was"
+  },
+  "d:TX:NSGP-UA:2026:final": {
+   "data": {
+    "label": "Stage 2: IJ, VA, mission and resolution uploaded to eGrants",
+    "stage_order": 2,
+    "deadline_kind": "stage",
+    "confidence": "confirmed"
+   },
+   "status": "verified",
+   "why": "same two-stage process as NSGP-S"
+  },
+  "d:AL:NSGP-S:2026:final": {
+   "data": {
+    "confidence": "confirmed"
+   },
+   "status": "verified",
+   "why": "Stuart ruled Alabama FY26 was 7/15, as Drive says; the web check's 7/16 is left out"
+  },
+  "c:AZ:AZ-NSGP:2026": {
+   "key": "2027",
+   "data": {
+    "fiscal_year": 2027,
+    "label": "FY2027"
+   },
+   "why": "Stuart ruled to follow the web check: AZDOHS runs the June 2026 round as its FY2027 cycle"
+  },
+  "d:TN:TN-HOW:2027:web-check": {
+   "data": {
+    "label": "Application due",
+    "due_time": "23:59",
+    "confidence": "confirmed"
+   },
+   "key": "final",
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_on": "2026-09-17",
+   "why": "Stuart ruled to follow the web check: TN-HOW 2026-27 closed 7/29/2026, not 8/3"
+  },
+  "r:KY:NSGP-S:eclearinghouse_reg": {
+   "data": {
+    "label": "Kentucky eClearinghouse: register on the DLG Portal, then file the project for EO 12372 state review",
+    "hard_gate": true,
+    "lead_time_days": 45,
+    "phase": "before_nofo",
+    "notes": "Required. The client self-registers on the KY DLG Portal (Department for Local Government, not KOHS), then the project is entered for review; state agencies comment and the comments compile into one clearinghouse letter. The letter that comes back goes in the package sent to KOHS (Cindy Seip, DLG, 9/10/2026). A project that goes out for review takes about 30 days. Hold the filing until the wish list is final. Drive's 8/11 audit called this obsolete for FY26; that was wrong (see the gotcha).",
+    "client_label": "Kentucky eClearinghouse — client self-registers on the KY DLG Portal (Dept for Local Government, NOT KOHS), then files the project for EO 12372 state review"
+   },
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_on": "2026-08-26",
+   "why": "Drive predates Stuart's 8/26 finding; the client page has had it right since"
+  }
+ },
+ "skip": [
+  "d:AL:NSGP-S:2026:table-2",
+  "d:TN:TN-HOW:2026:final"
+ ],
+ "replace": [
+  {
+   "jurisdiction": "TX",
+   "from_regex": "\\n*> ⚠️ \\*\\*Open conflict to reconcile\\.\\*\\*[\\s\\S]*?cycle opens\\.",
+   "to": "",
+   "why": "the conflict is settled"
+  },
+  {
+   "jurisdiction": "TX",
+   "from": "3/12/2026",
+   "to": "2/12/2026",
+   "why": "Stage 1 closed 2/12/2026 per Stuart's ruling"
+  },
+  {
+   "jurisdiction": "TX",
+   "from": "closes ~Mar",
+   "to": "closes ~Feb",
+   "why": "same"
+  }
+ ],
+ "ruled": [
+  {
+   "match": "TX/federal FY2026",
+   "ruling": "Texas FY26 Stage 1 closed 2/12/2026 (Stuart, 2026-09-17)"
+  },
+  {
+   "match": "TX/NSGP-S FY2026",
+   "ruling": "Texas: the Sales Toolbox table's 2/12 stands"
+  },
+  {
+   "match": "AL/federal FY2026",
+   "ruling": "Alabama FY26 was 7/15/2026, as Drive says (Stuart, 2026-09-17)"
+  },
+  {
+   "match": "AL/NSGP-S FY2026",
+   "ruling": "Alabama: the table's 7/16 is left out"
+  },
+  {
+   "match": "AZ/AZ-NSGP",
+   "ruling": "Arizona's June 2026 state round is labelled FY2027, as the web check has it (Stuart, 2026-09-17)"
+  },
+  {
+   "match": "TN/TN-HOW",
+   "ruling": "TN-HOW 2026-27 closed 7/29/2026, as the web check has it; Drive's 8/3 is left out (Stuart, 2026-09-17)"
+  }
+ ]
+}

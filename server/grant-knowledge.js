@@ -801,6 +801,79 @@ export function registerGrantKnowledge(app, { store, internalKey, now = () => ne
     res.json({ verified: results.filter(x => x.ok).length, failed: results.filter(x => !x.ok).length, results });
   }));
 
+  // ── Import and export ──
+  //
+  // A bundle is a flat list of records, parents before children, each with an
+  // import_key and its parent's. Loading one twice is safe: a record the import made
+  // and nobody has touched since is brought up to the bundle; a record a person or
+  // Claude has edited is left alone and listed, the same promise the deadline table
+  // made with layer = 'manual'. Neither route is on the toolbox proxy's allowlist.
+
+  app.post('/api/grant-knowledge/import', team, guard(async (req, res) => {
+    const c = { actor: `import:${ctx(req).actor}`, actor_kind: 'import' };
+    const list = (req.body || {}).records;
+    const dryRun = (req.body || {}).dry_run === true;
+    if (!Array.isArray(list) || !list.length) throw bad('records must be a non-empty list');
+    const out = { dry_run: dryRun, created: 0, updated: 0, unchanged: 0, skipped: [], errors: [] };
+    const idOf = new Map(); // import_key → record id, for parents created in this same call
+
+    for (const item of list.slice(0, 5000)) {
+      try {
+        const importKey = String(item.import_key || '');
+        if (!importKey) throw bad('import_key is required');
+        const jurisdiction = validJurisdiction(item.jurisdiction);
+        if (!KINDS.includes(item.kind)) throw bad(`kind must be one of ${KINDS.join(', ')}`);
+        const data = parse(item.kind, mergeData({}, item.data || {}));
+        const key = item.kind === 'jurisdiction' ? jurisdiction : String(item.key || '');
+        if (!KEY_RE.test(key)) throw bad('key must be 1-80 letters, digits, dot, dash or underscore');
+
+        let parentId = null;
+        if (item.parent) {
+          parentId = idOf.get(item.parent) ?? (await store.findImportKey(String(item.parent)))?.id ?? null;
+          if (parentId === null && !(dryRun && idOf.has(item.parent))) throw bad(`parent ${item.parent} has not been imported`);
+        }
+        const verified = item.status === 'verified';
+        const fields = {
+          key, data, ...derived(item.kind, key, data), sort_order: Number.isInteger(item.sort_order) ? item.sort_order : 0,
+          status: verified ? 'verified' : 'unverified', unverified_fields: [],
+          verified_at: verified ? (item.verified_at || now().toISOString()) : null, verified_by: verified ? String(item.verified_by || 'import').slice(0, 120) : '',
+          source_url: validSourceUrl(item.source_url), archived_at: null, archived_by: '',
+        };
+
+        const existing = await store.findImportKey(importKey);
+        if (!existing) {
+          const clash = parentId !== null || !item.parent ? await store.findNatural(jurisdiction, item.kind, parentId, key) : null;
+          if (clash) { idOf.set(importKey, clash.id); out.skipped.push({ import_key: importKey, why: 'a record with this key was already made by hand', record_id: clash.id }); continue; }
+          if (dryRun) { idOf.set(importKey, null); out.created++; continue; }
+          const row = await store.createRecord({ jurisdiction, kind: item.kind, parent_id: parentId, ...fields, origin: 'import', import_key: importKey },
+            { ...c, action: 'import', before: null, changed_fields: Object.keys(data) });
+          idOf.set(importKey, row.id); out.created++;
+          continue;
+        }
+        idOf.set(importKey, existing.id);
+        const [last] = await store.listRevisions({ recordId: existing.id, limit: 1 });
+        if (last && last.action !== 'import') { out.skipped.push({ import_key: importKey, why: `edited since the import (${last.action} by ${last.actor})`, record_id: existing.id }); continue; }
+        const same = sameJson(existing.data, data) && existing.key === key && existing.status === fields.status && (existing.source_url || '') === fields.source_url && (existing.sort_order || 0) === fields.sort_order;
+        if (same) { out.unchanged++; continue; }
+        if (!dryRun) await store.updateRecord(existing.id, existing.version, fields, { ...c, action: 'import', before: snapshot(existing), changed_fields: [...new Set([...Object.keys(existing.data), ...Object.keys(data)])].filter(k => !sameJson(existing.data[k], data[k])) });
+        out.updated++;
+      } catch (err) { out.errors.push({ import_key: item?.import_key || '(none)', error: err.message }); }
+    }
+    console.log(`[gk] import by ${c.actor}${dryRun ? ' (dry run)' : ''}: ${out.created} created, ${out.updated} updated, ${out.unchanged} unchanged, ${out.skipped.length} skipped, ${out.errors.length} errors`);
+    res.json(out);
+  }));
+
+  app.get('/api/grant-knowledge/export', team, guard(async (req, res) => {
+    const records = activeTree(await store.listRecords());
+    const keyOf = new Map(records.map(r => [r.id, r.import_key || `x:${r.id}`]));
+    const depth = r => { let d = 0; for (let cur = r; cur?.parent_id && d < 6; cur = records.find(x => x.id === cur.parent_id)) d++; return d; };
+    const sorted = [...records].sort((a, b) => a.jurisdiction.localeCompare(b.jurisdiction) || depth(a) - depth(b) || a.id - b.id);
+    res.json({ exported_at: now().toISOString(), records: sorted.map(r => ({
+      import_key: keyOf.get(r.id), jurisdiction: r.jurisdiction, kind: r.kind, parent: r.parent_id ? keyOf.get(r.parent_id) : null, key: r.key, data: r.data,
+      status: r.status, verified_by: r.verified_by || '', verified_at: iso(r.verified_at), source_url: r.source_url || '', sort_order: r.sort_order || 0,
+    })) });
+  }));
+
   // Revert puts a record back to how it was before one revision. It is itself a
   // new revision, so a revert can be reverted and the history never loses a step.
   app.post('/api/grant-knowledge/revisions/:id/revert', team, guard(async (req, res) => {

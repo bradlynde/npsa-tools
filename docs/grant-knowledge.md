@@ -102,11 +102,48 @@ forwards; removal is archive, and archive is reversible.
 | `POST /jurisdictions/:code/verify-bulk` | `{ ids: [{ id, version }] }`, reported per record |
 | `POST /revisions/:id/revert` | `{ version }`; puts the record back to before that revision, as a new revision. Reverting a create archives |
 
+| `POST /import` | `{ records, dry_run? }`, a bundle. Not on the toolbox proxy |
+| `GET /export` | the same bundle format, from what is stored. Not on the toolbox proxy |
+
 A deadline's instant is its date and time in its own zone (the jurisdiction's
 `default_tz` when the deadline names none; end of day when it names no time), so "open"
 and "in 3 days" are right at the edges: 4:00 PM in Baton Rouge is still ahead at 3:59.
 
+## Import from Drive
+
+`scripts/gk-extract.mjs` reads the Drive folder (`_FEDERAL.yaml`, the 56 `states/XX.yaml`
+with their comments, the seven prose companions), folds in `nsgp-verified.json`, the two
+intake files and a dump of the live deadline table, and writes two things:
+
+- `server/grant-knowledge-seed.json`, the bundle: a flat list of records, parents first,
+  each with an `import_key`.
+- `docs/gk-import-report.md`, everything it could not settle: dates that disagree between
+  Drive, the web check and the live table; intake lines with no Drive counterpart; what
+  Drive itself marks unknown; every contact it parsed out of free text.
+
+```
+node scripts/gk-extract.mjs --src "<…/Operations/grant-knowledge>" --live-deadlines live.json
+node scripts/gk-data.mjs                         # shape of the bundle, and a test load
+NPSA_API_KEY=… node scripts/gk-load.mjs          # dry run against production
+NPSA_API_KEY=… node scripts/gk-load.mjs --apply  # load
+```
+
+What the YAML states imports as verified by the audit that stamped the file. Prose older
+than that audit, anything flagged, anything from the web check or the live table that a
+person did not type, and any contact with a caveat imports unverified and waits in the
+queue. A ruling goes in `scripts/gk-rulings.json` (`records`, `patch`, `skip`); re-extract
+after adding one.
+
+Loading twice is safe. A record the import made and nobody has touched is brought up to
+the bundle; one a person or Claude has edited is skipped and listed; one that already
+exists by hand under the same key is left alone.
+
 ## Checks
+
+`node scripts/gk-data.mjs` checks the bundle's shape (57 jurisdictions, schemas, parents,
+zones, named regressions such as Texas's two stages) and loads it twice through the
+routes.
+
 
 `node scripts/gk-smoke.mjs` runs the routes against the in-memory store with an injected
 clock: no database, no network. Run it under Node 18 as well
