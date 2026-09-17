@@ -59,7 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: { path?: strin
 }
 
 /** The only fields the dialog may change. Anything else goes through client_update. */
-const PATCHABLE = new Set(["documents", "add_documents", "remove_document_keys", "add_reference_contacts", "remove_contact_emails"]);
+const PATCHABLE = new Set(["applications", "documents", "add_documents", "remove_document_keys", "add_reference_contacts", "remove_contact_emails"]);
 
 export async function PATCH(req: NextRequest, { params }: { params: { path?: string[] } }) {
   const key = process.env.LOE_API_KEY || process.env.NPSA_MCP_KEY || "";

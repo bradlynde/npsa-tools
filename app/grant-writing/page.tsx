@@ -35,7 +35,13 @@ type Contact = {
   is_primary?: boolean;
 };
 
-type Doc = { key: string; label: string; hint?: string; source?: "standard" | "state" | "custom" };
+type Doc = { key: string; label: string; hint?: string; source?: "standard" | "state" | "program" | "custom" };
+
+type AppStatus = "active" | "planned" | "submitted" | "awarded" | "not_awarded" | "withdrawn";
+/** One application NPSA is writing: program, cycle, the sites it covers. */
+type Application = { id: string; program: string; cycle: string; sites: number[]; status: AppStatus; name?: string; kind?: "federal" | "state"; label?: string; derived?: boolean };
+type ProgramOption = { code: string; name: string; kind: "federal" | "state" };
+const APP_STATUS_LABEL: Record<AppStatus, string> = { active: "writing now", planned: "later cycle", submitted: "submitted", awarded: "awarded", not_awarded: "not awarded", withdrawn: "withdrawn" };
 
 type ClientRow = {
   id: number;
@@ -57,6 +63,9 @@ type ClientRow = {
   contacts?: Contact[]; // present on the single-client route, not the list
   documents?: Doc[]; // the Documents-tab rows; single-client route only
   documents_customised?: boolean;
+  applications?: Application[]; // stored list; empty until the team sets one
+  applications_set?: boolean;
+  programs?: ProgramOption[]; // what this client's state can apply for
   core: { answered: number; total: number };
   checklist: { completed: number; total: number };
   filled_by: string;
@@ -91,6 +100,9 @@ type Status = {
   budget?: { requested: number; cap: number; room: number; sites: number };
   checklist: { completed: number; total: number; not_applicable?: number; items: ChecklistItem[] };
   uploads: Upload[];
+  /** Stored applications, or ones derived from the Locations tab (derived: true) when none are set. */
+  applications?: Application[];
+  applications_set?: boolean;
 };
 
 type Filter = "active" | "submitted" | "all";
@@ -202,6 +214,35 @@ function PhaseChip({ phase }: { phase: number }) {
   return <Pill fg="var(--sec)" bg="var(--q-bg)">{phase} · {PHASE[phase] || "?"}</Pill>;
 }
 
+const appSites = (a: Application) => (a.sites.length === 1 ? `site ${a.sites[0]}` : `sites ${a.sites.join(", ")}`);
+
+/** "CSNSGP 2026-27 · site 1" chips; a later cycle is dashed, a closed one faded. */
+function AppChips({ apps, size = "sm" }: { apps: Application[]; size?: "sm" | "md" }) {
+  return (
+    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 5 }}>
+      {apps.map((a) => {
+        const later = a.status === "planned";
+        const closed = a.status === "not_awarded" || a.status === "withdrawn";
+        return (
+          <span
+            key={a.id}
+            title={`${a.name || a.program}${a.cycle ? ` · ${a.cycle}` : ""} · ${APP_STATUS_LABEL[a.status]}${a.derived ? " · from the Locations tab" : ""}`}
+            className="mono"
+            style={{
+              fontSize: size === "md" ? 11.5 : 10.5, lineHeight: 1.5, padding: size === "md" ? "2px 9px" : "1px 7px", borderRadius: 999, whiteSpace: "nowrap",
+              color: closed ? "var(--faint)" : "var(--sec)", background: later || a.derived ? "transparent" : "var(--q-bg)",
+              border: `1px ${later || a.derived ? "dashed" : "solid"} var(--bd2)`, opacity: closed ? 0.7 : 1,
+            }}
+          >
+            <b style={{ color: closed ? "var(--faint)" : "var(--ink)", fontWeight: 600 }}>{a.label || [a.program, a.cycle].filter(Boolean).join(" ")}</b> · {appSites(a)}
+            {a.status !== "active" && <span style={{ color: later ? "var(--warn-fg)" : "var(--faint)" }}> · {APP_STATUS_LABEL[a.status]}</span>}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function Quiet({ row }: { row: ClientRow }) {
   const d = daysSince(row.last_client_activity_at);
   if (d === null) return <span style={{ color: "var(--faint)", fontSize: 12.5 }}>never</span>;
@@ -265,6 +306,66 @@ function Stat({ label, value, sub, bar, tone }: { label: string; value: React.Re
       {bar !== undefined && <div style={{ marginTop: 8 }}><Bar pct={Math.min(100, bar)} color={tone === "err" ? "var(--err-fg)" : "var(--olive)"} height={5} radius={3} animate={false} /></div>}
       {sub && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
     </div>
+  );
+}
+
+/** What NPSA is writing for this client. Everything on the client form (header, caps, documents) reads from this list. */
+function ApplicationsSection({ client, derived, editing, onSaved }: { client: ClientRow; derived: Application[]; editing: boolean; onSaved: (c: ClientRow) => void }) {
+  const stored = client.applications || [];
+  const programs = client.programs || [];
+  const seed = () => (stored.length ? stored : derived.filter((a) => a.program !== "NSGP")).map(({ id, program, cycle, sites, status }) => ({ id: client.applications_set ? id : "", program, cycle, sites, status }));
+  const [draft, setDraft] = useState<Application[]>(seed);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { if (editing) setDraft(seed()); setErr(null); }, [editing, client]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = stored.length ? stored : derived;
+  const set = (i: number, patch: Partial<Application>) => setDraft((d) => d.map((a, j) => (j === i ? { ...a, ...patch } : a)));
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try { onSaved(await patchJson<ClientRow>(`/api/clients/${client.slug}`, { applications: draft.map(({ id, program, cycle, sites, status }) => ({ ...(id ? { id } : {}), program, cycle, sites, status })) })); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const dirty = JSON.stringify(draft) !== JSON.stringify(seed());
+  if (!editing && client.applications_set && stored.length) return null; // the dialog header already shows them
+  return (
+    <Section title="applications" meta={client.applications_set ? `${stored.length} set` : derived.length ? "from the Locations tab, not set" : "not set"}>
+      {!editing && (shown.length ? <AppChips apps={shown} size="md" /> : <Faint>No applications set. Use Edit to add the programs and cycles we are writing.</Faint>)}
+      {!editing && !client.applications_set && derived.length > 0 && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6 }}>Guessed from the client&rsquo;s &ldquo;Programs applying&rdquo; answers. Set them so the form&rsquo;s header, caps and documents follow.</div>}
+      {editing && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {draft.map((a, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) auto", gap: 6, alignItems: "center", padding: "8px 8px 8px 10px", border: "1px solid var(--hair)", borderRadius: 10, background: "var(--bg)" }}>
+              <select value={a.program} onChange={(e) => set(i, { program: e.target.value })} aria-label="Program" style={inputStyle}>
+                {!programs.some((p) => p.code === a.program) && <option value={a.program}>{a.program || "Program…"}</option>}
+                {programs.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}
+              </select>
+              <input value={a.cycle} onChange={(e) => set(i, { cycle: e.target.value })} placeholder="FY2027 / 2026-27" aria-label="Cycle" style={inputStyle} />
+              <button type="button" aria-label="Remove application" onClick={() => setDraft((d) => d.filter((_, j) => j !== i))} style={xBtn}>×</button>
+              <span style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 12, whiteSpace: "nowrap", color: "var(--mute)" }}>
+                sites
+                {[1, 2, 3].map((n) => (
+                  <label key={n} style={{ display: "inline-flex", gap: 3, alignItems: "center", cursor: "pointer", color: "var(--ink)" }}>
+                    <input type="checkbox" checked={a.sites.includes(n)} onChange={(e) => set(i, { sites: e.target.checked ? [...a.sites, n].sort() : a.sites.filter((x) => x !== n) })} />
+                    {n}
+                  </label>
+                ))}
+              </span>
+              <select value={a.status} onChange={(e) => set(i, { status: e.target.value as AppStatus })} aria-label="Status" style={inputStyle}>
+                {(Object.keys(APP_STATUS_LABEL) as AppStatus[]).map((k) => <option key={k} value={k}>{APP_STATUS_LABEL[k]}</option>)}
+              </select>
+              <span />
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" disabled={draft.length >= 6} onClick={() => setDraft((d) => [...d, { id: "", program: programs[0]?.code || "NSGP-S", cycle: "", sites: [1], status: "active" }])} style={smallBtn}>Add application</button>
+            <button type="button" disabled={busy || !dirty || draft.some((a) => !a.program || !a.sites.length)} onClick={save} style={{ ...smallBtn, background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)" }}>{busy ? "Saving…" : "Save applications"}</button>
+            <span style={{ fontSize: 11.5, color: "var(--faint)" }}>Sites are the Locations-tab site numbers. &ldquo;Later cycle&rdquo; shows on the form but stays out of today&rsquo;s caps.</span>
+          </div>
+        </div>
+      )}
+      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+    </Section>
   );
 }
 
@@ -461,7 +562,11 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
   const copyLink = async (url: string) => {
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ }
   };
-  const saved = (fresh: ClientRow) => setDetail((d) => (d ? { ...d, client: fresh } : d));
+  const saved = (fresh: ClientRow) => {
+    setDetail((d) => (d ? { ...d, client: fresh } : d));
+    // Applications change caps and documents, so the status read follows.
+    getJson<Status>(`/api/clients/${row.slug}/status`).then((status) => setDetail((d) => (d ? { ...d, status } : d))).catch(() => {});
+  };
 
   const c = detail?.client || row;
   const s = detail?.status;
@@ -497,10 +602,11 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                 <PhaseChip phase={c.phase} />
                 <StatusChip status={c.status} />
               </div>
+              {(s?.applications?.length || 0) > 0 && <div style={{ marginTop: 8 }}><AppChips apps={s!.applications!} size="md" /></div>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <button type="button" onClick={() => setEditing((v) => !v)} style={{ ...smallBtn, background: editing ? "var(--navy)" : "var(--card)", color: editing ? "var(--on-accent)" : "var(--ink)", borderColor: editing ? "var(--navy)" : "var(--bd2)" }}>
-                {editing ? "Done editing" : "Edit documents & contacts"}
+                {editing ? "Done editing" : "Edit"}
               </button>
               <button
                 ref={closeRef} type="button" aria-label="Close" onClick={onClose}
@@ -549,6 +655,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
               <div style={{ display: "grid", gridTemplateColumns: stacked ? "1fr" : "minmax(0, 5fr) minmax(0, 6fr)", gap: stacked ? 0 : 36, alignItems: "start" }}>
                 {/* Left: the engagement and the people and papers around it */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+                  <ApplicationsSection client={c} derived={s.applications_set ? [] : s.applications || []} editing={editing} onSaved={saved} />
                   <Section title="engagement">
                     <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "7px 16px", fontSize: 13.5, margin: 0 }}>
                       <dt className="mono" style={dt}>Track</dt><dd style={dd}>{c.program_track || <Faint>not set</Faint>}</dd>
@@ -745,7 +852,9 @@ export default function GrantWritingPage() {
                   >
                     <td style={td}>
                       <div style={{ fontWeight: 600, color: "var(--ink)", lineHeight: 1.3 }}>{r.name}</div>
-                      <div className="mono" style={{ fontSize: 11, color: "var(--faint)", marginTop: 2 }}>{r.slug}</div>
+                      {r.applications && r.applications.length > 0
+                        ? <div style={{ marginTop: 5 }}><AppChips apps={r.applications} /></div>
+                        : <div className="mono" style={{ fontSize: 11, color: "var(--faint)", marginTop: 2 }}>{r.slug} · no applications set</div>}
                     </td>
                     <td style={{ ...td, maxWidth: 150 }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
