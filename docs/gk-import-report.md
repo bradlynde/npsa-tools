@@ -10,10 +10,10 @@ Extracted 2026-09-17 from the Drive `grant-knowledge` folder (audit of 2026-08-1
 | cycle | 100 |
 | deadline | 94 |
 | contact | 104 |
-| note | 154 |
+| note | 155 |
 | source | 253 |
-| **records** | **1335** |
-| imported as verified | 1159 |
+| **records** | **1336** |
+| imported as verified | 1160 |
 | imported as unverified (waits in the queue) | 176 |
 | jurisdictions with no file | none |
 
@@ -34,7 +34,8 @@ Nothing.
 - d:TX:NSGP-S:2026:table-2: patched (Stuart ruled Texas FY26 Stage 1 closed 2/12/2026, not 3/12)
 - k:KY:-:cindy-seip: added (first-hand, New Life engagement; va-context 9/10 to 9/12)
 - n:KY:-:eclearinghouse-not-on-kohs-checklist: added (Stuart's settled finding of 2026-08-26, recorded in va-context)
-- n:KY:-:clearinghouse-letter-in-package: added (the one genuinely open Kentucky question)
+- n:KY:-:clearinghouse-letter-goes-with-the-application: added (Cindy Seip's email of 2026-09-10, supplied by Stuart)
+- n:KY:-:equipment-only-review: added (asked 2026-09-10, answered by phone, not yet written down)
 - TX: "\n*> ⚠️ \*\*Open conflict to reconcile\.\*\*[\s\S]*?cycle opens\." → "" in 1 place(s) (the conflict is settled)
 - TX: "3/12/2026" → "2/12/2026" in 3 place(s) (Stage 1 closed 2/12/2026 per Stuart's ruling)
 - TX: "closes ~Mar" → "closes ~Feb" in 1 place(s) (same)

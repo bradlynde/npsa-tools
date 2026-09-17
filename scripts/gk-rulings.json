@@ -43,20 +43,40 @@
    "why": "Stuart's settled finding of 2026-08-26, recorded in va-context"
   },
   {
-   "import_key": "n:KY:-:clearinghouse-letter-in-package",
+   "import_key": "n:KY:-:clearinghouse-letter-goes-with-the-application",
    "jurisdiction": "KY",
    "kind": "note",
    "parent": null,
-   "key": "clearinghouse-letter-in-package",
+   "key": "clearinghouse-letter-goes-with-the-application",
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_on": "2026-09-10",
+   "data": {
+    "category": "process",
+    "severity": "caution",
+    "phase": "submission",
+    "client_slug": "new-life-ky",
+    "observed_on": "2026-09-10",
+    "title": "The eClearinghouse letter goes in the package sent to KOHS",
+    "body_md": "Confirmed in writing by Cindy Seip, the DLG Program Coordinator and state SPOC, on 9/10/2026: the e-Clearinghouse letter goes **with the federal application**. It is the proof that the mandatory intergovernmental review under Executive Order 12372 has been satisfied. It does not simply sit on file with DLG, even though KOHS's own submission checklist never lists it.\n\nA project that is something other than equipment (a program, or similar) goes out to state reviewers, who have **about 30 days**; the letter follows. Build that month into the schedule, and file only once the wish list is final, because the filing describes the project.\n\nDLG publishes instructions for registering a new e-Clearinghouse account on its website, and Cindy will send them on request."
+   },
+   "why": "Cindy Seip's email of 2026-09-10, supplied by Stuart"
+  },
+  {
+   "import_key": "n:KY:-:equipment-only-review",
+   "jurisdiction": "KY",
+   "kind": "note",
+   "parent": null,
+   "key": "equipment-only-review",
    "status": "unverified",
    "data": {
     "category": "open_question",
-    "phase": "submission",
+    "phase": "before_nofo",
     "client_slug": "new-life-ky",
-    "title": "Does the clearinghouse letter go inside the KOHS package, or does it only have to exist?",
-    "body_md": "DLG says the letter is for applicants to submit to the funding agency; KOHS's checklist does not list it. Stuart reached Cindy Seip by phone on 9/11/2026 and she explained how the letter works, but the answer was not written down anywhere this import could read. Record it here and mark this resolved."
+    "title": "Does an equipment-only project skip the 30-day review, and how far ahead of the KOHS deadline should it be filed?",
+    "body_md": "Cindy Seip's 9/10/2026 email implies a project that is only equipment may not need to go out for the full review. Stuart asked her both questions that day (New Life's request is almost entirely equipment: access control, cameras, notification, intrusion detection, lighting, vehicle barriers) and they spoke by phone on 9/11, but the answers are not in the email thread. Record what she said and mark this resolved."
    },
-   "why": "the one genuinely open Kentucky question"
+   "why": "asked 2026-09-10, answered by phone, not yet written down"
   }
  ],
  "patch": {
@@ -126,7 +146,7 @@
     "hard_gate": true,
     "lead_time_days": 45,
     "phase": "before_nofo",
-    "notes": "Required. The client self-registers on the KY DLG Portal (Department for Local Government, not KOHS), then the project is entered for review; state agencies comment and the comments compile into one clearinghouse letter. Allow a month or more for the review. Hold the filing until the wish list is final. Drive's 8/11 audit called this obsolete for FY26; that was wrong (see the gotcha).",
+    "notes": "Required. The client self-registers on the KY DLG Portal (Department for Local Government, not KOHS), then the project is entered for review; state agencies comment and the comments compile into one clearinghouse letter. The letter that comes back goes in the package sent to KOHS (Cindy Seip, DLG, 9/10/2026). A project that goes out for review takes about 30 days. Hold the filing until the wish list is final. Drive's 8/11 audit called this obsolete for FY26; that was wrong (see the gotcha).",
     "client_label": "Kentucky eClearinghouse — client self-registers on the KY DLG Portal (Dept for Local Government, NOT KOHS), then files the project for EO 12372 state review"
    },
    "status": "verified",
