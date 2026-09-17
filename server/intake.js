@@ -66,7 +66,16 @@ function validDocument(d, label) {
   if (d.source && ['standard', 'state', 'program', 'custom'].includes(d.source)) out.source = d.source;
   return out;
 }
+// Some MCP clients hand an array argument over as its JSON text. Take that as the array it is,
+// rather than refusing a write the caller got right.
+function asArray(list) {
+  if (typeof list !== 'string') return list;
+  const t = list.trim();
+  if (!t.startsWith('[')) return list;
+  try { const v = JSON.parse(t); return Array.isArray(v) ? v : list; } catch { return list; }
+}
 function validDocuments(list, field) {
+  list = asArray(list);
   if (list === undefined) return undefined;
   if (list === null) return null;
   if (!Array.isArray(list)) throw new BadRequest(`${field} must be an array (or null to go back to the defaults)`);
@@ -145,6 +154,7 @@ export function programsFor(state) {
 function validApplications(list, state) {
   if (list === undefined) return undefined;
   if (list === null) return null;
+  list = asArray(list);
   if (!Array.isArray(list)) throw new BadRequest('applications must be an array (or null to clear)');
   if (list.length > 6) throw new BadRequest('applications: at most 6');
   const programs = programsFor(state);
@@ -301,12 +311,14 @@ function validContact(c, label) {
   };
 }
 function validContacts(list, field = 'contacts') {
+  list = asArray(list);
   if (list === undefined) return [];
   if (!Array.isArray(list)) throw new BadRequest(`${field} must be an array`);
   return list.map((c, i) => validContact(c, `${field}[${i}]`));
 }
 
 function validEmails(list, field) {
+  list = asArray(list);
   if (list === undefined) return [];
   if (!Array.isArray(list)) throw new BadRequest(`${field} must be an array`);
   return list.map(e => String(e || '').trim().toLowerCase()).filter(Boolean);
@@ -928,7 +940,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (b.documents !== undefined) patch.documents = validDocuments(b.documents, 'documents');
     if (b.add_documents !== undefined || b.remove_document_keys !== undefined) {
       const adds = validDocuments(b.add_documents, 'add_documents') || [];
-      const removes = b.remove_document_keys === undefined ? [] : (Array.isArray(b.remove_document_keys) ? b.remove_document_keys.map(k => String(k).toLowerCase()) : (() => { throw new BadRequest('remove_document_keys must be an array'); })());
+      const removes = b.remove_document_keys === undefined ? [] : (Array.isArray(asArray(b.remove_document_keys)) ? asArray(b.remove_document_keys).map(k => String(k).toLowerCase()) : (() => { throw new BadRequest('remove_document_keys must be an array'); })());
       const current = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
       const list = current.filter(d => !removes.includes(d.key) && !adds.some(a => a.key === d.key)).concat(adds.map(a => ({ ...a, source: 'custom' })));
       patch.documents = list;
