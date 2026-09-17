@@ -142,7 +142,7 @@ pre-registered at 2 MB for `/api/clients` and `/api/intake` so a full seed fits.
 | GET | `/api/clients?status=&phase=&search=` | team | Clients with `intake_url`, contacts, SAA, core answered/total, checklist completed/total, `filled_by`. `status` defaults to `active`; `all` lists everything. |
 | POST | `/api/clients` | team | Create. `name, state` required; `slug` derived from the name when omitted; `contacts[{name,email,role,phone}]` (the client's people; first becomes primary), `npsa_contacts[]` (ours beyond the standing team in `server/intake-team.json`, usually the sales rep), `upload_folder_id, drive_folder_id, asana_project_gid, kickoff_date (YYYY-MM-DD), program_track, notes, phase, status`; `token` only for imports. 201 with the row; 409 on a slug clash; 400 with the reason otherwise. |
 | GET | `/api/clients/:slug` | team | Row, contacts, `intake_url`, SAA, core and checklist counts, `filled_by`, `status_line`. |
-| PATCH | `/api/clients/:slug` | team | Any create field except slug/token, plus `phase`, `status`, `add_contacts[]`, `add_npsa_contacts[]`, `remove_contact_emails[]`. `status=submitted` stamps `submitted_at`. "Nothing to change" is a 400. Also `add_reference_contacts` (SAA, CISA; read-only for the client), and the Documents-tab list: `documents` (full list or `null` to reset), `add_documents`, `remove_document_keys`. Defaults come from `server/intake-documents.json` (standard four plus per-state extras). |
+| PATCH | `/api/clients/:slug` | team | Any create field except slug/token, plus `phase`, `status`, `add_contacts[]`, `add_npsa_contacts[]`, `remove_contact_emails[]`. `status=submitted` stamps `submitted_at`. "Nothing to change" is a 400. Also `add_reference_contacts` (SAA, CISA; read-only for the client), and the Documents-tab list: `documents` (full list or `null` to reset), `add_documents`, `remove_document_keys`. Defaults come from `server/intake-documents.json` (standard four plus per-state extras; a `by_program` entry replaces them when the client's state and `program_track` match, so a California CSNSGP client gets the Cal OES set). A document may carry `ready` (its line in the checklist's submission box) and `task` (the checklist stem that also satisfies it, or removes it when marked Not applicable). |
 | POST | `/api/clients/:slug/token` | team | Rotate the token; returns the new `intake_url`. The old link stops working at once. |
 | GET | `/api/clients/:slug/answers?section=&include_empty=` | team | Answers in catalog order with `section, label, kind, value, updated_at, updated_by`. Empty values omitted unless asked. |
 | PUT | `/api/clients/:slug/answers` | team | Upsert `{ answers: {key: value}, by? }`. Unknown keys → 400 with `unknown_keys`; nothing written. Values become strings, capped at 20k chars. Does not touch the quiet clock. |
@@ -361,3 +361,12 @@ call returns `[]` until the first client is created.
    them and `--status` sets it per client.
 4. Where client folders live (Shared Drive vs My Drive) only matters for the optional
    Drive mirror in PR 5.
+
+## Submission box (2026-09-17)
+
+The "What <state> needs for your submission" box on the Checklist tab is built from the
+client's own Documents list, between SAM.gov and state registration at the top and vendor
+quotes, the IJ and the submission at the bottom. A document row checks off when the file is
+uploaded or its linked checklist task is marked Completed. Any requirement whose tasks are all
+marked Not applicable leaves the box and the count (it used to show a green check). Change the
+box by changing the client's Documents list.

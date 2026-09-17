@@ -573,6 +573,23 @@ await check('documents: defaults by state, team edits, custom keys upload', asyn
   const nope = await upload(created.slug, token(), multipart('up_nothing', 'x.pdf', PDF, 'application/pdf'));
   assert.equal(nope.status, 400);
 });
+await check('documents: California state-program clients get the Cal OES set; tasks and ready lines validate', async () => {
+  const ca = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Del Mar Chapel', state: 'CA', program_track: '2026-27 CSNSGP' } });
+  assert.equal(ca.status, 201, JSON.stringify(ca.data));
+  assert.deepEqual(ca.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_proof_address', 'up_landlord_letter', 'up_site_map']);
+  assert.ok(ca.data.documents.every(d => d.source === 'program'));
+  assert.match(ca.data.documents.find(d => d.key === 'up_va').label, /Cal OES/);
+  const fed = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Orange Federal Church', state: 'CA', program_track: 'FY2027 federal NSGP-S' } });
+  assert.deepEqual(fed.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_bios']);
+  const drop = await call('PATCH', '/api/clients/del-mar-chapel', { headers: TEAM, body: { remove_document_keys: ['up_landlord_letter'] } });
+  assert.equal(drop.data.documents.find(d => d.key === 'up_va').task, 'vulnerability_assessment_received');
+  const badTask = await call('PATCH', '/api/clients/del-mar-chapel', { headers: TEAM, body: { documents: [{ key: 'up_x', label: 'X', task: 'not_a_task' }] } });
+  assert.equal(badTask.status, 400);
+  const html = renderClientPage({ client: { slug: 'del-mar-chapel', token: 't', name: 'Del Mar Chapel', state: 'CA', program_track: '2026-27 CSNSGP' }, stateConfig: {}, existing: {} });
+  assert.match(html, /up_proof_address/);
+  assert.match(html, /srState\(it\)/);
+  for (const slug of ['del-mar-chapel', 'orange-federal-church']) await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { status: 'cancelled' } });
+});
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));

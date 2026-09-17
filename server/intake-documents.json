@@ -1,15 +1,30 @@
 {
-  "_what": "The documents a client is asked to upload on the Documents tab. Every client gets `standard`; a state in `by_state` adds its own. A client's list can be changed per client (client_update documents / add_documents / remove_document_keys, or the Grant Writing page); once changed, the stored list wins until it is reset. Keys must start with up_ and are the upload's key in intake_uploads.",
+  "_what": "The documents a client is asked to upload on the Documents tab. Every client gets `standard`; a state in `by_state` adds its own. A client whose program_track matches a `by_program` entry for their state gets that entry's list instead of standard + state (California's state program asks for a different set). A client's list can be changed per client (client_update documents / add_documents / remove_document_keys, or the Grant Writing page); once changed, the stored list wins until it is reset. Keys must start with up_ and are the upload's key in intake_uploads. `ready` is the short line in the checklist's submission box; `task` is the checklist stem that also satisfies it (marked Completed) or takes it out of the box (marked Not applicable).",
   "standard": [
-    { "key": "up_mission", "label": "Mission statement on letterhead", "hint": "PDF / DOCX" },
-    { "key": "up_501c3", "label": "501(c)(3) determination letter", "hint": "PDF" },
-    { "key": "up_va", "label": "Vulnerability assessment (if you have one)", "hint": "PDF" },
-    { "key": "up_bios", "label": "Leadership bios & resumes (PII-scrubbed)", "hint": "PDF / DOCX" }
+    { "key": "up_mission", "label": "Mission statement on letterhead", "hint": "PDF / DOCX", "task": "mission_statement_on_letterhead" },
+    { "key": "up_501c3", "label": "501(c)(3) determination letter", "hint": "PDF", "task": "501_c_3_determination_letter" },
+    { "key": "up_va", "label": "Vulnerability assessment (if you have one)", "hint": "PDF", "ready": "Vulnerability assessment received — one per site", "task": "vulnerability_assessment_received" },
+    { "key": "up_bios", "label": "Leadership bios & resumes (PII-scrubbed)", "hint": "PDF / DOCX", "task": "leadership_bios_resumes_pii_scrubb" }
   ],
   "by_state": {
     "TX": [
       { "key": "up_gov_resolution", "label": "Resolution from your governing body", "hint": "PDF · Texas FY26 requirement; sample posted in eGrants" },
-      { "key": "up_tx_payee", "label": "Texas payee forms: Direct Deposit Authorization, Application for Payee ID Number, IRS W-9", "hint": "PDF · Grant.Vendor tab in eGrants" }
+      { "key": "up_tx_payee", "label": "Texas payee forms: Direct Deposit Authorization, Application for Payee ID Number, IRS W-9", "hint": "PDF · Grant.Vendor tab in eGrants", "ready": "Texas payee forms (Direct Deposit, Payee ID, W-9)" }
     ]
-  }
+  },
+  "by_program": [
+    {
+      "state": "CA",
+      "program": "CSNSGP",
+      "match": "CSNSGP|California State Nonprofit Security",
+      "documents": [
+        { "key": "up_mission", "label": "Mission statement on letterhead", "hint": "PDF / DOCX", "task": "mission_statement_on_letterhead" },
+        { "key": "up_501c3", "label": "501(c)(3) determination letter", "hint": "PDF · a group ruling letter works if you are covered by one", "task": "501_c_3_determination_letter" },
+        { "key": "up_va", "label": "Cal OES Vulnerability Assessment Worksheet", "hint": "PDF / DOCX · the current-year Cal OES form; a DHS or CISA report does not substitute", "ready": "Cal OES Vulnerability Assessment Worksheet — one per site", "task": "vulnerability_assessment_received" },
+        { "key": "up_proof_address", "label": "Proof of ownership or lease (deed, property tax bill, mortgage statement, utility bill, or lease showing the address and your organization's name)", "hint": "PDF", "ready": "Proof of ownership or lease" },
+        { "key": "up_landlord_letter", "label": "Landlord permission letter on the landlord's letterhead (leased facilities only)", "hint": "PDF", "ready": "Landlord permission letter (leased facilities only)" },
+        { "key": "up_site_map", "label": "Google Map or facility footprint showing square footage", "hint": "PDF / image" }
+      ]
+    }
+  ]
 }

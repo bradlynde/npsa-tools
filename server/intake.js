@@ -42,21 +42,27 @@ const NPSA_TEAM = JSON.parse(readFileSync(new URL('./intake-team.json', import.m
 const DOCUMENTS = JSON.parse(readFileSync(new URL('./intake-documents.json', import.meta.url), 'utf8'));
 const DOC_KEY_RE = /^up_[a-z0-9_]{2,40}$/;
 
-/** The upload rows a client's Documents tab shows: their own list if the team changed it, else standard + state. */
+/** The upload rows a client's Documents tab shows: their own list if the team changed it, else their program's list, else standard + state. */
 export function documentsFor(client) {
   if (Array.isArray(client.documents)) return client.documents.map(d => ({ ...d, source: d.source || 'custom' }));
+  const st = String(client.state || '').toUpperCase();
+  const prog = (DOCUMENTS.by_program || []).find(p => p.state === st && new RegExp(p.match, 'i').test(String(client.program_track || '')));
+  if (prog) return prog.documents.map(d => ({ ...d, source: 'program' }));
   return [
     ...DOCUMENTS.standard.map(d => ({ ...d, source: 'standard' })),
-    ...((DOCUMENTS.by_state[String(client.state || '').toUpperCase()] || []).map(d => ({ ...d, source: 'state' }))),
+    ...((DOCUMENTS.by_state[st] || []).map(d => ({ ...d, source: 'state' }))),
   ];
 }
+const CHECKLIST_STEM_SET = new Set(CATALOG.questions.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length)));
 function validDocument(d, label) {
   const key = String(d?.key || '').trim().toLowerCase();
   if (!DOC_KEY_RE.test(key)) throw new BadRequest(`${label}.key must look like up_something (letters, digits, underscores)`);
   const text = String(d.label || '').trim().slice(0, 140);
   if (!text) throw new BadRequest(`${label}.label cannot be blank`);
   const out = { key, label: text, hint: String(d.hint || '').trim().slice(0, 80) };
-  if (d.source && ['standard', 'state', 'custom'].includes(d.source)) out.source = d.source;
+  if (d.ready) out.ready = String(d.ready).trim().slice(0, 100);
+  if (d.task) { const t = String(d.task).trim(); if (!CHECKLIST_STEM_SET.has(t)) throw new BadRequest(`${label}.task "${t}" is not a checklist task`); out.task = t; }
+  if (d.source && ['standard', 'state', 'program', 'custom'].includes(d.source)) out.source = d.source;
   return out;
 }
 function validDocuments(list, field) {
