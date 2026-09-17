@@ -151,6 +151,10 @@ await check('every write is one revision with before and after; a no-op is none'
   assert.deepEqual(revs[0].changed_fields, ['saa_url']); assert.equal(revs[0].reason, 'added the PSO page');
   assert.equal(revs[0].before.data.saa_url, undefined); assert.equal(revs[0].after.data.saa_url, 'https://gov.texas.gov/organization/cjd');
   assert.equal(revs[0].version_from, 1); assert.equal(revs[0].version_to, 2);
+  // Same values with the keys in another order is still no change (Postgres reorders JSONB keys).
+  const p0 = (await call('GET', `${G}/jurisdictions/TX`)).data.programs.find(p => p.key === 'NSGP-S');
+  const same = await call('PATCH', `${G}/records/${p0.id}`, { body: { version: p0.version, data: { submission: { url: 'https://egrants.gov.texas.gov', platform: 'eGrants', method: 'portal' } } } });
+  assert.equal(same.data.version, p0.version, 'key order is not a change');
   const noop = await call('PATCH', `${G}/records/${tx.id}`, { body: { version: 2, data: { saa_short: 'OOG PSO' } } });
   assert.equal(noop.data.version, 2);
   assert.equal((await revisionsOf(tx.id)).length, 2);

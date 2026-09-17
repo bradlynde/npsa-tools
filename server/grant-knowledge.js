@@ -525,7 +525,11 @@ export function createMemoryKnowledgeStore({ now = () => new Date() } = {}) {
 
 // ── Writes: how a request becomes the next version of a record ────────────────
 
-const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+// Postgres hands JSONB back with its keys in its own order, so equality has to be
+// blind to key order or every stored record looks changed.
+const canonical = v => (Array.isArray(v) ? v.map(canonical)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canonical(v[k])])) : v ?? null);
+const sameJson = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
 function validJurisdiction(code) {
   const c = String(code || '').trim().toUpperCase();
