@@ -7,21 +7,31 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
 const NAV = [
-  { href: "/", label: "Dashboard", match: (p: string) => p === "/" },
+  { href: "/", label: "Dashboard", short: "Home", match: (p: string) => p === "/" },
   {
     href: "/toolbox",
     label: "Sales Toolbox",
+    short: "Toolbox",
     // The LOE app is reached from the toolbox, so it keeps the tab lit.
     match: (p: string) => p.startsWith("/toolbox") || p.startsWith("/loe"),
   },
   {
     href: "/grant-writing",
     label: "Grant Writing",
+    short: "Writing",
     match: (p: string) => p.startsWith("/grant-writing"),
+  },
+  {
+    href: "/grant-knowledge",
+    label: "Grant Knowledge",
+    // Five tabs share a phone's width, so each has a one-word name for the bottom bar.
+    short: "Knowledge",
+    match: (p: string) => p.startsWith("/grant-knowledge"),
   },
   {
     href: "/scraper",
     label: "Scraper",
+    short: "Scraper",
     // /school and /church remain as deep links into run details.
     match: (p: string) =>
       p.startsWith("/scraper") || p.startsWith("/school") || p.startsWith("/church"),
@@ -325,7 +335,7 @@ export function MobileTabs() {
               className="mono"
               style={{ fontWeight: 600, fontSize: 10, color: on ? "var(--navy)" : "var(--mute)" }}
             >
-              {n.label}
+              {n.short}
             </span>
           </Link>
         );

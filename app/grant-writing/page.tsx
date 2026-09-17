@@ -705,7 +705,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                       <dt className="mono" style={dt}>Track</dt><dd style={dd}>{c.program_track || <Faint>not set</Faint>}</dd>
                       <dt className="mono" style={dt}>Kickoff</dt><dd style={dd}>{c.kickoff_date ? `${fmtDate(c.kickoff_date, { month: "short", day: "numeric", year: "numeric" })} (Day 0)` : <span style={{ color: "var(--warn-fg)" }}>not booked</span>}</dd>
                       {c.submitted_at && (<><dt className="mono" style={dt}>Submitted</dt><dd style={dd}>{s.status_line || fmtDate(c.submitted_at)}</dd></>)}
-                      <dt className="mono" style={dt}>SAA</dt><dd style={dd}>{c.saa || <Faint>unknown</Faint>}</dd>
+                      <dt className="mono" style={dt}>SAA</dt><dd style={dd}>{c.saa || <Faint>unknown</Faint>} <a href={`/grant-knowledge?state=${c.state}`} className="mono" style={{ fontSize: 11.5, color: "var(--navy)", whiteSpace: "nowrap" }}>what {c.state} requires →</a></dd>
                       <dt className="mono" style={dt}>Links</dt>
                       <dd style={dd}>
                         {c.asana_project_gid ? <Ext href={`https://app.asana.com/0/${c.asana_project_gid}/list`}>Asana</Ext> : <Faint>no Asana</Faint>}
