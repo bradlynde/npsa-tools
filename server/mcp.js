@@ -526,7 +526,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
   server.registerTool('intake_status', {
     title: 'Intake status',
-    description: 'Where a client\'s intake stands: answered vs total per section, the wish list per facility (which items carry a priority and how many of each item\'s five detail fields are filled; the raw 121-field section counts overstate what is left), the 24 checklist tasks with status, due date, owner and note, who is filling it in, the submission stamp if they marked it complete, when they last saved anything, and their uploads. The place to look before a nudge or before drafting the IJ.',
+    description: 'Where a client\'s intake stands: answered vs total per section, the wish list per facility (with applications set, wish_lists holds one list per application, each with its own budget and cap; wish_list is the first application) (which items carry a priority and how many of each item\'s five detail fields are filled; the raw 121-field section counts overstate what is left), the 24 checklist tasks with status, due date, owner and note, who is filling it in, the submission stamp if they marked it complete, when they last saved anything, and their uploads. The place to look before a nudge or before drafting the IJ.',
     inputSchema: { slug: z.string().min(1) },
     annotations: READ,
   }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/status`)));
@@ -604,7 +604,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
     server.registerTool('intake_seed', {
       title: 'Seed intake answers',
-      description: 'WRITE. Confirm with the user before calling. Writes intake answers for a client: pre-filling known facts at kickoff (legal name, EIN, contacts, programs found on the website), the checklist statuses, owners and due dates, and NPSA notes; also how the team corrects an answer later. Every key must exist in intake_questions — an unknown key makes the whole call fail with the offending keys and nothing is written. Values are text; an existing answer for the same key is overwritten. Client-side "who is filling this out" and last-activity are not affected.',
+      description: 'WRITE. Confirm with the user before calling. Writes intake answers for a client: pre-filling known facts at kickoff (legal name, EIN, contacts, programs found on the website), the checklist statuses, owners and due dates, and NPSA notes; also how the team corrects an answer later. Every key must exist in intake_questions (a client\'s second and later applications keep their wish lists under wl_<application id>_f<n>_…, e.g. wl_a2_f1_vehicle_bollards_int, the same questions as wl_f1_…) — an unknown key makes the whole call fail with the offending keys and nothing is written. Values are text; an existing answer for the same key is overwritten. Client-side "who is filling this out" and last-activity are not affected.',
       inputSchema: {
         slug: z.string().min(1),
         answers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).describe('Map of intake key → value, e.g. {"q_1_3_1": "Trinity Wellsprings Church, Inc.", "chk_status_kickoff_call": "Completed"}'),
