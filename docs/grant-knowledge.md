@@ -109,6 +109,18 @@ A deadline's instant is its date and time in its own zone (the jurisdiction's
 `default_tz` when the deadline names none; end of day when it names no time), so "open"
 and "in 3 days" are right at the edges: 4:00 PM in Baton Rouge is still ahead at 3:59.
 
+## Through Claude
+
+Seven read tools and four write tools on the MCP (`gk_*`, listed in [mcp.md](mcp.md)).
+One upsert covers every kind: it finds the parent by key (`program`, then `cycle` for a
+deadline), creates the record or, given the current `version`, changes it. Its description
+carries the field list for each kind, generated from the schemas, so it cannot drift from
+them. `gk_state_brief` is the jurisdiction as markdown (`GET /jurisdictions/:code?format=markdown`),
+with what ends an application first and every unverified fact marked inline.
+
+`GET /reference` serves the shape `nsgp_state_reference` has always returned, from the
+knowledge base, so skills that parse it keep working; territories are now covered.
+
 ## Import from Drive
 
 `scripts/gk-extract.mjs` reads the Drive folder (`_FEDERAL.yaml`, the 56 `states/XX.yaml`

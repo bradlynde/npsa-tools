@@ -317,6 +317,110 @@ function attention(records, { now, days, code }) {
   return { days, counts: Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.length])), ...out };
 }
 
+// ── The same document as prose ────────────────────────────────────────────────
+//
+// What a grant writer (or Claude, drafting for one) reads top to bottom: the brief
+// that replaces the Drive folder's states/XX.md. Unverified facts say so inline.
+
+const money = n => (typeof n === 'number' ? `$${n.toLocaleString('en-US')}` : '');
+const flag = v => (v.effective_status === 'verified' && !v.unverified_fields.length ? '' : v.effective_status === 'stale' ? ' _(stale: verify)_' : ' _(unverified)_');
+const when = d => `${d.data.due_date}${d.data.due_time ? ` ${d.data.due_time}` : ''}${d.data.tz ? ` ${d.data.tz.split('/').pop().replace(/_/g, ' ')} time` : ''}`;
+
+export function renderMarkdown(doc) {
+  const out = [];
+  const j = doc.jurisdiction?.data || {};
+  out.push(`# ${doc.name} (${doc.code})`, '');
+  if (j.saa) out.push(`**SAA:** ${j.saa}${j.saa_short ? ` (${j.saa_short})` : ''}${doc.jurisdiction ? flag(doc.jurisdiction) : ''}`);
+  if (j.urban_areas?.length) out.push(`**Urban areas:** ${j.urban_areas.join('; ')}`);
+  if (j.partner) out.push(`**Partner:** ${j.partner}`);
+  if (j.cycle_status) out.push(`**Cycle status:** ${j.cycle_status}`);
+  out.push(`**Where it stands:** ${doc.cycle_state}${doc.next_deadline ? `; next deadline ${doc.next_deadline.label}, ${doc.next_deadline.due_date} (${doc.next_deadline.days_away} days)` : ''}`);
+  out.push(`**Freshness:** ${doc.freshness.verified} verified, ${doc.freshness.unverified} unverified, ${doc.freshness.stale} stale; ${doc.open_questions} open question(s)`, '');
+  if (j.summary_md) out.push(j.summary_md, '');
+
+  const stoppers = [...doc.notes, ...doc.programs.flatMap(p => p.notes)].filter(n => n.data.severity === 'auto_disqualifier');
+  if (stoppers.length) { out.push('## Read first: these end an application', ''); for (const n of stoppers) out.push(`- **${n.data.title}**${flag(n)}${n.data.body_md ? `: ${n.data.body_md}` : ''}`); out.push(''); }
+
+  for (const p of doc.programs) {
+    const d = p.data;
+    out.push(`## ${p.key}: ${d.name}${d.status && d.status !== 'active' ? ` [${d.status.toUpperCase()}]` : ''}${flag(p)}`, '');
+    const facts = [
+      ['Type', d.type], ['Administered by', d.administered_by], ['Cap per location', money(d.cap_per_location)], ['Cap per applicant', money(d.cap_per_applicant)],
+      ['Locations', d.locations_max], ['M&A', d.ma_pct === undefined ? '' : `${d.ma_pct}%`], ['Cost match', d.cost_match], ['Period of performance', d.pop_months ? `${d.pop_months} months` : ''],
+      ['Stackable with federal', d.stackable === undefined ? '' : String(d.stackable)], ['Cannot be won together with', (d.exclusive_with || []).join(', ')],
+      ['Deadline authority', d.deadline_authority], ['Availability', d.availability_note],
+    ].filter(([, v]) => v !== undefined && v !== '');
+    for (const [k, v] of facts) out.push(`- **${k}:** ${v}${d.field_notes?.[{ 'Cap per location': 'cap_per_location', 'Cap per applicant': 'cap_per_applicant', Locations: 'locations_max', 'M&A': 'ma_pct', 'Period of performance': 'pop_months' }[k]] ? ` (${d.field_notes[{ 'Cap per location': 'cap_per_location', 'Cap per applicant': 'cap_per_applicant', Locations: 'locations_max', 'M&A': 'ma_pct', 'Period of performance': 'pop_months' }[k]]})` : ''}`);
+    if (d.submission) out.push(`- **Submission:** ${[d.submission.method, d.submission.target].filter(Boolean).join(' via ')}`, ...(d.submission.package_note ? [`  - ${d.submission.package_note}`] : []));
+    if (d.file_naming) out.push(`- **File naming:** ${d.file_naming}`);
+    out.push('');
+    const list = checklist(p);
+    for (const [title, rows] of [['Registration', list.registration], ['Documents', list.documents]]) {
+      if (!rows.length) continue;
+      out.push(`### ${title}`, '');
+      for (const r of rows) out.push(`- ${r.hard_gate ? '**HARD GATE** ' : ''}${r.label} [${r.owner}${r.baseline === 'federal' ? ', federal baseline' : ''}${r.lead_time_days ? `, allow ${r.lead_time_days} days` : ''}${r.format ? `, ${r.format}` : ''}]${r.status === 'verified' ? '' : ' _(unverified)_'}${r.notes ? `: ${r.notes}` : ''}`);
+      out.push('');
+    }
+    if (p.cycles.length) {
+      out.push('### Cycles', '');
+      for (const c of p.cycles) {
+        const bits = [c.data.status, c.data.open_date ? `opened ${c.data.open_date}` : '', c.data.state_allocation ? `state allocation ${money(c.data.state_allocation)}` : '', c.data.total_funding ? `total ${money(c.data.total_funding)}` : ''].filter(Boolean).join(', ');
+        out.push(`- **${c.title}**${bits ? ` (${bits})` : ''}${flag(c)}${c.data.notes ? `: ${c.data.notes}` : ''}`);
+        for (const dl of c.deadlines) out.push(`  - ${dl.data.label}: ${when(dl)}${dl.data.confidence && dl.data.confidence !== 'confirmed' ? ` [${dl.data.confidence}]` : ''}${flag(dl)}${dl.data.note ? `. ${dl.data.note}` : ''}`);
+      }
+      out.push('');
+    }
+    if (d.notes_md) out.push('### Program notes', '', d.notes_md, '');
+    if (d.eligible_costs) out.push('### Eligible costs', '', d.eligible_costs, '');
+    noteBlock(out, p.notes, '###');
+    contactBlock(out, p.contacts, '###');
+  }
+  contactBlock(out, doc.contacts, '##');
+  noteBlock(out, doc.notes, '##');
+  if (j.post_award_note) out.push('## Post-award', '', j.post_award_note, '');
+  const sources = [...doc.sources, ...doc.programs.flatMap(p => p.sources)];
+  if (sources.length) { out.push('## Sources', ''); for (const s of sources) out.push(`- ${s.data.url}${s.data.covers ? ` (${s.data.covers})` : ''}`); out.push(''); }
+  return out.join('\n');
+}
+
+const NOTE_ORDER = ['gotcha', 'eligibility', 'prohibited_cost', 'scoring', 'process', 'history', 'post_award', 'watch_item', 'open_question'];
+const NOTE_HEADING = { gotcha: 'Gotchas', eligibility: 'Eligibility', prohibited_cost: 'Prohibited costs', scoring: 'Scoring', process: 'Process', history: 'History', post_award: 'Post-award', watch_item: 'Watch items', open_question: 'Open questions' };
+function noteBlock(out, notes, h) {
+  for (const cat of NOTE_ORDER) {
+    const mine = notes.filter(n => n.data.category === cat && !(cat === 'open_question' && n.data.resolved));
+    if (!mine.length) continue;
+    out.push(`${h} ${NOTE_HEADING[cat]}`, '');
+    for (const n of mine) out.push(`- **${n.data.title}**${n.data.client_slug ? ` (from ${n.data.client_slug})` : ''}${flag(n)}${n.data.body_md ? `: ${n.data.body_md.replace(/\n+/g, ' ')}` : ''}`);
+    out.push('');
+  }
+}
+function contactBlock(out, contacts, h) {
+  if (!contacts.length) return;
+  out.push(`${h} Contacts`, '');
+  for (const c of contacts) out.push(`- ${[c.data.name, c.data.role, c.data.org].filter(Boolean).join(', ')}${c.data.area ? ` (${c.data.area})` : ''}: ${[c.data.email, c.data.phone].filter(Boolean).join(' / ')}${flag(c)}${c.data.warning ? ` WARNING: ${c.data.warning}` : ''}`);
+  out.push('');
+}
+
+/** The shape nsgp_state_reference has always returned, read from the knowledge base. */
+export function legacyReference(records, now = new Date()) {
+  const live = activeTree(records);
+  const states = {};
+  for (const j of live.filter(r => r.kind === 'jurisdiction' && r.jurisdiction !== 'US')) {
+    const programs = live.filter(r => r.kind === 'program' && r.jurisdiction === j.jurisdiction && r.data.type === 'state').sort(bySort);
+    states[j.jurisdiction] = {
+      saa: j.data.saa || '', saaShort: j.data.saa_short || '', lastVerified: j.verified_at ? iso(j.verified_at).slice(0, 10) : '',
+      programs: programs.map(p => ({
+        acronym: p.key, name: p.data.name, perSite: p.data.cap_per_location ?? null, perApplicant: p.data.cap_per_applicant ?? null,
+        stackable: p.data.stackable ?? 'verify', note: p.data.notes_md || p.data.submission?.package_note || '',
+        ...(p.data.exclusive_with?.length ? { exclusiveWith: [p.key, ...p.data.exclusive_with] } : {}),
+        ...(p.data.status === 'dormant' ? { dormant: true } : {}), ...(p.data.status === 'unconfirmed' ? { unconfirmed: true } : {}),
+        ...(p.data.administered_by ? { administeredBy: p.data.administered_by } : {}), ...(p.data.availability_note ? { availabilityNote: p.data.availability_note } : {}),
+      })),
+    };
+  }
+  return { source: 'knowledge-base', checkedOn: now.toISOString().slice(0, 10), notCovered: JURISDICTION_CODES.filter(c => c !== 'US' && !states[c]), states };
+}
+
 // ── Schema ────────────────────────────────────────────────────────────────────
 
 export async function ensureGrantKnowledgeSchema(pool) {
@@ -618,6 +722,7 @@ export function registerGrantKnowledge(app, { store, internalKey, now = () => ne
     const includeArchived = req.query.include_archived === '1';
     const records = await store.listRecords();
     const doc = assemble(code, records, { now: now(), federal: federalBaseline(records, now()) });
+    if (req.query.format === 'markdown') return res.type('text/markdown').send(renderMarkdown(doc));
     if (includeArchived) doc.archived = (await store.listRecords({ jurisdiction: code, includeArchived: true })).filter(r => r.archived_at).map(r => recordView(r, now()));
     res.json(doc);
   }));
@@ -643,6 +748,10 @@ export function registerGrantKnowledge(app, { store, internalKey, now = () => ne
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 200);
     res.json({ revisions: (await store.listRevisions({ limit, before: parseInt(req.query.before, 10) || undefined })).map(revisionView) });
   }));
+
+  // The legacy state reference, for nsgp_state_reference and the consumers that
+  // still expect its shape. Empty until the import has run; callers fall back.
+  app.get('/api/grant-knowledge/reference', team, guard(async (req, res) => res.json(legacyReference(await store.listRecords(), now()))));
 
   app.get('/api/grant-knowledge/records/:id', team, guard(async (req, res) => res.json(recordView(await loadRecord(req), now()))));
 
