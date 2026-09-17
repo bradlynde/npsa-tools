@@ -370,3 +370,26 @@ quotes, the IJ and the submission at the bottom. A document row checks off when 
 uploaded or its linked checklist task is marked Completed. Any requirement whose tasks are all
 marked Not applicable leaves the box and the count (it used to show a green check). Change the
 box by changing the client's Documents list.
+
+## Applications (2026-09-17)
+
+`clients.applications` (JSONB) is the list of applications NPSA is writing for a client:
+`{ id: "a1", program: "CSNSGP" | "NSGP-S" | "NSGP-UA" | <state acronym>, cycle: "2026-27", sites: [1], status }`.
+Status is `active` (writing now), `planned` (a later cycle we are engaged for), `submitted`,
+`awarded`, `not_awarded` or `withdrawn`. Programs come from `programsFor(state)`: the two federal
+tracks plus the state's own programs in the NSGP state reference. Set it with `client_create` /
+`client_update applications` or the Grant Writing dialog (Edit). Ids are stable so later work
+(one wish list per application) can key off them.
+
+What reads it:
+- The client form's header shows a chip per application; the Locations tab shows each site's
+  applications in place of the "Programs applying" select.
+- Site caps count `active`, `submitted` and `awarded` applications; `planned` stays out of
+  today's caps.
+- `documentsFor` matches `by_program` against stored applications (falling back to
+  `program_track` when none are stored).
+- `intake_status` returns `applications` and `applications_set`. When nothing is stored the list
+  is derived from the Locations tab's answers and marked `derived: true`.
+
+Next: one wish list and budget per application, then shared prep tasks with per-application
+submission tasks on the checklist, then a submission box per application.

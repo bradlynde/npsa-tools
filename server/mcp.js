@@ -539,6 +539,13 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
   }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/uploads`)));
 
   if (canWrite) {
+    const applicationShape = z.object({
+      id: z.string().regex(/^a\d{1,2}$/).optional().describe('Keep the id when editing an existing application ("a1"); omit for a new one'),
+      program: z.string().min(1).describe('"NSGP-S", "NSGP-UA", or the state program acronym (nsgp_state_reference), e.g. "CSNSGP", "NSGP-IL"'),
+      cycle: z.string().max(24).optional().describe('e.g. "FY2027" or "2026-27"'),
+      sites: z.array(z.number().int().min(1).max(3)).min(1).optional().describe('Site numbers on the Locations tab; default [1]'),
+      status: z.enum(['active', 'planned', 'submitted', 'awarded', 'not_awarded', 'withdrawn']).optional().describe('active = being written now (default); planned = a later cycle we are engaged for'),
+    });
     server.registerTool('client_create', {
       title: 'Register grant client',
       description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. contacts are the client\'s people (the first becomes primary); they appear under "Your team" on the form\'s Contacts tab, where the client can add more. npsa_contacts are NPSA people shown under "Your NPSA team": Stuart and Brad are added automatically, so pass only the consultant who brought the client in (name, email, role "Consultant"). Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
@@ -553,6 +560,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         asana_project_gid: z.string().optional(),
         kickoff_date: z.string().regex(ISO_DATE).optional().describe('Day 0, YYYY-MM-DD'),
         program_track: z.string().optional().describe('e.g. "2026 federal NSGP + NSGP-IL"'),
+        applications: z.array(applicationShape).optional().describe('The applications NPSA is writing: one per program and cycle, with the sites each covers. The client form shows them in its header and sets budget caps and documents from them.'),
         notes: z.string().optional(),
       },
       annotations: WRITE,
@@ -564,7 +572,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     const documentShape = z.object({ key: z.string().regex(/^up_[a-z0-9_]{2,40}$/), label: z.string().min(1).max(140), hint: z.string().max(80).optional() });
     server.registerTool('client_update', {
       title: 'Update grant client',
-      description: `WRITE. Confirm with the user before calling. Changes fields on a client: name, state, phase (1–4), status (${CLIENT_STATUSES.join(', ')}), program_track, Drive folder ids, Asana project, kickoff date, notes; adds or removes contacts by email (add_contacts for the client\'s people, add_npsa_contacts for NPSA people such as the sales rep, add_reference_contacts for outside helpers such as the SAA contact and the CISA advisor; remove_contact_emails for any of them); changes which documents the Documents tab asks for (documents, add_documents, remove_document_keys; client_get shows the current list). Only the fields given change. Setting status to "submitted" stamps the submission time; use "cancelled" or "closed" at closeout. The slug and token never change here (see client_token_rotate).`,
+      description: `WRITE. Confirm with the user before calling. Changes fields on a client: name, state, phase (1–4), status (${CLIENT_STATUSES.join(', ')}), program_track, Drive folder ids, Asana project, kickoff date, notes; adds or removes contacts by email (add_contacts for the client\'s people, add_npsa_contacts for NPSA people such as the sales rep, add_reference_contacts for outside helpers such as the SAA contact and the CISA advisor; remove_contact_emails for any of them); sets the applications NPSA is writing (applications: the full list, keeping each existing id; null clears it); changes which documents the Documents tab asks for (documents, add_documents, remove_document_keys; client_get shows the current list). Only the fields given change. Setting status to "submitted" stamps the submission time; use "cancelled" or "closed" at closeout. The slug and token never change here (see client_token_rotate).`,
       inputSchema: {
         slug: z.string().min(1),
         name: z.string().min(1).optional(),
@@ -581,6 +589,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         add_npsa_contacts: z.array(contactShape).optional().describe('NPSA people, e.g. the consultant who brought the client in (role "Consultant")'),
         add_reference_contacts: z.array(contactShape).optional().describe('Helpful people outside NPSA and the client, shown read-only on the client\'s Contacts tab: the SAA program contact or help desk, the CISA protective security advisor'),
         remove_contact_emails: z.array(z.string().email()).optional().describe('Removes a contact of any side by email'),
+        applications: z.array(applicationShape).nullable().optional().describe('Replace the list of applications (program, cycle, sites, status). Pass every application, keeping existing ids.'),
         documents: z.array(documentShape).nullable().optional().describe('Replace the Documents-tab list outright; null resets to the defaults (standard four plus the state\'s extras; California clients whose program_track names CSNSGP get the Cal OES set instead)'),
         add_documents: z.array(documentShape).optional().describe('Add document rows to the client\'s Documents tab (key up_something, a label, optional hint)'),
         remove_document_keys: z.array(z.string()).optional().describe('Take document rows off the client\'s Documents tab, e.g. ["up_bios"] where the state does not ask for bios'),
