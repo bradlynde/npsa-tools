@@ -581,7 +581,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         add_npsa_contacts: z.array(contactShape).optional().describe('NPSA people, e.g. the consultant who brought the client in (role "Consultant")'),
         add_reference_contacts: z.array(contactShape).optional().describe('Helpful people outside NPSA and the client, shown read-only on the client\'s Contacts tab: the SAA program contact or help desk, the CISA protective security advisor'),
         remove_contact_emails: z.array(z.string().email()).optional().describe('Removes a contact of any side by email'),
-        documents: z.array(documentShape).nullable().optional().describe('Replace the Documents-tab list outright; null resets to the defaults (standard four plus the state\'s extras)'),
+        documents: z.array(documentShape).nullable().optional().describe('Replace the Documents-tab list outright; null resets to the defaults (standard four plus the state\'s extras; California clients whose program_track names CSNSGP get the Cal OES set instead)'),
         add_documents: z.array(documentShape).optional().describe('Add document rows to the client\'s Documents tab (key up_something, a label, optional hint)'),
         remove_document_keys: z.array(z.string()).optional().describe('Take document rows off the client\'s Documents tab, e.g. ["up_bios"] where the state does not ask for bios'),
       },

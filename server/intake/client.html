@@ -531,6 +531,7 @@
   .sr-item.done .sr-dot{background:var(--sage);border-color:var(--sage);}
   .sr-item.done .sr-dot::after{content:"";position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
   .sr-item.done .sr-lbl{color:#3e6a1f;}
+  .sr-item[hidden]{display:none;}
   .sr-foot{margin-top:10px;font-size:12.5px;color:var(--muted);font-style:italic;}
   .wl-cat{background:linear-gradient(90deg,var(--sage-tint),#e6ecd2);color:var(--navy);font-family:var(--head);
     font-weight:800;font-size:14.5px;padding:11px 18px;border-left:4px solid var(--sage);
@@ -770,30 +771,31 @@
     if(v==='Not started')el.classList.add('st-red');else if(v==='In progress')el.classList.add('st-yellow');else if(v==='Completed')el.classList.add('st-green');else if(v==='Not applicable')el.classList.add('st-na');
     var tr=el.closest('tr');if(tr)tr.classList.toggle('task-na',v==='Not applicable');}
   document.querySelectorAll('.ckselect').forEach(function(el){ckColor(el);el.addEventListener('change',function(){ckColor(el);});});
+  var refreshReady=function(){};
   /* progress + submission readiness (2026-08-21) */
   try{
-    var SRDEF=[
-      ['Active SAM.gov / UEI registration',['chk_status_sam_gov_uei_registration']],
-      ['__STATEREG__',['chk_status_state_reg']],
-      ['Vulnerability assessment received — one per site',['chk_status_vulnerability_assessment_received']],
-      ['Mission statement on letterhead',['chk_status_mission_statement_on_letterhead']],
-      ['889-compliant vendor quotes for budget items',['chk_status_vendor_quotes_for_wish_list_items']],
-      ['Investment Justification finalized — one per site',['chk_status_investment_justification_ij_prepar','chk_status_final_review_edits']],
-      ['Application submitted to __SAA__',['chk_status_assemble_submission_package','chk_status_submit_application']]
-    ];
+    /* the box is built from this client's Documents list, between the registration and the application steps (2026-09-17) */
     var extraReg=REGS.filter(function(r){return !/SAM\.gov/i.test(r.label);}).map(function(r){return r.label;});
     var srItems=[];
-    SRDEF.forEach(function(it){var lbl=it[0];
-      if(lbl==='__STATEREG__'){if(!extraReg.length)return;lbl=STATE+' registration: '+extraReg.join(' · ');}
-      lbl=lbl.replace('__SAA__',CFG.saa||'your state administrative agency');
-      srItems.push({label:lbl,keys:it[1]});});
+    function srAdd(label,keys,doc){srItems.push({label:label,keys:keys,doc:doc||''});}
+    srAdd('Active SAM.gov / UEI registration',['chk_status_sam_gov_uei_registration']);
+    if(extraReg.length)srAdd(STATE+' registration: '+extraReg.join(' · '),['chk_status_state_reg']);
+    (DOCUMENTS||[]).forEach(function(d){srAdd(escT(d.ready||d.label),d.task?['chk_status_'+d.task]:[],d.key);});
+    srAdd('889-compliant vendor quotes for budget items',['chk_status_vendor_quotes_for_wish_list_items']);
+    srAdd('Investment Justification finalized — one per site',['chk_status_investment_justification_ij_prepar','chk_status_final_review_edits']);
+    srAdd('Application submitted to '+(CFG.saa||'your state administrative agency'),['chk_status_assemble_submission_package','chk_status_submit_application']);
     var srT=document.getElementById('srTitle');
     if(srT)srT.textContent='What '+STATE+' needs for your submission'+(CFG.saa?(' — submitted through '+CFG.saa):'');
     var srG=document.getElementById('srGrid');
     if(srG)srG.innerHTML=srItems.map(function(it,i){return '<div class="sr-item" id="sri_'+i+'">'+
       '<span class="sr-dot"></span><span class="sr-lbl">'+it.label+'</span></div>';}).join('');
-    /* "Not applicable" satisfies a requirement and leaves the task count */
-    function ckDone(k){var el=document.querySelector('.ckselect[data-key="'+k+'"]');return !!el&&(el.value==='Completed'||el.value==='Not applicable');}
+    function ckVal(k){var el=document.querySelector('.ckselect[data-key="'+k+'"]');return el?el.value:'';}
+    /* Not applicable takes a requirement out of the box; a document also counts once it is uploaded */
+    function srState(it){
+      if(it.keys.length&&it.keys.every(function(k){return ckVal(k)==='Not applicable';}))return 'na';
+      if(it.doc&&(EXISTING[it.doc]||(UPLOADED||[]).indexOf(it.doc)>=0))return 'done';
+      if(it.doc&&it.keys.length)return ckVal(it.keys[0])==='Completed'?'done':'open';
+      return it.keys.length&&it.keys.every(function(k){var v=ckVal(k);return v==='Completed'||v==='Not applicable';})?'done':'open';}
     function updCk(){
       var sels=document.querySelectorAll('.ckselect'),done=0,na=0;
       sels.forEach(function(el){if(el.value==='Completed')done++;else if(el.value==='Not applicable')na++;});
@@ -801,14 +803,16 @@
       var f=document.getElementById('ckpFill'),l=document.getElementById('ckpLabel');
       if(f)f.style.width=pct+'%';
       if(l)l.textContent=done+' of '+tot+' tasks completed · '+pct+'%';
-      var rdy=0;
-      srItems.forEach(function(it,i){var ok=it.keys.every(ckDone);if(ok)rdy++;
-        var el=document.getElementById('sri_'+i);if(el)el.classList.toggle('done',ok);});
+      var rdy=0,shown=0;
+      srItems.forEach(function(it,i){var st=srState(it),el=document.getElementById('sri_'+i);
+        if(st!=='na'){shown++;if(st==='done')rdy++;}
+        if(el){el.hidden=(st==='na');el.classList.toggle('done',st==='done');}});
       var ft=document.getElementById('srFoot');
-      if(ft)ft.textContent=(srItems.length&&rdy===srItems.length)?
+      if(ft)ft.textContent=(shown&&rdy===shown)?
         'All submission requirements met — ready to submit.':
-        rdy+' of '+srItems.length+' submission requirements met. These check off automatically as the tasks below are marked Completed.';
+        rdy+' of '+shown+' submission requirements met. These check off automatically as documents are uploaded and the tasks below are marked Completed.';
     }
+    refreshReady=updCk;
     updCk();
     document.querySelectorAll('.ckselect').forEach(function(el){el.addEventListener('change',updCk);});
   }catch(e){}
@@ -816,7 +820,7 @@
   document.querySelectorAll('[data-upload]').forEach(function(inp){inp.addEventListener('change',function(){
     var key=inp.getAttribute('data-upload'),file=inp.files[0];if(!file)return;var stat=document.getElementById('u_'+key);
     stat.textContent='Uploading…';setPill('saving');var fd=new FormData();fd.append('key',key);fd.append('file',file,file.name);
-    call('POST','/upload',fd,true).then(function(res){stat.textContent='Uploaded ✓ '+file.name;setPill('saved');})
+    call('POST','/upload',fd,true).then(function(res){stat.textContent='Uploaded ✓ '+file.name;setPill('saved');UPLOADED=UPLOADED||[];if(UPLOADED.indexOf(key)<0)UPLOADED.push(key);refreshReady();})
       .catch(function(err){stat.textContent=(err&&err.message)?err.message:'Upload failed';setPill('saved');if(err&&err.status===401)linkDead();});});});
   /* contacts */
   function escT(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
