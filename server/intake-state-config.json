@@ -724,5 +724,6 @@
       "stateCap": "—"
     }
   },
-  "_kentucky": "The KY registration line was corrected live in the Apps Script editor on 2026-08-26 (Version 24) and never landed in the local Code.gs copy; it is transcribed here from the deploy note. Check it against the live form at cutover."
+  "_kentucky": "The KY registration line was corrected live in the Apps Script editor on 2026-08-26 (Version 24) and never landed in the local Code.gs copy; it is transcribed here from the deploy note. Check it against the live form at cutover.",
+  "_quotes": "Set \"quotes_required\": true on a state whose SAA wants vendor quotes with the application. Most take estimates, so the default is false and the checklist's quotes task is not treated as a submission requirement."
 }
