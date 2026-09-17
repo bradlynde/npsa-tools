@@ -71,7 +71,7 @@ type ClientRow = {
   filled_by: string;
 };
 
-type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string };
+type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string; application?: string | null; application_label?: string | null };
 type Upload = { id: number; key: string; label: string; filename: string; size_bytes: number; uploaded_at: string; drive_url: string | null };
 
 /** Fetches a client upload with the login token and hands it to the browser as a download. */
@@ -100,7 +100,7 @@ type Status = {
   programs?: { listed: number; slots: number };
   /** What the client has asked for across sites, against the federal applicant cap. */
   budget?: { requested: number; cap: number; room: number; sites: number };
-  checklist: { completed: number; total: number; not_applicable?: number; items: ChecklistItem[] };
+  checklist: { completed: number; total: number; not_applicable?: number; per_application?: number; items: ChecklistItem[] };
   uploads: Upload[];
   /** Stored applications, or ones derived from the Locations tab (derived: true) when none are set. */
   applications?: Application[];
@@ -500,6 +500,14 @@ function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
   const [showDone, setShowDone] = useState(false);
   const open = checklist.items.filter((it) => it.status !== "Completed" && it.status !== "Not applicable");
   const rest = checklist.items.filter((it) => it.status === "Completed" || it.status === "Not applicable");
+  // Prep tasks are shared; the wish list, budget, IJ and submission repeat per application.
+  const groups: { key: string; label: string | null; items: ChecklistItem[] }[] = [];
+  for (const it of open) {
+    const key = it.application || "";
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push(it);
+    else groups.push({ key, label: it.application_label || null, items: [it] });
+  }
   const row = (it: ChecklistItem, i: number) => {
     const done = it.status === "Completed";
     const prog = it.status === "In progress";
@@ -523,9 +531,23 @@ function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
       ) : "nothing finished yet"}
     >
       {open.length === 0 && <Faint>Every task is finished or marked not applicable.</Faint>}
-      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>{open.map(row)}</ul>
+      {groups.map((g) => (
+        <div key={g.key}>
+          {g.label && (
+            <div className="mono" style={{ fontSize: 11, color: "var(--faint)", letterSpacing: ".06em", textTransform: "uppercase", marginTop: 12, marginBottom: 2 }}>{g.label}</div>
+          )}
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>{g.items.map(row)}</ul>
+        </div>
+      ))}
       {showDone && rest.length > 0 && (
-        <ul style={{ margin: "10px 0 0", padding: "8px 0 0", listStyle: "none", opacity: 0.8, borderTop: "1px dashed var(--bd2)" }}>{rest.map(row)}</ul>
+        <ul style={{ margin: "10px 0 0", padding: "8px 0 0", listStyle: "none", opacity: 0.8, borderTop: "1px dashed var(--bd2)" }}>
+          {rest.map((it, i) => (
+            <li key={`${it.application || ""}-${it.stem}`} style={{ listStyle: "none" }}>
+              {it.application_label && <div className="mono" style={{ fontSize: 10.5, color: "var(--faint)", marginTop: i ? 6 : 0 }}>{it.application_label}</div>}
+              <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>{row(it, 0)}</ul>
+            </li>
+          ))}
+        </ul>
       )}
     </Section>
   );
