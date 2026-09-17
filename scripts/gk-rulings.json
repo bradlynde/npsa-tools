@@ -1,0 +1,23 @@
+{
+  "_what": "Rulings and hand-entered facts for scripts/gk-extract.mjs. `records` are added to the bundle as written; `patch` changes one extracted record by its import key (data is merged); `skip` leaves one out. Give each a `why`.",
+  "records": [
+    {
+      "import_key": "d:TX:NSGP-S:2026:stage1-certification", "jurisdiction": "TX", "kind": "deadline", "parent": "c:TX:NSGP-S:2026", "key": "stage1-certification",
+      "status": "unverified", "source_url": "https://egrants.gov.texas.gov/fundingopp/nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026",
+      "data": { "label": "Stage 1: eGrants application created, submitted and certified", "stage_order": 0, "due_date": "2026-03-12", "due_time": "17:00", "tz": "America/Chicago", "deadline_kind": "stage", "binding": true, "confidence": "illustrative",
+        "note": "From TX.yaml's package note (system opened 1/12/2026). The Sales Toolbox table has 2026-02-12 for the same stage, from the 2026-08-08 web check. One of the two is wrong; see the open question." },
+      "why": "TX.yaml carries Stage 1 only in prose, so no parser lifts it"
+    },
+    {
+      "import_key": "n:TX:-:fy26-stage-1-date", "jurisdiction": "TX", "kind": "note", "parent": null, "key": "fy26-stage-1-date", "status": "unverified",
+      "data": { "category": "open_question", "severity": "critical", "phase": "before_nofo", "title": "Was the FY26 Stage 1 (eGrants certification) deadline 2/12/2026 or 3/12/2026?",
+        "body_md": "The Drive file (NPSA audit 2026-08-11, read against the eGrants FY26 funding opportunity) says the eGrants application had to be certified by **3/12/2026 5:00 PM CT**. The 2026-08-08 web check, which is what the Sales Toolbox deadline table shows reps, says the solicitation closed **2/12/2026**. Both are imported unverified. Settle it against the eGrants funding-opportunity page before the FY27 Stage 1 window opens (about January 2027): a Texas client told the wrong month misses the whole cycle." },
+      "why": "the conflict the import must not settle silently"
+    }
+  ],
+  "patch": {
+    "d:TX:NSGP-S:2026:final": { "data": { "label": "Stage 2: IJ, VA, mission and resolution uploaded to eGrants", "stage_order": 2, "deadline_kind": "stage" }, "why": "Texas runs two stages; the July date is the second" },
+    "d:TX:NSGP-UA:2026:final": { "data": { "label": "Stage 2: IJ, VA, mission and resolution uploaded to eGrants", "stage_order": 2, "deadline_kind": "stage" }, "why": "same two-stage process as NSGP-S" }
+  },
+  "skip": []
+}
