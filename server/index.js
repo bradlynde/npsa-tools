@@ -20,6 +20,7 @@ import {
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 import { registerMcp } from './mcp.js';
 import { ensureIntakeSchema, createIntakeStore, registerIntake } from './intake.js';
+import { ensureGrantKnowledgeSchema, createKnowledgeStore, registerGrantKnowledge } from './grant-knowledge.js';
 import crypto from 'crypto';
 
 const { Pool } = pg;
@@ -60,6 +61,7 @@ if (process.env.DATABASE_URL) {
   `).catch(err => console.error('DB init error:', err.message));
   ensureDeadlineSchema(pool).catch(err => console.error('Deadline init error:', err.message));
   ensureIntakeSchema(pool).catch(err => console.error('Intake init error:', err.message));
+  ensureGrantKnowledgeSchema(pool).catch(err => console.error('Grant knowledge init error:', err.message));
 }
 
 // Minted per process and never stored: the MCP layer presents it on its loopback
@@ -75,7 +77,7 @@ const INTERNAL_KEY = crypto.randomBytes(24).toString('hex');
 // the general parser below simply skips what this one already handled.
 app.use('/api/marketing/sync/push', express.json({ limit: '10mb' }));
 // A full intake seed (592 keys of prose) can pass 100kb; same trick, smaller limit.
-app.use(['/api/clients', '/api/intake'], express.json({ limit: '2mb' }));
+app.use(['/api/clients', '/api/intake', '/api/grant-knowledge'], express.json({ limit: '2mb' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
@@ -1009,6 +1011,9 @@ registerIntake(app, {
   apiBase: process.env.INTAKE_API_BASE || '',
   uploadBase: process.env.INTAKE_UPLOAD_BASE || '',
 });
+// Grant knowledge: the per-state knowledge base. Team routes only, keyed like the
+// grant-client routes.
+registerGrantKnowledge(app, { store: pool ? createKnowledgeStore(pool) : null, internalKey: INTERNAL_KEY });
 registerMcp(app, { port: () => PORT, internalKey: INTERNAL_KEY });
 
 // An API route that does not exist must say so. Without this the fallback below
