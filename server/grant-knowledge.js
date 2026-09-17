@@ -215,12 +215,20 @@ export function assemble(code, records, { now = new Date(), federal = [] } = {})
 
   // Requirements a program takes from elsewhere: a sibling it inherits from
   // (NSGP-UA from NSGP-S), and, for a federal program in a state, the US baseline.
+  // A state's own requirement with the same key as a baseline one is that line as
+  // this state runs it (Texas's "ij" carries Texas's note about the fillable form),
+  // so it stands in for the baseline line rather than appearing beside it.
+  const federalKeys = new Set(federal.map(r => r.key));
+  for (const p of programs) {
+    if (code !== 'US' && p.data.type === 'federal') p.requirements = p.requirements.map(r => (federalKeys.has(r.key) ? { ...r, baseline: 'federal' } : r));
+  }
   for (const p of programs) {
     const inherited = [];
-    if (code !== 'US' && p.data.type === 'federal') inherited.push(...federal.map(r => ({ ...r, baseline: 'federal' })));
     const from = p.data.inherits_from && programs.find(x => x.key === p.data.inherits_from && x.id !== p.id);
-    if (from) inherited.push(...from.requirements.map(r => ({ ...r, baseline: 'state', inherited_from: from.key })));
-    p.inherited_requirements = inherited;
+    if (from) inherited.push(...from.requirements.map(r => ({ ...r, inherited_from: from.key })));
+    if (code !== 'US' && p.data.type === 'federal') inherited.push(...federal.map(r => ({ ...r, baseline: 'federal' })));
+    const taken = new Set(p.requirements.map(r => r.key));
+    p.inherited_requirements = inherited.filter(r => { if (taken.has(r.key)) return false; taken.add(r.key); return true; });
   }
 
   const loose = kind => views.filter(v => v.kind === kind && !v.parent_id).sort(bySort);

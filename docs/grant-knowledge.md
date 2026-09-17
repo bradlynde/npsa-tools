@@ -50,7 +50,9 @@ with a field the schema does not know is refused by name. Facts with no field go
 
 The federal baseline is the requirements of the `US` program. A federal program in a
 state shows those first, flagged `baseline: federal`, then its own, flagged `state`. A
-program with `inherits_from` (NSGP-UA from NSGP-S) shows its sibling's as well.
+state requirement with the same key as a baseline one (`ij`, `sam_uei`) stands in for
+that line rather than appearing beside it: it is the baseline line as that state runs
+it. A program with `inherits_from` (NSGP-UA from NSGP-S) shows its sibling's as well.
 
 `gk_revisions` is append-only: one row per write, with full `before` and `after`
 snapshots, the fields that changed, the actor, the actor kind (`user` from the toolbox,

@@ -249,6 +249,15 @@ await check('the state document: federal baseline flagged, inheritance, staged d
   assert.equal(s.requirements.length, 3); assert.ok(s.requirements.every(r => r.baseline === 'state'));
   assert.equal(ua.requirements.length, 0);
   assert.equal(ua.inherited_requirements.filter(r => r.inherited_from === 'NSGP-S').length, 3);
+  assert.equal(ua.inherited_requirements.length, 6, 'its sibling\'s three and the federal three');
+
+  // A state requirement keyed like a baseline one stands in for it.
+  const own = await create({ jurisdiction: 'TX', kind: 'requirement', parent_id: nsgpS.id, key: 'investment-justification', data: { req_type: 'document', label: 'Investment Justification', owner: 'npsa', notes: 'Current-FY fillable form only; PSO reissued it 6/24' } });
+  const again = (await call('GET', `${G}/jurisdictions/TX`)).data;
+  assert.equal(again.programs[0].inherited_requirements.length, 2, 'the baseline IJ line gives way');
+  assert.equal(again.programs[0].requirements.find(r => r.id === own.id).baseline, 'federal');
+  assert.equal(again.programs[1].inherited_requirements.filter(r => r.key === 'investment-justification').length, 1, 'and UA sees it once, Texas\'s version');
+  await call('POST', `${G}/records/${own.id}/archive`, { body: { version: own.version } });
   assert.deepEqual(s.cycles.map(c => c.key), ['2027', '2026'], 'newest cycle first');
   assert.deepEqual(s.cycles[0].deadlines.map(d => d.data.stage_order), [1, 2]);
   assert.equal(doc.cycle_state, 'soon', 'a deadline ahead but the window has not opened');
