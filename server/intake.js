@@ -31,6 +31,7 @@ import crypto from 'crypto';
 import express from 'express';
 import { readFileSync } from 'fs';
 import { driveConfigured, uploadToDrive } from './drive.js';
+import { mailConfigured, sendWelcome, senderFor } from './mail.js';
 import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
 
@@ -583,6 +584,7 @@ export async function ensureIntakeSchema(pool) {
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS side  TEXT NOT NULL DEFAULT 'client';
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents JSONB;
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS applications JSONB;
+    ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS welcomed_at TIMESTAMPTZ;
     CREATE TABLE IF NOT EXISTS intake_answers (
       client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       key         TEXT NOT NULL,
@@ -617,7 +619,7 @@ const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track,
 export function createIntakeStore(pool) {
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0] || null;
   const contactsFor = async id => (await pool.query(
-    `SELECT id, name, email, role, phone, side, is_primary, added_by, created_at FROM client_contacts WHERE client_id=$1
+    `SELECT id, name, email, role, phone, side, is_primary, added_by, welcomed_at, created_at FROM client_contacts WHERE client_id=$1
       ORDER BY (side = 'npsa') DESC, is_primary DESC, id`, [id])).rows;
   const withContacts = async row => row && { ...row, contacts: await contactsFor(row.id) };
 
@@ -668,6 +670,9 @@ export function createIntakeStore(pool) {
     },
     async removeContacts(clientId, emails) {
       if (emails.length) await pool.query('DELETE FROM client_contacts WHERE client_id=$1 AND email = ANY($2)', [clientId, emails]);
+    },
+    async markWelcomed(clientId, email) {
+      await pool.query('UPDATE client_contacts SET welcomed_at=NOW() WHERE client_id=$1 AND email=$2', [clientId, email]);
     },
     async updateContact(clientId, email, patch) {
       const { rows } = await pool.query(
@@ -759,6 +764,9 @@ export function createMemoryStore() {
     },
     async removeContacts(clientId, emails) {
       for (let i = contacts.length - 1; i >= 0; i--) if (contacts[i].client_id === clientId && emails.includes(contacts[i].email)) contacts.splice(i, 1);
+    },
+    async markWelcomed(clientId, email) {
+      const c = contacts.find(x => x.client_id === clientId && x.email === email); if (c) c.welcomed_at = now();
     },
     async updateContact(clientId, email, patch) {
       const cur = contacts.find(c => c.client_id === clientId && c.email === email); if (!cur) return false;
@@ -856,9 +864,34 @@ export function renderClientPage({ client, stateConfig, existing, contacts = { n
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-export function registerIntake(app, { store, internalKey, publicBase, renderPage = renderClientPage, apiBase = '', uploadBase = '', drive } = {}) {
+export function registerIntake(app, { store, internalKey, publicBase, renderPage = renderClientPage, apiBase = '', uploadBase = '', drive, mail } = {}) {
   // Drive mirror: injectable for tests, otherwise on only when the key is set.
   if (drive === undefined) drive = driveConfigured() ? { upload: uploadToDrive } : null;
+  // Welcome email: same shape, and off until a Workspace sender is configured.
+  if (mail === undefined) mail = mailConfigured() ? { send: sendWelcome } : null;
+
+  /**
+   * The note a new contact gets, the way a shared Drive file tells someone they have access:
+   * who added them, and the link. Best-effort — a mail failure never fails the request that
+   * added the person, and NPSA and reference rows are never written to.
+   */
+  const welcome = async (client, email, { addedBy = '', force = false, req } = {}) => {
+    if (!mail) return { sent: false, reason: 'welcome email is not configured' };
+    const fresh = await store.getClient(client.slug);
+    const contact = (fresh.contacts || []).find(c => c.email === email);
+    if (!contact || contact.side !== 'client') return { sent: false, reason: 'not a client contact' };
+    if (contact.welcomed_at && !force) return { sent: false, reason: 'already welcomed' };
+    const sender = senderFor(fresh.contacts || []);
+    try {
+      const out = await mail.send({ client: fresh, contact, addedBy, sender, intakeUrl: intakeUrl(base(req), fresh.slug, fresh.token) });
+      await store.markWelcomed(fresh.id, email);
+      console.log(`[intake] welcome email ${fresh.slug} → ${email} as ${sender?.email || '?'}`);
+      return { sent: true, ...out };
+    } catch (err) {
+      console.warn(`[intake] welcome email failed for ${fresh.slug}/${email}: ${err.message}`);
+      return { sent: false, reason: err.message };
+    }
+  };
   const base = req => publicBaseFor(req, publicBase);
   const team = teamGate({ internalKey });
 
@@ -993,12 +1026,16 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       ...validContacts(b.add_reference_contacts, 'add_reference_contacts').map(x => ({ ...x, side: 'reference' })),
     ];
     const remove = validEmails(b.remove_contact_emails, 'remove_contact_emails');
-    if (!Object.keys(patch).length && !add.length && !remove.length) throw new BadRequest('Nothing to change');
+    const invite = b.invite_contact_email === undefined ? '' : String(b.invite_contact_email).trim().toLowerCase();
+    if (!Object.keys(patch).length && !add.length && !remove.length && !invite) throw new BadRequest('Nothing to change');
     if (Object.keys(patch).length) await store.updateClient(c.slug, patch);
     if (remove.length) await store.removeContacts(c.id, remove);
     if (add.length) await store.addContacts(c.id, add, `npsa:${req.actor}`);
+    // An invite is the team saying "send it now", so it goes even to someone welcomed before.
+    const invited = invite ? await welcome(c, invite, { addedBy: '', force: true, req }) : null;
     console.log(`[intake] client_update ${c.slug} by ${req.actor} ${JSON.stringify(Object.keys(b))}`);
-    res.json(clientView(await store.getClient(c.slug), base(req)));
+    const view = clientView(await store.getClient(c.slug), base(req));
+    res.json(invited ? { ...view, invite: invited } : view);
   }));
 
   app.post('/api/clients/:slug/token', team, guard(async (req, res) => {
@@ -1178,7 +1215,8 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     await store.updateClient(c.slug, {}).catch(() => {});
     const fresh = await store.getClient(c.slug);
     console.log(`[intake] contact added ${c.slug} ${contact.email}`);
-    res.json({ ok: true, ...contactsView(fresh.contacts || []) });
+    const mailed = await welcome(c, contact.email, { addedBy: who, req });
+    res.json({ ok: true, welcomed: mailed.sent, ...contactsView(fresh.contacts || []) });
   }));
 
   // The client can correct their own people (a phone number added later, a

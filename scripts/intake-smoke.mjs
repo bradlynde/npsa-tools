@@ -49,8 +49,10 @@ app.use(['/api/clients', '/api/intake'], express.json({ limit: '2mb' }));
 app.use(express.json());
 const store = createMemoryStore();
 let rendered = null;
+const mailbox = [];
 registerIntake(app, {
   store, internalKey: INTERNAL, publicBase: BASE,
+  mail: { send: async (m) => { if (/fail@/.test(m.contact.email)) throw new Error('Gmail send failed: 403'); mailbox.push(m); return { id: `m${mailbox.length}` }; } },
   renderPage: ({ client, stateConfig, existing, contacts }) => { rendered = { client, stateConfig, existing, contacts }; return `<html>page for ${client.slug}</html>`; },
 });
 const server = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
@@ -716,6 +718,51 @@ await check('checklist: prep shared, wish list and submission repeated per appli
   const ans = await call('GET', '/api/clients/split-list-church/answers', { headers: TEAM });
   assert.equal(ans.data.answers.find((a) => a.key === 'chk_a2_due_submit_application').section, 'Checklist (NSGP-S FY2027)');
   await call('PATCH', '/api/clients/split-list-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
+await check('welcome email: automatic when the client adds someone, on request for the team, never twice', async () => {
+  const { welcomeMessage, senderFor, buildRaw } = await import('../server/mail.js');
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Welcome Church', state: 'IL', contacts: [{ name: 'Dawn Reed', email: 'dawn@welcome.example', role: 'Exec Pastor' }] } });
+  assert.equal(r.status, 201);
+  const t = { 'X-Intake-Token': r.data.intake_url.split('t=')[1] };
+  await call('PUT', `/api/intake/welcome-church/answers`, { headers: t, body: { answers: { _filled_by: 'Dawn Reed' } } });
+  const before = mailbox.length;
+  const added = await call('POST', '/api/intake/welcome-church/contacts', { headers: t, body: { name: 'Pat Lee', email: 'pat@welcome.example', role: 'Facilities' } });
+  assert.equal(added.status, 200, JSON.stringify(added.data));
+  assert.equal(added.data.welcomed, true);
+  const sent = mailbox[mailbox.length - 1];
+  assert.equal(sent.contact.email, 'pat@welcome.example');
+  assert.equal(sent.addedBy, 'Dawn Reed');
+  assert.equal(sent.sender.email, 'stuart@nonprofitsecurityadvisors.com', 'sent as the grant writer');
+  assert.match(sent.intakeUrl, /\/client\/welcome-church\?t=/);
+  // The same address added again is not welcomed twice.
+  await call('POST', '/api/intake/welcome-church/contacts', { headers: t, body: { name: 'Pat Lee', email: 'pat@welcome.example', role: 'Facilities Director' } });
+  assert.equal(mailbox.length, before + 1, 'one welcome per address');
+  // NPSA rows are never mailed, and a team invite is explicit.
+  const npsaInvite = await call('PATCH', '/api/clients/welcome-church', { headers: TEAM, body: { invite_contact_email: 'stuart@nonprofitsecurityadvisors.com' } });
+  assert.equal(npsaInvite.data.invite.sent, false);
+  const invite = await call('PATCH', '/api/clients/welcome-church', { headers: TEAM, body: { invite_contact_email: 'dawn@welcome.example' } });
+  assert.equal(invite.data.invite.sent, true, JSON.stringify(invite.data.invite));
+  assert.equal(mailbox[mailbox.length - 1].contact.email, 'dawn@welcome.example');
+  assert.ok(invite.data.contacts.find((c) => c.email === 'dawn@welcome.example').welcomed_at);
+  // A team add does not mail on its own; the button does.
+  const teamAdd = await call('PATCH', '/api/clients/welcome-church', { headers: TEAM, body: { add_contacts: [{ name: 'Sam Fox', email: 'sam@welcome.example' }] } });
+  assert.equal(teamAdd.status, 200);
+  assert.equal(mailbox[mailbox.length - 1].contact.email, 'dawn@welcome.example', 'still the last one');
+  // A send that throws leaves the contact added and unwelcomed.
+  const bad = await call('POST', '/api/intake/welcome-church/contacts', { headers: t, body: { name: 'Fail Case', email: 'fail@welcome.example' } });
+  assert.equal(bad.status, 200);
+  assert.equal(bad.data.welcomed, false);
+  assert.ok(bad.data.client.some((c) => c.email === 'fail@welcome.example'));
+  // The message itself.
+  const m = welcomeMessage({ client: { name: 'Welcome Church' }, contact: { name: 'Pat Lee' }, addedBy: 'Dawn Reed', sender: { name: 'Stuart Reese', role: 'Director of Grants, your grant writer', email: 's@x.org', phone: '(815) 550-5222' }, intakeUrl: 'https://x/client/a?t=b' });
+  assert.equal(m.subject, 'Your NSGP intake form — Welcome Church');
+  assert.match(m.text, /Dawn Reed added you to Welcome Church/);
+  assert.match(m.text, /Director of Grants, Nonprofit Security Advisors/);
+  assert.ok(!/your grant writer/i.test(m.text));
+  assert.equal(senderFor([{ side: 'npsa', role: 'Consultant', email: 'jeff@x' }, { side: 'npsa', role: 'Director of Grants, your grant writer', email: 's@x' }]).email, 's@x');
+  const raw = buildRaw({ from: 'a@x', to: '"Pat" <p@x>', subject: 'S', text: 'T', html: '<p>H</p>' });
+  assert.match(raw, /^From: a@x\r\nTo: "Pat" <p@x>\r\nSubject: S/);
+  await call('PATCH', '/api/clients/welcome-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
