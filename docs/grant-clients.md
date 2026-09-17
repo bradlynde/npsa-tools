@@ -411,17 +411,22 @@ application cannot inherit a removed one's answers.
 
 ### The checklist splits the same way
 
-`PER_APPLICATION_STEMS` (the last ten stems: wish-list ideation and prioritization, vendor quotes,
-budget finalization, IJ, drafting, final review, review with the client, assembly, submit) repeat
-for each application under `chk_<id>_status_…` / `_due_` / `_who_` / `_note_`; `a1` keeps the plain
-`chk_status_…` keys. Everything up to the vulnerability assessment stays shared. So a client doing
-CSNSGP now and a federal cycle later has two sets of dates and one set of prep tasks.
+`PER_APPLICATION_STEMS` — wish-list ideation and prioritization, budget finalization, IJ, final
+review, assembly, submit — repeat for each application under `chk_<id>_status_…` / `_due_` / `_who_`
+/ `_note_`; `a1` keeps the plain `chk_status_…` keys. Everything else stays shared, including the
+prep, the drafting, the review with the client and the vendor quotes: a second application is an
+add-on (its own wish list, its own submission) rather than a second engagement. So a client doing
+CSNSGP now and a federal cycle later has one set of prep tasks and a submission date each.
+
+Vendor quotes are a submission requirement only where the state asks for them: set
+`"quotes_required": true` on that state in `intake-state-config.json` and the 889 row appears in its
+submission box. We work from estimates everywhere else.
 
 - The page adds an application header row before each block, so the table reads: shared stages 1–4,
   then each application's stages 5–7.
-- The submission box repeats per application: the shared documents, plus that application's own
-  vendor quotes, IJ and submission. SAM.gov only shows on a federal application, since a state
-  program does not need it.
+- The submission box repeats per application: the shared documents, plus that application's own IJ
+  and submission. SAM.gov only shows on a federal application, since a state program does not need
+  it, and the 889 quotes row only where the state requires quotes.
 - `intake_status.checklist.items[]` carries `application` and `application_label` (both null on a
   shared task) and the counts include every application's copy; `per_application` says how many
   tasks repeat. `checklistTotal(client)` is the same arithmetic for the list route.

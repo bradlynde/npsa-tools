@@ -133,7 +133,8 @@ export function stateProgram(state) {
 export function stateConfig(state) {
   const st = String(state || '').toUpperCase();
   const cfg = STATE_CONFIG.states[st] || { ...STATE_CONFIG.fallback, saa: st };
-  return { ...cfg, stateProgram: stateProgram(st) };
+  // Most states take estimates, so quotes are a submission requirement only where the state says so.
+  return { ...cfg, quotes_required: cfg.quotes_required === true, stateProgram: stateProgram(st) };
 }
 
 // ── Applications ──────────────────────────────────────────────────────────────
@@ -202,12 +203,12 @@ export function applicationCap(app) {
 /** The key prefix for an application's wish list: a1 keeps the catalog's wl_f<n>_ keys, the rest are wl_<id>_f<n>_. */
 export function wishPrefix(id) { return !id || id === 'a1' ? 'wl_' : `wl_${id}_`; }
 const WL_APP_KEY_RE = /^wl_(a(?:[2-9]|[1-9]\d))_(f[123]_.+)$/;
-// The checklist splits: everything up to the vulnerability assessment is prep the client does once,
-// and the wish list, budget, IJ and submission repeat for each application on its own dates.
+// The checklist splits. A second application is an add-on rather than a second engagement: it needs
+// its own wish list, budget, IJ and submission, while the prep, the drafting and the review with the
+// client are done once. Vendor quotes stay shared because we usually work from estimates.
 export const PER_APPLICATION_STEMS = [
-  'wish_list_ideation_per_location', 'wish_list_prioritization', 'vendor_quotes_for_wish_list_items', 'wish_list_budget_finalization',
-  'investment_justification_ij_prepar', 'application_drafting', 'final_review_edits', 'review_application_with_you',
-  'assemble_submission_package', 'submit_application',
+  'wish_list_ideation_per_location', 'wish_list_prioritization', 'wish_list_budget_finalization',
+  'investment_justification_ij_prepar', 'final_review_edits', 'assemble_submission_package', 'submit_application',
 ];
 /** The checklist key prefix for an application: a1 keeps chk_status_…, the rest are chk_<id>_status_…. */
 export function checklistPrefix(id) { return !id || id === 'a1' ? 'chk_' : `chk_${id}_`; }

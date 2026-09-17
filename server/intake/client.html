@@ -701,18 +701,21 @@
   /* the checklist splits the same way: prep once, then the wish list, budget, IJ and submission per application */
   function checklistPrefix(id){return !id||id==='a1'?'chk_':'chk_'+id+'_';}
   function ckRekey(root,pre){root.querySelectorAll('[data-key^="chk_"]').forEach(function(el){el.setAttribute('data-key',el.getAttribute('data-key').replace(/^chk_(a\d{1,2}_)?/,pre));});}
+  var PER_APP_STEMS=['wish_list_ideation_per_location','wish_list_prioritization','wish_list_budget_finalization','investment_justification_ij_prepar','final_review_edits','assemble_submission_package','submit_application'];
   (function(){if(!WL_APPS.length)return;
-    var first=document.querySelector('[data-key="chk_status_wish_list_ideation_per_location"]');if(!first)return;
-    var row=first.closest('tr'),start=row.previousElementSibling;
-    while(start&&!start.classList.contains('stage-row'))start=start.previousElementSibling;
-    if(!start)start=row;
-    var tbody=start.parentNode,block=[],n=start;while(n){block.push(n);n=n.nextElementSibling;}
+    var rows=PER_APP_STEMS.map(function(st){var el=document.querySelector('[data-key="chk_status_'+st+'"]');return el?el.closest('tr'):null;}).filter(Boolean);
+    if(!rows.length)return;
+    var tbody=rows[0].parentNode;
     function header(a){var tr=document.createElement('tr');tr.className='app-split-row';
       tr.innerHTML='<td colspan="5"><span class="app-split-name">'+escT(a.label)+'</span><span class="app-split-sub">'+appSites(a)+(APP_ST[a.status]?' · '+APP_ST[a.status]:'')+'</span></td>';return tr;}
-    tbody.insertBefore(header(WL_APPS[0]),start);
-    if(WL_APPS[0].id!=='a1')block.forEach(function(r){ckRekey(r,checklistPrefix(WL_APPS[0].id));});
-    WL_APPS.slice(1).forEach(function(a){tbody.appendChild(header(a));
-      block.forEach(function(r){var c=r.cloneNode(true);ckRekey(c,checklistPrefix(a.id));tbody.appendChild(c);});});})();
+    WL_APPS.forEach(function(a,i){tbody.appendChild(header(a));
+      rows.forEach(function(r){var c=i===0?r:r.cloneNode(true);
+        if(i>0||a.id!=='a1')ckRekey(c,checklistPrefix(a.id));
+        tbody.appendChild(c);});});
+    /* a stage left with no tasks of its own drops out */
+    [].slice.call(tbody.querySelectorAll('tr.stage-row')).forEach(function(sr){var n=sr.nextElementSibling,has=false;
+      while(n&&!n.classList.contains('stage-row')&&!n.classList.contains('app-split-row')){if(n.classList.contains('task-row')){has=true;break;}n=n.nextElementSibling;}
+      if(!has)sr.hidden=true;});})();
   /* a registration step is a string ("… — hard gate") or {label, note, hard_gate}; the note pre-fills the row's Notes box */
   var REGS=(CFG.registration||[]).map(function(r){return typeof r==='string'?{label:r.replace(/\s*[—-]+\s*hard gate\s*$/i,''),hard_gate:/hard gate/i.test(r),note:''}:{label:String(r.label||''),hard_gate:!!r.hard_gate,note:String(r.note||'')};});
   try{var sp=REGS.map(function(r){return r.label+(r.hard_gate?' — hard gate':'');});
@@ -891,7 +894,7 @@
       if(!a||a.kind==='federal')out.push({label:'Active SAM.gov / UEI registration',keys:['chk_status_sam_gov_uei_registration']});
       if(extraReg.length)out.push({label:STATE+' registration: '+extraReg.join(' · '),keys:['chk_status_state_reg']});
       (DOCUMENTS||[]).forEach(function(d){out.push({label:escT(d.ready||d.label),keys:d.task?['chk_status_'+d.task]:[],doc:d.key});});
-      out.push({label:'889-compliant vendor quotes for budget items',keys:[p+'status_vendor_quotes_for_wish_list_items']});
+      if(CFG.quotes_required)out.push({label:'889-compliant vendor quotes for budget items',keys:['chk_status_vendor_quotes_for_wish_list_items']});
       out.push({label:'Investment Justification finalized — one per site',keys:[p+'status_investment_justification_ij_prepar',p+'status_final_review_edits']});
       out.push({label:'Application submitted to '+(CFG.saa||'your state administrative agency'),keys:[p+'status_assemble_submission_package',p+'status_submit_application']});
       return out;}

@@ -658,6 +658,13 @@ await check('array arguments handed over as JSON text are taken as arrays (some 
   assert.equal((await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: { applications: 'not json' } })).status, 400);
   await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
+await check('vendor quotes are a submission requirement only where the state asks for them', async () => {
+  const { stateConfig } = await import('../server/intake.js');
+  assert.equal(stateConfig('CA').quotes_required, false);
+  const html = renderClientPage({ client: { slug: 'quote-church', token: 't', name: 'Q', state: 'CA' }, stateConfig: stateConfig('CA'), existing: {} });
+  assert.match(html, /"quotes_required":false/);
+  assert.match(html, /if\(CFG\.quotes_required\)out\.push/);
+});
 await check('checklist: prep shared, wish list and submission repeated per application', async () => {
   const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Split List Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27' }, { program: 'NSGP-S', cycle: 'FY2027' }] } });
   assert.equal(r.status, 201);
@@ -669,14 +676,17 @@ await check('checklist: prep shared, wish list and submission repeated per appli
   assert.equal((await call('PUT', '/api/clients/split-list-church/answers', { headers: TEAM, body: { answers: { chk_a2_status_nope: 'Completed' } } })).status, 400);
   const st = await call('GET', '/api/clients/split-list-church/status', { headers: TEAM });
   const items = st.data.checklist.items;
-  assert.equal(items.length, 34, 'fourteen shared tasks plus ten per application');
-  assert.equal(items.filter((i) => i.application === null).length, 14);
+  assert.equal(items.length, 31, 'seventeen shared tasks plus seven per application');
+  assert.equal(items.filter((i) => i.application === null).length, 17);
+  assert.ok(items.some((i) => i.stem === 'vendor_quotes_for_wish_list_items' && i.application === null), 'quotes are shared: we work from estimates');
+  assert.ok(items.some((i) => i.stem === 'application_drafting' && i.application === null));
   assert.deepEqual([...new Set(items.filter((i) => i.application).map((i) => i.application_label))], ['CSNSGP 2026-27', 'NSGP-S FY2027']);
   assert.equal(items.find((i) => i.application === 'a1' && i.stem === 'submit_application').due, '11/7/2026');
   assert.equal(items.find((i) => i.application === 'a2' && i.stem === 'submit_application').due, '5/1/2027');
-  assert.deepEqual([st.data.checklist.completed, st.data.checklist.not_applicable, st.data.checklist.total], [2, 1, 33]);
+  assert.deepEqual([st.data.checklist.completed, st.data.checklist.not_applicable, st.data.checklist.total], [2, 1, 30]);
+  assert.equal(st.data.checklist.per_application, 7);
   const list = (await call('GET', '/api/clients?status=active', { headers: TEAM })).data.find((c) => c.slug === 'split-list-church');
-  assert.deepEqual([list.checklist.completed, list.checklist.total, list.checklist.not_applicable], [2, 33, 1]);
+  assert.deepEqual([list.checklist.completed, list.checklist.total, list.checklist.not_applicable], [2, 30, 1]);
   const ans = await call('GET', '/api/clients/split-list-church/answers', { headers: TEAM });
   assert.equal(ans.data.answers.find((a) => a.key === 'chk_a2_due_submit_application').section, 'Checklist (NSGP-S FY2027)');
   await call('PATCH', '/api/clients/split-list-church', { headers: TEAM, body: { status: 'cancelled' } });
