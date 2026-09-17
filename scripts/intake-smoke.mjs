@@ -643,6 +643,21 @@ await check('wish lists: one per application, keyed wl_<id>_ after the first, ea
   assert.match(page, /"per_site":200000/);
   await call('PATCH', '/api/clients/two-list-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
+await check('array arguments handed over as JSON text are taken as arrays (some MCP clients do this)', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Json Args Church', state: 'CA' } });
+  assert.equal(r.status, 201);
+  const up = await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: {
+    applications: JSON.stringify([{ program: 'CSNSGP', cycle: '2026-27', sites: [1] }]),
+    add_contacts: JSON.stringify([{ name: 'Pat Lee', email: 'pat@json.example', role: 'Exec' }]),
+  } });
+  assert.equal(up.status, 200, JSON.stringify(up.data));
+  assert.deepEqual(up.data.applications.map(a => a.label), ['CSNSGP 2026-27']);
+  assert.ok(up.data.contacts.some(c => c.email === 'pat@json.example'));
+  const drop = await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: { remove_document_keys: JSON.stringify(['up_site_map']) } });
+  assert.ok(!drop.data.documents.some(d => d.key === 'up_site_map'));
+  assert.equal((await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: { applications: 'not json' } })).status, 400);
+  await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
