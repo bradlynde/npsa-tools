@@ -391,5 +391,23 @@ What reads it:
 - `intake_status` returns `applications` and `applications_set`. When nothing is stored the list
   is derived from the Locations tab's answers and marked `derived: true`.
 
-Next: one wish list and budget per application, then shared prep tasks with per-application
-submission tasks on the checklist, then a submission box per application.
+### One wish list per application
+
+The first application (`a1`) keeps the catalog's `wl_f<n>_…` keys, so a client's existing wish list
+becomes their first application's. Every other application stores the same questions under
+`wl_<id>_f<n>_…` (e.g. `wl_a2_f1_vehicle_bollards_cost`); `normaliseAnswers` accepts them against
+the `wl_f<n>_` twin, and `intake_answers` lists them after the catalog under sections like
+`Wish List (NSGP-S FY2027) — Facility 1`. New application ids never reuse a lower number, so a new
+application cannot inherit a removed one's answers.
+
+- The page copies the three facility blocks per application before prefill and shows a "Wish list
+  for" switcher; each list shows only its application's sites, its own site and application caps
+  (federal $200,000 a site; a state program's per-site cap held to its per-applicant cap), and M&A.
+- An empty list offers "Copy the <other application> list" for the sites both cover; the copy saves
+  in one batch and the client edits from there.
+- `intake_status.wish_lists[]`: `{ application, label, status, sites, prioritized, facilities, budget:
+  { requested, cap, room } }`. The headline `budget` sums the lists whose application is active,
+  submitted or awarded.
+
+Next: shared prep tasks with per-application submission tasks on the checklist, then a submission
+box per application.

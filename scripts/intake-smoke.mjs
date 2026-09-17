@@ -614,6 +614,35 @@ await check('applications: stored list drives caps, documents and the page; deri
   assert.deepEqual(legacy.data.applications, []);
   for (const slug of ['modesto-cove-church', 'legacy-two-site-church']) await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { status: 'cancelled' } });
 });
+await check('wish lists: one per application, keyed wl_<id>_ after the first, each against its own caps', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Two List Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27' }, { program: 'NSGP-S', cycle: 'FY2027', status: 'planned' }] } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const seed = await call('PUT', '/api/clients/two-list-church/answers', { headers: TEAM, body: { answers: {
+    wl_f1_vehicle_bollards_int: '1', wl_f1_vehicle_bollards_cost: '$100,000',
+    wl_a2_f1_vehicle_bollards_int: '1', wl_a2_f1_vehicle_bollards_cost: '$150,000', wl_a2_f1_ma_on: 'off',
+  } } });
+  assert.equal(seed.status, 200, JSON.stringify(seed.data));
+  const bad = await call('PUT', '/api/clients/two-list-church/answers', { headers: TEAM, body: { answers: { wl_a2_f1_not_a_thing_int: '1', wl_a1_f1_vehicle_bollards_int: '1' } } });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(bad.data.unknown_keys.sort(), ['wl_a1_f1_vehicle_bollards_int', 'wl_a2_f1_not_a_thing_int']);
+  const st = await call('GET', '/api/clients/two-list-church/status', { headers: TEAM });
+  assert.equal(st.data.wish_lists.length, 2);
+  const [csn, fed] = st.data.wish_lists;
+  assert.deepEqual([csn.application, csn.budget.requested, csn.budget.cap, csn.prioritized], ['a1', 105000, 250000, 1]);
+  assert.deepEqual([fed.application, fed.budget.requested, fed.budget.cap, fed.facilities[0].budget.cap], ['a2', 150000, 200000, 200000]);
+  assert.equal(st.data.budget.requested, 105000, 'the planned list stays out of the headline budget');
+  const ans = await call('GET', '/api/clients/two-list-church/answers', { headers: TEAM });
+  const row = ans.data.answers.find(a => a.key === 'wl_a2_f1_vehicle_bollards_cost');
+  assert.equal(row.section, 'Wish List (NSGP-S FY2027) — Facility 1');
+  const sect = await call('GET', `/api/clients/two-list-church/answers?section=${encodeURIComponent('Wish List (NSGP-S FY2027) — Facility 1')}`, { headers: TEAM });
+  assert.equal(sect.data.count, 3);
+  // Dropping a1 and adding a new application must not hand it a1's old keys.
+  const re = await call('PATCH', '/api/clients/two-list-church', { headers: TEAM, body: { applications: [{ id: 'a2', program: 'NSGP-S', cycle: 'FY2027' }, { program: 'NSGP-UA', cycle: 'FY2027' }] } });
+  assert.deepEqual(re.data.applications.map(a => a.id), ['a2', 'a3']);
+  const page = renderClientPage({ client: { slug: 'two-list-church', token: 't', name: 'T', state: 'CA', applications: re.data.applications }, stateConfig: {}, existing: {} });
+  assert.match(page, /"per_site":200000/);
+  await call('PATCH', '/api/clients/two-list-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));

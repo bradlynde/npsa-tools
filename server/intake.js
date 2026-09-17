@@ -139,8 +139,8 @@ export const FEDERAL_PROGRAMS = [
 export const APPLICATION_STATUSES = ['active', 'planned', 'submitted', 'awarded', 'not_awarded', 'withdrawn'];
 const CAP_STATUSES = new Set(['active', 'submitted', 'awarded']); // planned work gets its own wish list later, not a share of today's
 export function programsFor(state) {
-  const st = (STATE_REFERENCE.states[String(state || '').toUpperCase()]?.programs || []).map(p => ({ code: p.acronym, name: p.name, kind: 'state' }));
-  return [...FEDERAL_PROGRAMS, ...st];
+  const st = (STATE_REFERENCE.states[String(state || '').toUpperCase()]?.programs || []).map(p => ({ code: p.acronym, name: p.name, kind: 'state', per_site: p.perSite ?? null, per_applicant: p.perApplicant ?? null }));
+  return [...FEDERAL_PROGRAMS.map(p => ({ ...p, per_site: BUDGET.siteCap, per_applicant: null })), ...st];
 }
 function validApplications(list, state) {
   if (list === undefined) return undefined;
@@ -150,7 +150,7 @@ function validApplications(list, state) {
   const programs = programsFor(state);
   const used = new Set(list.map(a => String(a?.id || '')).filter(id => /^a\d{1,2}$/.test(id)));
   if (used.size !== list.filter(a => /^a\d{1,2}$/.test(String(a?.id || ''))).length) throw new BadRequest('applications: ids must be unique');
-  let next = 1;
+  let next = Math.max(0, ...[...used].map(id => Number(id.slice(1)))) + 1;
   return list.map((a, i) => {
     const label = `applications[${i}]`;
     const prog = programs.find(p => p.code.toLowerCase() === String(a?.program || '').trim().toLowerCase());
@@ -160,7 +160,7 @@ function validApplications(list, state) {
     const status = a.status === undefined ? 'active' : String(a.status);
     if (!APPLICATION_STATUSES.includes(status)) throw new BadRequest(`${label}.status must be one of ${APPLICATION_STATUSES.join(', ')}`);
     let id = String(a.id || '');
-    if (!/^a\d{1,2}$/.test(id)) { while (used.has(`a${next}`)) next++; id = `a${next}`; used.add(id); }
+    if (!/^a\d{1,2}$/.test(id)) { id = `a${next++}`; used.add(id); }
     return { id, program: prog.code, cycle: String(a.cycle || '').trim().slice(0, 24), sites: [...sites].sort(), status };
   });
 }
@@ -168,7 +168,7 @@ function validApplications(list, state) {
 export function applicationsFor(client, val = () => '') {
   const programs = programsFor(client.state);
   const view = a => { const p = programs.find(x => x.code === a.program) || { name: a.program, kind: /^NSGP-(S|UA)$/.test(a.program) || a.program === 'NSGP' ? 'federal' : 'state' };
-    return { ...a, name: p.name, kind: p.kind, label: [a.program, a.cycle].filter(Boolean).join(' ') }; };
+    return { ...a, name: p.name, kind: p.kind, per_site: p.per_site ?? (p.kind === 'federal' ? BUDGET.siteCap : null), per_applicant: p.per_applicant ?? null, label: [a.program, a.cycle].filter(Boolean).join(' ') }; };
   if (Array.isArray(client.applications)) return client.applications.map(view);
   const sp = programsFor(client.state).find(p => p.kind === 'state');
   const groups = new Map();
@@ -182,6 +182,19 @@ export function applicationsFor(client, val = () => '') {
   }
   return [...groups].map(([program, sites], i) => ({ ...view({ id: `a${i + 1}`, program, cycle: '', sites, status: 'active' }), ...(program === 'NSGP' ? { name: 'Federal NSGP' } : {}), derived: true }));
 }
+/** What one application's own wish list may ask for: per site, and in total (a state per-applicant cap holds the total). */
+export function applicationCap(app) {
+  const perSite = app.per_site ?? (app.kind === 'federal' ? BUDGET.siteCap : null);
+  const perApp = app.per_applicant ?? null;
+  const total = perSite ? Math.min(perApp ?? Infinity, perSite * app.sites.length) : (perApp ?? 0);
+  return { per_site: perSite ?? perApp ?? 0, cap: total, cap_unknown: !perSite && !perApp };
+}
+/** The key prefix for an application's wish list: a1 keeps the catalog's wl_f<n>_ keys, the rest are wl_<id>_f<n>_. */
+export function wishPrefix(id) { return !id || id === 'a1' ? 'wl_' : `wl_${id}_`; }
+const WL_APP_KEY_RE = /^wl_(a(?:[2-9]|[1-9]\d))_(f[123]_.+)$/;
+/** A per-application wish list key answers to the same catalog question as its wl_f<n>_ twin. */
+function catalogKey(k) { const m = WL_APP_KEY_RE.exec(k); return m ? `wl_${m[2]}` : k; }
+
 /** Locations-tab style "programs" string for a site, from stored applications ("None" when nothing covers it). */
 function siteProgramsFromApplications(apps, n) {
   const live = apps.filter(a => CAP_STATUSES.has(a.status) && a.sites.includes(n));
@@ -314,9 +327,9 @@ export function normaliseAnswers(answers, { allowMeta = false } = {}) {
   if (!answers || typeof answers !== 'object' || Array.isArray(answers)) throw new BadRequest('answers must be an object of key → value');
   const keys = Object.keys(answers);
   if (!keys.length) throw new BadRequest('answers is empty');
-  const unknown = keys.filter(k => !QUESTION_BY_KEY.has(k));
+  const unknown = keys.filter(k => !QUESTION_BY_KEY.has(catalogKey(k)));
   if (unknown.length) throw new BadRequest(`Unknown intake keys: ${unknown.join(', ')}. Use the question catalog for the exact keys.`, { unknown_keys: unknown });
-  const meta = allowMeta ? [] : keys.filter(k => QUESTION_BY_KEY.get(k).kind === 'meta');
+  const meta = allowMeta ? [] : keys.filter(k => QUESTION_BY_KEY.get(catalogKey(k)).kind === 'meta');
   if (meta.length) throw new BadRequest(`These keys are set by the server, not by the page: ${meta.join(', ')}`, { unknown_keys: meta });
   return keys.map(k => {
     const v = answers[k];
@@ -385,20 +398,20 @@ function statusView(client, answers, base, uploads = []) {
     const keys = QUESTIONS.filter(q => q.section === section && q.kind !== 'meta');
     return { section, answered: keys.filter(q => val(q.key) !== '').length, total: keys.length };
   });
-  const wish_list = WISH_FACILITIES.map(f => {
+  const wishFacilities = prefix => WISH_FACILITIES.map(f => {
     const items = f.items
       .map(it => {
-        const priority = val(`wl_f${f.n}_${it.stem}_int`);
+        const priority = val(`${prefix}f${f.n}_${it.stem}_int`);
         if (!priority) return null;
-        const answered = WISH_DETAILS.filter(d => val(`wl_f${f.n}_${it.stem}_${d}`) !== '').length;
+        const answered = WISH_DETAILS.filter(d => val(`${prefix}f${f.n}_${it.stem}_${d}`) !== '').length;
         return { stem: it.stem, label: it.label, priority: Number(priority) || priority, answered, total: WISH_DETAILS.length };
       })
       .filter(Boolean)
       .sort((a, b) => (a.priority > b.priority ? 1 : a.priority < b.priority ? -1 : 0));
-    const costed = items.map(it => ({ ...it, cost: parseMoney(val(`wl_f${f.n}_${it.stem}_cost`)) }));
+    const costed = items.map(it => ({ ...it, cost: parseMoney(val(`${prefix}f${f.n}_${it.stem}_cost`)) }));
     const itemsTotal = costed.reduce((n, it) => n + (it.cost || 0), 0);
-    const maOn = val(`wl_f${f.n}_ma_on`) !== 'off';
-    const maEntered = parseMoney(val(`wl_f${f.n}_ma_amount`));
+    const maOn = val(`${prefix}f${f.n}_ma_on`) !== 'off';
+    const maEntered = parseMoney(val(`${prefix}f${f.n}_ma_amount`));
     const ma = maOn ? (maEntered ?? Math.round(itemsTotal * BUDGET.maRate)) : 0;
     const total = itemsTotal + ma;
     return {
@@ -408,6 +421,7 @@ function statusView(client, answers, base, uploads = []) {
       budget: { items: itemsTotal, ma, ma_on: maOn, ma_default: maEntered === null, total, programs: val(`loc${f.n}_programs`), uncosted: costed.filter(it => it.cost === null).length },
     };
   });
+  const wish_list = wishFacilities('wl_');
   // A site is in play once it has a name, an address or anything on its wish list.
   const applications = applicationsFor(client, val);
   const stored = Array.isArray(client.applications);
@@ -419,8 +433,26 @@ function statusView(client, answers, base, uploads = []) {
     f.budget.cap = cap ? cap.cap : 0; f.budget.programs = cap ? cap.programs : []; f.budget.cap_assumed = cap ? cap.assumed : false;
     f.budget.room = f.budget.cap - f.budget.total;
   }
-  const requested = wish_list.reduce((n, f) => n + f.budget.total, 0);
-  const budget = { requested, cap: caps.cap, room: caps.cap - requested, sites: active.length, federal: caps.federal, state: caps.state, state_program: caps.state_program, state_cap_unknown: caps.state_cap_unknown, assumed_federal: caps.assumed_federal };
+  let requested = wish_list.reduce((n, f) => n + f.budget.total, 0);
+  let budget = { requested, cap: caps.cap, room: caps.cap - requested, sites: active.length, federal: caps.federal, state: caps.state, state_program: caps.state_program, state_cap_unknown: caps.state_cap_unknown, assumed_federal: caps.assumed_federal };
+  // One wish list per stored application (withdrawn ones drop out), each against its own caps.
+  const wish_lists = stored ? applications.filter(a => a.status !== 'withdrawn').map(a => {
+    const cap = applicationCap(a);
+    const facilities = wishFacilities(wishPrefix(a.id)).filter(f => a.sites.includes(f.facility)).map(f => {
+      f.budget.programs = [a.program]; f.budget.cap = cap.per_site; f.budget.cap_assumed = false; f.budget.room = cap.per_site - f.budget.total;
+      return f;
+    });
+    const req = facilities.reduce((n, f) => n + f.budget.total, 0);
+    return { application: a.id, label: a.label, program: a.program, cycle: a.cycle, status: a.status, sites: a.sites, facilities,
+      prioritized: facilities.reduce((n, f) => n + f.prioritized, 0),
+      budget: { requested: req, cap: cap.cap, room: cap.cap - req, cap_unknown: cap.cap_unknown } };
+  }) : null;
+  if (wish_lists) {
+    const counted = wish_lists.filter(w => CAP_STATUSES.has(w.status));
+    requested = counted.reduce((n, w) => n + w.budget.requested, 0);
+    const cap = counted.reduce((n, w) => n + w.budget.cap, 0);
+    budget = { requested, cap, room: cap - requested, sites: active.length, applications: counted.length };
+  }
   const items = CHECKLIST_STEMS.map(stem => ({
     stem, label: checklistLabel(stem),
     status: val(`chk_status_${stem}`) || 'Not started',
@@ -433,7 +465,7 @@ function statusView(client, answers, base, uploads = []) {
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
     applications, applications_set: stored,
-    core: s.core, sections, wish_list, budget,
+    core: s.core, sections, wish_list, ...(wish_lists ? { wish_lists } : {}), budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
     checklist: { ...s.checklist, items },
     uploads: uploads.map(u => uploadView(u, client.slug, documentsFor(client))),
@@ -927,9 +959,16 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const answers = await store.getAnswers(c.id);
     const section = String(req.query.section || '').toLowerCase();
     const includeEmpty = ['1', 'true'].includes(String(req.query.include_empty || ''));
-    const rows = QUESTIONS
+    // Wish lists for a client's second and later applications live under wl_<id>_f<n>_ keys; they are
+    // listed after the catalog, grouped by application, and only where something is stored.
+    const apps = applicationsFor(c);
+    const extra = [...answers.keys()].filter(k => WL_APP_KEY_RE.test(k)).map(k => {
+      const id = WL_APP_KEY_RE.exec(k)[1], q = QUESTION_BY_KEY.get(catalogKey(k)), app = apps.find(a => a.id === id);
+      return { key: k, id, q, section: q.section.replace(/^Wish List/, `Wish List (${app ? app.label : id})`), label: `${app ? app.label + ' · ' : ''}${q.label}` };
+    }).filter(x => x.q).sort((x, y) => (x.id === y.id ? x.q.ordinal - y.q.ordinal : x.id.localeCompare(y.id, 'en', { numeric: true })));
+    const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
       .filter(q => !section || q.section.toLowerCase() === section)
-      .map(q => { const a = answers.get(q.key); return { key: q.key, section: q.section, label: q.label, kind: q.kind, value: a?.value || '', updated_at: a?.updated_at || null, updated_by: a?.updated_by || '' }; })
+      .map(q => { const a = answers.get(q.key); return { ...q, value: a?.value || '', updated_at: a?.updated_at || null, updated_by: a?.updated_by || '' }; })
       .filter(r => includeEmpty || r.value !== '');
     res.json({ slug: c.slug, name: c.name, count: rows.length, answers: rows });
   }));
