@@ -67,8 +67,13 @@ await check('caps are numbers, stackable is true, false or "verify", and exclusi
 await check('named regressions: Texas is PSO with two stages, NJ state programs exclude each other, the federal baseline has five lines', () => {
   assert.match(byKey.get('j:TX').data.saa, /Public Safety Office/);
   assert.ok(!/TDEM/.test(byKey.get('p:TX:NSGP-S').data.administered_by));
-  assert.equal(records.filter(r => r.parent === 'c:TX:NSGP-S:2026' && r.kind === 'deadline' && r.data.deadline_kind === 'stage').length, 2);
-  assert.ok(records.filter(r => r.parent === 'c:TX:NSGP-S:2026').every(r => r.status === 'unverified'), 'no Texas FY26 date is verified until ruled');
+  const txStages = records.filter(r => r.parent === 'c:TX:NSGP-S:2026' && r.kind === 'deadline').sort((a, b) => a.data.stage_order - b.data.stage_order);
+  assert.deepEqual(txStages.map(d => [d.data.due_date, d.data.deadline_kind, d.status]), [['2026-02-12', 'stage', 'verified'], ['2026-07-06', 'stage', 'verified']], 'Texas FY26: Stage 1 2/12 (ruled 2026-09-17), Stage 2 7/6, and nothing else');
+  assert.ok(!records.some(r => r.jurisdiction === 'TX' && JSON.stringify(r.data).includes('3/12/2026')), 'no Texas record still says 3/12');
+  assert.match(byKey.get('r:KY:NSGP-S:eclearinghouse_reg').data.label, /DLG Portal/); assert.equal(byKey.get('r:KY:NSGP-S:eclearinghouse_reg').data.hard_gate, true);
+  assert.equal(byKey.get('d:AL:NSGP-S:2026:final').data.due_date, '2026-07-15'); assert.ok(!records.some(r => r.jurisdiction === 'AL' && r.data.due_date === '2026-07-16'));
+  assert.equal(byKey.get('c:AZ:AZ-NSGP:2026').key, '2027');
+  assert.deepEqual(records.filter(r => r.kind === 'deadline' && r.import_key.startsWith('d:TN:TN-HOW:') && r.data.due_date.startsWith('2026')).map(r => r.data.due_date), ['2026-07-29']);
   assert.deepEqual(byKey.get('p:NJ:NJ-NSGP-THE').data.exclusive_with, ['NJ-NSGP-SP']);
   assert.equal(byKey.get('p:FL:FL-NSGP').data.status, 'dormant');
   assert.equal(records.filter(r => r.parent === 'p:US:NSGP' && r.kind === 'requirement').length, 5);
@@ -114,7 +119,9 @@ await check('the loaded base assembles: 57 overview rows, Texas reads as two sta
   assert.equal(tx.programs[1].data.inherits_from, 'NSGP-S');
   assert.ok(tx.programs[0].requirements.find(r => r.key === 'ij').baseline === 'federal', "Texas's IJ line stands in for the baseline one");
   assert.ok(!tx.programs[0].inherited_requirements.some(r => r.key === 'ij'));
-  assert.ok(tx.open_questions >= 1);
+  assert.equal(tx.cycle_state, 'closed');
+  const ky = await fetch(`${G}/jurisdictions/KY`, { headers: H }).then(r => r.json());
+  assert.ok(ky.open_questions >= 1, 'the clearinghouse-letter question is open');
   const ex = await fetch(`${G}/export`, { headers: H }).then(r => r.json());
   assert.equal(ex.records.length, records.length);
   const again = await load({ records: ex.records.filter(r => r.jurisdiction === 'NJ') });

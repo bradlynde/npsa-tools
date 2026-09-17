@@ -72,6 +72,7 @@ const UNKNOWN = v => typeof v === 'string' && /^(unknown_needs_research|verify|u
 
 const records = [];
 const byKey = new Map();
+const ruledKeys = new Set(); // records a ruling has spoken on: the comparisons below leave their status alone
 const report = { applied: [], rulings: [], overlay: [], prose: [], intake: [], live: [], contacts: [], unknowns: [], trimmed: [], skipped: [] };
 
 /** Makes the data fit its schema: a string over its limit is cut and kept whole in extra. */
@@ -96,7 +97,12 @@ function add(rec) {
   if ((RULINGS.skip || []).includes(rec.import_key)) { report.skipped.push(`${rec.import_key}: skipped by ruling`); return null; }
   if (byKey.has(rec.import_key)) throw new Error(`duplicate import_key ${rec.import_key}`);
   const patch = (RULINGS.patch || {})[rec.import_key];
-  if (patch) { rec.data = { ...rec.data, ...patch.data }; if (patch.status) rec.status = patch.status; report.applied.push(`${rec.import_key}: patched (${patch.why || 'no reason given'})`); }
+  if (patch) {
+    rec.data = { ...rec.data, ...patch.data };
+    ruledKeys.add(rec.import_key);
+    for (const f of ['status', 'key', 'verified_by', 'verified_on', 'source_url']) if (patch[f]) rec[f] = patch[f];
+    report.applied.push(`${rec.import_key}: patched (${patch.why || 'no reason given'})`);
+  }
   const data = fit(rec.kind, clean(rec.data), rec.import_key);
   const out = {
     import_key: rec.import_key, jurisdiction: rec.jurisdiction, kind: rec.kind, parent: rec.parent || null, key: rec.key, data,
@@ -556,14 +562,16 @@ function compareOverlay() {
     if (has(c.state, c.program, c.now)) { report.overlay.push(`${c.state}/${c.program} FY${c.cycle}: web check's ${c.now} agrees with Drive.`); continue; }
     const drive = deadlines.filter(d => d.jurisdiction === c.state && (c.program === 'federal' ? /^NSGP/.test(programOf(d)) : programOf(d) === c.program)).map(d => `${d.data.due_date} (${d.data.label})`);
     report.rulings.push(`**${c.state}/${c.program} FY${c.cycle}**: the web check moved this to **${c.now}** (was ${c.was}); Drive has ${drive.length ? drive.join(', ') : 'no date'}. Web check's reason: ${c.why} Sources: ${(c.sources || []).join('; ')}. **Neither is imported as verified until ruled.**`);
-    for (const d of deadlines.filter(d => d.jurisdiction === c.state && d.data.due_date === c.was)) { d.status = 'unverified'; d.verified_by = ''; d.verified_at = null; d.data.confidence = 'illustrative'; }
+    for (const d of deadlines.filter(d => d.jurisdiction === c.state && d.data.due_date === c.was && !ruledKeys.has(d.import_key))) { d.status = 'unverified'; d.verified_by = ''; d.verified_at = null; d.data.confidence = 'illustrative'; }
   }
   for (const a of VERIFIED.additions || []) {
     if (has(a.state, a.program, a.date)) continue;
     const id = a.program === 'federal' || a.program === 'federal-noi' ? 'NSGP-S' : a.program;
     const prog = byKey.get(`p:${a.state}:${id}`);
     if (!prog) { report.overlay.push(`${a.state}/${a.program}: the web check added ${a.date} but Drive has no program \`${id}\`. Not imported. ${a.note || ''}`); continue; }
-    const fy = prog.data.type === 'state' ? Number(a.date.slice(0, 4)) : federalFiscalYear(a.date);
+    // A state round is labelled the way the web check labels it (Tennessee's 2026-27
+    // round is "2027"), per Stuart's ruling of 2026-09-17.
+    const fy = prog.data.type === 'state' ? (a.cycle || Number(a.date.slice(0, 4))) : federalFiscalYear(a.date);
     const cyc = ensureCycle(a.state, id, fy, 'unverified', prog.data.type);
     let key = a.program === 'federal-noi' ? 'noi' : 'web-check';
     for (let n = 2; byKey.has(`d:${a.state}:${id}:${fy}:${key}`); n++) key = `web-check-${n}`;
@@ -657,6 +665,16 @@ compareIntake();
 compareLive();
 for (const r of RULINGS.records || []) { add(r); report.applied.push(`${r.import_key}: added${r.why ? ` (${r.why})` : ''}`); }
 
+// Text rulings: a settled fact that Drive states the old way in several places.
+for (const rule of RULINGS.replace || []) {
+  const re = rule.from_regex ? new RegExp(rule.from_regex, 'g') : null;
+  let hits = 0;
+  const walk = v => (typeof v === 'string' ? (() => { const out = re ? v.replace(re, rule.to) : v.split(rule.from).join(rule.to); if (out !== v) hits++; return out; })()
+    : Array.isArray(v) ? v.map(walk) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)])) : v);
+  for (const r of records.filter(r => r.jurisdiction === rule.jurisdiction)) r.data = walk(r.data);
+  report.applied.push(`${rule.jurisdiction}: "${rule.from || rule.from_regex}" → "${rule.to}" in ${hits} place(s) (${rule.why || 'no reason given'})`);
+}
+
 // Parents before children, and every parent present.
 const order = { jurisdiction: 0, program: 1, requirement: 2, cycle: 2, deadline: 3, contact: 4, note: 4, source: 4 };
 records.sort((a, b) => a.jurisdiction.localeCompare(b.jurisdiction) || order[a.kind] - order[b.kind]);
@@ -664,6 +682,10 @@ for (const r of records) {
   r.data = fit(r.kind, clean(r.data), r.import_key);
   if (r.parent && !byKey.has(r.parent)) throw new Error(`${r.import_key}: parent ${r.parent} is not in the bundle`);
 }
+
+const ruled = RULINGS.ruled || [];
+report.rulings = report.rulings.filter(line => !ruled.some(x => line.includes(x.match)));
+for (const x of ruled) report.applied.push(`Ruled: ${x.ruling}`);
 
 const missing = Object.keys(JURISDICTIONS).filter(c => !records.some(r => r.import_key === `j:${c}`));
 const count = (f) => records.filter(f).length;

@@ -616,34 +616,12 @@
     "tz": "America/Chicago",
     "deadline_kind": "sub_applicant",
     "binding": true,
-    "confidence": "illustrative",
+    "confidence": "confirmed",
     "note": "FY26 AL portal deadline, 11:59pm CT — PASSED (historical)"
    },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
-   "source_url": "",
-   "sort_order": 0
-  },
-  {
-   "import_key": "d:AL:NSGP-S:2026:table-2",
-   "jurisdiction": "AL",
-   "kind": "deadline",
-   "parent": "c:AL:NSGP-S:2026",
-   "key": "table-2",
-   "data": {
-    "label": "Application due",
-    "stage_order": 1,
-    "due_date": "2026-07-16",
-    "tz": "America/Chicago",
-    "deadline_kind": "sub_applicant",
-    "binding": true,
-    "confidence": "confirmed",
-    "note": "Corrected 2026-08-08 (was 2026-07-15): Two results give Thursday, July 16, 2026, and July 16, 2026 is in fact a Thursday — the day-of-week corroborates the date. July 15 was a Wednesday. ALEA portal window Jun 1 – Jul 15, 2026; 11:59pm CT. Source: alea.gov/nonprofit-security-grant-program-nsgp From the Sales Toolbox deadline table (verified)."
-   },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
+   "status": "verified",
+   "verified_by": "NPSA audit 2026-08-11",
+   "verified_at": "2026-08-11T12:00:00.000Z",
    "source_url": "",
    "sort_order": 0
   },
@@ -1735,10 +1713,10 @@
    "jurisdiction": "AZ",
    "kind": "cycle",
    "parent": "p:AZ:AZ-NSGP",
-   "key": "2026",
+   "key": "2027",
    "data": {
-    "fiscal_year": 2026,
-    "label": "2026 round",
+    "fiscal_year": 2027,
+    "label": "FY2027",
     "status": "closed"
    },
    "status": "verified",
@@ -9451,16 +9429,17 @@
    "key": "eclearinghouse_reg",
    "data": {
     "req_type": "registration",
-    "label": "Kentucky eClearinghouse account — OBSOLETE for NSGP as of FY26",
+    "label": "Kentucky eClearinghouse: register on the DLG Portal, then file the project for EO 12372 state review",
     "owner": "client",
-    "lead_time_days": 7,
-    "hard_gate": false,
-    "notes": "FY25-era requirement (credentials emailed manually). FY26 used email submission with no portal step. Kept for reference only — verify before next cycle",
-    "phase": "registration"
+    "lead_time_days": 45,
+    "hard_gate": true,
+    "notes": "Required. The client self-registers on the KY DLG Portal (Department for Local Government, not KOHS), then the project is entered for review; state agencies comment and the comments compile into one clearinghouse letter. Allow a month or more for the review. Hold the filing until the wish list is final. Drive's 8/11 audit called this obsolete for FY26; that was wrong (see the gotcha).",
+    "phase": "before_nofo",
+    "client_label": "Kentucky eClearinghouse — client self-registers on the KY DLG Portal (Dept for Local Government, NOT KOHS), then files the project for EO 12372 state review"
    },
    "status": "verified",
-   "verified_by": "NPSA audit 2026-08-11",
-   "verified_at": "2026-08-11T12:00:00.000Z",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_at": "2026-08-26T12:00:00.000Z",
    "source_url": "",
    "sort_order": 1
   },
@@ -9785,6 +9764,68 @@
    "status": "verified",
    "verified_by": "NPSA audit 2026-08-11",
    "verified_at": "2026-08-11T12:00:00.000Z",
+   "source_url": "",
+   "sort_order": 0
+  },
+  {
+   "import_key": "k:KY:-:cindy-seip",
+   "jurisdiction": "KY",
+   "kind": "contact",
+   "parent": null,
+   "key": "cindy-seip",
+   "data": {
+    "name": "Cindy Seip",
+    "role": "Program Coordinator, State Single Point of Contact (eClearinghouse)",
+    "org": "Kentucky Department for Local Government (DLG)",
+    "email": "cindy.seip@ky.gov",
+    "phone": "(502) 892-4149",
+    "contact_kind": "other",
+    "last_confirmed": "2026-09-11",
+    "notes": "Prefers the phone to email. Write to her directly: the generic DLG.ECH@ky.gov box took 13 days. General clearinghouse line (502) 573-2382. 100 Airport Road, Frankfort."
+   },
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_at": "2026-09-11T12:00:00.000Z",
+   "source_url": "",
+   "sort_order": 0
+  },
+  {
+   "import_key": "n:KY:-:eclearinghouse-not-on-kohs-checklist",
+   "jurisdiction": "KY",
+   "kind": "note",
+   "parent": null,
+   "key": "eclearinghouse-not-on-kohs-checklist",
+   "data": {
+    "category": "gotcha",
+    "severity": "critical",
+    "title": "eClearinghouse is required even though KOHS's checklist never mentions it",
+    "body_md": "This flipped three times in a week before it was settled against primary sources on 8/26/2026.\n\n1. The FY26 NOFO (Section D.2.A) does **not** exempt NSGP from intergovernmental review: applicants must contact their state's Single Point of Contact under Executive Order 12372, and the only way out is a state having no SPOC.\n2. Kentucky's rule is default-on: DLG's eClearinghouse page says all federal program applications in Kentucky are subject to EO 12372 and KRS 45.031 unless the application says otherwise. The NOFO never says otherwise.\n3. Kentucky has a SPOC: the State Clearinghouse at the Department for Local Government.\n\n**Why it kept flipping:** the KOHS NSGP Application Submission Checklist lists seven items and eClearinghouse is not one of them, and KOHS's grants page links eClearinghouse only under SHSGP. Both are true and both are irrelevant: KOHS's checklist governs the package emailed to KOHS; the clearinghouse letter is a separate obligation to a different agency. **Absence from a state agency's submission checklist is not absence of the requirement.**\n\n**Registration is not submission.** Opening the DLG Portal account is step one. The project itself still has to be entered for review, state agencies comment, and the comments compile into one clearinghouse letter. File it once the wish list is final: the filing describes the project, and a description written before the budget is settled will drift from what is submitted.",
+    "phase": "before_nofo",
+    "client_slug": "new-life-ky",
+    "observed_on": "2026-08-26"
+   },
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_at": "2026-08-26T12:00:00.000Z",
+   "source_url": "",
+   "sort_order": 0
+  },
+  {
+   "import_key": "n:KY:-:clearinghouse-letter-in-package",
+   "jurisdiction": "KY",
+   "kind": "note",
+   "parent": null,
+   "key": "clearinghouse-letter-in-package",
+   "data": {
+    "category": "open_question",
+    "title": "Does the clearinghouse letter go inside the KOHS package, or does it only have to exist?",
+    "body_md": "DLG says the letter is for applicants to submit to the funding agency; KOHS's checklist does not list it. Stuart reached Cindy Seip by phone on 9/11/2026 and she explained how the letter works, but the answer was not written down anywhere this import could read. Record it here and mark this resolved.",
+    "phase": "submission",
+    "client_slug": "new-life-ky"
+   },
+   "status": "unverified",
+   "verified_by": "",
+   "verified_at": null,
    "source_url": "",
    "sort_order": 0
   },
@@ -21023,14 +21064,14 @@
    "sort_order": 3
   },
   {
-   "import_key": "c:PA:PA-NSGFP:2026",
+   "import_key": "c:PA:PA-NSGFP:2027",
    "jurisdiction": "PA",
    "kind": "cycle",
    "parent": "p:PA:PA-NSGFP",
-   "key": "2026",
+   "key": "2027",
    "data": {
-    "fiscal_year": 2026,
-    "label": "2026 round"
+    "fiscal_year": 2027,
+    "label": "2027 round"
    },
    "status": "unverified",
    "verified_by": "",
@@ -21085,10 +21126,10 @@
    "sort_order": 0
   },
   {
-   "import_key": "d:PA:PA-NSGFP:2026:web-check",
+   "import_key": "d:PA:PA-NSGFP:2027:web-check",
    "jurisdiction": "PA",
    "kind": "deadline",
-   "parent": "c:PA:PA-NSGFP:2026",
+   "parent": "c:PA:PA-NSGFP:2027",
    "key": "web-check",
    "data": {
     "label": "Application due",
@@ -23158,6 +23199,22 @@
    "sort_order": 0
   },
   {
+   "import_key": "c:TN:TN-HOW:2027",
+   "jurisdiction": "TN",
+   "kind": "cycle",
+   "parent": "p:TN:TN-HOW",
+   "key": "2027",
+   "data": {
+    "fiscal_year": 2027,
+    "label": "2027 round"
+   },
+   "status": "unverified",
+   "verified_by": "",
+   "verified_at": null,
+   "source_url": "",
+   "sort_order": 0
+  },
+  {
    "import_key": "d:TN:NSGP-S:2026:final",
    "jurisdiction": "TN",
    "kind": "deadline",
@@ -23204,67 +23261,23 @@
    "sort_order": 0
   },
   {
-   "import_key": "d:TN:TN-HOW:2026:final",
+   "import_key": "d:TN:TN-HOW:2027:web-check",
    "jurisdiction": "TN",
    "kind": "deadline",
-   "parent": "c:TN:TN-HOW:2026",
+   "parent": "c:TN:TN-HOW:2027",
    "key": "final",
    "data": {
     "label": "Application due",
-    "stage_order": 1,
-    "due_date": "2026-08-03",
-    "due_time": "23:59",
-    "tz": "America/Chicago",
-    "deadline_kind": "state_program",
-    "binding": true,
-    "confidence": "confirmed",
-    "note": "SFY2027 (2026-27) cycle deadline 11:59 PM CT Mon Aug 3, 2026 — PASSED. Next cycle likely ~July 2027"
-   },
-   "status": "verified",
-   "verified_by": "NPSA audit 2026-08-11",
-   "verified_at": "2026-08-11T12:00:00.000Z",
-   "source_url": "",
-   "sort_order": 0
-  },
-  {
-   "import_key": "d:TN:TN-HOW:2026:web-check",
-   "jurisdiction": "TN",
-   "kind": "deadline",
-   "parent": "c:TN:TN-HOW:2026",
-   "key": "web-check",
-   "data": {
-    "label": "Application due",
     "due_date": "2026-07-29",
+    "due_time": "23:59",
     "tz": "America/Chicago",
     "deadline_kind": "state_program",
     "confidence": "confirmed",
     "note": "From the 2026-08-08 web check; not in the Drive file. 11:59 p.m. CT, 2026-2027 cycle. Contracted security PERSONNEL only — not equipment. tn.gov/safety/homeland-security/grants.html"
    },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
-   "source_url": "",
-   "sort_order": 0
-  },
-  {
-   "import_key": "d:TN:TN-HOW:2026:table-2",
-   "jurisdiction": "TN",
-   "kind": "deadline",
-   "parent": "c:TN:TN-HOW:2026",
-   "key": "table-2",
-   "data": {
-    "label": "Application due",
-    "stage_order": 1,
-    "due_date": "2025-07-31",
-    "tz": "America/Chicago",
-    "deadline_kind": "state_program",
-    "binding": true,
-    "confidence": "illustrative",
-    "note": "2025-26 cycle: registration deadline 7/24/2025, application 7/31/2025, both 3pm Central. Source: tn.gov/safety/homeland-security/grants.html From the Sales Toolbox deadline table (knowledge-base)."
-   },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_at": "2026-09-17T12:00:00.000Z",
    "source_url": "",
    "sort_order": 0
   },
@@ -23423,7 +23436,7 @@
      "method": "portal",
      "target": "https://egrants.gov.texas.gov",
      "url": "https://egrants.gov.texas.gov",
-     "package_note": "TWO-STAGE FY26 process: (1) eGrants application CREATED, SUBMITTED AND CERTIFIED by 3/12/2026 5:00 PM CT (system opened 1/12/2026 — months before the NOFO); (2) IJ/VA/mission uploads to the Upload.Files tab within ~10 days of the federal NOFO release, at the PSO-communicated deadline (FY26: 7/6). MISSING STAGE 1 = LOCKED OUT OF THE CYCLE. Legal org name must EXACTLY match eGrants. Portal unstable near deadlines — submit early. Use the current-FY fillable IJ (TDEM/PSO reissued the FY26 IJ 6/24 because the first version was not fillable)."
+     "package_note": "TWO-STAGE FY26 process: (1) eGrants application CREATED, SUBMITTED AND CERTIFIED by 2/12/2026 5:00 PM CT (system opened 1/12/2026 — months before the NOFO); (2) IJ/VA/mission uploads to the Upload.Files tab within ~10 days of the federal NOFO release, at the PSO-communicated deadline (FY26: 7/6). MISSING STAGE 1 = LOCKED OUT OF THE CYCLE. Legal org name must EXACTLY match eGrants. Portal unstable near deadlines — submit early. Use the current-FY fillable IJ (TDEM/PSO reissued the FY26 IJ 6/24 because the first version was not fillable)."
     },
     "notes_md": "TX-specific PROHIBITED costs: LPR cameras, facial-recognition cameras, firearms & firearms training, travel, overtime. PSO may add bonus points for highest Risk + Target Hardening IJ scores. Award notices ~within 45 days of federal award to Texas.",
     "extra": {
@@ -23499,11 +23512,11 @@
    "key": "egrants_portal",
    "data": {
     "req_type": "registration",
-    "label": "Texas eGrants account + APPLICATION CERTIFIED (Stage 1 — opens ~Jan, closes ~Mar)",
+    "label": "Texas eGrants account + APPLICATION CERTIFIED (Stage 1 — opens ~Jan, closes ~Feb)",
     "owner": "client",
     "lead_time_days": 60,
     "hard_gate": true,
-    "notes": "FY26: eGrants application had to be certified by 3/12/2026 — months before the federal NOFO. Need a 9-digit State Payee ID/EIN to start. This is the single biggest TX trap for new clients.",
+    "notes": "FY26: eGrants application had to be certified by 2/12/2026 — months before the federal NOFO. Need a 9-digit State Payee ID/EIN to start. This is the single biggest TX trap for new clients.",
     "phase": "before_nofo",
     "client_label": "Texas eGrants (egrants.gov.texas.gov) account",
     "client_hint": "Two stages. Stage 1: create the eGrants account AND submit and certify the application. It opens about January and closes about March, months before the federal NOFO; you need a 9-digit State Payee ID or your EIN to start, and missing it locks you out of the year. Grant.Vendor tab: Direct Deposit Authorization, Application for Payee ID Number, IRS W-9, plus contact info for three separate grant officials; eGrants blocks submission without them. Stage 2: documents uploaded to eGrants in July."
@@ -23706,12 +23719,12 @@
     "tz": "America/Chicago",
     "deadline_kind": "stage",
     "binding": true,
-    "confidence": "illustrative",
+    "confidence": "confirmed",
     "note": "FY2026 STAGE 2: docs uploaded to eGrants by 5:00 PM CT Mon July 6, 2026; no extensions — PASSED"
    },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
+   "status": "verified",
+   "verified_by": "NPSA audit 2026-08-11",
+   "verified_at": "2026-08-11T12:00:00.000Z",
    "source_url": "",
    "sort_order": 0
   },
@@ -23729,12 +23742,12 @@
     "tz": "America/Chicago",
     "deadline_kind": "stage",
     "binding": true,
-    "confidence": "illustrative",
+    "confidence": "confirmed",
     "note": "FY2026: same eGrants deadline — PASSED"
    },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
+   "status": "verified",
+   "verified_by": "NPSA audit 2026-08-11",
+   "verified_at": "2026-08-11T12:00:00.000Z",
    "source_url": "",
    "sort_order": 0
   },
@@ -23745,42 +23758,20 @@
    "parent": "c:TX:NSGP-S:2026",
    "key": "table-2",
    "data": {
-    "label": "Application due",
-    "stage_order": 1,
-    "due_date": "2026-02-12",
-    "tz": "America/Chicago",
-    "deadline_kind": "sub_applicant",
-    "binding": true,
-    "confidence": "confirmed",
-    "note": "Corrected 2026-08-08 (was 2026-07-06): Texas collects NSGP subapplications through eGrants months ahead of the rest of the country — the FFY2026 solicitation closed February 12, 2026, with awards performing from September 1, 2026. The extracted date put it in July alongside everyone else. A Texas client told 'you have until July' misses the cycle by five months, and there is no second window. 5:00pm CT, no extensions, and submissions cannot be corrected after the deadline. Applies to NSGP-S and NSGP-UA alike. Source: egrants.gov.texas.gov nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026 From the Sales Toolbox deadline table (verified)."
-   },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
-   "source_url": "",
-   "sort_order": 0
-  },
-  {
-   "import_key": "d:TX:NSGP-S:2026:stage1-certification",
-   "jurisdiction": "TX",
-   "kind": "deadline",
-   "parent": "c:TX:NSGP-S:2026",
-   "key": "stage1-certification",
-   "data": {
     "label": "Stage 1: eGrants application created, submitted and certified",
     "stage_order": 0,
-    "due_date": "2026-03-12",
+    "due_date": "2026-02-12",
     "due_time": "17:00",
     "tz": "America/Chicago",
     "deadline_kind": "stage",
     "binding": true,
-    "confidence": "illustrative",
-    "note": "From TX.yaml's package note (system opened 1/12/2026). The Sales Toolbox table has 2026-02-12 for the same stage, from the 2026-08-08 web check. One of the two is wrong; see the open question."
+    "confidence": "confirmed",
+    "note": "Corrected 2026-08-08 (was 2026-07-06): Texas collects NSGP subapplications through eGrants months ahead of the rest of the country — the FFY2026 solicitation closed February 12, 2026, with awards performing from September 1, 2026. The extracted date put it in July alongside everyone else. A Texas client told 'you have until July' misses the cycle by five months, and there is no second window. 5:00pm CT, no extensions, and submissions cannot be corrected after the deadline. Applies to NSGP-S and NSGP-UA alike. Source: egrants.gov.texas.gov nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026 From the Sales Toolbox deadline table (verified)."
    },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
-   "source_url": "https://egrants.gov.texas.gov/fundingopp/nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026",
+   "status": "verified",
+   "verified_by": "Stuart Reese (ruling 2026-09-17)",
+   "verified_at": "2026-09-17T12:00:00.000Z",
+   "source_url": "",
    "sort_order": 0
   },
   {
@@ -23870,7 +23861,7 @@
     "category": "history",
     "severity": "critical",
     "title": "Timeline & Deadlines — TEXAS RUNS TWO STAGES",
-    "body_md": "⚠️ **Texas splits the application into two deadlines, and the first one lands months before the\nfederal NOFO exists.** This is the single most important thing on this page.\n\n**STAGE 1 — eGrants application CREATED, SUBMITTED and CERTIFIED.**\nFY2026: the system opened **1/12/2026**; certification closed **3/12/2026 at 5:00 PM CT**.\n**Missing Stage 1 locks the applicant out of the entire cycle. There is no second window.**\n\n**STAGE 2 — documents uploaded to the Upload.Files tab**, roughly 10 days after the federal NOFO.\nFY2026: **7/6/2026 at 5:00 PM CT**.\n\n- **Deadline authority:** state. PSO's deadlines bind and land earlier than FEMA's SAA deadline.\n- **No extensions**, and a submission **cannot be corrected** after the deadline closes.\n- **Award notices:** roughly within 45 days of the federal award to Texas.\n\n> ⚠️ **Open conflict to reconcile.** The npsa-tools deadlines table records a TX FY2026\n> sub-applicant deadline of **2/12/2026** (corrected 2026-08-08, sourced to the eGrants FY2026\n> funding opportunity), while this file and `TX.yaml` record **3/12/2026** (Stage 1) and\n> **7/6/2026** (Stage 2). These cannot all be right. Settle it before the FY2027 cycle opens.",
+    "body_md": "⚠️ **Texas splits the application into two deadlines, and the first one lands months before the\nfederal NOFO exists.** This is the single most important thing on this page.\n\n**STAGE 1 — eGrants application CREATED, SUBMITTED and CERTIFIED.**\nFY2026: the system opened **1/12/2026**; certification closed **2/12/2026 at 5:00 PM CT**.\n**Missing Stage 1 locks the applicant out of the entire cycle. There is no second window.**\n\n**STAGE 2 — documents uploaded to the Upload.Files tab**, roughly 10 days after the federal NOFO.\nFY2026: **7/6/2026 at 5:00 PM CT**.\n\n- **Deadline authority:** state. PSO's deadlines bind and land earlier than FEMA's SAA deadline.\n- **No extensions**, and a submission **cannot be corrected** after the deadline closes.\n- **Award notices:** roughly within 45 days of the federal award to Texas.",
     "extra": {
      "prose_source": "TX.md, \"Timeline & Deadlines — TEXAS RUNS TWO STAGES\" (last verified September 2026 — rewritten to agree with `states/TX.yaml` (NPSA full audit 2026-08-11))"
     }
@@ -24081,25 +24072,6 @@
    "verified_at": "2026-08-11T12:00:00.000Z",
    "source_url": "",
    "sort_order": 10
-  },
-  {
-   "import_key": "n:TX:-:fy26-stage-1-date",
-   "jurisdiction": "TX",
-   "kind": "note",
-   "parent": null,
-   "key": "fy26-stage-1-date",
-   "data": {
-    "category": "open_question",
-    "severity": "critical",
-    "title": "Was the FY26 Stage 1 (eGrants certification) deadline 2/12/2026 or 3/12/2026?",
-    "body_md": "The Drive file (NPSA audit 2026-08-11, read against the eGrants FY26 funding opportunity) says the eGrants application had to be certified by **3/12/2026 5:00 PM CT**. The 2026-08-08 web check, which is what the Sales Toolbox deadline table shows reps, says the solicitation closed **2/12/2026**. Both are imported unverified. Settle it against the eGrants funding-opportunity page before the FY27 Stage 1 window opens (about January 2027): a Texas client told the wrong month misses the whole cycle.",
-    "phase": "before_nofo"
-   },
-   "status": "unverified",
-   "verified_by": "",
-   "verified_at": null,
-   "source_url": "",
-   "sort_order": 0
   },
   {
    "import_key": "j:US",

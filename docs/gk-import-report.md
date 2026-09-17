@@ -7,33 +7,43 @@ Extracted 2026-09-17 from the Drive `grant-knowledge` folder (audit of 2026-08-1
 | jurisdiction | 57 |
 | program | 108 |
 | requirement | 465 |
-| cycle | 99 |
-| deadline | 98 |
-| contact | 103 |
-| note | 153 |
+| cycle | 100 |
+| deadline | 94 |
+| contact | 104 |
+| note | 154 |
 | source | 253 |
-| **records** | **1336** |
-| imported as verified | 1153 |
-| imported as unverified (waits in the queue) | 183 |
+| **records** | **1335** |
+| imported as verified | 1159 |
+| imported as unverified (waits in the queue) | 176 |
 | jurisdictions with no file | none |
 
 A ruling goes in `scripts/gk-rulings.json` (`records` to add, `patch` to change one by its import key, `skip` to leave one out), then re-run the extractor.
 
 ## 1. Needs a ruling
 
-- **TX/federal FY2026**: the web check moved this to **2026-02-12** (was 2026-07-06); Drive has 2026-07-06 (Stage 2: IJ, VA, mission and resolution uploaded to eGrants), 2026-07-06 (Stage 2: IJ, VA, mission and resolution uploaded to eGrants). Web check's reason: Texas collects NSGP subapplications through eGrants months ahead of the rest of the country — the FFY2026 solicitation closed February 12, 2026, with awards performing from September 1, 2026. The extracted date put it in July alongside everyone else. A Texas client told 'you have until July' misses the cycle by five months, and there is no second window. Sources: egrants.gov.texas.gov/fundingopp/nonprofit-security-grant-program-nsgp-federal-fiscal-year-2026; grantedai.com — Nonprofit Security Grant Program (NSGP), Federal Fiscal Year 2026, Office of the Governor, State of Texas. **Neither is imported as verified until ruled.**
-- **AL/federal FY2026**: the web check moved this to **2026-07-16** (was 2026-07-15); Drive has 2026-07-15 (Application due). Web check's reason: Two results give Thursday, July 16, 2026, and July 16, 2026 is in fact a Thursday — the day-of-week corroborates the date. July 15 was a Wednesday. Sources: alea.gov/nonprofit-security-grant-program-nsgp; instrumentl.com — NSGP Alabama. **Neither is imported as verified until ruled.**
-- **AZ/AZ-NSGP**: the web check says this cycle is "labelled FY2027" (labelled FY2026). The June 12, 2026 deadline is correct, but AZDOHS runs it as the FY2027 cycle. Mislabelling the year makes the row look superseded when it is the current one. The bundle labels a state program's round by the year its deadline falls in; say if this one should read otherwise.
-- **AL/NSGP-S FY2026**: the Sales Toolbox table says **2026-07-16** (verified); Drive says **2026-07-15**. Both imported; see section 5.
-- **TN/TN-HOW FY2026**: the Sales Toolbox table says **2025-07-31** (knowledge-base); Drive says **2026-08-03, 2026-07-29**. Both imported; see section 5.
-- **TX/NSGP-S FY2026**: the Sales Toolbox table says **2026-02-12** (verified); Drive says **2026-07-06**. Both imported; see section 5.
+Nothing.
 
 ## Rulings already applied (scripts/gk-rulings.json)
 
-- d:TX:NSGP-S:2026:final: patched (Texas runs two stages; the July date is the second)
+- d:AL:NSGP-S:2026:final: patched (Stuart ruled Alabama FY26 was 7/15, as Drive says; the web check's 7/16 is left out)
+- c:AZ:AZ-NSGP:2026: patched (Stuart ruled to follow the web check: AZDOHS runs the June 2026 round as its FY2027 cycle)
+- r:KY:NSGP-S:eclearinghouse_reg: patched (Drive predates Stuart's 8/26 finding; the client page has had it right since)
+- d:TX:NSGP-S:2026:final: patched (Texas runs two stages; the July date is the second, as Drive's audit verified. It was only in doubt while Stage 1 was)
 - d:TX:NSGP-UA:2026:final: patched (same two-stage process as NSGP-S)
-- d:TX:NSGP-S:2026:stage1-certification: added (TX.yaml carries Stage 1 only in prose, so no parser lifts it)
-- n:TX:-:fy26-stage-1-date: added (the conflict the import must not settle silently)
+- d:TN:TN-HOW:2027:web-check: patched (Stuart ruled to follow the web check: TN-HOW 2026-27 closed 7/29/2026, not 8/3)
+- d:TX:NSGP-S:2026:table-2: patched (Stuart ruled Texas FY26 Stage 1 closed 2/12/2026, not 3/12)
+- k:KY:-:cindy-seip: added (first-hand, New Life engagement; va-context 9/10 to 9/12)
+- n:KY:-:eclearinghouse-not-on-kohs-checklist: added (Stuart's settled finding of 2026-08-26, recorded in va-context)
+- n:KY:-:clearinghouse-letter-in-package: added (the one genuinely open Kentucky question)
+- TX: "\n*> ⚠️ \*\*Open conflict to reconcile\.\*\*[\s\S]*?cycle opens\." → "" in 1 place(s) (the conflict is settled)
+- TX: "3/12/2026" → "2/12/2026" in 3 place(s) (Stage 1 closed 2/12/2026 per Stuart's ruling)
+- TX: "closes ~Mar" → "closes ~Feb" in 1 place(s) (same)
+- Ruled: Texas FY26 Stage 1 closed 2/12/2026 (Stuart, 2026-09-17)
+- Ruled: Texas: the Sales Toolbox table's 2/12 stands
+- Ruled: Alabama FY26 was 7/15/2026, as Drive says (Stuart, 2026-09-17)
+- Ruled: Alabama: the table's 7/16 is left out
+- Ruled: Arizona's June 2026 state round is labelled FY2027, as the web check has it (Stuart, 2026-09-17)
+- Ruled: TN-HOW 2026-27 closed 7/29/2026, as the web check has it; Drive's 8/3 is left out (Stuart, 2026-09-17)
 
 ## 2. The 2026-08-08 web check against Drive
 
@@ -60,7 +70,6 @@ Prose sections that restate what the YAML holds (SAA, portal, program parameters
 ## 4. The client intake page against Drive
 
 - **CO**: the client page shows "CO EMGrants account / DHSEM grants portal access" but no Drive registration step matches it. Drive has: "Apply to FEDERAL NSGP first and NOT be selected".
-- **KY**: the client page shows "Kentucky eClearinghouse — client self-registers on the KY DLG Portal (Dept for Local Government, NOT KOHS), then files the project for EO 12372 state review" but no Drive registration step matches it. Drive has: "Kentucky eClearinghouse account — OBSOLETE for NSGP as of FY26".
 
 ## 5. The live deadline table
 
@@ -84,7 +93,7 @@ Prose sections that restate what the YAML holds (SAA, portal, program parameters
 - OK / federal / 2025: **2025-10-31** came from the live table (knowledge-base, illustrative), imported unverified.
 - OR / federal / 2025: **2026-01-15** came from the live table (knowledge-base, confirmed), imported unverified.
 - RI / federal / 2025: **2026-01-19** came from the live table (knowledge-base, confirmed), imported unverified.
-- TN / TN-HOW / 2026: **2025-07-31** came from the live table (knowledge-base, illustrative), imported unverified. Drive has **2026-08-03, 2026-07-29** for the same program and cycle: they disagree, and both are in the bundle. Rule on it.
+- TN / TN-HOW / 2026: **2025-07-31** came from the live table (knowledge-base, illustrative), imported unverified.
 - TX / federal / 2026: **2026-02-12** came from the live table (verified, confirmed), imported unverified. Drive has **2026-07-06** for the same program and cycle: they disagree, and both are in the bundle. Rule on it.
 
 ## 6. Still unknown in Drive (each became an open question)
@@ -233,3 +242,6 @@ Nothing was cut.
 - states/GA.yaml.bak-20260906-200833: not a state file, not read
 - states/TX-v1-2026-04-SUPERSEDED.md: not a state file, not read
 - states/_archive: not a state file, not read
+- d:TN:TN-HOW:2026:final: skipped by ruling
+- d:AL:NSGP-S:2026:table-2: skipped by ruling
+- d:TN:TN-HOW:2026:final: skipped by ruling
