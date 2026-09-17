@@ -23868,7 +23868,7 @@
    "key": "timeline-deadlines-texas-runs-two-stages",
    "data": {
     "category": "history",
-    "severity": "auto_disqualifier",
+    "severity": "critical",
     "title": "Timeline & Deadlines — TEXAS RUNS TWO STAGES",
     "body_md": "⚠️ **Texas splits the application into two deadlines, and the first one lands months before the\nfederal NOFO exists.** This is the single most important thing on this page.\n\n**STAGE 1 — eGrants application CREATED, SUBMITTED and CERTIFIED.**\nFY2026: the system opened **1/12/2026**; certification closed **3/12/2026 at 5:00 PM CT**.\n**Missing Stage 1 locks the applicant out of the entire cycle. There is no second window.**\n\n**STAGE 2 — documents uploaded to the Upload.Files tab**, roughly 10 days after the federal NOFO.\nFY2026: **7/6/2026 at 5:00 PM CT**.\n\n- **Deadline authority:** state. PSO's deadlines bind and land earlier than FEMA's SAA deadline.\n- **No extensions**, and a submission **cannot be corrected** after the deadline closes.\n- **Award notices:** roughly within 45 days of the federal award to Texas.\n\n> ⚠️ **Open conflict to reconcile.** The npsa-tools deadlines table records a TX FY2026\n> sub-applicant deadline of **2/12/2026** (corrected 2026-08-08, sourced to the eGrants FY2026\n> funding opportunity), while this file and `TX.yaml` record **3/12/2026** (Stage 1) and\n> **7/6/2026** (Stage 2). These cannot all be right. Settle it before the FY2027 cycle opens.",
     "extra": {
@@ -23949,7 +23949,7 @@
    "key": "stage-1-is-the-whole-ballgame",
    "data": {
     "category": "gotcha",
-    "severity": "critical",
+    "severity": "auto_disqualifier",
     "title": "Stage 1 is the whole ballgame",
     "body_md": "**Stage 1 is the whole ballgame.** A Texas client who is told \"the deadline is in July\" and starts work in the spring has already missed the cycle by months. Get them into eGrants and certified in the January-to-March window, every year, regardless of where the federal NOFO is.",
     "extra": {

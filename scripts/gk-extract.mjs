@@ -296,7 +296,11 @@ function uniqueKey(prefix, stem) {
 function note(state, program, data, status = 'unverified', sort_order = 0, extra) {
   const parent = program ? `p:${state}:${program}` : null;
   const key = uniqueKey(`n:${state}:${program || ''}`, slugKey(data.title));
-  if (!data.severity && /auto-?(deny|denied|disqualif)|locked out|will not be accepted|no second window|automatic(ally)? (deny|reject)/i.test(`${data.title} ${data.body_md || ''}`)) data.severity = 'auto_disqualifier';
+  // A short note that names a fatal mistake is a stopper; a whole section that mentions
+  // one in passing is only critical, or the "read first" list becomes the whole page.
+  if (!data.severity && /auto-?(deny|denied|disqualif)|locked out|locks the applicant out|will not be accepted|no second window|missed the cycle|automatic(ally)? (deny|reject)/i.test(`${data.title} ${data.body_md || ''}`)) {
+    data.severity = (data.body_md || '').length < 700 ? 'auto_disqualifier' : 'critical';
+  }
   return add({ import_key: `n:${state}:${program || '-'}:${key}`, jurisdiction: state, kind: 'note', parent, key, status, sort_order, data: { ...data, extra } });
 }
 
@@ -529,7 +533,7 @@ function extractProse(state) {
       for (const b of bullets) {
         const textOnly = b.replace(/^- /, '').replace(/\n\s+/g, ' ');
         const bold = textOnly.match(/^\*\*(.+?)\*\*/);
-        note(state, program, { category, title: (bold ? bold[1] : textOnly.split(/[.:—]/)[0]).replace(/[.:]$/, '').slice(0, 190), body_md: textOnly, severity: /⚠️|critical|trap|whole ballgame/i.test(textOnly) ? 'critical' : undefined }, status, imported, extra);
+        note(state, program, { category, title: (bold ? bold[1] : textOnly.split(/[.:—]/)[0]).replace(/[.:]$/, '').slice(0, 190), body_md: textOnly, severity: undefined }, status, imported, extra);
         imported++;
       }
     } else {
