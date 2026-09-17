@@ -67,6 +67,10 @@
   .app-chip.is-later{background:var(--paper);border-style:dashed;}
   .app-chip.is-closed{background:var(--row-alt);border-color:var(--line);opacity:.75;}
   .site-apps{font-size:13.5px;color:var(--ink);padding:7px 0 2px;}
+  .app-split-row td{background:var(--navy);color:#fff;padding:10px 16px;font-family:var(--head);}
+  .app-split-row .app-split-name{font-weight:700;font-size:13.5px;letter-spacing:.01em;}
+  .app-split-row .app-split-sub{font-weight:500;font-size:11.5px;color:#bcd0df;margin-left:10px;letter-spacing:.06em;text-transform:uppercase;}
+  .subreq + .subreq{margin-top:12px;}
   .wl-apps{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 16px;}
   .wl-apps-lbl{font-family:var(--head);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-right:4px;}
   .wl-app-tab{appearance:none;cursor:pointer;font-family:var(--head);font-size:13px;font-weight:600;color:var(--navy);background:var(--paper);border:1px solid var(--line-strong);border-radius:999px;padding:7px 14px;display:inline-flex;gap:7px;align-items:baseline;}
@@ -694,6 +698,21 @@
       bar.innerHTML='<span class="wl-apps-lbl">Wish list for</span>'+WL_APPS.map(function(a){return '<button type="button" role="tab" class="wl-app-tab" data-app="'+a.id+'">'+escT(a.label)+'<span class="wl-app-n">'+appSites(a)+'</span>'+(APP_ST[a.status]?'<span class="app-st">'+APP_ST[a.status]+'</span>':'')+'</button>';}).join('');
       body.insertBefore(bar,body.firstChild);bar.querySelectorAll('.wl-app-tab').forEach(function(b){b.addEventListener('click',function(){pick(b.getAttribute('data-app'));});});}
     pick(WL_CUR);})();
+  /* the checklist splits the same way: prep once, then the wish list, budget, IJ and submission per application */
+  function checklistPrefix(id){return !id||id==='a1'?'chk_':'chk_'+id+'_';}
+  function ckRekey(root,pre){root.querySelectorAll('[data-key^="chk_"]').forEach(function(el){el.setAttribute('data-key',el.getAttribute('data-key').replace(/^chk_(a\d{1,2}_)?/,pre));});}
+  (function(){if(!WL_APPS.length)return;
+    var first=document.querySelector('[data-key="chk_status_wish_list_ideation_per_location"]');if(!first)return;
+    var row=first.closest('tr'),start=row.previousElementSibling;
+    while(start&&!start.classList.contains('stage-row'))start=start.previousElementSibling;
+    if(!start)start=row;
+    var tbody=start.parentNode,block=[],n=start;while(n){block.push(n);n=n.nextElementSibling;}
+    function header(a){var tr=document.createElement('tr');tr.className='app-split-row';
+      tr.innerHTML='<td colspan="5"><span class="app-split-name">'+escT(a.label)+'</span><span class="app-split-sub">'+appSites(a)+(APP_ST[a.status]?' · '+APP_ST[a.status]:'')+'</span></td>';return tr;}
+    tbody.insertBefore(header(WL_APPS[0]),start);
+    if(WL_APPS[0].id!=='a1')block.forEach(function(r){ckRekey(r,checklistPrefix(WL_APPS[0].id));});
+    WL_APPS.slice(1).forEach(function(a){tbody.appendChild(header(a));
+      block.forEach(function(r){var c=r.cloneNode(true);ckRekey(c,checklistPrefix(a.id));tbody.appendChild(c);});});})();
   /* a registration step is a string ("… — hard gate") or {label, note, hard_gate}; the note pre-fills the row's Notes box */
   var REGS=(CFG.registration||[]).map(function(r){return typeof r==='string'?{label:r.replace(/\s*[—-]+\s*hard gate\s*$/i,''),hard_gate:/hard gate/i.test(r),note:''}:{label:String(r.label||''),hard_gate:!!r.hard_gate,note:String(r.note||'')};});
   try{var sp=REGS.map(function(r){return r.label+(r.hard_gate?' — hard gate':'');});
@@ -866,19 +885,23 @@
   try{
     /* the box is built from this client's Documents list, between the registration and the application steps (2026-09-17) */
     var extraReg=REGS.filter(function(r){return !/SAM\.gov/i.test(r.label);}).map(function(r){return r.label;});
-    var srItems=[];
-    function srAdd(label,keys,doc){srItems.push({label:label,keys:keys,doc:doc||''});}
-    srAdd('Active SAM.gov / UEI registration',['chk_status_sam_gov_uei_registration']);
-    if(extraReg.length)srAdd(STATE+' registration: '+extraReg.join(' · '),['chk_status_state_reg']);
-    (DOCUMENTS||[]).forEach(function(d){srAdd(escT(d.ready||d.label),d.task?['chk_status_'+d.task]:[],d.key);});
-    srAdd('889-compliant vendor quotes for budget items',['chk_status_vendor_quotes_for_wish_list_items']);
-    srAdd('Investment Justification finalized — one per site',['chk_status_investment_justification_ij_prepar','chk_status_final_review_edits']);
-    srAdd('Application submitted to '+(CFG.saa||'your state administrative agency'),['chk_status_assemble_submission_package','chk_status_submit_application']);
-    var srT=document.getElementById('srTitle');
-    if(srT)srT.textContent='What '+STATE+' needs for your submission'+(CFG.saa?(' — submitted through '+CFG.saa):'');
-    var srG=document.getElementById('srGrid');
-    if(srG)srG.innerHTML=srItems.map(function(it,i){return '<div class="sr-item" id="sri_'+i+'">'+
-      '<span class="sr-dot"></span><span class="sr-lbl">'+it.label+'</span></div>';}).join('');
+    /* one box per application: the shared documents, plus that application's own quotes, IJ and submission.
+       SAM.gov is a federal requirement, so a state-program application does not show it. */
+    function srItemsFor(a){var out=[],p=a?checklistPrefix(a.id):'chk_';
+      if(!a||a.kind==='federal')out.push({label:'Active SAM.gov / UEI registration',keys:['chk_status_sam_gov_uei_registration']});
+      if(extraReg.length)out.push({label:STATE+' registration: '+extraReg.join(' · '),keys:['chk_status_state_reg']});
+      (DOCUMENTS||[]).forEach(function(d){out.push({label:escT(d.ready||d.label),keys:d.task?['chk_status_'+d.task]:[],doc:d.key});});
+      out.push({label:'889-compliant vendor quotes for budget items',keys:[p+'status_vendor_quotes_for_wish_list_items']});
+      out.push({label:'Investment Justification finalized — one per site',keys:[p+'status_investment_justification_ij_prepar',p+'status_final_review_edits']});
+      out.push({label:'Application submitted to '+(CFG.saa||'your state administrative agency'),keys:[p+'status_assemble_submission_package',p+'status_submit_application']});
+      return out;}
+    var SRB=[],subreq=document.getElementById('subreq');
+    if(subreq){var prev=subreq;(WL_APPS.length?WL_APPS:[null]).forEach(function(a,i){var b=subreq;
+      if(i){b=subreq.cloneNode(true);b.querySelectorAll('[id]').forEach(function(el){el.removeAttribute('id');});b.removeAttribute('id');prev.parentNode.insertBefore(b,prev.nextSibling);}
+      prev=b;var items=srItemsFor(a),head=b.querySelector('.sr-head'),grid=b.querySelector('.sr-grid');
+      if(head)head.textContent='What '+STATE+' needs for '+(a?a.label:'your submission')+(CFG.saa?(' — submitted through '+CFG.saa):'');
+      if(grid)grid.innerHTML=items.map(function(it){return '<div class="sr-item"><span class="sr-dot"></span><span class="sr-lbl">'+it.label+'</span></div>';}).join('');
+      SRB.push({items:items,els:[].slice.call(b.querySelectorAll('.sr-item')),foot:b.querySelector('.sr-foot')});});}
     function ckVal(k){var el=document.querySelector('.ckselect[data-key="'+k+'"]');return el?el.value:'';}
     /* Not applicable takes a requirement out of the box; a document also counts once it is uploaded */
     function srState(it){
@@ -893,14 +916,13 @@
       var f=document.getElementById('ckpFill'),l=document.getElementById('ckpLabel');
       if(f)f.style.width=pct+'%';
       if(l)l.textContent=done+' of '+tot+' tasks completed · '+pct+'%';
-      var rdy=0,shown=0;
-      srItems.forEach(function(it,i){var st=srState(it),el=document.getElementById('sri_'+i);
-        if(st!=='na'){shown++;if(st==='done')rdy++;}
-        if(el){el.hidden=(st==='na');el.classList.toggle('done',st==='done');}});
-      var ft=document.getElementById('srFoot');
-      if(ft)ft.textContent=(shown&&rdy===shown)?
-        'All submission requirements met — ready to submit.':
-        rdy+' of '+shown+' submission requirements met. These check off automatically as documents are uploaded and the tasks below are marked Completed.';
+      SRB.forEach(function(B){var rdy=0,shown=0;
+        B.items.forEach(function(it,i){var st=srState(it),el=B.els[i];
+          if(st!=='na'){shown++;if(st==='done')rdy++;}
+          if(el){el.hidden=(st==='na');el.classList.toggle('done',st==='done');}});
+        if(B.foot)B.foot.textContent=(shown&&rdy===shown)?
+          'All submission requirements met — ready to submit.':
+          rdy+' of '+shown+' submission requirements met. These check off automatically as documents are uploaded and the tasks below are marked Completed.';});
     }
     refreshReady=updCk;
     updCk();

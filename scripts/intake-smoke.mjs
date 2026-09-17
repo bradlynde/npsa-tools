@@ -658,6 +658,29 @@ await check('array arguments handed over as JSON text are taken as arrays (some 
   assert.equal((await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: { applications: 'not json' } })).status, 400);
   await call('PATCH', '/api/clients/json-args-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
+await check('checklist: prep shared, wish list and submission repeated per application', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Split List Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27' }, { program: 'NSGP-S', cycle: 'FY2027' }] } });
+  assert.equal(r.status, 201);
+  const seed = await call('PUT', '/api/clients/split-list-church/answers', { headers: TEAM, body: { answers: {
+    chk_status_kickoff_call: 'Completed', chk_status_sam_gov_uei_registration: 'Not applicable',
+    chk_due_submit_application: '11/7/2026', chk_a2_due_submit_application: '5/1/2027', chk_a2_status_wish_list_ideation_per_location: 'Completed',
+  } } });
+  assert.equal(seed.status, 200, JSON.stringify(seed.data));
+  assert.equal((await call('PUT', '/api/clients/split-list-church/answers', { headers: TEAM, body: { answers: { chk_a2_status_nope: 'Completed' } } })).status, 400);
+  const st = await call('GET', '/api/clients/split-list-church/status', { headers: TEAM });
+  const items = st.data.checklist.items;
+  assert.equal(items.length, 34, 'fourteen shared tasks plus ten per application');
+  assert.equal(items.filter((i) => i.application === null).length, 14);
+  assert.deepEqual([...new Set(items.filter((i) => i.application).map((i) => i.application_label))], ['CSNSGP 2026-27', 'NSGP-S FY2027']);
+  assert.equal(items.find((i) => i.application === 'a1' && i.stem === 'submit_application').due, '11/7/2026');
+  assert.equal(items.find((i) => i.application === 'a2' && i.stem === 'submit_application').due, '5/1/2027');
+  assert.deepEqual([st.data.checklist.completed, st.data.checklist.not_applicable, st.data.checklist.total], [2, 1, 33]);
+  const list = (await call('GET', '/api/clients?status=active', { headers: TEAM })).data.find((c) => c.slug === 'split-list-church');
+  assert.deepEqual([list.checklist.completed, list.checklist.total, list.checklist.not_applicable], [2, 33, 1]);
+  const ans = await call('GET', '/api/clients/split-list-church/answers', { headers: TEAM });
+  assert.equal(ans.data.answers.find((a) => a.key === 'chk_a2_due_submit_application').section, 'Checklist (NSGP-S FY2027)');
+  await call('PATCH', '/api/clients/split-list-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));

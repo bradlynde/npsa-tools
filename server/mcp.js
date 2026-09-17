@@ -526,7 +526,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
   server.registerTool('intake_status', {
     title: 'Intake status',
-    description: 'Where a client\'s intake stands: answered vs total per section, the wish list per facility (with applications set, wish_lists holds one list per application, each with its own budget and cap; wish_list is the first application) (which items carry a priority and how many of each item\'s five detail fields are filled; the raw 121-field section counts overstate what is left), the 24 checklist tasks with status, due date, owner and note, who is filling it in, the submission stamp if they marked it complete, when they last saved anything, and their uploads. The place to look before a nudge or before drafting the IJ.',
+    description: 'Where a client\'s intake stands: answered vs total per section, the wish list per facility (with applications set, wish_lists holds one list per application, each with its own budget and cap; wish_list is the first application) (which items carry a priority and how many of each item\'s five detail fields are filled; the raw 121-field section counts overstate what is left), the checklist tasks with status, due date (prep tasks are shared; the wish list, budget, IJ and submission repeat per application, each item carrying application and application_label), owner and note, who is filling it in, the submission stamp if they marked it complete, when they last saved anything, and their uploads. The place to look before a nudge or before drafting the IJ.',
     inputSchema: { slug: z.string().min(1) },
     annotations: READ,
   }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/status`)));

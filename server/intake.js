@@ -202,8 +202,22 @@ export function applicationCap(app) {
 /** The key prefix for an application's wish list: a1 keeps the catalog's wl_f<n>_ keys, the rest are wl_<id>_f<n>_. */
 export function wishPrefix(id) { return !id || id === 'a1' ? 'wl_' : `wl_${id}_`; }
 const WL_APP_KEY_RE = /^wl_(a(?:[2-9]|[1-9]\d))_(f[123]_.+)$/;
-/** A per-application wish list key answers to the same catalog question as its wl_f<n>_ twin. */
-function catalogKey(k) { const m = WL_APP_KEY_RE.exec(k); return m ? `wl_${m[2]}` : k; }
+// The checklist splits: everything up to the vulnerability assessment is prep the client does once,
+// and the wish list, budget, IJ and submission repeat for each application on its own dates.
+export const PER_APPLICATION_STEMS = [
+  'wish_list_ideation_per_location', 'wish_list_prioritization', 'vendor_quotes_for_wish_list_items', 'wish_list_budget_finalization',
+  'investment_justification_ij_prepar', 'application_drafting', 'final_review_edits', 'review_application_with_you',
+  'assemble_submission_package', 'submit_application',
+];
+/** The checklist key prefix for an application: a1 keeps chk_status_…, the rest are chk_<id>_status_…. */
+export function checklistPrefix(id) { return !id || id === 'a1' ? 'chk_' : `chk_${id}_`; }
+const CHK_APP_KEY_RE = /^chk_(a(?:[2-9]|[1-9]\d))_((?:status|due|who|note)_.+)$/;
+/** A per-application wish list or checklist key answers to the same catalog question as its plain twin. */
+function catalogKey(k) {
+  const w = WL_APP_KEY_RE.exec(k); if (w) return `wl_${w[2]}`;
+  const c = CHK_APP_KEY_RE.exec(k); if (c) return `chk_${c[2]}`;
+  return k;
+}
 
 /** Locations-tab style "programs" string for a site, from stored applications ("None" when nothing covers it). */
 function siteProgramsFromApplications(apps, n) {
@@ -387,13 +401,21 @@ export function healToken(query, rawQuery) {
 
 const checklistLabel = stem => (QUESTION_BY_KEY.get(`chk_status_${stem}`)?.label || stem).replace(/\s+—\s+status$/i, '');
 
-export function summarise(answers) {
+/** Headline counts. `applications` is how many applications carry their own copy of the per-application tasks (0 = one shared checklist). */
+export function summarise(answers, applications = 0) {
   const val = k => answers.get(k)?.value || '';
   const core = CORE_KEYS.filter(k => val(k) !== '').length;
-  const checklist = CHECKLIST_STEMS.filter(s => val(`chk_status_${s}`) === 'Completed').length;
+  const statuses = [...answers.keys()].filter(k => /^chk_(a\d{1,2}_)?status_/.test(k)).map(k => val(k));
+  const checklist = statuses.filter(v => v === 'Completed').length;
   // "Not applicable" tasks leave the count rather than sit unfinished forever.
-  const notApplicable = CHECKLIST_STEMS.filter(s => val(`chk_status_${s}`) === 'Not applicable').length;
-  return { core: { answered: core, total: CORE_KEYS.length }, checklist: { completed: checklist, total: CHECKLIST_STEMS.length - notApplicable, not_applicable: notApplicable } };
+  const notApplicable = statuses.filter(v => v === 'Not applicable').length;
+  const total = CHECKLIST_STEMS.length + Math.max(0, applications - 1) * PER_APPLICATION_STEMS.length;
+  return { core: { answered: core, total: CORE_KEYS.length }, checklist: { completed: checklist, total: total - notApplicable, not_applicable: notApplicable } };
+}
+/** How many checklist tasks a client has in total: the shared ones plus a copy of the split ones per application. */
+export function checklistTotal(client) {
+  const apps = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn').length : 0;
+  return CHECKLIST_STEMS.length + Math.max(0, apps - 1) * PER_APPLICATION_STEMS.length;
 }
 
 function uploadView(u, slug, docs = []) {
@@ -465,12 +487,20 @@ function statusView(client, answers, base, uploads = []) {
     const cap = counted.reduce((n, w) => n + w.budget.cap, 0);
     budget = { requested, cap, room: cap - requested, sites: active.length, applications: counted.length };
   }
-  const items = CHECKLIST_STEMS.map(stem => ({
-    stem, label: checklistLabel(stem),
-    status: val(`chk_status_${stem}`) || 'Not started',
-    due: val(`chk_due_${stem}`), owner: val(`chk_who_${stem}`), note: val(`chk_note_${stem}`),
-  }));
-  const s = summarise(answers);
+  const perApp = new Set(PER_APPLICATION_STEMS);
+  const task = (stem, prefix, application, label) => ({
+    stem, label: checklistLabel(stem), application, application_label: label,
+    status: val(`${prefix}status_${stem}`) || 'Not started',
+    due: val(`${prefix}due_${stem}`), owner: val(`${prefix}who_${stem}`), note: val(`${prefix}note_${stem}`),
+  });
+  const liveApps = stored ? applications.filter(a => a.status !== 'withdrawn') : [];
+  const items = liveApps.length
+    ? [
+      ...CHECKLIST_STEMS.filter(stem => !perApp.has(stem)).map(stem => task(stem, 'chk_', null, null)),
+      ...liveApps.flatMap(a => PER_APPLICATION_STEMS.map(stem => task(stem, checklistPrefix(a.id), a.id, a.label))),
+    ]
+    : CHECKLIST_STEMS.map(stem => task(stem, 'chk_', null, null));
+  const s = summarise(answers, liveApps.length);
   return {
     slug: client.slug, name: client.name, state: client.state, phase: client.phase, status: client.status,
     intake_url: intakeUrl(base, client.slug, client.token),
@@ -479,7 +509,13 @@ function statusView(client, answers, base, uploads = []) {
     applications, applications_set: stored,
     core: s.core, sections, wish_list, ...(wish_lists ? { wish_lists } : {}), budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
-    checklist: { ...s.checklist, items },
+    checklist: {
+      completed: items.filter(t => t.status === 'Completed').length,
+      not_applicable: items.filter(t => t.status === 'Not applicable').length,
+      total: items.filter(t => t.status !== 'Not applicable').length,
+      per_application: liveApps.length ? PER_APPLICATION_STEMS.length : 0,
+      items,
+    },
     uploads: uploads.map(u => uploadView(u, client.slug, documentsFor(client))),
   };
 }
@@ -647,8 +683,8 @@ export function createIntakeStore(pool) {
       const { rows } = await pool.query(
         `SELECT client_id,
                 COUNT(*) FILTER (WHERE key = ANY($2) AND value <> '')::int AS core_answered,
-                COUNT(*) FILTER (WHERE key LIKE 'chk_status_%' AND value = 'Completed')::int AS checklist_completed,
-                COUNT(*) FILTER (WHERE key LIKE 'chk_status_%' AND value = 'Not applicable')::int AS checklist_na,
+                COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Completed')::int AS checklist_completed,
+                COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Not applicable')::int AS checklist_na,
                 MAX(value) FILTER (WHERE key = '_filled_by') AS filled_by
            FROM intake_answers WHERE client_id = ANY($1) GROUP BY client_id`, [clientIds, CORE_KEYS]);
       return Object.fromEntries(rows.map(r => [r.client_id, r]));
@@ -730,7 +766,7 @@ export function createMemoryStore() {
     async getAnswers(clientId) { return new Map(bucket(clientId)); },
     async answerStats(ids) {
       return Object.fromEntries(ids.map(id => {
-        const s = summarise(bucket(id));
+        const s = summarise(bucket(id), (clients.find(c => c.id === id)?.applications || []).filter(a => a.status !== 'withdrawn').length);
         return [id, { core_answered: s.core.answered, checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, filled_by: bucket(id).get('_filled_by')?.value || null }];
       }));
     },
@@ -866,7 +902,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       return {
         ...clientView(r, base(req)),
         core: { answered: s.core_answered || 0, total: CORE_KEYS.length },
-        checklist: { completed: s.checklist_completed || 0, total: CHECKLIST_STEMS.length - (s.checklist_na || 0), not_applicable: s.checklist_na || 0 },
+        checklist: { completed: s.checklist_completed || 0, total: checklistTotal(r) - (s.checklist_na || 0), not_applicable: s.checklist_na || 0 },
         filled_by: s.filled_by || '',
       };
     }));
@@ -974,9 +1010,11 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     // Wish lists for a client's second and later applications live under wl_<id>_f<n>_ keys; they are
     // listed after the catalog, grouped by application, and only where something is stored.
     const apps = applicationsFor(c);
-    const extra = [...answers.keys()].filter(k => WL_APP_KEY_RE.test(k)).map(k => {
-      const id = WL_APP_KEY_RE.exec(k)[1], q = QUESTION_BY_KEY.get(catalogKey(k)), app = apps.find(a => a.id === id);
-      return { key: k, id, q, section: q.section.replace(/^Wish List/, `Wish List (${app ? app.label : id})`), label: `${app ? app.label + ' · ' : ''}${q.label}` };
+    const extra = [...answers.keys()].filter(k => WL_APP_KEY_RE.test(k) || CHK_APP_KEY_RE.test(k)).map(k => {
+      const id = (WL_APP_KEY_RE.exec(k) || CHK_APP_KEY_RE.exec(k))[1], q = QUESTION_BY_KEY.get(catalogKey(k)), app = apps.find(a => a.id === id);
+      if (!q) return { q: null };
+      const who = app ? app.label : id;
+      return { key: k, id, q, section: q.section.replace(/^(Wish List|Checklist)/, `$1 (${who})`), label: `${who} · ${q.label}` };
     }).filter(x => x.q).sort((x, y) => (x.id === y.id ? x.q.ordinal - y.q.ordinal : x.id.localeCompare(y.id, 'en', { numeric: true })));
     const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
       .filter(q => !section || q.section.toLowerCase() === section)

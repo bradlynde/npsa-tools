@@ -409,5 +409,22 @@ application cannot inherit a removed one's answers.
   { requested, cap, room } }`. The headline `budget` sums the lists whose application is active,
   submitted or awarded.
 
-Next: shared prep tasks with per-application submission tasks on the checklist, then a submission
-box per application.
+### The checklist splits the same way
+
+`PER_APPLICATION_STEMS` (the last ten stems: wish-list ideation and prioritization, vendor quotes,
+budget finalization, IJ, drafting, final review, review with the client, assembly, submit) repeat
+for each application under `chk_<id>_status_…` / `_due_` / `_who_` / `_note_`; `a1` keeps the plain
+`chk_status_…` keys. Everything up to the vulnerability assessment stays shared. So a client doing
+CSNSGP now and a federal cycle later has two sets of dates and one set of prep tasks.
+
+- The page adds an application header row before each block, so the table reads: shared stages 1–4,
+  then each application's stages 5–7.
+- The submission box repeats per application: the shared documents, plus that application's own
+  vendor quotes, IJ and submission. SAM.gov only shows on a federal application, since a state
+  program does not need it.
+- `intake_status.checklist.items[]` carries `application` and `application_label` (both null on a
+  shared task) and the counts include every application's copy; `per_application` says how many
+  tasks repeat. `checklistTotal(client)` is the same arithmetic for the list route.
+- `intake_answers` lists the extra keys under `Checklist (NSGP-S FY2027)`.
+
+Next: the welcome email when a contact is added (needs a Workspace sender first).
