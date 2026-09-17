@@ -28,7 +28,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { registerMcp, MCP_PATH } from '../server/mcp.js';
+import { registerMcp, MCP_PATH, fingerprint } from '../server/mcp.js';
 
 const READ_TOOLS = [
   'letters_stats', 'letters_search', 'letter_get', 'reps_list', 'letter_template_get',
@@ -301,6 +301,19 @@ await check('every write is logged with the caller\'s key fingerprint', async ()
   assert.ok(line, 'audit line present');
   assert.match(line, /by [0-9a-f]{8} /, 'fingerprint, not the key');
   assert.ok(!line.includes('first-key'), 'the key itself never appears');
+});
+
+await check('MCP_KEY_NAMES puts a name on the audit line and on X-Actor', async () => {
+  process.env.MCP_KEY_NAMES = `${fingerprint('first-key')}:Stuart`;
+  const lines = [];
+  const orig = console.log;
+  console.log = (...a) => lines.push(a.join(' '));
+  try {
+    await client.callTool({ name: 'rep_add', arguments: { name: 'Audit' } });
+    const d = text(await client.callTool({ name: 'clients_list', arguments: { status: 'all' } }));
+    assert.equal(d.clients[0].actor, 'Stuart');
+  } finally { console.log = orig; delete process.env.MCP_KEY_NAMES; }
+  assert.ok(lines.some(l => l.startsWith('[mcp] write rep_add by Stuart ')), 'audit line names the person');
 });
 
 // ── 5. Grant clients ──────────────────────────────────────────────────────────

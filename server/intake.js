@@ -32,7 +32,7 @@ import express from 'express';
 import { readFileSync } from 'fs';
 import { driveConfigured, uploadToDrive } from './drive.js';
 import { STATE_REFERENCE } from './nsgp-deadlines.js';
-import { splitKeys, keyMatches, fingerprint } from './mcp.js';
+import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
 
 // ── Catalog ───────────────────────────────────────────────────────────────────
 
@@ -794,13 +794,18 @@ export function teamGate({ internalKey }) {
   return (req, res, next) => {
     const internal = req.get('x-internal-key') || '';
     if (internalKey && tokenMatches(internal, internalKey)) {
-      req.actor = String(req.get('x-actor') || 'internal').slice(0, 40);
+      req.actor = cleanActor(req.get('x-actor')) || 'internal';
+      req.actorKind = 'mcp';
       return next();
     }
     const keys = splitKeys(process.env.MCP_API_KEYS || process.env.MCP_API_KEY);
     const presented = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
     if (keys.length && presented && keyMatches(presented, keys)) {
-      req.actor = fingerprint(presented);
+      // Only a key on ACTOR_PROXY_KEYS (the toolbox's, which has checked the
+      // person's login) may name someone else; every other key is named for itself.
+      const asserted = mayAssertActor(presented) ? cleanActor(req.get('x-actor')) : '';
+      req.actor = asserted || nameFor(presented);
+      req.actorKind = asserted ? 'user' : 'key';
       return next();
     }
     res.set('WWW-Authenticate', 'Bearer realm="npsa-tools"');

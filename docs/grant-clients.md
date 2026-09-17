@@ -68,8 +68,10 @@ mounted ahead of `registerMcp` and the SPA fallback because `/client/:slug` is n
 
 `server/index.js` mints a random `INTERNAL_KEY` per process and hands it to both
 `registerIntake` and `registerMcp`. The MCP layer's loopback calls present it as
-`X-Internal-Key` (with `X-Actor: <key fingerprint>` so the audit line names the person).
-The team gate accepts that, or a bearer from `MCP_API_KEYS`. With `MCP_API_KEYS` unset
+`X-Internal-Key` (with `X-Actor: <name or key fingerprint>` so the audit line names the person).
+The team gate accepts that, or a bearer from `MCP_API_KEYS`. A bearer is named by
+`MCP_KEY_NAMES` when it has an entry and by its fingerprint otherwise; only a key on
+`ACTOR_PROXY_KEYS` (the toolbox's) may name someone else with `X-Actor`. With `MCP_API_KEYS` unset
 nothing from outside gets in: no key, no service, the same rule as `/mcp`.
 
 The older `/api` routes (letters, reps, marketing) have no gate of their own and are

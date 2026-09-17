@@ -37,6 +37,18 @@ Code: `server/mcp.js`. Mounted from `server/index.js` ahead of the SPA fallback.
    tools at all, so a read-only key for someone who should only ask questions is
    one variable away.
 
+   ```
+   MCP_KEY_NAMES      # fingerprint:name pairs, e.g. ab12cd34:Stuart,ef567890:Brad
+   ACTOR_PROXY_KEYS   # fingerprints of keys allowed to send X-Actor (the toolbox's key on Vercel)
+   ```
+
+   `MCP_KEY_NAMES` puts a person's name on audit lines and edit history instead of
+   the key's fingerprint. The fingerprint is the first 8 hex characters of the key's
+   SHA-256, the same value the log lines already print (`by ab12cd34`), so the
+   variable holds nothing secret. `ACTOR_PROXY_KEYS` names the key the Next.js
+   toolbox calls with: that app has already checked the person's login, so its
+   `X-Actor` header is believed. From any other key the header is ignored.
+
 3. Redeploy. Confirm with:
 
    ```bash
@@ -220,6 +232,7 @@ follow-up, in order:
 2. ~~**Grant clients module.**~~ Tables, routes and the nine tools above are in; the
    client page, the import from the Apps Script registry and uploads follow, per
    [grant-clients.md](grant-clients.md).
-3. **Per-user identity.** Once writes exist it matters who made them. Either tie each
-   key to a user record, or move to OAuth against the auth service, which also
-   unlocks claude.ai and Cowork connectors.
+3. **Per-user identity.** Partly done: `MCP_KEY_NAMES` names the holder of each key
+   and `ACTOR_PROXY_KEYS` lets the toolbox pass the logged-in person through, which
+   is what the grant knowledge edit history records. Moving to OAuth against the
+   auth service, which also unlocks claude.ai and Cowork connectors, is still open.

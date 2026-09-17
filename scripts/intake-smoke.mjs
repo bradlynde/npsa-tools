@@ -38,6 +38,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { capsFor, registerIntake, createMemoryStore, renderClientPage, QUESTIONS, normaliseAnswers, slugify, healToken, sniffUploadType, UPLOAD_MAX_BYTES } from '../server/intake.js';
 import { accessToken, uploadToDrive } from '../server/drive.js';
+import { fingerprint } from '../server/mcp.js';
 
 const INTERNAL = 'boot-secret-for-test';
 const BASE = 'https://npsa-tools.vercel.app';
@@ -168,6 +169,31 @@ await check('normaliseAnswers rejects objects and empties, allows meta only when
   assert.equal(normaliseAnswers({ _status: 'x' }, { allowMeta: true })[0].value, 'x');
   assert.equal(normaliseAnswers({ q_1_3_7: 12 })[0].value, '12');
   assert.equal(normaliseAnswers({ q_1_3_7: null })[0].value, '');
+});
+await check('a bearer key is named for itself, by MCP_KEY_NAMES when mapped, and X-Actor is ignored from it', async () => {
+  const seedBy = async headers => {
+    const r = await call('PUT', `/api/clients/${created.slug}/answers`, { headers, body: { answers: { loc1_name: 'Title' } } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    const a = await call('GET', `/api/clients/${created.slug}/answers`, { headers: TEAM });
+    return a.data.answers.find(x => x.key === 'loc1_name').updated_by;
+  };
+  const fp = fingerprint('team-key-two');
+  assert.equal(await seedBy({ ...TEAM, 'X-Actor': 'Mallory' }), `seed:${fp}`, 'an ordinary key cannot name someone else');
+  process.env.MCP_KEY_NAMES = `deadbeef:Nobody, ${fp.toUpperCase()}: Stuart <b>`;
+  try { assert.equal(await seedBy({ ...TEAM, 'X-Actor': 'Mallory' }), 'seed:Stuart b', 'mapped and cleaned'); }
+  finally { delete process.env.MCP_KEY_NAMES; }
+});
+await check('a key on ACTOR_PROXY_KEYS may say who it acts for; without X-Actor it is itself', async () => {
+  const fp = fingerprint('team-key-two');
+  process.env.ACTOR_PROXY_KEYS = fp;
+  try {
+    const put = headers => call('PUT', `/api/clients/${created.slug}/answers`, { headers, body: { answers: { loc1_name: 'Title' } } });
+    const by = async () => (await call('GET', `/api/clients/${created.slug}/answers`, { headers: TEAM })).data.answers.find(x => x.key === 'loc1_name').updated_by;
+    assert.equal((await put({ ...TEAM, 'X-Actor': 'Brad' })).status, 200);
+    assert.equal(await by(), 'seed:Brad');
+    assert.equal((await put(TEAM)).status, 200);
+    assert.equal(await by(), `seed:${fp}`);
+  } finally { delete process.env.ACTOR_PROXY_KEYS; }
 });
 await check('a good seed lands as seed:<actor> and does not bump client activity', async () => {
   const r = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: {
