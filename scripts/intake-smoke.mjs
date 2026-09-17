@@ -590,6 +590,30 @@ await check('documents: California state-program clients get the Cal OES set; ta
   assert.match(html, /srState\(it\)/);
   for (const slug of ['del-mar-chapel', 'orange-federal-church']) await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { status: 'cancelled' } });
 });
+await check('applications: stored list drives caps, documents and the page; derived when not set', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Modesto Cove Church', state: 'CA', applications: [{ program: 'csnsgp', cycle: '2026-27' }, { program: 'NSGP-S', cycle: 'FY2027', status: 'planned' }] } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.deepEqual(r.data.applications.map(a => [a.id, a.label, a.kind, a.status]), [['a1', 'CSNSGP 2026-27', 'state', 'active'], ['a2', 'NSGP-S FY2027', 'federal', 'planned']]);
+  assert.ok(r.data.documents.some(d => d.key === 'up_site_map'), 'CSNSGP application brings the Cal OES documents');
+  let st = await call('GET', '/api/clients/modesto-cove-church/status', { headers: TEAM });
+  assert.equal(st.data.applications_set, true);
+  assert.equal(st.data.budget.cap, 250000, 'planned federal work is not in today\'s cap');
+  const up = await call('PATCH', '/api/clients/modesto-cove-church', { headers: TEAM, body: { applications: [{ id: 'a1', program: 'CSNSGP', cycle: '2026-27' }, { id: 'a2', program: 'NSGP-S', cycle: 'FY2027', status: 'active' }] } });
+  assert.equal(up.status, 200, JSON.stringify(up.data));
+  st = await call('GET', '/api/clients/modesto-cove-church/status', { headers: TEAM });
+  assert.equal(st.data.budget.cap, 450000);
+  assert.equal((await call('PATCH', '/api/clients/modesto-cove-church', { headers: TEAM, body: { applications: [{ program: 'NSGP-IL' }] } })).status, 400);
+  assert.equal((await call('PATCH', '/api/clients/modesto-cove-church', { headers: TEAM, body: { applications: [{ program: 'NSGP-S', sites: [4] }] } })).status, 400);
+  const html = renderClientPage({ client: { slug: 'modesto-cove-church', token: 't', name: 'M', state: 'CA', applications: up.data.applications.map(({ id, program, cycle, sites, status }) => ({ id, program, cycle, sites, status })) }, stateConfig: {}, existing: {} });
+  assert.match(html, /APPLICATIONS=\[\{"id":"a1","program":"CSNSGP"/);
+  const legacy = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Legacy Two Site Church', state: 'CA' } });
+  await call('PUT', '/api/clients/legacy-two-site-church/answers', { headers: TEAM, body: { answers: { loc1_programs: 'Federal + State', loc2_name: 'Annex', loc2_programs: 'State Program' } } });
+  st = await call('GET', '/api/clients/legacy-two-site-church/status', { headers: TEAM });
+  assert.equal(st.data.applications_set, false);
+  assert.deepEqual(st.data.applications.map(a => [a.program, a.sites.join(','), a.derived]), [['NSGP', '1', true], ['CSNSGP', '1,2', true]]);
+  assert.deepEqual(legacy.data.applications, []);
+  for (const slug of ['modesto-cove-church', 'legacy-two-site-church']) await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { status: 'cancelled' } });
+});
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));

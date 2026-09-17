@@ -46,7 +46,8 @@ const DOC_KEY_RE = /^up_[a-z0-9_]{2,40}$/;
 export function documentsFor(client) {
   if (Array.isArray(client.documents)) return client.documents.map(d => ({ ...d, source: d.source || 'custom' }));
   const st = String(client.state || '').toUpperCase();
-  const prog = (DOCUMENTS.by_program || []).find(p => p.state === st && new RegExp(p.match, 'i').test(String(client.program_track || '')));
+  const apps = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn') : null;
+  const prog = (DOCUMENTS.by_program || []).find(p => p.state === st && (apps ? apps.some(a => a.program === p.program) : new RegExp(p.match, 'i').test(String(client.program_track || ''))));
   if (prog) return prog.documents.map(d => ({ ...d, source: 'program' }));
   return [
     ...DOCUMENTS.standard.map(d => ({ ...d, source: 'standard' })),
@@ -124,6 +125,68 @@ export function stateConfig(state) {
   const st = String(state || '').toUpperCase();
   const cfg = STATE_CONFIG.states[st] || { ...STATE_CONFIG.fallback, saa: st };
   return { ...cfg, stateProgram: stateProgram(st) };
+}
+
+// ── Applications ──────────────────────────────────────────────────────────────
+// What NPSA is writing for a client: one row per application (program, cycle, the
+// sites it covers, where it stands). Set by the team at kickoff; the client page
+// shows them in its header and builds site caps from them. A client without a
+// stored list gets one derived from the Locations tab's "Programs applying".
+export const FEDERAL_PROGRAMS = [
+  { code: 'NSGP-S', name: 'Federal NSGP-S (outside an urban area)', kind: 'federal' },
+  { code: 'NSGP-UA', name: 'Federal NSGP-UA (urban area)', kind: 'federal' },
+];
+export const APPLICATION_STATUSES = ['active', 'planned', 'submitted', 'awarded', 'not_awarded', 'withdrawn'];
+const CAP_STATUSES = new Set(['active', 'submitted', 'awarded']); // planned work gets its own wish list later, not a share of today's
+export function programsFor(state) {
+  const st = (STATE_REFERENCE.states[String(state || '').toUpperCase()]?.programs || []).map(p => ({ code: p.acronym, name: p.name, kind: 'state' }));
+  return [...FEDERAL_PROGRAMS, ...st];
+}
+function validApplications(list, state) {
+  if (list === undefined) return undefined;
+  if (list === null) return null;
+  if (!Array.isArray(list)) throw new BadRequest('applications must be an array (or null to clear)');
+  if (list.length > 6) throw new BadRequest('applications: at most 6');
+  const programs = programsFor(state);
+  const used = new Set(list.map(a => String(a?.id || '')).filter(id => /^a\d{1,2}$/.test(id)));
+  if (used.size !== list.filter(a => /^a\d{1,2}$/.test(String(a?.id || ''))).length) throw new BadRequest('applications: ids must be unique');
+  let next = 1;
+  return list.map((a, i) => {
+    const label = `applications[${i}]`;
+    const prog = programs.find(p => p.code.toLowerCase() === String(a?.program || '').trim().toLowerCase());
+    if (!prog) throw new BadRequest(`${label}.program must be one of ${programs.map(p => p.code).join(', ')}`);
+    const sites = a.sites === undefined ? [1] : a.sites;
+    if (!Array.isArray(sites) || !sites.length || sites.some(n => ![1, 2, 3].includes(n)) || new Set(sites).size !== sites.length) throw new BadRequest(`${label}.sites must list site numbers 1–3`);
+    const status = a.status === undefined ? 'active' : String(a.status);
+    if (!APPLICATION_STATUSES.includes(status)) throw new BadRequest(`${label}.status must be one of ${APPLICATION_STATUSES.join(', ')}`);
+    let id = String(a.id || '');
+    if (!/^a\d{1,2}$/.test(id)) { while (used.has(`a${next}`)) next++; id = `a${next}`; used.add(id); }
+    return { id, program: prog.code, cycle: String(a.cycle || '').trim().slice(0, 24), sites: [...sites].sort(), status };
+  });
+}
+/** The stored list with names filled in, or one derived from the Locations tab (derived: true). */
+export function applicationsFor(client, val = () => '') {
+  const programs = programsFor(client.state);
+  const view = a => { const p = programs.find(x => x.code === a.program) || { name: a.program, kind: /^NSGP-(S|UA)$/.test(a.program) || a.program === 'NSGP' ? 'federal' : 'state' };
+    return { ...a, name: p.name, kind: p.kind, label: [a.program, a.cycle].filter(Boolean).join(' ') }; };
+  if (Array.isArray(client.applications)) return client.applications.map(view);
+  const sp = programsFor(client.state).find(p => p.kind === 'state');
+  const groups = new Map();
+  for (const n of [1, 2, 3]) {
+    const v = val(`loc${n}_programs`);
+    if (!v) continue;
+    const codes = [];
+    if (/NSGP-UA/.test(v)) codes.push('NSGP-UA'); else if (/NSGP-S/.test(v)) codes.push('NSGP-S'); else if (/Federal/.test(v)) codes.push('NSGP');
+    if (/State/.test(v) && sp) codes.push(sp.code);
+    for (const c of codes) groups.set(c, [...(groups.get(c) || []), n]);
+  }
+  return [...groups].map(([program, sites], i) => ({ ...view({ id: `a${i + 1}`, program, cycle: '', sites, status: 'active' }), ...(program === 'NSGP' ? { name: 'Federal NSGP' } : {}), derived: true }));
+}
+/** Locations-tab style "programs" string for a site, from stored applications ("None" when nothing covers it). */
+function siteProgramsFromApplications(apps, n) {
+  const live = apps.filter(a => CAP_STATUSES.has(a.status) && a.sites.includes(n));
+  const fed = live.some(a => a.kind === 'federal'), st = live.some(a => a.kind === 'state');
+  return fed && st ? 'Federal + State' : fed ? 'Federal' : st ? 'State Program' : 'None';
 }
 
 /**
@@ -346,7 +409,10 @@ function statusView(client, answers, base, uploads = []) {
     };
   });
   // A site is in play once it has a name, an address or anything on its wish list.
-  const active = wish_list.filter(f => f.facility === 1 || f.name || val(`loc${f.facility}_addr`) || f.prioritized > 0 || f.budget.items > 0);
+  const applications = applicationsFor(client, val);
+  const stored = Array.isArray(client.applications);
+  if (stored) for (const f of wish_list) f.budget.programs = siteProgramsFromApplications(applications, f.facility);
+  const active = wish_list.filter(f => f.facility === 1 || f.name || val(`loc${f.facility}_addr`) || f.prioritized > 0 || f.budget.items > 0 || (stored && applications.some(a => a.sites.includes(f.facility))));
   const caps = capsFor(client.state, active.map(f => ({ facility: f.facility, programs: f.budget.programs })));
   for (const f of wish_list) {
     const cap = caps.sites.find(x => x.facility === f.facility);
@@ -366,6 +432,7 @@ function statusView(client, answers, base, uploads = []) {
     intake_url: intakeUrl(base, client.slug, client.token),
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
+    applications, applications_set: stored,
     core: s.core, sections, wish_list, budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
     checklist: { ...s.checklist, items },
@@ -385,16 +452,18 @@ function contactsView(contacts) {
 }
 
 function clientView(client, base) {
-  const { token, documents, ...rest } = client;
+  const { token, documents, applications, ...rest } = client;
   return {
     ...rest, intake_url: intakeUrl(base, client.slug, token), saa: STATE_REFERENCE.states[client.state]?.saa || stateConfig(client.state).saa || null,
     documents: documentsFor(client), documents_customised: Array.isArray(documents),
+    applications: Array.isArray(applications) ? applicationsFor(client) : [], applications_set: Array.isArray(applications),
+    programs: programsFor(client.state),
   };
 }
 
 // ── Stores ────────────────────────────────────────────────────────────────────
 
-const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes', 'documents'];
+const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes', 'documents', 'applications'];
 
 export async function ensureIntakeSchema(pool) {
   if (!pool) return;
@@ -432,6 +501,7 @@ export async function ensureIntakeSchema(pool) {
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS side  TEXT NOT NULL DEFAULT 'client';
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents JSONB;
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS applications JSONB;
     CREATE TABLE IF NOT EXISTS intake_answers (
       client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       key         TEXT NOT NULL,
@@ -459,7 +529,7 @@ export async function ensureIntakeSchema(pool) {
 const UPLOAD_COLS = 'id, client_id, key, filename, mime, size_bytes, drive_file_id, drive_url, uploaded_by, uploaded_at';
 
 const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track, drive_folder_id, upload_folder_id,
-  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, documents, created_at, updated_at,
+  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, documents, applications, created_at, updated_at,
   submitted_at, last_client_activity_at`;
 
 /** Postgres-backed store. Every method takes and returns plain objects. */
@@ -496,7 +566,7 @@ export function createIntakeStore(pool) {
       const sets = fields.map((k, i) => `${k}=$${i + 2}`);
       if (patch.submitted_at !== undefined) sets.push(`submitted_at=$${fields.length + 2}`);
       sets.push('updated_at=NOW()');
-      const params = [slug, ...fields.map(k => (k === 'documents' && patch[k] !== null ? JSON.stringify(patch[k]) : patch[k]))];
+      const params = [slug, ...fields.map(k => ((k === 'documents' || k === 'applications') && patch[k] !== null ? JSON.stringify(patch[k]) : patch[k]))];
       if (patch.submitted_at !== undefined) params.push(patch.submitted_at);
       return withContacts(await one(`UPDATE clients SET ${sets.join(', ')} WHERE slug=$1 RETURNING ${CLIENT_COLS}`, params));
     },
@@ -583,7 +653,7 @@ export function createMemoryStore() {
   return {
     async createClient(c) {
       if (find(c.slug)) { const e = new Error(`slug "${c.slug}" is already registered`); e.status = 409; throw e; }
-      const row = { id: nextId++, documents: null, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
+      const row = { id: nextId++, documents: null, applications: null, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
       clients.push(row); return view(row);
     },
     async getClient(slug) { return view(find(slug)); },
@@ -689,12 +759,12 @@ function jsForInject(value) {
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-export function renderClientPage({ client, stateConfig, existing, contacts = { npsa: [], client: [], reference: [] }, documents = documentsFor(client), uploaded = [], apiBase = '', uploadBase = '' }) {
+export function renderClientPage({ client, stateConfig, existing, contacts = { npsa: [], client: [], reference: [] }, documents = documentsFor(client), applications = Array.isArray(client.applications) ? applicationsFor(client) : [], uploaded = [], apiBase = '', uploadBase = '' }) {
   if (pageTemplate === undefined) {
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, uploaded, apiBase, uploadBase };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, apiBase, uploadBase };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 
@@ -771,6 +841,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const status = b.status === undefined ? 'active' : String(b.status);
     if (!STATUSES.includes(status)) throw new BadRequest(`status must be one of ${STATUSES.join(', ')}`);
     const contacts = validContacts(b.contacts);
+    const applications = validApplications(b.applications, state);
     // The NPSA side of the Contacts tab: the standing team from intake-team.json,
     // plus whoever is named (the consultant who brought the client in, usually). Pass npsa_contacts: [] to
     // register a client with no NPSA rows at all.
@@ -794,6 +865,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       await store.addContacts(row.id, contacts, `npsa:${req.actor}`);
     }
     if (npsa.length) await store.addContacts(row.id, npsa, `npsa:${req.actor}`);
+    if (applications) await store.updateClient(slug, { applications });
     console.log(`[intake] client_create ${slug} by ${req.actor}`);
     res.status(201).json(clientView(await store.getClient(slug), base(req)));
   }));
@@ -820,6 +892,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (b.notes !== undefined) patch.notes = text(b.notes, 'notes', 5000);
     if (b.kickoff_date !== undefined) patch.kickoff_date = validDate(b.kickoff_date, 'kickoff_date');
     // Documents: replace the list, reset it (null), or add/remove against the current one.
+    if (b.applications !== undefined) patch.applications = validApplications(b.applications, patch.state || c.state);
     if (b.documents !== undefined) patch.documents = validDocuments(b.documents, 'documents');
     if (b.add_documents !== undefined || b.remove_document_keys !== undefined) {
       const adds = validDocuments(b.add_documents, 'add_documents') || [];
