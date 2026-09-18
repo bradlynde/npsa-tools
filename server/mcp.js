@@ -41,7 +41,7 @@ import { getBooking } from './precall-bookings.js';
 import { KINDS, SCHEMAS, NOTE_CATEGORIES } from './grant-knowledge-kinds.js';
 
 export const MCP_PATH = '/mcp';
-const SERVER_INFO = { name: 'npsa-tools', version: '1.4.0' };
+const SERVER_INFO = { name: 'npsa-tools', version: '1.5.0' };
 
 const INSTRUCTIONS = `NPSA Sales Toolbox: Nonprofit Security Advisors' internal data.
 Areas: engagement letters and proposals (letters_*), sales reps (rep*), NSGP grant deadlines by
@@ -467,6 +467,20 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     if (state) qs.set('state', normState(state));
     if (days) qs.set('days', String(days));
     return api(`${GK}/needs-attention?${qs}`);
+  }));
+
+  server.registerTool('gk_files_list', {
+    title: 'Grant knowledge: attachments',
+    description: 'The files the team has kept for a jurisdiction: NOFOs, SAA checklists, screenshots of a portal step. Each has a filename, a label, the type and size, who put it there and when, and a Drive link when one was mirrored. Files are put there from the toolbox, not from here; pass record_id to see only the ones attached to one record.',
+    inputSchema: { state: gkState, record_id: z.number().int().optional() },
+    annotations: READ,
+  }, tool(async ({ state, record_id }) => {
+    const qs = new URLSearchParams({ jurisdiction: normState(state) });
+    if (record_id) qs.set('record_id', String(record_id));
+    const r = await api(`${GK}/files?${qs}`);
+    // The toolbox download link is minted for the browser that asked and expires
+    // in minutes; from here it would be a link to this process's own loopback.
+    return { files: (r.files || []).map(({ download_url, ...f }) => f) };
   }));
 
   server.registerTool('gk_revisions', {

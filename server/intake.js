@@ -28,12 +28,16 @@
 //   registerIntake(app, { store, internalKey, publicBase })   // before the SPA fallback
 
 import crypto from 'crypto';
-import express from 'express';
 import { readFileSync } from 'fs';
 import { driveConfigured, uploadToDrive } from './drive.js';
 import { mailConfigured, sendWelcome, senderFor } from './mail.js';
 import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
+import { UPLOAD_MAX_BYTES, sniffUploadType, safeFilename, rawUploadBody, uploadBodyError, readMultipart } from './uploads.js';
+
+// Re-exported because the upload rules were this module's before the grant
+// knowledge tab needed the same ones; callers and the smoke test still ask here.
+export { UPLOAD_MAX_BYTES, sniffUploadType };
 
 // ── Catalog ───────────────────────────────────────────────────────────────────
 
@@ -269,24 +273,6 @@ const TOKEN_RE = /^[a-z0-9]{8,64}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_VALUE = 20000;
-
-// Uploads: the same guards the Apps Script had, plus the file's own first bytes as
-// the deciding word on type, since a browser's declared type is whatever the
-// extension says.
-export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
-const UPLOAD_MAGIC = [
-  ['application/pdf', Buffer.from('%PDF')],
-  ['image/jpeg', Buffer.from([0xff, 0xd8, 0xff])],
-  ['image/png', Buffer.from([0x89, 0x50, 0x4e, 0x47])],
-];
-export function sniffUploadType(buf) {
-  for (const [mime, magic] of UPLOAD_MAGIC) if (buf.length >= magic.length && buf.subarray(0, magic.length).equals(magic)) return mime;
-  return null;
-}
-function safeFilename(name) {
-  const n = String(name || '').split(/[\\/]/).pop().replace(/[\u0000-\u001f]/g, '').trim();
-  return (n || 'file').slice(0, 200);
-}
 
 class BadRequest extends Error {
   constructor(message, extra) { super(message); this.status = 400; this.extra = extra; }
@@ -1188,19 +1174,11 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (req.method === 'OPTIONS') return res.status(allowed ? 204 : 403).end();
     next();
   };
-  const uploadBody = express.raw({ type: 'multipart/form-data', limit: UPLOAD_MAX_BYTES + 1024 * 1024 });
-  const uploadBodyError = (err, req, res, next) => {
-    if (err?.type === 'entity.too.large') return res.status(413).json({ error: 'File too large — please keep uploads under 25 MB.' });
-    return res.status(400).json({ error: 'Could not read the upload. Please try again.' });
-  };
-
   app.options('/api/intake/:slug/upload', uploadCors);
-  app.post('/api/intake/:slug/upload', uploadCors, uploadBody, uploadBodyError, guard(async (req, res) => {
+  app.post('/api/intake/:slug/upload', uploadCors, rawUploadBody(), uploadBodyError, guard(async (req, res) => {
     const c = await clientAuth(req, res); if (!c) return;
-    if (!Buffer.isBuffer(req.body)) throw new BadRequest('Send the file as multipart form data with fields "key" and "file".');
-    let form;
-    try { form = await new Response(req.body, { headers: { 'content-type': req.get('content-type') } }).formData(); }
-    catch { throw new BadRequest('Could not read the upload. Please try again.'); }
+    const form = await readMultipart(req);
+    if (!form) throw new BadRequest('Send the file as multipart form data with fields "key" and "file".');
     const key = String(form.get('key') || '');
     const file = form.get('file');
     const q = QUESTION_BY_KEY.get(key);

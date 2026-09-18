@@ -32,10 +32,20 @@
 // Storage sits behind the same small store interface the intake module uses, so the
 // routes run against an in-memory twin with no database (scripts/gk-smoke.mjs).
 //
+// Attachments hang off the same records (gk_files): a NOFO, an SAA's own
+// checklist, a screenshot of a portal step. See the Attachments section below for
+// why they travel on a ticket rather than through the Vercel passthrough.
+//
 //   ensureGrantKnowledgeSchema(pool)                         // at boot
 //   registerGrantKnowledge(app, { store, internalKey })      // before the /api 404
 
+import crypto from 'crypto';
 import { teamGate } from './intake.js';
+import { driveConfigured, uploadToDrive } from './drive.js';
+import {
+  UPLOAD_MAX_BYTES, PDF, PNG, JPEG, DOCX, XLSX, TYPE_NAME, sniffType, safeFilename,
+  contentDisposition, rawUploadBody, uploadBodyError, readMultipart, corsForOrigins, baseUrl, ticketSigner,
+} from './uploads.js';
 import {
   JURISDICTIONS, JURISDICTION_CODES, jurisdictionKind, KINDS, PARENT_KINDS,
   parseData, titleFor, searchTextFor, sortDateFor, slugKey,
@@ -330,7 +340,12 @@ export function renderMarkdown(doc) {
   const out = [];
   const j = doc.jurisdiction?.data || {};
   out.push(`# ${doc.name} (${doc.code})`, '');
-  if (j.saa) out.push(`**SAA:** ${j.saa}${j.saa_short ? ` (${j.saa_short})` : ''}${doc.jurisdiction ? flag(doc.jurisdiction) : ''}`);
+  // Some SAA names already end in their own acronym ("... Homeland Security (KOHS)"),
+  // which read as "(KOHS) (KOHS)" when the short name went on the end regardless.
+  if (j.saa) {
+    const short = j.saa_short && !new RegExp(`\\b${String(j.saa_short).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(j.saa) ? ` (${j.saa_short})` : '';
+    out.push(`**SAA:** ${j.saa}${short}${doc.jurisdiction ? flag(doc.jurisdiction) : ''}`);
+  }
   if (j.urban_areas?.length) out.push(`**Urban areas:** ${j.urban_areas.join('; ')}`);
   if (j.partner) out.push(`**Partner:** ${j.partner}`);
   if (j.cycle_status) out.push(`**Cycle status:** ${j.cycle_status}`);
@@ -378,6 +393,14 @@ export function renderMarkdown(doc) {
   contactBlock(out, doc.contacts, '##');
   noteBlock(out, doc.notes, '##');
   if (j.post_award_note) out.push('## Post-award', '', j.post_award_note, '');
+  const files = (doc.files || []).filter(f => !f.archived_at);
+  if (files.length) {
+    out.push('## Files', '');
+    // The link is to the Drive copy, which keeps working; the toolbox's own
+    // download links are minted per read and are gone within ten minutes.
+    for (const f of files) out.push(`- ${f.label || f.filename}${f.label ? ` (${f.filename})` : ''} — ${f.type_name}, ${Math.max(1, Math.round(f.size_bytes / 1024))} KB${f.drive_url ? `, ${f.drive_url}` : ''}`);
+    out.push('');
+  }
   const sources = [...doc.sources, ...doc.programs.flatMap(p => p.sources)];
   if (sources.length) { out.push('## Sources', ''); for (const s of sources) out.push(`- ${s.data.url}${s.data.covers ? ` (${s.data.covers})` : ''}`); out.push(''); }
   return out.join('\n');
@@ -473,6 +496,27 @@ export async function ensureGrantKnowledgeSchema(pool) {
     );
     CREATE INDEX IF NOT EXISTS gk_revisions_record ON gk_revisions (record_id, id DESC);
     CREATE INDEX IF NOT EXISTS gk_revisions_jurisdiction ON gk_revisions (jurisdiction, id DESC);
+
+    CREATE TABLE IF NOT EXISTS gk_files (
+      id            SERIAL PRIMARY KEY,
+      jurisdiction  TEXT NOT NULL,
+      record_id     INT REFERENCES gk_records(id),
+      label         TEXT NOT NULL DEFAULT '',
+      filename      TEXT NOT NULL,
+      mime          TEXT NOT NULL,
+      size_bytes    INT  NOT NULL,
+      sha256        TEXT NOT NULL DEFAULT '',
+      content       BYTEA,
+      drive_file_id TEXT NOT NULL DEFAULT '',
+      drive_url     TEXT NOT NULL DEFAULT '',
+      source_url    TEXT NOT NULL DEFAULT '',
+      uploaded_by   TEXT NOT NULL DEFAULT '',
+      uploaded_at   TIMESTAMPTZ DEFAULT NOW(),
+      archived_at   TIMESTAMPTZ,
+      archived_by   TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS gk_files_jurisdiction ON gk_files (jurisdiction) WHERE archived_at IS NULL;
+    CREATE INDEX IF NOT EXISTS gk_files_record ON gk_files (record_id) WHERE archived_at IS NULL;
   `);
 }
 
@@ -485,6 +529,29 @@ export async function ensureGrantKnowledgeSchema(pool) {
 // change one without a revision.
 
 const MUTABLE = ['key', 'data', 'sort_date', 'sort_order', 'search_text', 'status', 'unverified_fields', 'verified_at', 'verified_by', 'source_url', 'archived_at', 'archived_by'];
+
+const FILE_COLS = `id, jurisdiction, record_id, label, filename, mime, size_bytes, sha256,
+  drive_file_id, drive_url, source_url, uploaded_by, uploaded_at, archived_at, archived_by`;
+
+/** What the team keeps next to the facts, and how long a link to one lasts. */
+const FILE_TYPES = [PDF, PNG, JPEG, DOCX, XLSX];
+const INLINE_TYPES = new Set([PDF, PNG, JPEG]);
+const UPLOAD_TICKET_MS = 15 * 60 * 1000;
+const DOWNLOAD_TICKET_MS = 10 * 60 * 1000;
+// Where the tab is served from. Set GK_APP_ORIGINS when that changes; a preview
+// deployment on its own hostname needs adding, or its uploads get no CORS answer.
+const DEFAULT_APP_ORIGINS = ['https://npsa-tools.vercel.app', 'http://localhost:3100', 'http://localhost:3110'];
+
+function fileView(f, downloadUrl = null) {
+  return {
+    id: f.id, jurisdiction: f.jurisdiction, record_id: f.record_id ?? null, label: f.label || '',
+    filename: f.filename, mime: f.mime, type_name: TYPE_NAME[f.mime] || f.mime, size_bytes: f.size_bytes,
+    drive_url: f.drive_url || '', source_url: f.source_url || '',
+    uploaded_by: f.uploaded_by || '', uploaded_at: iso(f.uploaded_at),
+    archived_at: iso(f.archived_at), archived_by: f.archived_by || '',
+    download_url: downloadUrl,
+  };
+}
 
 function likeTerms(q) {
   return String(q || '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 5);
@@ -566,13 +633,39 @@ export function createKnowledgeStore(pool) {
          ORDER BY jurisdiction, id LIMIT 60`, params);
       return rows;
     },
+
+    // Attachments. The bytes stay out of every listing: a state with ten NOFOs in
+    // it would otherwise put 60 MB through the page that only wanted their names.
+    addFile: f => one(
+      `INSERT INTO gk_files (jurisdiction, record_id, label, filename, mime, size_bytes, sha256, content, source_url, uploaded_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING ${FILE_COLS}`,
+      [f.jurisdiction, f.record_id || null, f.label || '', f.filename, f.mime, f.size_bytes, f.sha256 || '', f.content, f.source_url || '', f.uploaded_by || '']),
+    async setFileDrive(id, { drive_file_id, drive_url }) {
+      await pool.query('UPDATE gk_files SET drive_file_id=$2, drive_url=$3 WHERE id=$1', [id, drive_file_id, drive_url]);
+    },
+    async listFiles({ jurisdiction, recordId, includeArchived = false } = {}) {
+      const { rows } = await pool.query(
+        `SELECT ${FILE_COLS} FROM gk_files
+          WHERE ($1::text IS NULL OR jurisdiction = $1) AND ($2::int IS NULL OR record_id = $2) AND ($3 OR archived_at IS NULL)
+          ORDER BY uploaded_at DESC, id DESC`, [jurisdiction || null, recordId || null, includeArchived]);
+      return rows;
+    },
+    getFile: id => one(`SELECT ${FILE_COLS} FROM gk_files WHERE id = $1`, [id]),
+    getFileContent: id => one('SELECT id, filename, mime, content, archived_at FROM gk_files WHERE id = $1', [id]),
+    findFileHash: (jurisdiction, sha256) => one(
+      `SELECT ${FILE_COLS} FROM gk_files WHERE jurisdiction = $1 AND sha256 = $2 AND archived_at IS NULL LIMIT 1`, [jurisdiction, sha256]),
+    setFileArchived: (id, at, by) => one(
+      `UPDATE gk_files SET archived_at = $2, archived_by = $3 WHERE id = $1 RETURNING ${FILE_COLS}`, [id, at, by]),
   };
 }
 
 export function createMemoryKnowledgeStore({ now = () => new Date() } = {}) {
-  const records = [], revisions = [];
-  let nextId = 1, nextRevision = 1;
+  const records = [], revisions = [], files = [];
+  let nextId = 1, nextRevision = 1, nextFile = 1;
   const copy = v => JSON.parse(JSON.stringify(v));
+  // The Postgres store leaves the bytes out of every listing; the twin has to as
+  // well, or a test would pass here on a shape the real store never returns.
+  const withoutContent = ({ content, ...rest }) => ({ ...rest });
   const pushRevision = (row, rev) => revisions.push({
     id: nextRevision++, record_id: row.id, jurisdiction: row.jurisdiction, kind: row.kind, action: rev.action,
     version_from: rev.before ? rev.before.version : null, version_to: row.version, before: rev.before ? copy(rev.before) : null, after: copy(snapshot(row)),
@@ -624,6 +717,39 @@ export function createMemoryKnowledgeStore({ now = () => new Date() } = {}) {
       return copy(records.filter(r => !r.archived_at && (!jurisdiction || r.jurisdiction === jurisdiction) && (!kinds?.length || kinds.includes(r.kind))
         && terms.every(t => r.search_text.includes(t))).slice(0, 60));
     },
+
+    async addFile(f) {
+      const row = {
+        id: nextFile++, jurisdiction: f.jurisdiction, record_id: f.record_id || null, label: f.label || '', filename: f.filename,
+        mime: f.mime, size_bytes: f.size_bytes, sha256: f.sha256 || '', content: f.content, drive_file_id: '', drive_url: '',
+        source_url: f.source_url || '', uploaded_by: f.uploaded_by || '', uploaded_at: now().toISOString(), archived_at: null, archived_by: '',
+      };
+      files.push(row);
+      return withoutContent(row);
+    },
+    async setFileDrive(id, { drive_file_id, drive_url }) {
+      const row = files.find(x => x.id === id);
+      if (row) Object.assign(row, { drive_file_id, drive_url });
+    },
+    async listFiles({ jurisdiction, recordId, includeArchived = false } = {}) {
+      return files.filter(f => (!jurisdiction || f.jurisdiction === jurisdiction) && (!recordId || f.record_id === recordId) && (includeArchived || !f.archived_at))
+        .sort((a, b) => b.id - a.id).map(withoutContent);
+    },
+    async getFile(id) { const f = files.find(x => x.id === id); return f ? withoutContent(f) : null; },
+    async getFileContent(id) {
+      const f = files.find(x => x.id === id);
+      return f ? { id: f.id, filename: f.filename, mime: f.mime, content: f.content, archived_at: f.archived_at } : null;
+    },
+    async findFileHash(jurisdiction, sha256) {
+      const f = files.find(x => x.jurisdiction === jurisdiction && x.sha256 === sha256 && !x.archived_at);
+      return f ? withoutContent(f) : null;
+    },
+    async setFileArchived(id, at, by) {
+      const f = files.find(x => x.id === id);
+      if (!f) return null;
+      Object.assign(f, { archived_at: at, archived_by: by });
+      return withoutContent(f);
+    },
   };
 }
 
@@ -640,6 +766,8 @@ function validJurisdiction(code) {
   if (!JURISDICTIONS[c]) throw bad('jurisdiction must be a USPS state code, DC, PR, GU, VI, AS, MP, or US');
   return c;
 }
+
+const splitOrigins = v => String(v || '').split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
 
 function validSourceUrl(v) {
   const s = String(v ?? '').trim();
@@ -678,8 +806,13 @@ function requireProvenance(actorKind, sourceUrl, reason) {
   }
 }
 
-export function registerGrantKnowledge(app, { store, internalKey, now = () => new Date() } = {}) {
+export function registerGrantKnowledge(app, {
+  store, internalKey, now = () => new Date(),
+  drive, driveFolderId = process.env.GK_DRIVE_FOLDER_ID || '',
+  appOrigins = splitOrigins(process.env.GK_APP_ORIGINS), uploadBase = process.env.GK_UPLOAD_BASE || '',
+} = {}) {
   const team = teamGate({ internalKey });
+  if (drive === undefined) drive = driveConfigured() ? { upload: uploadToDrive } : null;
   const guard = fn => async (req, res) => {
     if (!store) return res.status(503).json({ error: 'Storage not configured' });
     try { await fn(req, res); }
@@ -709,6 +842,15 @@ export function registerGrantKnowledge(app, { store, internalKey, now = () => ne
   const keep = r => ({ ...Object.fromEntries(MUTABLE.map(f => [f, r[f]])), ...derived(r.kind, r.key, r.data) });
   const log = (what, r, c) => console.log(`[gk] ${what} ${r.jurisdiction}/${r.kind}/${r.key} #${r.id} by ${c.actor}`);
 
+  // Attachments: the ticket signer and the two links it makes. The routes are at
+  // the foot of this function; these live here because the state page hands back
+  // its files along with its facts.
+  const tickets = ticketSigner(internalKey);
+  const fileBase = req => String(uploadBase || baseUrl(req)).replace(/\/+$/, '');
+  const downloadLink = (req, f) =>
+    `${fileBase(req)}/api/grant-knowledge/files/${f.id}/content?t=${encodeURIComponent(tickets.sign({ p: 'down', f: f.id }, DOWNLOAD_TICKET_MS, now().getTime()))}`;
+  const seeFile = (req, f) => fileView(f, f.archived_at ? null : downloadLink(req, f));
+
   // ── Reads ──
 
   app.get('/api/grant-knowledge/overview', team, guard(async (req, res) => {
@@ -722,6 +864,7 @@ export function registerGrantKnowledge(app, { store, internalKey, now = () => ne
     const includeArchived = req.query.include_archived === '1';
     const records = await store.listRecords();
     const doc = assemble(code, records, { now: now(), federal: federalBaseline(records, now()) });
+    doc.files = (await store.listFiles({ jurisdiction: code, includeArchived })).map(f => seeFile(req, f));
     if (req.query.format === 'markdown') return res.type('text/markdown').send(renderMarkdown(doc));
     if (includeArchived) doc.archived = (await store.listRecords({ jurisdiction: code, includeArchived: true })).filter(r => r.archived_at).map(r => recordView(r, now()));
     res.json(doc);
@@ -1013,4 +1156,132 @@ export function registerGrantKnowledge(app, { store, internalKey, now = () => ne
     log(`revert r${rev.id}`, row, c);
     res.json(recordView(row, now()));
   }));
+
+  // ── Attachments ──
+  //
+  // A NOFO, an SAA's own checklist, a screenshot of the step in the portal that
+  // nobody can ever find: things worth keeping next to the facts they came from.
+  // Postgres holds the bytes and Drive gets a copy when a folder is configured.
+  //
+  // They do not travel through the Vercel passthrough, whose functions stop at
+  // 4.5 MB. Instead the browser asks this service, through the keyed proxy, for
+  // permission to upload, and gets back a short-lived signed ticket naming the
+  // state, the record and the person who asked. It then posts the file here
+  // directly, carrying the ticket instead of the team key — so the team key never
+  // reaches the browser, and the name in `uploaded_by` is the one the gate
+  // resolved when the ticket was minted, not one the browser typed. Downloads run
+  // the same way in reverse, so a 20 MB PDF does not have to fit back through a
+  // serverless response either.
+
+  const filesCors = corsForOrigins(appOrigins.length ? appOrigins : DEFAULT_APP_ORIGINS,
+    { methods: 'POST, OPTIONS', headers: 'Content-Type, X-GK-Ticket' });
+
+  const loadFile = async req => {
+    const id = Number(req.params.id);
+    const f = Number.isInteger(id) ? await store.getFile(id) : null;
+    if (!f) throw new HttpError(404, 'No such file');
+    return f;
+  };
+
+  app.post('/api/grant-knowledge/files/ticket', team, guard(async (req, res) => {
+    const b = req.body || {};
+    const code = validJurisdiction(b.jurisdiction);
+    let recordId = null;
+    if (b.record_id !== undefined && b.record_id !== null && b.record_id !== '') {
+      const r = await store.getRecord(Number(b.record_id));
+      if (!r || r.jurisdiction !== code || r.archived_at) throw bad(`record_id must be a record that is in ${code} and not archived`);
+      recordId = r.id;
+    }
+    const c = ctx(req);
+    const at = now().getTime();
+    res.json({
+      ticket: tickets.sign({ p: 'up', j: code, r: recordId, l: String(b.label || '').trim().slice(0, 120), s: validSourceUrl(b.source_url), a: c.actor }, UPLOAD_TICKET_MS, at),
+      upload_url: `${fileBase(req)}/api/grant-knowledge/files/upload`,
+      max_bytes: UPLOAD_MAX_BYTES,
+      accepts: FILE_TYPES,
+      expires_at: new Date(at + UPLOAD_TICKET_MS).toISOString(),
+    });
+  }));
+
+  app.options('/api/grant-knowledge/files/upload', filesCors);
+  app.post('/api/grant-knowledge/files/upload', filesCors, rawUploadBody(), uploadBodyError, guard(async (req, res) => {
+    const form = await readMultipart(req);
+    if (!form) throw bad('Send the file as multipart form data with a "file" field.');
+    const t = tickets.read(req.get('x-gk-ticket') || form.get('ticket'), now().getTime());
+    if (!t || t.p !== 'up') throw new HttpError(401, 'That upload window has closed. Start the upload again.');
+
+    const file = form.get('file');
+    if (!file || typeof file !== 'object' || typeof file.arrayBuffer !== 'function') throw bad('No file was attached.');
+    const content = Buffer.from(await file.arrayBuffer());
+    if (!content.length) throw bad('The file is empty.');
+    if (content.length > UPLOAD_MAX_BYTES) throw new HttpError(413, 'File too large — please keep uploads under 25 MB.');
+    const mime = sniffType(content);
+    if (!mime || !FILE_TYPES.includes(mime)) throw bad('Unsupported file type — PDF, JPG, PNG, Word or Excel only.');
+
+    // The same file twice is nearly always the same person clicking twice, or two
+    // people saving the same NOFO. Hand back the copy that is already there.
+    const sha256 = crypto.createHash('sha256').update(content).digest('hex');
+    const already = await store.findFileHash(t.j, sha256);
+    if (already) return res.json({ ok: true, already: true, file: seeFile(req, already) });
+
+    let row = await store.addFile({
+      jurisdiction: t.j, record_id: t.r || null, label: t.l || '', filename: safeFilename(file.name),
+      mime, size_bytes: content.length, sha256, content, source_url: t.s || '', uploaded_by: t.a || 'unknown',
+    });
+    if (drive && driveFolderId) {
+      try {
+        const d = await drive.upload({ folderId: driveFolderId, filename: `${t.j} ${row.filename}`, mime, content });
+        await store.setFileDrive(row.id, { drive_file_id: d.id, drive_url: d.url });
+        row = { ...row, drive_file_id: d.id, drive_url: d.url };
+      } catch (err) {
+        console.warn(`[gk] drive mirror failed for ${t.j}/${row.filename}: ${err.message}`);
+      }
+    }
+    console.log(`[gk] file ${t.j}${t.r ? ` #${t.r}` : ''} ${row.filename} ${content.length}b by ${t.a}${row.drive_url ? ' → drive' : ''}`);
+    res.json({ ok: true, file: seeFile(req, row) });
+  }));
+
+  app.get('/api/grant-knowledge/files', team, guard(async (req, res) => {
+    const rows = await store.listFiles({
+      jurisdiction: req.query.jurisdiction ? validJurisdiction(req.query.jurisdiction) : null,
+      recordId: req.query.record_id ? Number(req.query.record_id) : null,
+      includeArchived: req.query.include_archived === '1',
+    });
+    res.json({ files: rows.map(f => seeFile(req, f)) });
+  }));
+
+  app.get('/api/grant-knowledge/files/:id', team, guard(async (req, res) => res.json(seeFile(req, await loadFile(req)))));
+
+  // No team gate: the ticket in the query string is the authority here, which is
+  // what lets a person open the file straight from this service.
+  app.get('/api/grant-knowledge/files/:id/content', guard(async (req, res) => {
+    const id = Number(req.params.id);
+    const t = tickets.read(req.query.t, now().getTime());
+    if (!t || t.p !== 'down' || t.f !== id) throw new HttpError(401, 'That download link has expired. Open the file from the page again.');
+    const f = await store.getFileContent(id);
+    if (!f || !f.content || f.archived_at) throw new HttpError(404, 'No such file');
+    res.set('Content-Type', f.mime);
+    res.set('Content-Disposition', contentDisposition(f.filename, { inline: INLINE_TYPES.has(f.mime) }));
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Content-Type-Options', 'nosniff');
+    // A PDF can carry script. Shown on this origin it would be script on this
+    // origin; sandboxed it is script on an origin of its own, which owns nothing.
+    res.set('Content-Security-Policy', 'sandbox');
+    // end(), not send(): send() decides for itself what a body is, and a driver
+    // that hands bytea back as anything but a Buffer would have it stringify the
+    // file and stamp a charset on a PDF.
+    res.end(Buffer.from(f.content));
+  }));
+
+  for (const action of ['archive', 'restore']) {
+    app.post(`/api/grant-knowledge/files/:id/${action}`, team, guard(async (req, res) => {
+      const f = await loadFile(req);
+      const archiving = action === 'archive';
+      if (Boolean(f.archived_at) === archiving) throw new HttpError(409, `Already ${archiving ? 'archived' : 'in view'}`);
+      const c = ctx(req);
+      const row = await store.setFileArchived(f.id, archiving ? now().toISOString() : null, archiving ? c.actor : '');
+      console.log(`[gk] file ${action} ${row.jurisdiction} ${row.filename} #${row.id} by ${c.actor}`);
+      res.json(seeFile(req, row));
+    }));
+  }
 }

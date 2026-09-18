@@ -22,6 +22,9 @@
  *      gates first, staged deadlines, the cycle state, and time zones at the edge.
  *   8. Search, needs-attention, overview (57 rows always), bulk verify.
  *   9. Who: X-Actor from a proxy key is the actor and the actor_kind is user.
+ *  10. Attachments: the ticket is what lets a file in and what says who sent it,
+ *      the bytes decide the type, a download link is per file and short lived,
+ *      and archiving puts a file out of reach.
  */
 
 import assert from 'node:assert/strict';
@@ -376,6 +379,204 @@ await check('a key that is not the proxy cannot name someone else; the state his
   const all = (await call('GET', `${G}/revisions?limit=5`)).data.revisions;
   assert.equal(all.length, 5);
   assert.equal(store._revisions.length, new Set(store._revisions.map(v => `${v.record_id}:${v.version_to}`)).size, 'one revision per version, no more');
+});
+
+// ── 10. Attachments ───────────────────────────────────────────────────────────
+//
+// The upload carries a ticket instead of the team key, so these also prove the
+// ticket is doing the gating: no ticket, a forged one or a spent one is refused,
+// and the name on the file is the one the gate resolved when the ticket was cut.
+
+const PDF_BYTES = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(200, 0x20)]);
+const PNG_BYTES = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 7)]);
+const DOCX_BYTES = Buffer.concat([
+  Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+  Buffer.from('....[Content_Types].xml application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+  Buffer.alloc(64, 0),
+]);
+const PLAIN_ZIP = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('....notes.txt hello')]);
+
+const ticketFor = async (body, headers = WEB) => call('POST', `${G}/files/ticket`, { headers, body });
+const allFiles = async () => (await call('GET', `${G}/files?include_archived=1`)).data.files;
+async function postFile(ticket, { name = 'fy26-nofo.pdf', bytes = PDF_BYTES } = {}) {
+  const form = new FormData();
+  form.set('file', new Blob([bytes]), name);
+  const r = await fetch(`${origin}${G}/files/upload`, { method: 'POST', headers: ticket ? { 'X-GK-Ticket': ticket } : {}, body: form });
+  const text = await r.text();
+  let data; try { data = JSON.parse(text); } catch { data = text; }
+  return { status: r.status, data };
+}
+
+let txNofo;
+
+await check('a ticket names the state and the person, and the upload it lets through is filed under that name', async () => {
+  const t = await ticketFor({ jurisdiction: 'tx', label: 'FY2026 state NOFO', source_url: 'https://tdem.texas.gov/nsgp' });
+  assert.equal(t.status, 200);
+  assert.match(t.data.upload_url, /\/api\/grant-knowledge\/files\/upload$/);
+  assert.equal(t.data.max_bytes, 25 * 1024 * 1024);
+
+  const up = await postFile(t.data.ticket);
+  assert.equal(up.status, 200, JSON.stringify(up.data));
+  txNofo = up.data.file;
+  assert.equal(txNofo.jurisdiction, 'TX');
+  assert.equal(txNofo.uploaded_by, 'Stuart', 'the name comes off the ticket, not the post');
+  assert.equal(txNofo.label, 'FY2026 state NOFO');
+  assert.equal(txNofo.type_name, 'PDF');
+  assert.equal(txNofo.size_bytes, PDF_BYTES.length);
+  assert.ok(txNofo.download_url.includes(`/files/${txNofo.id}/content?t=`));
+});
+
+await check('without a good ticket nothing is stored, and the team key alone is not one', async () => {
+  const before = (await allFiles()).length;
+  assert.equal((await postFile(null)).status, 401);
+  assert.equal((await postFile('not-a-ticket')).status, 401);
+  const real = (await ticketFor({ jurisdiction: 'TX' })).data.ticket;
+  const [body] = real.split('.');
+  assert.equal((await postFile(`${body}.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`)).status, 401, 'a payload with a made-up signature is not a ticket');
+  const keyed = await fetch(`${origin}${G}/files/upload`, { method: 'POST', headers: WEB, body: new FormData() });
+  assert.equal(keyed.status, 401);
+  assert.equal((await allFiles()).length, before);
+});
+
+await check('a ticket runs out, and the state on it is the state the file lands in', async () => {
+  const was = clock;
+  const t = (await ticketFor({ jurisdiction: 'LA' })).data.ticket;
+  clock = new Date(was.getTime() + 16 * 60 * 1000);
+  assert.equal((await postFile(t, { bytes: PNG_BYTES, name: 'portal.png' })).status, 401);
+  clock = was;
+  const good = await postFile(t, { bytes: PNG_BYTES, name: 'portal.png' });
+  assert.equal(good.status, 200);
+  assert.equal(good.data.file.jurisdiction, 'LA');
+});
+
+await check('the bytes decide the type: a renamed PDF is a PDF, and a plain zip is nothing we take', async () => {
+  const t = async () => (await ticketFor({ jurisdiction: 'TX' })).data.ticket;
+  const renamed = await postFile(await t(), { bytes: PDF_BYTES.subarray(0, 120), name: 'budget.xlsx' });
+  assert.equal(renamed.data.file.mime, 'application/pdf');
+
+  const word = await postFile(await t(), { bytes: DOCX_BYTES, name: 'saa-checklist.docx' });
+  assert.equal(word.data.file.type_name, 'Word');
+
+  const zip = await postFile(await t(), { bytes: PLAIN_ZIP, name: 'notes.zip' });
+  assert.equal(zip.status, 400);
+  assert.match(zip.data.error, /PDF, JPG, PNG, Word or Excel/);
+
+  const empty = await postFile(await t(), { bytes: Buffer.alloc(0), name: 'nothing.pdf' });
+  assert.equal(empty.status, 400);
+});
+
+await check('the same file twice is the same file, not two', async () => {
+  const before = (await allFiles()).length;
+  const t = (await ticketFor({ jurisdiction: 'TX' }, BRAD)).data.ticket;
+  const again = await postFile(t);
+  assert.equal(again.data.already, true);
+  assert.equal(again.data.file.id, txNofo.id);
+  assert.equal(again.data.file.uploaded_by, 'Stuart', 'still the first person who sent it');
+  assert.equal((await allFiles()).length, before);
+});
+
+await check('a ticket can only name a record of its own state', async () => {
+  const doc = (await call('GET', `${G}/jurisdictions/TX`)).data;
+  const program = doc.programs[0];
+  const ok = await ticketFor({ jurisdiction: 'TX', record_id: program.id });
+  assert.equal(ok.status, 200);
+  const wrong = await ticketFor({ jurisdiction: 'LA', record_id: program.id });
+  assert.equal(wrong.status, 400);
+  assert.match(wrong.data.error, /record that is in LA/);
+
+  const up = await postFile(ok.data.ticket, { bytes: PNG_BYTES, name: 'ij-form.png' });
+  assert.equal(up.data.file.record_id, program.id);
+  const onRecord = await call('GET', `${G}/files?jurisdiction=TX&record_id=${program.id}`);
+  assert.deepEqual(onRecord.data.files.map(f => f.filename), ['ij-form.png']);
+});
+
+await check('a download link opens the file, only that file, and only while it lasts', async () => {
+  const fresh = (await call('GET', `${G}/files/${txNofo.id}`)).data;
+  const r = await fetch(fresh.download_url);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('content-type'), 'application/pdf');
+  assert.match(r.headers.get('content-disposition'), /^inline; filename="fy26-nofo.pdf"/);
+  assert.equal(r.headers.get('content-security-policy'), 'sandbox');
+  assert.equal(Buffer.from(await r.arrayBuffer()).length, PDF_BYTES.length);
+
+  const other = (await allFiles()).find(f => f.id !== txNofo.id);
+  const swapped = fresh.download_url.replace(`/files/${txNofo.id}/`, `/files/${other.id}/`);
+  assert.equal((await fetch(swapped)).status, 401, 'a link to one file is not a link to another');
+  assert.equal((await fetch(fresh.download_url.replace(/t=[^&]+$/, 't=nonsense'))).status, 401);
+
+  const was = clock;
+  clock = new Date(was.getTime() + 11 * 60 * 1000);
+  assert.equal((await fetch(fresh.download_url)).status, 401);
+  clock = was;
+});
+
+await check('the state page carries its files, and archiving takes one out of view and out of reach', async () => {
+  const doc = (await call('GET', `${G}/jurisdictions/TX`)).data;
+  assert.ok(doc.files.some(f => f.id === txNofo.id));
+  const md = await fetch(`${origin}${G}/jurisdictions/TX?format=markdown`, { headers: WEB }).then(r => r.text());
+  assert.match(md, /## Files/);
+  assert.match(md, /FY2026 state NOFO \(fy26-nofo\.pdf\)/);
+
+  const link = (await call('GET', `${G}/files/${txNofo.id}`)).data.download_url;
+  const gone = await call('POST', `${G}/files/${txNofo.id}/archive`, { headers: BRAD, body: {} });
+  assert.equal(gone.status, 200);
+  assert.equal(gone.data.archived_by, 'Brad');
+  assert.equal(gone.data.download_url, null);
+  assert.equal((await fetch(link)).status, 404, 'an archived file is not served, even on a link cut beforehand');
+  assert.equal((await call('POST', `${G}/files/${txNofo.id}/archive`, { body: {} })).status, 409);
+
+  const after = (await call('GET', `${G}/jurisdictions/TX`)).data;
+  assert.ok(!after.files.some(f => f.id === txNofo.id));
+  assert.ok((await call('GET', `${G}/files?jurisdiction=TX&include_archived=1`)).data.files.some(f => f.id === txNofo.id));
+
+  assert.equal((await call('POST', `${G}/files/${txNofo.id}/restore`, { body: {} })).status, 200);
+  assert.ok((await call('GET', `${G}/jurisdictions/TX`)).data.files.some(f => f.id === txNofo.id));
+});
+
+await check('the upload route answers CORS for the tab and for nowhere else', async () => {
+  const ask = from => fetch(`${origin}${G}/files/upload`, { method: 'OPTIONS', headers: { Origin: from, 'Access-Control-Request-Method': 'POST' } });
+  const good = await ask('https://npsa-tools.vercel.app');
+  assert.equal(good.status, 204);
+  assert.equal(good.headers.get('access-control-allow-origin'), 'https://npsa-tools.vercel.app');
+  assert.match(good.headers.get('access-control-allow-headers'), /X-GK-Ticket/);
+  const nope = await ask('https://npsa-tools.vercel.app.evil.test');
+  assert.equal(nope.status, 403);
+  assert.equal(nope.headers.get('access-control-allow-origin'), null);
+});
+
+await check('with a mirror configured the file also lands in Drive, and a Drive failure still keeps the file', async () => {
+  const seen = [];
+  const mirrored = express();
+  mirrored.use(express.json());
+  registerGrantKnowledge(mirrored, {
+    store: createMemoryKnowledgeStore({ now }), internalKey: INTERNAL, now, driveFolderId: 'folder-1',
+    drive: { upload: async u => { seen.push(u); if (u.filename.includes('boom')) throw new Error('Drive said no'); return { id: 'd1', url: 'https://drive.google.com/file/d/d1/view' }; } },
+  });
+  const s2 = await new Promise(resolve => { const s = mirrored.listen(0, () => resolve(s)); });
+  const base = `http://127.0.0.1:${s2.address().port}`;
+  const mint = async () => (await fetch(`${base}${G}/files/ticket`, { method: 'POST', headers: { ...WEB, 'Content-Type': 'application/json' }, body: JSON.stringify({ jurisdiction: 'NJ' }) })).json();
+  const send = async (name, bytes) => {
+    const form = new FormData(); form.set('file', new Blob([bytes]), name);
+    return (await fetch(`${base}${G}/files/upload`, { method: 'POST', headers: { 'X-GK-Ticket': (await mint()).ticket }, body: form })).json();
+  };
+  const ok = await send('fy26.pdf', PDF_BYTES);
+  assert.equal(ok.file.drive_url, 'https://drive.google.com/file/d/d1/view');
+  assert.equal(seen[0].folderId, 'folder-1');
+  assert.equal(seen[0].filename, 'NJ fy26.pdf', 'the state is in the Drive name, since one folder holds them all');
+
+  const failed = await send('boom.png', PNG_BYTES);
+  assert.equal(failed.file.drive_url, '');
+  assert.equal(failed.file.size_bytes, PNG_BYTES.length, 'the copy here stands');
+  s2.close();
+});
+
+await check('the brief does not say an SAA acronym twice when the name already carries it', async () => {
+  await create({ jurisdiction: 'KY', kind: 'jurisdiction', data: { saa: 'Kentucky Office of Homeland Security (KOHS)', saa_short: 'KOHS' } });
+  const ky = await fetch(`${origin}${G}/jurisdictions/KY?format=markdown`, { headers: WEB }).then(r => r.text());
+  assert.match(ky, /\*\*SAA:\*\* Kentucky Office of Homeland Security \(KOHS\)/);
+  assert.ok(!ky.includes('(KOHS) (KOHS)'));
+  const tx = await fetch(`${origin}${G}/jurisdictions/TX?format=markdown`, { headers: WEB }).then(r => r.text());
+  assert.match(tx, /\*\*SAA:\*\* .+ \(OOG PSO\)/, 'a short name that is not in the full name still shows');
 });
 
 server.close();
