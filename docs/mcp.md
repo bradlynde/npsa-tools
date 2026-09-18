@@ -140,7 +140,7 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `reps_list` | Sales reps |
 | `letter_template_get` | Template definition for a document type |
 | `nsgp_deadlines_list` | Curated NSGP deadlines, by state, upcoming only |
-| `nsgp_state_reference` | SAA, state-funded programs, last verified, per state |
+| `nsgp_state_reference` | SAA, state-funded programs, last verified, per state. Reads the grant knowledge base once it is loaded (`source: knowledge-base`), the extracted files until then. Superseded by `gk_*` |
 | `precall_bookings_list` | Upcoming Calendly consultations with pre-call facts |
 | `precall_booking_get` | One booking by event URI |
 | `marketing_overview` | Stats, funnel, application stats, Salesforce sync status |
@@ -156,6 +156,13 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `intake_answers` | A client's intake answers in form order, filterable by section |
 | `intake_status` | Per-section counts, the 24 checklist tasks, submission stamp, uploads |
 | `intake_uploads_list` | A client's uploaded files with Drive link and team download path |
+| `gk_overview` | Every jurisdiction (57): SAA, programs, cycle state, next deadline, how much is verified |
+| `gk_state_get` | One jurisdiction in full, structured, with the id and version of every record |
+| `gk_state_brief` | One jurisdiction as a markdown brief; replaces the Drive `states/XX.md` |
+| `gk_requirements` | The submission checklist: federal baseline merged with state-added, owner, lead time, hard gates |
+| `gk_search` | Search every record in every jurisdiction |
+| `gk_needs_attention` | Unverified, stale, deadlines soon, open questions, holes |
+| `gk_revisions` | Who changed what, for a record, a jurisdiction, or everything |
 
 ### Write tools
 
@@ -179,6 +186,10 @@ until keys map to people.
 | `client_update` | Fields, phase, status and contacts on a client |
 | `intake_seed` | Writes intake answers; an unknown key fails the whole call by name |
 | `client_token_rotate` | Re-issues the intake link (destructive: the old one dies) |
+| `gk_record_upsert` | Adds or changes any kind of knowledge record; lands unverified; needs a source or a stated reason; version-checked |
+| `gk_mark_verified` | Marks a record verified in the user's name (or takes it back). Never on Claude's own research |
+| `gk_record_archive` | Takes a record out of view, or restores it. Nothing is deleted |
+| `gk_revert` | Puts a record back to before one revision, as a new revision |
 
 Not exposed on purpose: creating or deleting letters (the generator owns the form
 data shape), the ingest and reconcile endpoints (those belong to the Zaps), and the
@@ -195,9 +206,9 @@ Calendly backfill.
   handlers; a second copy here would drift from the dashboard. Going through the
   route means the number Claude reads is the number on the screen, and a write
   lands the way the UI's own button would land it (the booking PATCH re-enriches,
-  the deadline PUT marks the row manual). The two exceptions are
-  `nsgp_state_reference` (static data, imported directly) and `precall_booking_get`
-  (no route exists; it calls `getBooking`). The grant-client routes are keyed; the
+  the deadline PUT marks the row manual). The one exception is `precall_booking_get`
+  (no route exists; it calls `getBooking`); `nsgp_state_reference` goes over loopback to
+  the knowledge base and falls back to the imported files only while that is empty. The grant-client routes are keyed; the
   loopback calls present the key the process minted at boot (`X-Internal-Key`) and the
   caller's fingerprint (`X-Actor`), so the route's log line names the same person the
   MCP audit line does. See [grant-clients.md](grant-clients.md).

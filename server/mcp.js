@@ -38,15 +38,21 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { getBooking } from './precall-bookings.js';
+import { KINDS, SCHEMAS, NOTE_CATEGORIES } from './grant-knowledge-kinds.js';
 
 export const MCP_PATH = '/mcp';
-const SERVER_INFO = { name: 'npsa-tools', version: '1.3.1' };
+const SERVER_INFO = { name: 'npsa-tools', version: '1.4.0' };
 
 const INSTRUCTIONS = `NPSA Sales Toolbox: Nonprofit Security Advisors' internal data.
 Areas: engagement letters and proposals (letters_*), sales reps (rep*), NSGP grant deadlines by
 state (nsgp_*), upcoming Calendly consultation bookings (precall_*), and the marketing dashboard
-figures (marketing_*), and in-house NSGP grant-writing clients with their intake forms (clients_*,
-client_*, intake_*). Tools whose description begins with WRITE change data; confirm the exact
+figures (marketing_*), in-house NSGP grant-writing clients with their intake forms (clients_*,
+client_*, intake_*), and the grant knowledge base (gk_*): per state, DC, territory and "US", who runs
+NSGP and the state-funded programs, what a submission requires, past and coming deadlines and funding,
+contacts, and gotchas. Prefer gk_* over nsgp_* for anything about a state. Every gk record says whether
+a person has verified it; say so when you quote one that is unverified or stale. What you write to the
+knowledge base lands unverified and must carry a source_url (or a reason saying the user told you from
+their own experience); never mark your own research verified. Tools whose description begins with WRITE change data; confirm the exact
 change with the user before calling one. Before seeding intake answers, look the keys up with
 intake_questions; a seed naming a key that is not in the catalog is refused. Dollar figures are USD. Dates are ISO (YYYY-MM-DD)
 unless a field says otherwise. State codes are two-letter USPS abbreviations.`;
@@ -314,18 +320,23 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     },
     annotations: READ,
   }, tool(async ({ state }) => {
+    // The knowledge base once it has been loaded; the extracted files until then.
+    let ref = STATE_REFERENCE;
+    try { const kb = await api('/grant-knowledge/reference'); if (Object.keys(kb.states || {}).length) ref = kb; } catch { /* no store, or not deployed yet */ }
+    const more = ref.source === 'knowledge-base' ? { source: 'knowledge-base', more: 'gk_state_get / gk_requirements / gk_state_brief have the full picture' } : { source: 'files' };
     const st = normState(state);
     if (st) {
-      const entry = STATE_REFERENCE.states[st];
-      if (!entry) return { state: st, covered: false, not_covered: STATE_REFERENCE.notCovered };
-      return { state: st, covered: true, checked_on: STATE_REFERENCE.checkedOn, ...entry };
+      const entry = ref.states[st];
+      if (!entry) return { state: st, covered: false, not_covered: ref.notCovered, ...more };
+      return { state: st, covered: true, checked_on: ref.checkedOn, ...entry, ...more };
     }
     return {
-      checked_on: STATE_REFERENCE.checkedOn,
-      not_covered: STATE_REFERENCE.notCovered,
+      checked_on: ref.checkedOn,
+      not_covered: ref.notCovered,
       states: Object.fromEntries(
-        Object.entries(STATE_REFERENCE.states).map(([k, v]) => [k, { saa: v.saaShort || v.saa, programs: v.programs.length }]),
+        Object.entries(ref.states).map(([k, v]) => [k, { saa: v.saaShort || v.saa, programs: v.programs.length }]),
       ),
+      ...more,
     };
   }));
 
@@ -356,6 +367,185 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
       inputSchema: { id: z.number().int() },
       annotations: DESTRUCTIVE,
     }, write('nsgp_deadline_delete', async ({ id }) => api(`/precall/deadlines/${id}`, { method: 'DELETE' })));
+  }
+
+  // ── Grant knowledge ───────────────────────────────────────────────────────
+  //
+  // Seven reads and four writes over /api/grant-knowledge. One upsert covers every
+  // kind of record rather than a tool per kind: the server validates by kind either
+  // way, and twenty near-identical tools would crowd out the rest of the list.
+
+  const GK = '/grant-knowledge';
+  const gkState = z.string().min(2).max(2).describe('USPS state code, DC, a territory (PR GU VI AS MP), or US for the federal program');
+  const fieldsOf = k => Object.keys((SCHEMAS[k]._def.schema || SCHEMAS[k]).shape).filter(f => !['extra', 'field_notes'].includes(f)).join(', ');
+  // What Claude needs of a record: its id and version to write back, its trust, its facts.
+  const slim = r => (r && typeof r === 'object' && 'version' in r && 'data' in r ? {
+    id: r.id, kind: r.kind, key: r.key, version: r.version, status: r.effective_status, ...(r.unverified_fields?.length ? { unverified_fields: r.unverified_fields } : {}),
+    ...(r.source_url ? { source_url: r.source_url } : {}), ...(r.baseline ? { baseline: r.baseline } : {}), ...(r.inherited_from ? { inherited_from: r.inherited_from } : {}),
+    updated: `${r.updated_by} ${String(r.updated_at).slice(0, 10)}`, data: r.data,
+    ...Object.fromEntries(['requirements', 'inherited_requirements', 'cycles', 'deadlines', 'contacts', 'notes', 'sources'].filter(f => Array.isArray(r[f])).map(f => [f, r[f].map(slim)])),
+  } : r);
+
+  server.registerTool('gk_overview', {
+    title: 'Grant knowledge: every jurisdiction',
+    description: 'One row per jurisdiction (always 57): SAA, programs with their status, whether there is an active state-funded program, where the cycle stands (open, soon, closed, unknown), the next deadline, and how much of the record is verified. Start here for "which states…" questions.',
+    inputSchema: {
+      cycle_state: z.enum(['open', 'soon', 'closed', 'unknown']).optional().describe('Only jurisdictions in this state'),
+      has_state_program: z.boolean().optional().describe('Only jurisdictions with (or without) an active state-funded program'),
+    },
+    annotations: READ,
+  }, tool(async ({ cycle_state, has_state_program }) => {
+    let rows = (await api(`${GK}/overview`)).jurisdictions;
+    if (cycle_state) rows = rows.filter(r => r.cycle_state === cycle_state);
+    if (has_state_program !== undefined) rows = rows.filter(r => r.has_state_program === has_state_program);
+    return { count: rows.length, jurisdictions: rows };
+  }));
+
+  server.registerTool('gk_state_get', {
+    title: 'Grant knowledge: one jurisdiction, in full',
+    description: 'Everything recorded for one jurisdiction, structured: the SAA record, each program with its own and inherited requirements, cycles and staged deadlines (date, time, zone), contacts, notes (gotchas, eligibility, scoring, prohibited costs, history, open questions) and sources. Every record carries id and version (needed to write back) and status: verified, unverified or stale. Use sections to keep the answer small. For prose to read or quote, use gk_state_brief.',
+    inputSchema: {
+      state: gkState,
+      sections: z.array(z.enum(['programs', 'contacts', 'notes', 'sources'])).optional().describe('Default: all four'),
+      program: z.string().optional().describe('Only this program, e.g. "NSGP-S" or "SCAHC"'),
+    },
+    annotations: READ,
+  }, tool(async ({ state, sections, program }) => {
+    const doc = await api(`${GK}/jurisdictions/${normState(state)}`);
+    const want = new Set(sections?.length ? sections : ['programs', 'contacts', 'notes', 'sources']);
+    const programs = doc.programs.filter(p => !program || p.key.toLowerCase() === program.toLowerCase());
+    return {
+      code: doc.code, name: doc.name, cycle_state: doc.cycle_state, next_deadline: doc.next_deadline, freshness: doc.freshness, open_questions: doc.open_questions,
+      jurisdiction: slim(doc.jurisdiction),
+      ...(want.has('programs') ? { programs: programs.map(slim) } : { programs: doc.programs.map(p => ({ id: p.id, key: p.key, name: p.data.name })) }),
+      ...(want.has('contacts') ? { contacts: doc.contacts.map(slim) } : {}),
+      ...(want.has('notes') ? { notes: doc.notes.map(slim) } : {}),
+      ...(want.has('sources') ? { sources: doc.sources.map(slim) } : {}),
+    };
+  }));
+
+  server.registerTool('gk_state_brief', {
+    title: 'Grant knowledge: state brief',
+    description: 'One jurisdiction as a markdown brief, the way a grant writer reads it: what ends an application first, then each program (caps, submission, registration and document checklists with hard gates, cycles and deadlines), contacts, gotchas and other notes, sources. Unverified and stale facts are marked inline. This replaces the Drive states/XX.md files.',
+    inputSchema: { state: gkState },
+    annotations: READ,
+  }, async ({ state }) => {
+    try { return { content: [{ type: 'text', text: await api(`${GK}/jurisdictions/${normState(state)}?format=markdown`) }] }; }
+    catch (err) { return fail(err?.message || String(err)); }
+  });
+
+  server.registerTool('gk_requirements', {
+    title: 'Grant knowledge: submission checklist',
+    description: 'What a submission needs in one jurisdiction, per program: registration steps and required documents, the federal baseline merged with what the state adds, hard gates and long lead times first. Each line says who owns it (client or npsa), lead_time_days, hard_gate, format, phase, and whether it is verified. This is what a kickoff builds its Asana tasks and client checklist from.',
+    inputSchema: { state: gkState, program: z.string().optional().describe('e.g. "NSGP-S"; default every program') },
+    annotations: READ,
+  }, tool(async ({ state, program }) => api(`${GK}/jurisdictions/${normState(state)}/requirements${program ? `?program=${encodeURIComponent(program)}` : ''}`)));
+
+  server.registerTool('gk_search', {
+    title: 'Grant knowledge: search',
+    description: 'Search every record in every jurisdiction; all terms must match. Returns the jurisdiction, kind, record id, title and a snippet. Narrow with state or kinds.',
+    inputSchema: {
+      query: z.string().min(2),
+      state: gkState.optional(),
+      kinds: z.array(z.enum(KINDS)).optional(),
+    },
+    annotations: READ,
+  }, tool(async ({ query, state, kinds }) => {
+    const qs = new URLSearchParams({ q: query });
+    if (state) qs.set('state', normState(state));
+    if (kinds?.length) qs.set('kinds', kinds.join(','));
+    return api(`${GK}/search?${qs}`);
+  }));
+
+  server.registerTool('gk_needs_attention', {
+    title: 'Grant knowledge: what needs a person',
+    description: 'The work queue: records nobody has verified (and verified records with fields changed since), stale verifications, deadlines inside the window, open questions, and holes (a jurisdiction with no contact, an active program with no cycle). Use it to pick what to research or confirm next.',
+    inputSchema: { state: gkState.optional(), days: z.number().int().min(1).max(365).optional().describe('Deadline window in days (default 45)') },
+    annotations: READ,
+  }, tool(async ({ state, days }) => {
+    const qs = new URLSearchParams();
+    if (state) qs.set('state', normState(state));
+    if (days) qs.set('days', String(days));
+    return api(`${GK}/needs-attention?${qs}`);
+  }));
+
+  server.registerTool('gk_revisions', {
+    title: 'Grant knowledge: change history',
+    description: 'Who changed what, newest first: for one record, one jurisdiction, or everything. Each revision has the action, the actor and how they came in (user = toolbox, mcp = through Claude, import), the fields that changed, before and after, and the reason given. A revision id is what gk_revert takes.',
+    inputSchema: { record_id: z.number().int().optional(), state: gkState.optional(), limit: z.number().int().min(1).max(200).optional() },
+    annotations: READ,
+  }, tool(async ({ record_id, state, limit }) => {
+    const qs = limit ? `?limit=${limit}` : '';
+    if (record_id) return api(`${GK}/records/${record_id}/revisions`);
+    return api(state ? `${GK}/jurisdictions/${normState(state)}/revisions${qs}` : `${GK}/revisions${qs}`);
+  }));
+
+  if (canWrite) {
+    server.registerTool('gk_record_upsert', {
+      title: 'Grant knowledge: add or change a record',
+      description: `WRITE. Confirm with the user before calling. Adds a record to a jurisdiction, or changes the one already there with the same key. The record lands UNVERIFIED (on a verified record, only the fields you change are flagged) until a person verifies it. Give source_url, the page the fact came from; without one, give a reason saying the user stated this from their own experience. To change an existing record pass its version (from gk_state_get); if someone edited it since, the call fails and says so: read it again. In data, null clears a field, and a field not listed for the kind is refused by name (facts with no field go in data.extra). Where a record hangs: program, contact, note, source under the jurisdiction (contact, note, source may name a program); requirement and cycle under a program; deadline under a program's cycle. Fields by kind. jurisdiction: ${fieldsOf('jurisdiction')}. program: ${fieldsOf('program')}. requirement: ${fieldsOf('requirement')}. cycle: ${fieldsOf('cycle')}. deadline: ${fieldsOf('deadline')}. contact: ${fieldsOf('contact')}. note (category one of ${NOTE_CATEGORIES.join(', ')}; severity info, caution, critical, auto_disqualifier): ${fieldsOf('note')}. source: ${fieldsOf('source')}.`,
+      inputSchema: {
+        state: gkState,
+        kind: z.enum(KINDS),
+        program: z.string().optional().describe('Program key the record hangs under, e.g. "NSGP-S". Required for requirement, cycle, deadline; optional for contact, note, source'),
+        cycle: z.string().optional().describe('Cycle key, e.g. "2027". Required for a deadline'),
+        key: z.string().optional().describe('The record\'s key within its parent. Required for a program (e.g. "SCAHC"); derived from the label or title when omitted'),
+        data: z.record(z.any()).describe('The fields to set, per the kind'),
+        version: z.number().int().optional().describe('Required when the record already exists'),
+        source_url: z.string().url().optional(),
+        reason: z.string().max(1000).optional().describe('Why, in a sentence. Shown in the history'),
+        origin: z.enum(['mcp', 'research']).optional().describe('"research" when you found this yourself on the web; default "mcp"'),
+      },
+      annotations: WRITE,
+    }, write('gk_record_upsert', async ({ state, kind, program, cycle, key, data, version, source_url, reason, origin }) => {
+      const code = normState(state);
+      const doc = await api(`${GK}/jurisdictions/${code}`);
+      let parent = null;
+      if (['requirement', 'cycle', 'deadline'].includes(kind) && !program) throw new Error(`A ${kind} hangs under a program: pass program. ${code} has: ${doc.programs.map(p => p.key).join(', ') || 'none'}`);
+      if (program && kind !== 'program' && kind !== 'jurisdiction') {
+        parent = doc.programs.find(p => p.key.toLowerCase() === program.toLowerCase());
+        if (!parent) throw new Error(`${code} has no program "${program}". It has: ${doc.programs.map(p => p.key).join(', ') || 'none'}`);
+        if (kind === 'deadline') {
+          if (!cycle) throw new Error(`A deadline hangs under a cycle: pass cycle. ${parent.key} has: ${parent.cycles.map(c => c.key).join(', ') || 'none (add the cycle first)'}`);
+          const c = parent.cycles.find(x => x.key === String(cycle));
+          if (!c) throw new Error(`${parent.key} has no cycle "${cycle}". It has: ${parent.cycles.map(x => x.key).join(', ') || 'none (add the cycle first)'}`);
+          parent = c;
+        }
+      }
+      const pool = kind === 'jurisdiction' ? [doc.jurisdiction].filter(Boolean)
+        : kind === 'program' ? doc.programs
+        : kind === 'deadline' ? parent.deadlines
+        : kind === 'requirement' ? parent.requirements
+        : kind === 'cycle' ? parent.cycles
+        : (parent ? parent[`${kind}s`] : doc[`${kind}s`]);
+      const existing = kind === 'jurisdiction' ? pool[0] : (key ? pool.find(r => r.key.toLowerCase() === String(key).toLowerCase()) : null);
+      if (existing) {
+        if (version === undefined) throw new Error(`${kind} "${existing.key}" already exists at version ${existing.version}. Pass version: ${existing.version} to change it. Current data: ${JSON.stringify(existing.data)}`);
+        return slim(await api(`${GK}/records/${existing.id}`, { method: 'PATCH', body: { version, data, source_url, reason } }));
+      }
+      return slim(await api(`${GK}/records`, { method: 'POST', body: { jurisdiction: code, kind, parent_id: parent?.id, key, data, source_url, reason, origin } }));
+    }));
+
+    server.registerTool('gk_mark_verified', {
+      title: 'Grant knowledge: mark verified',
+      description: 'WRITE. Confirm with the user before calling. Marks one record verified in the user\'s name. Only when the user has confirmed the fact themselves (they checked the source, or know it first-hand), never on the strength of your own research. Pass verified: false to take a verification back.',
+      inputSchema: { record_id: z.number().int(), version: z.number().int(), verified: z.boolean().optional().describe('Default true'), reason: z.string().max(1000).optional() },
+      annotations: WRITE,
+    }, write('gk_mark_verified', async ({ record_id, version, verified, reason }) => slim(await api(`${GK}/records/${record_id}/${verified === false ? 'unverify' : 'verify'}`, { method: 'POST', body: { version, reason } }))));
+
+    server.registerTool('gk_record_archive', {
+      title: 'Grant knowledge: archive or restore a record',
+      description: 'WRITE. Confirm with the user before calling, naming the record. Takes a record (and everything hanging under it) out of view, or with restore: true brings it back. Nothing is deleted and the history keeps it.',
+      inputSchema: { record_id: z.number().int(), version: z.number().int(), restore: z.boolean().optional(), reason: z.string().max(1000).optional() },
+      annotations: WRITE,
+    }, write('gk_record_archive', async ({ record_id, version, restore, reason }) => slim(await api(`${GK}/records/${record_id}/${restore ? 'restore' : 'archive'}`, { method: 'POST', body: { version, reason } }))));
+
+    server.registerTool('gk_revert', {
+      title: 'Grant knowledge: revert a change',
+      description: 'WRITE. Confirm with the user before calling, saying what will be undone. Puts a record back to how it was before one revision (from gk_revisions). The revert is itself a revision, so it can be undone. version is the record\'s current version.',
+      inputSchema: { revision_id: z.number().int(), version: z.number().int(), reason: z.string().max(1000).optional() },
+      annotations: WRITE,
+    }, write('gk_revert', async ({ revision_id, version, reason }) => slim(await api(`${GK}/revisions/${revision_id}/revert`, { method: 'POST', body: { version, reason } }))));
   }
 
   // ── Pre-call bookings ─────────────────────────────────────────────────────
