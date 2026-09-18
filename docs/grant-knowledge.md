@@ -129,8 +129,10 @@ serverless response either.
 The file's own first bytes decide its type: PDF, PNG, JPG, and Word or Excel, the last
 two recognised by the package manifest inside rather than by the extension. Anything
 else is refused. The same bytes posted twice hand back the file that is already there.
-Content is served with `Content-Security-Policy: sandbox`, so a PDF that carries script
-runs it on an origin of its own.
+Content goes out with `nosniff`, which together with those five types is what keeps this
+origin safe: none of them is a document the browser will run. A `sandbox` CSP would be
+the belt and braces, but it also stops Chrome's PDF viewer, which turns opening a NOFO
+into a file to save.
 
 | Variable | |
 | :-- | :-- |

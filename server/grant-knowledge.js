@@ -1263,10 +1263,16 @@ export function registerGrantKnowledge(app, {
     res.set('Content-Type', f.mime);
     res.set('Content-Disposition', contentDisposition(f.filename, { inline: INLINE_TYPES.has(f.mime) }));
     res.set('Cache-Control', 'private, no-store');
+    // nosniff is what keeps this origin safe, together with the five types the
+    // upload accepts on the evidence of their own first bytes: none of them is a
+    // document the browser will run, and nosniff stops it deciding otherwise.
+    //
+    // No `sandbox` CSP, deliberately. It would be the belt and braces, but a
+    // fully sandboxed response is an opaque origin and a browser's built-in PDF
+    // viewer will not run there, so opening a NOFO becomes a file to save. The
+    // thing sandbox would guard against is script in the file reaching this
+    // origin, and none of these five types gives it a way to.
     res.set('X-Content-Type-Options', 'nosniff');
-    // A PDF can carry script. Shown on this origin it would be script on this
-    // origin; sandboxed it is script on an origin of its own, which owns nothing.
-    res.set('Content-Security-Policy', 'sandbox');
     // end(), not send(): send() decides for itself what a body is, and a driver
     // that hands bytea back as anything but a Buffer would have it stringify the
     // file and stamp a charset on a PDF.
