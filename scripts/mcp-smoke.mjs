@@ -38,7 +38,7 @@ const READ_TOOLS = [
   'marketing_overview', 'marketing_by_campaign', 'marketing_by_channel', 'marketing_timeseries',
   'marketing_bookings', 'marketing_untracked_wins', 'marketing_revenue_quality',
   'clients_list', 'client_get', 'intake_questions', 'intake_answers', 'intake_status', 'intake_uploads_list',
-  'gk_overview', 'gk_state_get', 'gk_state_brief', 'gk_requirements', 'gk_search', 'gk_needs_attention', 'gk_revisions',
+  'gk_overview', 'gk_state_get', 'gk_state_brief', 'gk_requirements', 'gk_search', 'gk_needs_attention', 'gk_files_list', 'gk_revisions',
 ];
 const WRITE_TOOLS = [
   'letter_update', 'rep_add', 'rep_remove',
@@ -474,6 +474,11 @@ await check('the gk reads: overview filters, state_get sections, the brief, the 
   assert.equal(a.counts.deadlines_soon, 1); assert.ok(a.counts.unverified >= 5);
   const h = text(await gk('gk_revisions', { state: 'TX', limit: 3 }));
   assert.equal(h.revisions.length, 3); assert.equal(h.revisions[0].action, 'update');
+  // Files are put there from the toolbox, so a state with none reads as none, and
+  // what does come back never carries a download link only a browser could use.
+  const f = text(await gk('gk_files_list', { state: 'TX' }));
+  assert.deepEqual(f.files, []);
+  assert.ok(!JSON.stringify(f).includes('download_url'));
 });
 await check('verify, archive, restore and revert go through, each as a revision', async () => {
   const p = text(await gk('gk_state_get', { state: 'TX', sections: ['programs'] })).programs[0];

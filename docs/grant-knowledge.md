@@ -101,9 +101,44 @@ forwards; removal is archive, and archive is reversible.
 | `POST /records/:id/verify` `unverify` `archive` `restore` | `{ version }` |
 | `POST /jurisdictions/:code/verify-bulk` | `{ ids: [{ id, version }] }`, reported per record |
 | `POST /revisions/:id/revert` | `{ version }`; puts the record back to before that revision, as a new revision. Reverting a create archives |
+| `POST /files/ticket` | `{ jurisdiction, record_id?, label?, source_url? }` -> a signed ticket and the address to post to |
+| `POST /files/upload` | multipart, `X-GK-Ticket` instead of the team key. Not on the toolbox proxy |
+| `GET /files?jurisdiction=&record_id=&include_archived=` | what is attached, newest first, each with a download link |
+| `GET /files/:id` | one file; `GET /files/:id/content?t=` serves the bytes on a download ticket |
+| `POST /files/:id/archive` `restore` | no body |
 
 | `POST /import` | `{ records, dry_run? }`, a bundle. Not on the toolbox proxy |
 | `GET /export` | the same bundle format, from what is stored. Not on the toolbox proxy |
+
+## Attachments
+
+A NOFO, an SAA's own checklist, a screenshot of the step in the portal nobody can find:
+`gk_files` holds them, hung on a jurisdiction and optionally on one record. Postgres
+keeps the bytes; with `GK_DRIVE_FOLDER_ID` set, each one is also pushed to that Drive
+folder, best effort, named `<CODE> <filename>` since one folder holds them all.
+
+They do not travel through the Vercel passthrough, whose functions stop at 4.5 MB.
+The browser asks `POST /files/ticket` through the proxy and gets back a short-lived
+signed ticket naming the jurisdiction, the record and the person who asked, plus the
+address to post to. It then posts the file straight here with the ticket in
+`X-GK-Ticket`. So the team key never reaches the browser, and `uploaded_by` is the name
+the gate resolved when the ticket was cut, not one the page could type. Downloads work
+the same way in reverse (`?t=`), so a 20 MB PDF does not have to fit back through a
+serverless response either.
+
+The file's own first bytes decide its type: PDF, PNG, JPG, and Word or Excel, the last
+two recognised by the package manifest inside rather than by the extension. Anything
+else is refused. The same bytes posted twice hand back the file that is already there.
+Content goes out with `nosniff`, which together with those five types is what keeps this
+origin safe: none of them is a document the browser will run. A `sandbox` CSP would be
+the belt and braces, but it also stops Chrome's PDF viewer, which turns opening a NOFO
+into a file to save.
+
+| Variable | |
+| :-- | :-- |
+| `GK_DRIVE_FOLDER_ID` | Drive folder for the mirror. Unset means Postgres only |
+| `GK_APP_ORIGINS` | origins the upload route answers CORS for. Defaults to the production tab plus localhost; add a preview deployment's hostname here |
+| `GK_UPLOAD_BASE` | this service's public address, when it should not be taken from the request |
 
 A deadline's instant is its date and time in its own zone (the jurisdiction's
 `default_tz` when the deadline names none; end of day when it names no time), so "open"
@@ -111,7 +146,7 @@ and "in 3 days" are right at the edges: 4:00 PM in Baton Rouge is still ahead at
 
 ## Through Claude
 
-Seven read tools and four write tools on the MCP (`gk_*`, listed in [mcp.md](mcp.md)).
+Eight read tools and four write tools on the MCP (`gk_*`, listed in [mcp.md](mcp.md)).
 One upsert covers every kind: it finds the parent by key (`program`, then `cycle` for a
 deadline), creates the record or, given the current `version`, changes it. Its description
 carries the field list for each kind, generated from the schemas, so it cannot drift from
@@ -120,6 +155,11 @@ with what ends an application first and every unverified fact marked inline.
 
 `GET /reference` serves the shape `nsgp_state_reference` has always returned, from the
 knowledge base, so skills that parse it keep working; territories are now covered.
+
+`gk_files_list` says what is attached to a jurisdiction. Files are put there from the
+toolbox, not from here, and the listing leaves out the toolbox's own download links,
+which are cut for one browser and expire in minutes; a Drive link, when there is one,
+stays.
 
 ## Import from Drive
 
