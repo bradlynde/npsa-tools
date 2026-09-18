@@ -674,6 +674,17 @@ export function createIntakeStore(pool) {
     async markWelcomed(clientId, email) {
       await pool.query('UPDATE client_contacts SET welcomed_at=NOW() WHERE client_id=$1 AND email=$2', [clientId, email]);
     },
+    async countsFor(clientId) {
+      const q = async (sql) => Number((await pool.query(sql, [clientId])).rows[0].n);
+      return {
+        answers: await q('SELECT COUNT(*)::int AS n FROM intake_answers WHERE client_id=$1'),
+        uploads: await q('SELECT COUNT(*)::int AS n FROM intake_uploads WHERE client_id=$1'),
+        contacts: await q('SELECT COUNT(*)::int AS n FROM client_contacts WHERE client_id=$1'),
+      };
+    },
+    async deleteClient(slug) {
+      await pool.query('DELETE FROM clients WHERE slug=$1', [slug]); // contacts, answers and uploads cascade
+    },
     async updateContact(clientId, email, patch) {
       const { rows } = await pool.query(
         `UPDATE client_contacts SET name=$3, role=$4, phone=$5, email=$6 WHERE client_id=$1 AND email=$2 RETURNING id`,
@@ -767,6 +778,16 @@ export function createMemoryStore() {
     },
     async markWelcomed(clientId, email) {
       const c = contacts.find(x => x.client_id === clientId && x.email === email); if (c) c.welcomed_at = now();
+    },
+    async countsFor(clientId) {
+      return { answers: (answers.get(clientId) || new Map()).size, uploads: uploads.filter(u => u.client_id === clientId).length, contacts: contacts.filter(c => c.client_id === clientId).length };
+    },
+    async deleteClient(slug) {
+      const c = find(slug); if (!c) return;
+      for (let i = contacts.length - 1; i >= 0; i--) if (contacts[i].client_id === c.id) contacts.splice(i, 1);
+      for (let i = uploads.length - 1; i >= 0; i--) if (uploads[i].client_id === c.id) uploads.splice(i, 1);
+      answers.delete(c.id);
+      clients.splice(clients.indexOf(c), 1);
     },
     async updateContact(clientId, email, patch) {
       const cur = contacts.find(c => c.client_id === clientId && c.email === email); if (!cur) return false;
@@ -1038,6 +1059,29 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     res.json(invited ? { ...view, invite: invited } : view);
   }));
 
+  /**
+   * Deletes a client and everything under it. Two steps on purpose: the first call
+   * answers with what would be lost and writes nothing, and only a second call
+   * naming the slug in `confirm` commits. An active client has to be cancelled or
+   * closed first, so a live engagement cannot go by accident.
+   */
+  app.delete('/api/clients/:slug', team, guard(async (req, res) => {
+    const c = await loadClient(req, res); if (!c) return;
+    const confirm = String(req.query.confirm || (req.body || {}).confirm || '');
+    const counts = await store.countsFor(c.id);
+    const summary = { slug: c.slug, name: c.name, status: c.status, ...counts };
+    if (c.status === 'active') throw new BadRequest(`${c.name} is an active client. Set status to cancelled or closed before deleting it.`, { client: summary });
+    if (confirm !== c.slug) {
+      return res.status(400).json({
+        error: `Nothing was deleted. This would permanently remove ${c.name} with ${counts.answers} answer(s), ${counts.uploads} upload(s) and ${counts.contacts} contact(s). Call again with confirm="${c.slug}" to go ahead.`,
+        confirm_required: c.slug, client: summary,
+      });
+    }
+    await store.deleteClient(c.slug);
+    console.log(`[intake] client_delete ${c.slug} by ${req.actor} (${counts.answers} answers, ${counts.uploads} uploads)`);
+    res.json({ ok: true, deleted: summary });
+  }));
+
   app.post('/api/clients/:slug/token', team, guard(async (req, res) => {
     const c = await loadClient(req, res); if (!c) return;
     const row = await store.rotateToken(c.slug, mintToken());
@@ -1252,15 +1296,4 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     res.json({ ok: true, ...contactsView(fresh.contacts || []) });
   }));
 
-  app.post('/api/intake/:slug/complete', guard(async (req, res) => {
-    const c = await clientAuth(req, res); if (!c) return;
-    const existing = await store.getAnswers(c.id);
-    const who = existing.get('_filled_by')?.value || 'the client';
-    const when = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
-    const stamp = `Submitted ${when} CT by ${who}`;
-    await store.upsertAnswers(c.id, [{ key: '_status', value: stamp }], 'client', { clientActivity: true });
-    if (c.status === 'active') await store.updateClient(c.slug, { status: 'submitted', submitted_at: new Date() });
-    console.log(`[intake] complete ${c.slug} (${who})`);
-    res.json({ ok: true, status: stamp });
-  }));
 }

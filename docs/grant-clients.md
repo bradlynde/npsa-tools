@@ -155,7 +155,7 @@ pre-registered at 2 MB for `/api/clients` and `/api/intake` so a full seed fits.
 | GET | `/api/intake/:slug/contacts` | token | `{ npsa: [...], client: [...] }` with name, role, email, phone, added_by. |
 | POST | `/api/intake/:slug/contacts` | token | Adds one of the client's people: `name`, `email` required, `role`, `phone` optional. Same email updates the row. Refuses an NPSA address. Bumps the quiet clock. |
 | DELETE | `/api/intake/:slug/contacts?email=` | token | Removes one of the client's people. NPSA rows are refused. |
-| POST | `/api/intake/:slug/complete` | token | Writes `_status = "Submitted <date> CT by <who>"`, sets `status=submitted` and `submitted_at` if the client was active. No email in this build. |
+| DELETE | `/api/clients/:slug?confirm=<slug>` | team | Deletes the client and everything under it. Without a matching `confirm` it writes nothing and answers with what would be lost; an `active` client is refused until it is cancelled or closed. |
 | POST | `/api/intake/:slug/upload` | token | Multipart with fields `key` (an upload question) and `file`. PDF/JPG/PNG decided by the file's first bytes, 25 MB cap. Stores the file, writes the `up_*` answer, mirrors to Drive when configured. Answers CORS for the page's origin only. |
 | GET | `/api/clients/:slug/uploads` | team | Uploads with label, filename, type, size, uploader, time, Drive link and download path. |
 | GET | `/api/clients/:slug/uploads/:id` | team | The file bytes, as an attachment. |
@@ -198,7 +198,7 @@ and remove from on the page). The rows are injected at render and the tab talks 
 Apps Script template tags turned into `{{placeholders}}` that `renderClientPage` fills
 as JSON (with `<`, `>` and the Unicode line separators escaped, the way the Apps
 Script's `jsForInject_` did), and the three `google.script.run` calls replaced by
-`fetch` against `/api/intake/<slug>/answers`, `/api/intake/<slug>/complete` and
+`fetch` against `/api/intake/<slug>/answers` and
 `/api/intake/<slug>/upload`. The token travels in the `X-Intake-Token` header. A 401 on
 any call turns the save pill into "this link is no longer valid" instead of retrying
 forever. Everything a client sees stays the same.
@@ -460,3 +460,16 @@ real inbox.
 Until step 4, nothing is sent: contacts are added exactly as before and `welcomed` comes back false.
 Step 3 lets the service account send as any user in the domain, so grant it the `gmail.send` scope
 and nothing wider.
+
+## Marking complete, and deleting (2026-09-18)
+
+The Documents tab's "Mark as complete" button is gone, along with
+`POST /api/intake/:slug/complete`. Clients pressed it once their uploads were in, which flipped the
+record to `submitted` when nothing had been submitted to a state at all. The page now says the work
+saves as it goes and there is nothing to submit there; `status=submitted` is the team's to set when
+an application actually goes out.
+
+Deleting a client is `DELETE /api/clients/:slug`, and `client_delete` over MCP. It takes two calls:
+the first writes nothing and reports what would be lost (answers, uploads, contacts), and only a
+second call with `confirm=<slug>` commits. An active client is refused outright. Deletion is for
+demo and test records; a finished engagement is closed, not deleted.

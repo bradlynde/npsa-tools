@@ -334,25 +334,15 @@ await check('programs: 20 slots accepted, status counts the named rows, 3.2.1 is
   assert.equal(legacy.value, 'legacy free text');
   assert.equal(legacy.kind, 'meta');
 });
-await check('complete stamps _status, marks submitted, and shows on the list', async () => {
-  const r = await call('POST', `/api/intake/${created.slug}/complete`, { headers: { 'X-Intake-Token': token() } });
-  assert.equal(r.status, 200);
-  assert.match(r.data.status, /^Submitted .* CT by Pat Lee, Exec Pastor$/);
+await check('the form no longer offers "mark as complete": no button, no route', async () => {
+  const gone = await call('POST', `/api/intake/${created.slug}/complete`, { headers: { 'X-Intake-Token': token() } });
+  assert.equal(gone.status, 404, 'a stale page cannot mark a client submitted');
   const c = await call('GET', `/api/clients/${created.slug}`, { headers: TEAM });
-  assert.equal(c.data.status, 'submitted');
-  assert.ok(c.data.submitted_at);
-  assert.equal(c.data.status_line, r.data.status);
-  const active = await call('GET', '/api/clients', { headers: TEAM });
-  assert.deepEqual(active.data.map(x => x.slug), ['new-life-ky']);
-  const sub = await call('GET', '/api/clients?status=submitted', { headers: TEAM });
-  assert.deepEqual(sub.data.map(x => x.slug), [created.slug]);
-  assert.deepEqual(sub.data[0].core, { answered: 5, total: c.data.core.total });
-  assert.equal(sub.data[0].filled_by, 'Pat Lee, Exec Pastor');
-  const all = await call('GET', '/api/clients?status=all&search=trin', { headers: TEAM });
-  assert.equal(all.data.length, 1);
+  assert.equal(c.data.status, 'active');
+  const html = renderClientPage({ client: { slug: 'a-b', token: 't', name: 'A', state: 'IL' }, stateConfig: {}, existing: {} });
+  assert.ok(!/submitBtn|Mark as complete/.test(html));
+  assert.match(html, /nothing to submit here/);
 });
-
-// ── 5. Updates ────────────────────────────────────────────────────────────────
 await check('patch changes only what is given and manages contacts', async () => {
   const empty = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: {} });
   assert.equal(empty.status, 400);
@@ -462,7 +452,7 @@ await check('renderClientPage fills every placeholder and escapes a script-closi
   assert.ok(html.includes('data-tab="ct"') && html.includes('id="ctAddBtn"'), 'contacts tab present');
   assert.ok(html.includes('"saa":"KOHS"'));
   assert.ok(!html.includes('google.script'), 'no Apps Script left');
-  assert.ok(html.includes('/answers') && html.includes('/complete') && html.includes('/upload'));
+  assert.ok(html.includes('/answers') && html.includes('/upload') && html.includes('/contacts'));
   const remote = renderClientPage({ client: { slug: 'a-b', token: 't', name: 'A', state: 'IL' }, stateConfig: {}, existing: {}, apiBase: 'https://loe.example' });
   assert.ok(remote.includes('API_BASE="https://loe.example"'));
 });
