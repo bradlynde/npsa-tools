@@ -762,6 +762,16 @@ await check('welcome email: automatic when the client adds someone, on request f
   assert.equal(senderFor([{ side: 'npsa', role: 'Consultant', email: 'jeff@x' }, { side: 'npsa', role: 'Director of Grants, your grant writer', email: 's@x' }]).email, 's@x');
   const raw = buildRaw({ from: 'a@x', to: '"Pat" <p@x>', subject: 'S', text: 'T', html: '<p>H</p>' });
   assert.match(raw, /^From: a@x\r\nTo: "Pat" <p@x>\r\nSubject: S/);
+  // An em dash in the subject has to travel as MIME encoded words, or it lands as "Ã¢Â€Â".
+  const { encodeHeader } = await import('../server/mail.js');
+  const wide = buildRaw({ from: 'a@x', to: 'p@x', subject: m.subject, text: 'T', html: '<p>H</p>' });
+  const header = wide.split('\r\n\r\n')[0].split('\r\nMIME-Version')[0].split('\r\nSubject: ')[1];
+  assert.ok(header.startsWith('=?UTF-8?B?'), header);
+  const decoded = header.split(/\r\n /).map((w) => Buffer.from(w.replace(/^=\?UTF-8\?B\?/, '').replace(/\?=$/, ''), 'base64').toString('utf8')).join('');
+  assert.equal(decoded, m.subject);
+  assert.ok(header.split(/\r\n /).every((w) => w.length <= 75), 'each encoded word stays inside the header line limit');
+  assert.equal(encodeHeader('Plain ASCII'), 'Plain ASCII');
+  assert.match(encodeHeader('Renée'), /^=\?UTF-8\?B\?/);
   await call('PATCH', '/api/clients/welcome-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
