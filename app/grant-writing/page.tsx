@@ -33,6 +33,8 @@ type Contact = {
   phone?: string;
   side?: "npsa" | "client" | "reference";
   is_primary?: boolean;
+  /** When we last emailed them the intake link. */
+  welcomed_at?: string | null;
 };
 
 type Doc = { key: string; label: string; hint?: string; source?: "standard" | "state" | "program" | "custom" };
@@ -454,14 +456,28 @@ function PeopleSection({ client, editing, onSaved }: { client: ClientRow; editin
     finally { setBusy(false); }
   };
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
-  const person = (x: Contact, removable = false) => (
-    <div key={x.email} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 10, alignItems: "baseline", fontSize: 13 }}>
+  // Emails the client's own contact their intake link, sent as their grant writer.
+  const invite = async (x: Contact) => {
+    if (!confirm(`Email ${x.name || x.email} their intake link${x.welcomed_at ? " again" : ""}?`)) return;
+    setBusy(true); setErr(null);
+    try {
+      const fresh = await patchJson<ClientRow & { invite?: { sent: boolean; reason?: string } }>(`/api/clients/${client.slug}`, { invite_contact_email: x.email });
+      onSaved(fresh);
+      if (fresh.invite && !fresh.invite.sent) setErr(`Not sent: ${fresh.invite.reason}`);
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const person = (x: Contact, removable = false, invitable = false) => (
+    <div key={x.email} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto auto", gap: 10, alignItems: "baseline", fontSize: 13 }}>
       <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         <span style={{ fontWeight: 600 }}>{x.name || x.email}</span>
         {x.role && <span style={{ color: "var(--mute)" }}> · {x.role}</span>}
         {x.phone && <span className="mono" style={{ color: "var(--faint)", fontSize: 11.5 }}> · {x.phone}</span>}
       </span>
       <a href={`mailto:${x.email}`} className="mono" style={{ fontSize: 11.5, color: "var(--navy)", textDecoration: "none", whiteSpace: "nowrap" }}>{x.email}</a>
+      {invitable
+        ? <button type="button" disabled={busy} onClick={() => invite(x)} title={x.welcomed_at ? `Link emailed ${fmtDate(x.welcomed_at)}. Send it again?` : "Email them the intake link, as their grant writer"} style={{ ...smallBtn, fontSize: 11, padding: "3px 9px" }}>{x.welcomed_at ? "Re-send link" : "Email link"}</button>
+        : <span />}
       {removable ? <button type="button" aria-label={`Remove ${x.name || x.email}`} disabled={busy} onClick={() => run({ remove_contact_emails: [x.email] })} style={xBtn}>×</button> : <span />}
     </div>
   );
@@ -470,7 +486,7 @@ function PeopleSection({ client, editing, onSaved }: { client: ClientRow; editin
     <Section title="people" meta={`${own.length} at the client`}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {own.length === 0 && <Faint>No client contacts on file yet.</Faint>}
-        {own.map((x) => person(x))}
+        {own.map((x) => person(x, false, editing))}
       </div>
       {sub("NPSA")}
       <div style={{ fontSize: 13, color: "var(--sec)" }}>{npsa.map((x) => `${x.name.split(" ")[0]}${/consultant|sales rep/i.test(x.role) ? " (consultant)" : ""}`).join(", ") || <Faint>none</Faint>}</div>
