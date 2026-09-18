@@ -37,11 +37,32 @@ export function senderFor(contacts = []) {
 }
 
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/**
+ * A header carrying anything but plain ASCII has to travel as MIME encoded words
+ * (RFC 2047), or a mail client reads the UTF-8 bytes as Latin-1 and the em dash in
+ * "Your NSGP intake form — Client" arrives as Ã¢Â€Â. Chunks stay well inside the
+ * 75-character limit for one encoded word and split on character boundaries, so no
+ * multi-byte character is ever cut in half.
+ */
+export function encodeHeader(value) {
+  const v = String(value == null ? '' : value);
+  if (/^[\x20-\x7e]*$/.test(v)) return v;
+  const words = [];
+  let chunk = '';
+  for (const ch of v) {
+    if (Buffer.byteLength(chunk + ch, 'utf8') > 36) { words.push(chunk); chunk = ''; }
+    chunk += ch;
+  }
+  if (chunk) words.push(chunk);
+  return words.map(w => `=?UTF-8?B?${Buffer.from(w, 'utf8').toString('base64')}?=`).join('\r\n ');
+}
 const firstName = name => String(name || '').trim().split(/\s+/)[0] || '';
 /** A display name and address, with anything that would break the header stripped out. */
 const addr = (name, email) => {
   const n = String(name || '').replace(/[\r\n"<>]/g, '').trim();
-  return n ? `"${n}" <${email}>` : email;
+  if (!n) return email;
+  // An encoded word stands on its own; a plain name is quoted.
+  return /^[\x20-\x7e]*$/.test(n) ? `"${n}" <${email}>` : `${encodeHeader(n)} <${email}>`;
 };
 
 /** Subject and body for one welcome. Kept here so it can be read and changed without touching the plumbing. */
@@ -85,7 +106,7 @@ export function buildRaw({ from, to, subject, text, html, boundary = 'npsa-welco
   return [
     `From: ${from}`,
     `To: ${to}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodeHeader(subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     '',
