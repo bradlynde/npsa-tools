@@ -19,16 +19,20 @@ export function loeBaseUrl(): string {
   return withProto.replace(/\/+$/, "");
 }
 
-/** Verifies an HS256 JWT against JWT_SECRET (the secret the scraper backends use). */
-function tokenIsValid(token: string): boolean {
+/**
+ * Verifies an HS256 JWT against JWT_SECRET (the secret the scraper backends use).
+ * `username` comes back only when the signature was actually checked: a name read
+ * out of a token nobody verified is a name anyone could have typed.
+ */
+function verifyToken(token: string): { ok: boolean; username?: string } {
   const secret = process.env.JWT_SECRET;
   // Without the shared secret we can't check a signature. Still requiring a
   // bearer token keeps this off the open internet; set JWT_SECRET in Vercel
   // to get full verification.
-  if (!secret) return token.length > 0;
+  if (!secret) return { ok: token.length > 0 };
 
   const parts = token.split(".");
-  if (parts.length !== 3) return false;
+  if (parts.length !== 3) return { ok: false };
   const [header, payload, signature] = parts;
 
   const expected = crypto
@@ -38,15 +42,15 @@ function tokenIsValid(token: string): boolean {
 
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok: false };
 
   try {
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (claims.exp && Date.now() / 1000 > claims.exp) return false;
+    if (claims.exp && Date.now() / 1000 > claims.exp) return { ok: false };
+    return { ok: true, username: typeof claims.username === "string" ? claims.username : undefined };
   } catch {
-    return false;
+    return { ok: false };
   }
-  return true;
 }
 
 /**
@@ -70,11 +74,25 @@ export async function proxyRequest(
     allowIf?: (segments: string[]) => boolean;
     /** Send this JSON body upstream instead of the request's own (after the route has filtered it). */
     body?: string;
+    /**
+     * Tell the backend who is logged in (X-Actor), for routes that keep an edit
+     * history. The backend believes it only from the key on its ACTOR_PROXY_KEYS.
+     * A write is refused when the name cannot be verified, so history never records
+     * a name the browser merely claimed.
+     */
+    forwardActor?: boolean;
   } = {}
 ): Promise<NextResponse> {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token || !tokenIsValid(token)) {
+  const who = token ? verifyToken(token) : { ok: false };
+  if (!who.ok) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (options.forwardActor && method !== "GET" && !who.username) {
+    return NextResponse.json(
+      { error: "Edits are off: this deployment cannot verify who is logged in (JWT_SECRET is unset on Vercel)" },
+      { status: 503 }
+    );
   }
 
   // An empty segment list means the collection root (e.g. /api/letters).
@@ -98,6 +116,7 @@ export async function proxyRequest(
         Accept: "application/json",
         ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
         ...(options.upstreamKey ? { Authorization: `Bearer ${options.upstreamKey}` } : {}),
+        ...(options.forwardActor && who.username ? { "X-Actor": who.username } : {}),
       },
       body: method === "GET" ? undefined : body || "{}",
       cache: "no-store",
