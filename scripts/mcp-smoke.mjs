@@ -44,7 +44,7 @@ const WRITE_TOOLS = [
   'letter_update', 'rep_add', 'rep_remove',
   'nsgp_deadline_upsert', 'nsgp_deadline_delete',
   'marketing_booking_update', 'marketing_refresh',
-  'client_create', 'client_update', 'intake_seed', 'client_token_rotate',
+  'client_create', 'client_update', 'intake_seed', 'client_token_rotate', 'client_delete',
   'gk_record_upsert', 'gk_mark_verified', 'gk_record_archive', 'gk_revert',
 ];
 
@@ -87,6 +87,15 @@ app.post('/api/clients', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT,
 app.get('/api/clients/:slug', keyed, (req, res) => req.params.slug === FAKE_CLIENT.slug ? res.json(FAKE_CLIENT) : res.status(404).json({ error: 'No such client' }));
 app.patch('/api/clients/:slug', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, ...req.body }));
 app.post('/api/clients/:slug/token', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, intake_url: 'https://npsa-tools.vercel.app/client/trinity-wellsprings-church?t=new' }));
+// Delete answers the way the real route does: nothing happens without confirm=<slug>.
+app.delete('/api/clients/:slug', keyed, (req, res) => {
+  if (req.query.confirm !== req.params.slug) {
+    received.push({ method: 'DELETE', path: req.originalUrl.replace('/api', ''), body: req.body });
+    return res.status(400).json({ error: `Nothing was deleted. This would permanently remove ${req.params.slug} with 12 answer(s), 1 upload(s) and 3 contact(s). Call again with confirm="${req.params.slug}" to go ahead.`, confirm_required: req.params.slug });
+  }
+  received.push({ method: 'DELETE', path: req.originalUrl.replace('/api', ''), body: req.body });
+  res.json({ ok: true, deleted: { slug: req.params.slug } });
+});
 app.get('/api/clients/:slug/answers', keyed, (req, res) => res.json({ slug: req.params.slug, count: 1, q: req.query, answers: [{ key: 'q_1_1_1', value: 'Pat' }] }));
 app.put('/api/clients/:slug/answers', keyed, (req, res) => {
   const unknown = Object.keys(req.body.answers || {}).filter(k => k.startsWith('bad_'));
@@ -170,7 +179,7 @@ await check('read tools are annotated read-only, write tools are not', async () 
     }
   }
   const destructive = (await client.listTools()).tools.filter(t => t.annotations?.destructiveHint).map(t => t.name).sort();
-  assert.deepEqual(destructive, ['client_token_rotate', 'nsgp_deadline_delete', 'rep_remove']);
+  assert.deepEqual(destructive, ['client_delete', 'client_token_rotate', 'nsgp_deadline_delete', 'rep_remove']);
 });
 
 await check('nsgp_state_reference answers without a database', async () => {
@@ -400,6 +409,16 @@ await check('intake_seed PUTs the answers and surfaces an unknown-key refusal by
   assert.equal(empty.isError, true);
 });
 
+await check('client_delete asks before it commits, then deletes', async () => {
+  const first = await client.callTool({ name: 'client_delete', arguments: { slug: 'trinity-wellsprings-church' } });
+  assert.match(JSON.stringify(first), /Nothing was deleted|active client/i);
+  const sent = received.filter((c) => c.method === 'DELETE' && /clients\//.test(c.path || ''));
+  assert.equal(sent.length, 1);
+  assert.ok(!sent[0].path.includes('confirm='), 'the first call carries no confirmation');
+  const second = await client.callTool({ name: 'client_delete', arguments: { slug: 'trinity-wellsprings-church', confirm: 'trinity-wellsprings-church' } });
+  assert.ok(!second.isError, second.content?.[0]?.text);
+  assert.ok(received.some((c) => c.method === 'DELETE' && (c.path || '').includes('confirm=trinity-wellsprings-church')));
+});
 await check('client_token_rotate POSTs and returns the new link', async () => {
   const r = await client.callTool({ name: 'client_token_rotate', arguments: { slug: 'trinity-wellsprings-church' } });
   assert.ok(!r.isError);

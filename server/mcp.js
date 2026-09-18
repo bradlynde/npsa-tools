@@ -841,6 +841,19 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
       inputSchema: { slug: z.string().min(1) },
       annotations: DESTRUCTIVE,
     }, write('client_token_rotate', async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/token`, { method: 'POST', body: {} })));
+
+    server.registerTool('client_delete', {
+      title: 'Delete grant client',
+      description: 'WRITE, destructive and permanent. Confirm with the user before calling, naming the client. Deletes a client and every answer, upload and contact under it; there is no undo and no archive. Two steps on purpose: call it first without confirm to get back exactly what would be lost, show that to the user, and only call it again with confirm set to the slug once they have said yes to that specific client. An active client cannot be deleted (cancel or close it first). Use for demo and test records; a finished engagement should be closed, not deleted.',
+      inputSchema: {
+        slug: z.string().min(1),
+        confirm: z.string().optional().describe('The client\'s slug again, once the user has seen what would be deleted and agreed. Leave it out on the first call.'),
+      },
+      annotations: DESTRUCTIVE,
+    }, write('client_delete', async ({ slug, confirm }) => {
+      const path = `/clients/${encodeURIComponent(slug)}${confirm ? `?confirm=${encodeURIComponent(confirm)}` : ''}`;
+      return api(path, { method: 'DELETE' });
+    }));
   }
 
   return server;
