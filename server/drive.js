@@ -23,6 +23,8 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink';
 const SCOPE = 'https://www.googleapis.com/auth/drive';
 
+export { b64url, credentialsFromEnv };
+
 export function driveConfigured() {
   return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
 }
@@ -36,21 +38,26 @@ function credentialsFromEnv() {
   catch { throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON'); }
 }
 
-/** A short-lived Drive access token for the service account. */
-export async function accessToken({ credentials, tokenUrl = TOKEN_URL, now = Date.now() } = {}) {
+/**
+ * A short-lived Google access token for the service account. `scope` picks the
+ * API; `subject` asks Google to act as that user, which only works for a scope
+ * the Workspace admin has granted the account (domain-wide delegation) and is
+ * how the welcome email goes out as the grant writer.
+ */
+export async function accessToken({ credentials, tokenUrl = TOKEN_URL, now = Date.now(), scope = SCOPE, subject } = {}) {
   const sa = credentials || credentialsFromEnv();
   if (!sa.client_email || !sa.private_key) throw new Error('service account JSON lacks client_email or private_key');
   const iat = Math.floor(now / 1000);
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claims = b64url(JSON.stringify({ iss: sa.client_email, scope: SCOPE, aud: sa.token_uri || tokenUrl, iat, exp: iat + 3600 }));
+  const claims = b64url(JSON.stringify({ iss: sa.client_email, ...(subject ? { sub: subject } : {}), scope, aud: sa.token_uri || tokenUrl, iat, exp: iat + 3600 }));
   const signature = b64url(crypto.sign('RSA-SHA256', Buffer.from(`${header}.${claims}`), sa.private_key));
-  const r = await fetch(tokenUrl, {
+  const r = await fetch(sa.token_uri || tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${header}.${claims}.${signature}` }),
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok || !data.access_token) throw new Error(`Drive token request failed: ${data.error_description || data.error || r.status}`);
+  if (!r.ok || !data.access_token) throw new Error(`Google token request failed: ${data.error_description || data.error || r.status}`);
   return data.access_token;
 }
 

@@ -964,7 +964,7 @@
     var editing=ctEditing;if(editing){body.new_email=body.email;body.email=editing;}
     ctAdd.disabled=true;ctSay(editing?'Saving…':'Adding…');setPill('saving');
     call(editing?'PUT':'POST','/contacts',body).then(function(res){CONTACTS={npsa:res.npsa,client:res.client,reference:res.reference};renderContacts();
-      ctClear();ctMode(null);ctSay(editing?'Saved.':'Added.');setPill('saved');})
+      ctClear();ctMode(null);ctSay(editing?'Saved.':(res.welcomed?'Added. We have emailed them the link to this form.':'Added.'));setPill('saved');})
       .catch(function(err){ctSay((err&&err.message)||'Could not save that person.',true);setPill('saved');if(err&&err.status===401)linkDead();})
       .then(function(){ctAdd.disabled=false;});});
   var ctList=document.getElementById('ctClient');

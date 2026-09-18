@@ -434,4 +434,29 @@ submission box. We work from estimates everywhere else.
   tasks repeat. `checklistTotal(client)` is the same arithmetic for the list route.
 - `intake_answers` lists the extra keys under `Checklist (NSGP-S FY2027)`.
 
-Next: the welcome email when a contact is added (needs a Workspace sender first).
+## Welcome email (2026-09-17)
+
+When someone is added to a client's Contacts tab they get a short note with the intake link, the
+way a shared Drive file tells you that you have access. It is sent **as the client's grant writer**
+(the NPSA contact whose role says grant writer, else the first NPSA contact), so replies land in a
+real inbox.
+
+- **Automatic** when the client adds a colleague on their own form; the page then says "We have
+  emailed them the link to this form."
+- **On request** for the team: `client_update invite_contact_email` (or the Email link button in the
+  Grant Writing dialog). This sends even to someone welcomed before, so it doubles as a re-send.
+- NPSA and reference contacts are never mailed, an address is welcomed once automatically
+  (`client_contacts.welcomed_at`), and a send that fails is logged while the contact stays added.
+- `server/mail.js` holds the wording; change it there.
+
+### Turning it on (Workspace admin, once)
+
+1. Google Cloud → the `npsa-tools` project → enable the **Gmail API**.
+2. Copy the intake-uploads service account's **client ID** (the numeric OAuth id).
+3. Admin console → Security → Access and data control → API controls → **Domain-wide delegation** →
+   Add new → that client ID, scope `https://www.googleapis.com/auth/gmail.send`.
+4. Railway → `INTAKE_WELCOME_EMAIL=on`.
+
+Until step 4, nothing is sent: contacts are added exactly as before and `welcomed` comes back false.
+Step 3 lets the service account send as any user in the domain, so grant it the `gmail.send` scope
+and nothing wider.
