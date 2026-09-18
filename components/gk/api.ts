@@ -116,3 +116,31 @@ export const countdown = (days: number) =>
   days === 0 ? "today" : days === 1 ? "tomorrow" : days > 0 ? `in ${days} days` : days === -1 ? "yesterday" : `${-days} days ago`;
 
 export const CYCLE_LABEL: Record<CycleState, string> = { open: "Open now", soon: "Coming up", closed: "Closed", unknown: "No dates recorded" };
+
+/* ── Writes ─────────────────────────────────────────────────────── */
+
+/** A refused write. On a version conflict `current` is the record as it now stands. */
+export class GkError extends Error {
+  status: number;
+  current?: Rec;
+  existing?: Rec;
+  constructor(message: string, status: number, extra: { current?: Rec; existing?: Rec } = {}) {
+    super(message);
+    this.status = status;
+    this.current = extra.current;
+    this.existing = extra.existing;
+  }
+}
+
+export async function gkSend<T>(method: "POST" | "PATCH", path: string, body: unknown): Promise<T> {
+  const r = await fetch(`/api/grant-knowledge/${path}`, { method, headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new GkError((data as { error?: string }).error || `HTTP ${r.status}`, r.status, data as { current?: Rec; existing?: Rec });
+  return data as T;
+}
+
+export type AttentionItem = {
+  record_id: number; jurisdiction: string; kind: string; title: string; version: number; origin: string;
+  source_url: string; updated_by: string; updated_at: string; fields?: string[]; verified_at?: string;
+};
+export type AttentionFull = Attention & { unverified: AttentionItem[]; stale: AttentionItem[]; missing: { jurisdiction: string; what: string; record_id?: number }[] };

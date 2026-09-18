@@ -7,6 +7,7 @@ import { Page, PageHeading, Card, Eyebrow, SegPill, Note } from "../../component
 import { JURISDICTIONS, SMALL_ON_MAP, OFF_MAP, jurisdiction, slugFromUsps, uspsFromSlug } from "../../lib/states";
 import { useMedia } from "../../lib/useMedia";
 import StatePage from "../../components/gk/StatePage";
+import Queue from "../../components/gk/Queue";
 import { gkGet, fmtDay, fmtTime, countdown, CYCLE_LABEL, type OverviewRow, type Attention, type Revision, type SearchHit } from "../../components/gk/api";
 
 const StateMap = dynamic(() => import("../../components/StateMap"), { ssr: false });
@@ -136,7 +137,7 @@ function Chip({ row, code, swatch, onPick }: { row?: OverviewRow; code: string; 
   );
 }
 
-function Landing({ rows, onPick }: { rows: OverviewRow[]; onPick: (code: string, recordId?: number) => void }) {
+function Landing({ rows, onPick, onQueue }: { rows: OverviewRow[]; onPick: (code: string, recordId?: number) => void; onQueue: () => void }) {
   const [mode, setMode] = useState<Mode>("deadlines");
   const [showMap, setShowMap] = useState(false);
   const [attention, setAttention] = useState<Attention | null>(null);
@@ -225,7 +226,10 @@ function Landing({ rows, onPick }: { rows: OverviewRow[]; onPick: (code: string,
 
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 18 }}>
         <Card>
-          <Eyebrow style={{ marginBottom: 12 }}>needs a person</Eyebrow>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <Eyebrow>needs a person</Eyebrow>
+            <button onClick={onQueue} className="mono" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: "var(--navy)" }}>open the queue →</button>
+          </div>
           {counts ? (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
@@ -274,6 +278,7 @@ function GrantKnowledge() {
   const params = useSearchParams();
   const code = (params.get("state") || "").toUpperCase();
   const valid = code && jurisdiction(code) ? code : "";
+  const queue = params.get("view") === "queue";
   const [rows, setRows] = useState<OverviewRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -287,10 +292,11 @@ function GrantKnowledge() {
 
   return (
     <Page>
-      {valid ? <StatePage code={valid} onBack={() => router.push("/grant-knowledge")} />
+      {valid ? <StatePage code={valid} onBack={() => router.push(queue ? "/grant-knowledge?view=queue" : "/grant-knowledge")} />
+        : queue ? <Queue onOpen={(c, id) => router.push(`/grant-knowledge?view=queue&state=${c}${id ? `#rec-${id}` : ""}`)} onBack={() => router.push("/grant-knowledge")} />
         : err ? <Note>{err}</Note>
         : !rows ? <div style={{ color: "var(--mute)", fontSize: 14, padding: "60px 0" }}>Loading the knowledge base…</div>
-        : <Landing rows={rows} onPick={go} />}
+        : <Landing rows={rows} onPick={go} onQueue={() => router.push("/grant-knowledge?view=queue")} />}
     </Page>
   );
 }

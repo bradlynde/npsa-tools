@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Card, Eyebrow, SegPill, ChipRow, Tag, Note } from "../ui";
+import { Card, Eyebrow, SegPill, ChipRow, Tag, Note, PillButton } from "../ui";
+import RecordEditor, { EditContext, RecActions, AddButton, useEdit, type EditTarget } from "./RecordEditor";
 import { useMedia } from "../../lib/useMedia";
 import Markdown from "./Markdown";
 import {
-  gkGet, usd, fmtDay, fmtTime, countdown, CYCLE_LABEL,
+  gkGet, gkSend, GkError, usd, fmtDay, fmtTime, countdown, CYCLE_LABEL,
   type StateDoc, type Program, type Rec, type Requirement, type Revision, type Cycle,
 } from "./api";
 
@@ -75,6 +76,7 @@ function NoteCard({ n, program }: { n: Rec; program?: string }) {
         {program && <Tag>{program}</Tag>}
         {n.data.client_slug && <a href="/grant-writing" title="From the field: learned on this engagement" className="mono" style={{ fontSize: 11, color: "var(--navy)" }}>from {n.data.client_slug}</a>}
         <Trust rec={n} quiet />
+        <RecActions rec={n} />
       </div>
       {n.data.body_md && (open
         ? <Markdown>{n.data.body_md}</Markdown>
@@ -98,6 +100,7 @@ function RequirementRow({ r }: { r: Requirement }) {
             {d.owner === "npsa" ? "NPSA" : "client"}{d.lead_time_days ? ` · allow ${d.lead_time_days} days` : ""}{d.format ? ` · ${d.format}` : ""}{r.baseline === "federal" ? " · federal baseline" : ""}{r.inherited_from ? ` · same as ${r.inherited_from}` : ""}
           </span>
           <Trust rec={r} quiet />
+          {!r.inherited_from && <RecActions rec={r} />}
         </div>
         {d.notes && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3, lineHeight: 1.5 }}>{d.notes}</div>}
       </div>
@@ -109,14 +112,15 @@ type Owner = "all" | "client" | "npsa";
 function Requirements({ p }: { p: Program }) {
   const [owner, setOwner] = useState<Owner>("all");
   const all = [...p.inherited_requirements, ...p.requirements];
-  if (!all.length) return null;
+  const { on: editing } = useEdit();
+  if (!all.length && !editing) return null;
   const order = (a: Requirement, b: Requirement) => Number(!!b.data.hard_gate) - Number(!!a.data.hard_gate) || (b.data.lead_time_days || 0) - (a.data.lead_time_days || 0);
   const show = (t: string) => all.filter((r) => r.data.req_type === t && (owner === "all" || (r.data.owner || "client") === owner)).sort(order);
   const reg = show("registration"), docs = show("document");
   return (
     <div style={{ marginTop: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-        <Eyebrow>what a submission needs</Eyebrow>
+        <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}><Eyebrow>what a submission needs</Eyebrow><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "requirement", parent_id: p.id, heading: `New requirement for ${p.key}` }}>requirement</AddButton></div>
         <ChipRow<Owner> options={[{ key: "all", label: "Everyone" }, { key: "client", label: "Client" }, { key: "npsa", label: "NPSA" }]} value={owner} onChange={setOwner} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "4px 32px" }}>
@@ -155,7 +159,8 @@ function FundingChart({ cycles }: { cycles: Cycle[] }) {
 }
 
 function Cycles({ p }: { p: Program }) {
-  if (!p.cycles.length) return <div style={{ fontSize: 13, marginTop: 14 }}><Faint>No cycle recorded yet: no deadline history, no funding history.</Faint></div>;
+  const addCycle = <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "cycle", parent_id: p.id, heading: `New cycle for ${p.key}` }}>cycle</AddButton>;
+  if (!p.cycles.length) return <div style={{ fontSize: 13, marginTop: 14 }}><Faint>No cycle recorded yet: no deadline history, no funding history.</Faint> {addCycle}</div>;
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div style={{ marginTop: 18 }}>
@@ -176,11 +181,12 @@ function Cycles({ p }: { p: Program }) {
                       {d.data.due_time && <span style={{ color: "var(--sec)" }}> · {fmtTime(d.data.due_time, d.data.tz)}</span>}
                       <span style={{ color: "var(--sec)" }}> · {d.data.label}</span>{" "}
                       {d.data.confidence && d.data.confidence !== "confirmed" && <span className="mono" style={{ fontSize: 10.5, color: "var(--warn-fg)" }}>{d.data.confidence} </span>}
-                      <Trust rec={d} quiet />
+                      <Trust rec={d} quiet /><RecActions rec={d} />
                       {d.data.note && <div style={{ fontSize: 12, color: "var(--mute)", lineHeight: 1.45, marginTop: 2 }}>{d.data.note}</div>}
                     </div>
                   ))}
                   {!c.deadlines.length && <Faint>no deadline recorded</Faint>}
+                  <div><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "deadline", parent_id: c.id, heading: `New deadline in ${c.title}` }}>deadline</AddButton></div>
                 </td>
                 <td style={{ padding: "10px 0", fontSize: 12.5, color: "var(--sec)", minWidth: 190 }}>
                   {c.data.open_date && <div>Opened {fmtDay(c.data.open_date)}</div>}
@@ -190,13 +196,14 @@ function Cycles({ p }: { p: Program }) {
                   {c.data.ua_allocations && Object.entries(c.data.ua_allocations as Record<string, number>).map(([k, v]) => <div key={k}>{k}: {usd(v)}</div>)}
                   {typeof c.data.awards === "number" && <div>{c.data.awards} awards{typeof c.data.applications === "number" ? ` of ${c.data.applications} applications` : ""}</div>}
                   {c.data.notes && <div style={{ color: "var(--mute)", marginTop: 3, lineHeight: 1.45 }}>{c.data.notes}</div>}
-                  <Trust rec={c} quiet />
+                  <Trust rec={c} quiet /><RecActions rec={c} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {addCycle}
       <FundingChart cycles={p.cycles} />
     </div>
   );
@@ -211,7 +218,7 @@ function ContactLine({ c }: { c: Rec }) {
         {(d.name ? [d.role, d.org] : [d.name ? d.org : d.role]).filter(Boolean).map((x: string) => <span key={x} style={{ fontSize: 12.5, color: "var(--sec)" }}>{x}</span>)}
         {d.area && <Tag>{d.area}</Tag>}
         {d.is_primary && <Tag>primary</Tag>}
-        <Trust rec={c} quiet />
+        <Trust rec={c} quiet /><RecActions rec={c} />
       </div>
       <div style={{ fontSize: 13, marginTop: 3, display: "flex", gap: 14, flexWrap: "wrap" }}>
         {d.email && <a href={`mailto:${d.email}`} style={{ color: "var(--navy)" }}>{d.email}</a>}
@@ -235,7 +242,7 @@ function ProgramCard({ p }: { p: Program }) {
         <h3 className="serif" style={{ margin: 0, fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{d.name}</h3>
         <Tag>{d.type === "state" ? "state-funded" : "federal"}</Tag>
         {off && <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, color: "var(--warn-fg)", background: "var(--warn-bg)" }}>{String(d.status).toUpperCase()}</span>}
-        <Trust rec={p} />
+        <Trust rec={p} /><RecActions rec={p} />
       </div>
       {d.administered_by && <div style={{ fontSize: 13, color: "var(--sec)", marginBottom: 14 }}>Run by {d.administered_by}</div>}
       {d.availability_note && <Note>{d.availability_note}</Note>}
@@ -273,6 +280,10 @@ function ProgramCard({ p }: { p: Program }) {
         </div>
       )}
       {p.contacts.length > 0 && <div style={{ marginTop: 14 }}><Eyebrow style={{ marginBottom: 2 }}>program contacts</Eyebrow>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</div>}
+      <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
+        <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "note", parent_id: p.id, heading: `New note on ${p.key}` }}>note on this program</AddButton>
+        <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "contact", parent_id: p.id, preset: { contact_kind: "program" }, heading: `New contact for ${p.key}` }}>program contact</AddButton>
+      </div>
     </Card>
   );
 }
@@ -345,7 +356,19 @@ function Playbook({ doc }: { doc: StateDoc }) {
 const show = (v: unknown) => (v === undefined || v === null || v === "" ? "nothing" : typeof v === "object" ? JSON.stringify(v) : String(v));
 const ACTION: Record<string, string> = { create: "added", update: "changed", verify: "verified", unverify: "unverified", archive: "archived", restore: "restored", revert: "reverted", import: "imported" };
 
-function History({ code }: { code: string }) {
+function History({ code, onChanged }: { code: string; onChanged: () => void }) {
+  const [tick, setTick] = useState(0);
+  const [working, setWorking] = useState<number | null>(null);
+  async function revert(r: Revision) {
+    const what = r.action === "create" ? `Undo adding "${r.title}"? It will be archived.` : `Put "${r.title}" back to how it was before ${r.actor} ${ACTION[r.action] || r.action} it?`;
+    if (!window.confirm(what)) return;
+    setWorking(r.id); setErr(null);
+    try {
+      const cur = await gkGet<Rec>(`records/${r.record_id}`);
+      await gkSend("POST", `revisions/${r.id}/revert`, { version: cur.version });
+      setTick((t) => t + 1); onChanged();
+    } catch (e) { setErr((e as Error).message); } finally { setWorking(null); }
+  }
   const [revs, setRevs] = useState<Revision[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [imports, setImports] = useState(false);
@@ -353,8 +376,8 @@ function History({ code }: { code: string }) {
     let live = true;
     gkGet<{ revisions: Revision[] }>(`jurisdictions/${code}/revisions?limit=200`).then((d) => live && setRevs(d.revisions)).catch((e) => live && setErr(e.message));
     return () => { live = false; };
-  }, [code]);
-  if (err) return <Note>{err}</Note>;
+  }, [code, tick]);
+  if (err && !revs) return <Note>{err}</Note>;
   if (!revs) return <div style={{ color: "var(--mute)", fontSize: 13 }}>Loading the history…</div>;
   const importCount = revs.filter((r) => r.action === "import").length;
   const rows = revs.filter((r) => imports || r.action !== "import");
@@ -364,16 +387,18 @@ function History({ code }: { code: string }) {
         <Eyebrow>every change, newest first</Eyebrow>
         {importCount > 0 && <button onClick={() => setImports(!imports)} style={linkBtn}>{imports ? "hide" : "show"} the {importCount} import rows</button>}
       </div>
+      {err && <div role="alert" style={{ color: "var(--err-fg)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
       {!rows.length && <div style={{ fontSize: 13.5, color: "var(--sec)" }}>Nobody has edited this state since it was imported.</div>}
       {rows.map((r) => (
         <div key={r.id} style={{ padding: "11px 0", borderBottom: "1px solid var(--hair2)" }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline", fontSize: 13.5 }}>
-            <b style={{ color: "var(--ink)" }}>{r.actor}</b>
+            <b style={{ color: "var(--ink)" }}>{r.actor.startsWith("import:") ? "The import" : r.actor}</b>
             <span style={{ color: "var(--mute)", fontSize: 12 }}>{r.actor_kind === "mcp" ? "via Claude" : r.actor_kind === "user" ? "in the toolbox" : r.actor_kind}</span>
             <span style={{ color: "var(--sec)" }}>{ACTION[r.action] || r.action}</span>
             <a href={`#rec-${r.record_id}`} style={{ color: "var(--navy)" }}>{r.title}</a>
             <Tag>{r.kind}</Tag>
-            <span className="mono" style={{ fontSize: 11, color: "var(--mute)", marginLeft: "auto" }}>{new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+            {r.action !== "import" && <button onClick={() => revert(r)} disabled={working === r.id} className="mono" style={{ ...linkBtn, fontSize: 11.5, marginLeft: "auto" }}>{working === r.id ? "reverting…" : "revert"}</button>}
+            <span className="mono" style={{ fontSize: 11, color: "var(--mute)", marginLeft: r.action === "import" ? "auto" : 0 }}>{new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
           </div>
           {r.reason && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3 }}>“{r.reason}”</div>}
           {r.action === "update" && r.changed_fields.filter((f) => !f.startsWith("@")).map((f) => (
@@ -397,14 +422,37 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
   const [doc, setDoc] = useState<StateDoc | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [view, setView] = useState<View>("overview");
+  const [editing, setEditing] = useState(false);
+  const [target, setTarget] = useState<EditTarget | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   const narrow = useMedia("(max-width: 760px)");
+  const reload = () => setTick((t) => t + 1);
 
+  useEffect(() => { setDoc(null); setErr(null); setView("overview"); setEditing(false); setFlash(null); }, [code]);
+  // After a save the page is fetched again rather than patched in place: a record can
+  // move other things (a deadline moves the countdown, a verify moves the counts).
   useEffect(() => {
     let live = true;
-    setDoc(null); setErr(null); setView("overview");
     gkGet<StateDoc>(`jurisdictions/${code}`).then((d) => live && setDoc(d)).catch((e) => live && setErr(e.message));
     return () => { live = false; };
-  }, [code]);
+  }, [code, tick]);
+
+  async function move(rec: Rec, action: "verify" | "unverify" | "archive" | "restore") {
+    setFlash(null);
+    try { await gkSend("POST", `records/${rec.id}/${action}`, { version: rec.version }); }
+    catch (e) { setFlash(e instanceof GkError && e.status === 409 ? `"${rec.title}" was changed by ${e.current?.updated_by || "someone"} a moment ago. The page has been refreshed; look again before you ${action}.` : (e as Error).message); }
+    reload();
+  }
+  async function verifyAll(records: Rec[]) {
+    if (!window.confirm(`Mark ${records.length} record${records.length === 1 ? "" : "s"} in ${code} as verified by you? Do this only for what you have checked yourself.`)) return;
+    setFlash(null);
+    try {
+      const r = await gkSend<{ verified: number; failed: number }>("POST", `jurisdictions/${code}/verify-bulk`, { ids: records.map((x) => ({ id: x.id, version: x.version })) });
+      if (r.failed) setFlash(`${r.verified} verified. ${r.failed} had changed in the meantime and were left alone.`);
+    } catch (e) { setFlash((e as Error).message); }
+    reload();
+  }
 
   // A deep link to one record (#rec-123, #program-SCAHC) lands once the page has drawn.
   useEffect(() => {
@@ -425,21 +473,41 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
   const f = doc.freshness;
   const empty = !doc.jurisdiction && !doc.programs.length;
   const sources = [...doc.sources, ...doc.programs.flatMap((p) => p.sources)];
+  const everything: Rec[] = [doc.jurisdiction, ...doc.programs.flatMap((p) => [p, ...p.requirements, ...p.cycles.flatMap((c) => [c, ...c.deadlines]), ...p.contacts, ...p.notes, ...p.sources]), ...doc.contacts, ...doc.notes, ...doc.sources].filter(Boolean) as Rec[];
+  const toVerify = everything.filter((r) => r.effective_status !== "verified" || r.unverified_fields.length);
 
   return (
+    <EditContext.Provider value={{ on: editing, open: setTarget, move, home: doc.code }}>
     <div>
+      {target && <RecordEditor target={target} onClose={() => setTarget(null)} onSaved={() => { setTarget(null); reload(); }} />}
       <BackLink onBack={onBack} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 18, flexWrap: "wrap", marginBottom: 20 }}>
         <div style={{ minWidth: 0 }}>
           <Eyebrow color="var(--olive)" style={{ marginBottom: 8 }}>{doc.jurisdiction_kind} · {doc.code}{j.saa_short ? ` · ${String(j.saa_short).toLowerCase()}` : ""}</Eyebrow>
           <h1 className="headline" style={{ margin: 0 }}>{doc.name}</h1>
-          {j.saa && <div style={{ fontSize: 15, color: "var(--sec)", marginTop: 8 }}>{j.saa}{doc.jurisdiction && <> <Trust rec={doc.jurisdiction} quiet /></>}</div>}
+          {j.saa && <div style={{ fontSize: 15, color: "var(--sec)", marginTop: 8 }}>{j.saa}{doc.jurisdiction && <> <Trust rec={doc.jurisdiction} quiet /><RecActions rec={doc.jurisdiction} /></>}</div>}
         </div>
-        <SegPill<View> options={[{ key: "overview", label: "Overview" }, { key: "playbook", label: "Playbook" }, { key: "history", label: "History" }]} value={view} onChange={setView} />
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <SegPill<View> options={[{ key: "overview", label: "Overview" }, { key: "playbook", label: "Playbook" }, { key: "history", label: "History" }]} value={view} onChange={setView} />
+          <PillButton tone={editing ? "olive" : "outline"} onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit"}</PillButton>
+        </div>
       </div>
 
+      {flash && <div role="alert" style={{ border: "1px solid var(--warn-fg)", background: "var(--warn-bg)", color: "var(--ink)", borderRadius: 12, padding: "10px 14px", fontSize: 13.5, marginBottom: 14 }}>{flash}</div>}
+      {editing && (
+        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", border: "1px dashed var(--bd2)", borderRadius: 12, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--sec)" }}>
+          <span>Add to {doc.name}:</span>
+          {!doc.jurisdiction && <AddButton spec={{ jurisdiction: doc.code, kind: "jurisdiction", heading: `Start ${doc.name}'s record` }}>the state record</AddButton>}
+          <AddButton spec={{ jurisdiction: doc.code, kind: "program", preset: { type: "state", status: "active" } }}>program</AddButton>
+          <AddButton spec={{ jurisdiction: doc.code, kind: "contact", preset: { contact_kind: "saa" } }}>contact</AddButton>
+          <AddButton spec={{ jurisdiction: doc.code, kind: "note", preset: { category: "gotcha" } }}>note or gotcha</AddButton>
+          <AddButton spec={{ jurisdiction: doc.code, kind: "source" }}>source</AddButton>
+          {toVerify.length > 0 && <button onClick={() => verifyAll(toVerify)} className="mono" style={{ ...linkBtn, fontSize: 12, color: "var(--ok-fg)", marginLeft: "auto" }}>verify all {toVerify.length} unconfirmed…</button>}
+        </div>
+      )}
+
       {empty ? (
-        <Card><div style={{ fontSize: 14, color: "var(--sec)" }}>Nothing has been recorded for {doc.name} yet.</div></Card>
+        <Card><div style={{ fontSize: 14, color: "var(--sec)" }}>Nothing has been recorded for {doc.name} yet.{!editing && " Press Edit to start it."}</div></Card>
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, 1fr)", gap: 14, marginBottom: 18 }}>
@@ -492,17 +560,18 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
               {sources.length > 0 && (
                 <Section id="sources" title="sources" meta={`${sources.length}`}>
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
-                    {sources.map((s) => <li key={s.id}><a href={s.data.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{s.data.title || String(s.data.url).replace(/^https?:\/\/(www\.)?/, "")}</a>{s.data.accessed && <span style={{ color: "var(--mute)", fontSize: 11.5 }}> · read {fmtDay(s.data.accessed)}</span>}</li>)}
+                    {sources.map((s) => <li key={s.id} id={`rec-${s.id}`}><a href={s.data.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{s.data.title || String(s.data.url).replace(/^https?:\/\/(www\.)?/, "")}</a>{s.data.accessed && <span style={{ color: "var(--mute)", fontSize: 11.5 }}> · read {fmtDay(s.data.accessed)}</span>} <RecActions rec={s} /></li>)}
                   </ul>
                 </Section>
               )}
             </>
           )}
           {view === "playbook" && <Playbook doc={doc} />}
-          {view === "history" && <History code={doc.code} />}
+          {view === "history" && <History code={doc.code} onChanged={reload} />}
         </>
       )}
     </div>
+    </EditContext.Provider>
   );
 }
 
