@@ -47,11 +47,22 @@ export type NextDeadline = {
 export type CycleState = "open" | "soon" | "closed" | "unknown";
 export type Freshness = { records: number; verified: number; unverified: number; stale: number; fields_to_confirm: number };
 
+/** One attachment. `download_url` points at the backend directly and expires in minutes. */
+export type GkFile = {
+  id: number; jurisdiction: string; record_id: number | null; label: string;
+  filename: string; mime: string; type_name: string; size_bytes: number;
+  drive_url: string; source_url: string;
+  uploaded_by: string; uploaded_at: string | null;
+  archived_at: string | null; archived_by: string;
+  download_url: string | null;
+};
+
 export type StateDoc = {
   code: string; name: string; jurisdiction_kind: string;
   jurisdiction: Rec | null;
   programs: Program[];
   contacts: Rec[]; notes: Rec[]; sources: Rec[];
+  files: GkFile[];
   cycle_state: CycleState; next_deadline: NextDeadline | null;
   freshness: Freshness; open_questions: number;
 };
@@ -138,6 +149,38 @@ export async function gkSend<T>(method: "POST" | "PATCH", path: string, body: un
   if (!r.ok) throw new GkError((data as { error?: string }).error || `HTTP ${r.status}`, r.status, data as { current?: Rec; existing?: Rec });
   return data as T;
 }
+
+/**
+ * Puts one file in the knowledge base.
+ *
+ * Two steps, because these functions cap a request body at 4.5 MB and a NOFO is
+ * often bigger. The first asks the backend, through the proxy and so behind the
+ * login, for permission: a short-lived signed ticket naming the state, the record
+ * and the person. The second posts the file to the backend itself with that
+ * ticket. The team key stays on the server either way, and the name recorded
+ * against the file is the one the backend resolved, not one typed here.
+ */
+export async function gkUpload(
+  file: File,
+  target: { jurisdiction: string; record_id?: number | null; label?: string; source_url?: string }
+): Promise<GkFile> {
+  const permit = await gkSend<{ ticket: string; upload_url: string; max_bytes: number }>("POST", "files/ticket", {
+    jurisdiction: target.jurisdiction,
+    ...(target.record_id ? { record_id: target.record_id } : {}),
+    ...(target.label ? { label: target.label } : {}),
+    ...(target.source_url ? { source_url: target.source_url } : {}),
+  });
+  if (file.size > permit.max_bytes) throw new GkError(`${file.name} is ${fmtSize(file.size)}. The limit is ${fmtSize(permit.max_bytes)}.`, 413);
+
+  const form = new FormData();
+  form.set("file", file, file.name);
+  const r = await fetch(permit.upload_url, { method: "POST", headers: { "X-GK-Ticket": permit.ticket }, body: form });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new GkError((data as { error?: string }).error || `Upload failed (HTTP ${r.status})`, r.status);
+  return (data as { file: GkFile }).file;
+}
+
+export const fmtSize = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 export type AttentionItem = {
   record_id: number; jurisdiction: string; kind: string; title: string; version: number; origin: string;
