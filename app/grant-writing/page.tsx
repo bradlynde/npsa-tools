@@ -585,6 +585,91 @@ function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
   );
 }
 
+/** One row of the team answers read. */
+type AnswerRow = { key: string; value: string; number?: string; prompt?: string; label: string };
+const ellipsis = (t: string, n: number) => (t.length > n ? `${t.slice(0, n).trimEnd()}…` : t);
+
+/**
+ * NPSA's notes on the client's Information Collection answers. The client form shows them read-only
+ * under the answer; "Ask the client" turns a note into a question, amber on their form until cleared.
+ */
+function NotesSection({ client, editing }: { client: ClientRow; editing: boolean }) {
+  const [rows, setRows] = useState<AnswerRow[] | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [asks, setAsks] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const load = () =>
+    getJson<{ answers: AnswerRow[] }>(`/api/clients/${client.slug}/answers?include_empty=1`)
+      .then((d) => {
+        setRows(d.answers);
+        const by = new Map(d.answers.map((r) => [r.key, r.value]));
+        setDraft(Object.fromEntries(d.answers.filter((r) => r.key.startsWith("note_q_")).map((r) => [r.key, r.value])));
+        setAsks(String(by.get("_note_asks") || "").split(",").map((k) => k.trim()).filter(Boolean));
+      })
+      .catch((e) => setErr((e as Error).message));
+  useEffect(() => { load(); }, [client.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!editing && rows) load(); }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!rows) return <Section title="npsa notes">{err ? <div style={{ color: "var(--err-fg)", fontSize: 12 }}>{err}</div> : <Faint>Loading…</Faint>}</Section>;
+  const answer = new Map(rows.map((r) => [r.key, r.value]));
+  const saved = new Map(rows.filter((r) => r.key.startsWith("note_q_")).map((r) => [r.key, r.value]));
+  const savedAsks = String(answer.get("_note_asks") || "").split(",").map((k) => k.trim()).filter(Boolean);
+  const notes = rows.filter((r) => r.key.startsWith("note_q_")).map((r) => ({ key: r.key, q: r.key.slice(5), number: r.number || "", prompt: r.prompt || r.label.replace(/^Note — /, "") }));
+  const shown = editing ? notes : notes.filter((n) => saved.get(n.key) || savedAsks.includes(n.q));
+  const changed = Object.fromEntries(Object.entries(draft).filter(([k, v]) => v !== (saved.get(k) || "")));
+  const asksChanged = asks.slice().sort().join(",") !== savedAsks.slice().sort().join(",");
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try {
+      await patchJson(`/api/clients/${client.slug}`, { ...(Object.keys(changed).length ? { question_notes: changed } : {}), ...(asksChanged ? { note_asks: asks } : {}) });
+      await load();
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const open = savedAsks.length;
+  return (
+    <Section title="npsa notes" meta={`${notes.filter((n) => saved.get(n.key)).length} on the form${open ? ` · ${open} question${open === 1 ? "" : "s"} for the client` : ""}`}>
+      {shown.length === 0 && <Faint>No notes yet. Use Edit to add one; the client sees it under their answer.</Faint>}
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
+        {shown.map((n) => {
+          const a = answer.get(n.q) || "";
+          const ask = (editing ? asks : savedAsks).includes(n.q);
+          return (
+            <li key={n.key} style={{ display: "grid", gridTemplateColumns: "34px minmax(0, 1fr)", gap: 8, fontSize: 13 }}>
+              <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)", paddingTop: 1 }}>{n.number}</span>
+              <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ color: "var(--ink)", fontWeight: 600 }}>{n.prompt}</div>
+                <div style={{ fontSize: 12, color: "var(--faint)" }}>{a ? `Client: ${ellipsis(a, 160)}` : "No answer yet"}</div>
+                {editing ? (
+                  <>
+                    <textarea value={draft[n.key] || ""} onChange={(e) => setDraft((d) => ({ ...d, [n.key]: e.target.value }))} rows={2} placeholder="Note the client will see under their answer" aria-label={`NPSA note on ${n.number}`} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.45 }} />
+                    <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: ask ? "var(--warn-fg)" : "var(--mute)", cursor: "pointer" }}>
+                      <input type="checkbox" checked={ask} onChange={(e) => setAsks((l) => (e.target.checked ? [...l, n.q] : l.filter((k) => k !== n.q)))} />
+                      Ask the client (shows as a question on their form)
+                    </label>
+                  </>
+                ) : (
+                  <div style={{ whiteSpace: "pre-line", color: "var(--mute)" }}>
+                    {ask && <span className="mono" style={{ fontSize: 10.5, color: "var(--warn-fg)", textTransform: "uppercase", letterSpacing: ".06em", marginRight: 6 }}>question for client</span>}
+                    {ellipsis(saved.get(n.key) || "", 400)}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {editing && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
+          <button type="button" disabled={busy || (!Object.keys(changed).length && !asksChanged)} onClick={save} style={{ ...smallBtn, background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)" }}>{busy ? "Saving…" : "Save notes"}</button>
+          <span style={{ fontSize: 11.5, color: "var(--faint)" }}>Clear a note&rsquo;s text to take it off the form.</span>
+        </div>
+      )}
+      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+    </Section>
+  );
+}
+
 /* ── Client dialog ────────────────────────────────────────────── */
 
 function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void }) {
@@ -747,6 +832,8 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                       ))}
                     </div>
                   </Section>
+
+                  <NotesSection client={c} editing={editing} />
 
                   {lists.length > 0 && (
                     <Section title="wish list & budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}${s.wish_lists && s.wish_lists.length > 1 ? " now" : ""}` : undefined}>
