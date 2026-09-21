@@ -588,85 +588,140 @@ function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
 /** One row of the team answers read. */
 type AnswerRow = { key: string; value: string; number?: string; prompt?: string; label: string };
 const ellipsis = (t: string, n: number) => (t.length > n ? `${t.slice(0, n).trimEnd()}…` : t);
+const NOTE_SECTIONS: Record<string, string> = { "2": "Your identity", "3": "Your role in the community", "4": "The threats you face", "5": "The project" };
+type NotesData = { answer: Map<string, string>; notes: { key: string; q: string; number: string; prompt: string; note: string }[]; asks: string[] };
+async function loadNotes(slug: string): Promise<NotesData> {
+  const d = await getJson<{ answers: AnswerRow[] }>(`/api/clients/${slug}/answers?include_empty=1`);
+  const answer = new Map(d.answers.map((r) => [r.key, r.value]));
+  const notes = d.answers.filter((r) => r.key.startsWith("note_q_")).map((r) => ({ key: r.key, q: r.key.slice(5), number: r.number || "", prompt: r.prompt || r.label.replace(/^Note — /, ""), note: r.value }));
+  return { answer, notes, asks: String(answer.get("_note_asks") || "").split(",").map((k) => k.trim()).filter(Boolean) };
+}
 
 /**
- * NPSA's notes on the client's Information Collection answers. The client form shows them read-only
- * under the answer; "Ask the client" turns a note into a question, amber on their form until cleared.
+ * NPSA's notes on the client's Information Collection answers, as a short summary. Writing them
+ * happens in NotesPane, which takes over the whole dialog so answers and notes have room.
  */
-function NotesSection({ client, editing }: { client: ClientRow; editing: boolean }) {
-  const [rows, setRows] = useState<AnswerRow[] | null>(null);
+function NotesSection({ client, version, onOpen }: { client: ClientRow; version: number; onOpen: () => void }) {
+  const [data, setData] = useState<NotesData | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { loadNotes(client.slug).then(setData).catch((e) => setErr((e as Error).message)); }, [client.slug, version]);
+  const withNote = data ? data.notes.filter((n) => n.note || data.asks.includes(n.q)) : [];
+  const open = data ? data.asks.length : 0;
+  return (
+    <Section title="npsa notes" meta={data ? `${data.notes.filter((n) => n.note).length} on the form${open ? ` · ${open} question${open === 1 ? "" : "s"} for the client` : ""}` : undefined}>
+      {err && <div style={{ color: "var(--err-fg)", fontSize: 12 }}>{err}</div>}
+      {!data && !err && <Faint>Loading…</Faint>}
+      {data && withNote.length === 0 && <Faint>No notes yet. The client sees a note under their answer.</Faint>}
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+        {withNote.map((n) => (
+          <li key={n.key} style={{ display: "grid", gridTemplateColumns: "34px minmax(0, 1fr)", gap: 8, fontSize: 13 }}>
+            <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)", paddingTop: 1 }}>{n.number}</span>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--mute)" }}>
+              {data!.asks.includes(n.q) && <span className="mono" style={{ fontSize: 10.5, color: "var(--warn-fg)", textTransform: "uppercase", letterSpacing: ".06em", marginRight: 6 }}>question</span>}
+              {n.note || <Faint>(no text)</Faint>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={onOpen} style={{ ...smallBtn, marginTop: 10 }}>{withNote.length ? "Open notes" : "Write notes"}</button>
+    </Section>
+  );
+}
+
+/**
+ * The notes editor: every Information Collection question with the client's full answer beside
+ * the note, grouped by form section. "Ask the client" turns a note into a question, amber on
+ * their form until cleared. Takes over the dialog body; Back returns to the client.
+ */
+function NotesPane({ client, onClose, closeGuard }: { client: ClientRow; onClose: (saved: boolean) => void; closeGuard: React.MutableRefObject<(() => boolean) | null> }) {
+  const stacked = useMedia("(max-width: 900px)");
+  const [data, setData] = useState<NotesData | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [asks, setAsks] = useState<string[]>([]);
+  const [only, setOnly] = useState<string>("all");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const load = () =>
-    getJson<{ answers: AnswerRow[] }>(`/api/clients/${client.slug}/answers?include_empty=1`)
-      .then((d) => {
-        setRows(d.answers);
-        const by = new Map(d.answers.map((r) => [r.key, r.value]));
-        setDraft(Object.fromEntries(d.answers.filter((r) => r.key.startsWith("note_q_")).map((r) => [r.key, r.value])));
-        setAsks(String(by.get("_note_asks") || "").split(",").map((k) => k.trim()).filter(Boolean));
-      })
-      .catch((e) => setErr((e as Error).message));
-  useEffect(() => { load(); }, [client.slug]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!editing && rows) load(); }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!rows) return <Section title="npsa notes">{err ? <div style={{ color: "var(--err-fg)", fontSize: 12 }}>{err}</div> : <Faint>Loading…</Faint>}</Section>;
-  const answer = new Map(rows.map((r) => [r.key, r.value]));
-  const saved = new Map(rows.filter((r) => r.key.startsWith("note_q_")).map((r) => [r.key, r.value]));
-  const savedAsks = String(answer.get("_note_asks") || "").split(",").map((k) => k.trim()).filter(Boolean);
-  const notes = rows.filter((r) => r.key.startsWith("note_q_")).map((r) => ({ key: r.key, q: r.key.slice(5), number: r.number || "", prompt: r.prompt || r.label.replace(/^Note — /, "") }));
-  const shown = editing ? notes : notes.filter((n) => saved.get(n.key) || savedAsks.includes(n.q));
-  const changed = Object.fromEntries(Object.entries(draft).filter(([k, v]) => v !== (saved.get(k) || "")));
-  const asksChanged = asks.slice().sort().join(",") !== savedAsks.slice().sort().join(",");
+  const [savedOnce, setSavedOnce] = useState(false);
+  const reset = (d: NotesData) => { setData(d); setDraft(Object.fromEntries(d.notes.map((n) => [n.key, n.note]))); setAsks(d.asks); };
+  useEffect(() => { loadNotes(client.slug).then(reset).catch((e) => setErr((e as Error).message)); }, [client.slug]);
+  const changed = data ? Object.fromEntries(Object.entries(draft).filter(([k, v]) => v !== (data.notes.find((n) => n.key === k)?.note || ""))) : {};
+  const asksChanged = data ? asks.slice().sort().join(",") !== data.asks.slice().sort().join(",") : false;
+  const dirty = Object.keys(changed).length > 0 || asksChanged;
+  const leave = () => { if (dirty && !window.confirm("Leave without saving your note changes?")) return; onClose(savedOnce); };
+  closeGuard.current = () => !dirty || window.confirm("Close without saving your note changes?");
+  useEffect(() => () => { closeGuard.current = null; }, [closeGuard]);
   const save = async () => {
     setBusy(true); setErr(null);
     try {
       await patchJson(`/api/clients/${client.slug}`, { ...(Object.keys(changed).length ? { question_notes: changed } : {}), ...(asksChanged ? { note_asks: asks } : {}) });
-      await load();
+      reset(await loadNotes(client.slug)); setSavedOnce(true);
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   };
-  const open = savedAsks.length;
+  const groups = Object.keys(NOTE_SECTIONS).filter((sec) => only === "all" || only === "noted" || only === sec).map((sec) => ({
+    sec,
+    rows: (data?.notes || []).filter((n) => n.number.split(".")[0] === sec).filter((n) => only !== "noted" || draft[n.key] || asks.includes(n.q)),
+  })).filter((g) => g.rows.length);
+  const chip = (id: string, label: string) => (
+    <button key={id} type="button" onClick={() => setOnly(id)} aria-pressed={only === id} style={{ ...smallBtn, ...(only === id ? { background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)" } : {}) }}>{label}</button>
+  );
   return (
-    <Section title="npsa notes" meta={`${notes.filter((n) => saved.get(n.key)).length} on the form${open ? ` · ${open} question${open === 1 ? "" : "s"} for the client` : ""}`}>
-      {shown.length === 0 && <Faint>No notes yet. Use Edit to add one; the client sees it under their answer.</Faint>}
-      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
-        {shown.map((n) => {
-          const a = answer.get(n.q) || "";
-          const ask = (editing ? asks : savedAsks).includes(n.q);
-          return (
-            <li key={n.key} style={{ display: "grid", gridTemplateColumns: "34px minmax(0, 1fr)", gap: 8, fontSize: 13 }}>
-              <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)", paddingTop: 1 }}>{n.number}</span>
-              <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                <div style={{ color: "var(--ink)", fontWeight: 600 }}>{n.prompt}</div>
-                <div style={{ fontSize: 12, color: "var(--faint)" }}>{a ? `Client: ${ellipsis(a, 160)}` : "No answer yet"}</div>
-                {editing ? (
-                  <>
-                    <textarea value={draft[n.key] || ""} onChange={(e) => setDraft((d) => ({ ...d, [n.key]: e.target.value }))} rows={2} placeholder="Note the client will see under their answer" aria-label={`NPSA note on ${n.number}`} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.45 }} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
+      <div style={{ padding: "12px 26px", borderBottom: "1px solid var(--hair)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button type="button" onClick={leave} style={{ ...xBtn, fontSize: 13, color: "var(--navy)", padding: 0 }}>← Back to client</button>
+        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginLeft: 6 }}>NPSA notes</span>
+        <span style={{ fontSize: 12, color: "var(--faint)" }}>The client sees each note under their answer; questions show in amber until you clear them.</span>
+        <span style={{ flex: 1 }} />
+        {dirty && <span style={{ fontSize: 12, color: "var(--warn-fg)" }}>Unsaved changes</span>}
+        <button type="button" disabled={busy || !dirty} onClick={save} style={{ ...smallBtn, background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)", opacity: busy || !dirty ? 0.55 : 1 }}>{busy ? "Saving…" : "Save notes"}</button>
+      </div>
+      <div style={{ padding: "10px 26px", borderBottom: "1px solid var(--hair2)", display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {chip("all", "All")}
+        {chip("noted", "With a note")}
+        {Object.entries(NOTE_SECTIONS).map(([sec, name]) => chip(sec, `${sec} · ${name}`))}
+      </div>
+      <div style={{ overflowY: "auto", padding: "8px 26px 30px" }}>
+        {err && <Note>{err}</Note>}
+        {!data && !err && <Note>Loading…</Note>}
+        {data && groups.length === 0 && <div style={{ padding: "18px 0" }}><Faint>No notes in this view yet.</Faint></div>}
+        {groups.map((g) => (
+          <section key={g.sec} style={{ marginTop: 18 }}>
+            <Eyebrow style={{ fontSize: 11, marginBottom: 4 }}>Section {g.sec} · {NOTE_SECTIONS[g.sec]}</Eyebrow>
+            {g.rows.map((n) => {
+              const a = data!.answer.get(n.q) || "";
+              const ask = asks.includes(n.q);
+              return (
+                <div key={n.key} style={{ display: "grid", gridTemplateColumns: stacked ? "1fr" : "minmax(0, 1fr) minmax(0, 1fr)", gap: stacked ? 10 : 28, padding: "16px 0", borderTop: "1px solid var(--hair)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0, 1fr)", gap: 6, alignItems: "baseline" }}>
+                      <span className="mono" style={{ fontSize: 12, color: "var(--faint)" }}>{n.number}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", lineHeight: 1.4 }}>{n.prompt}</span>
+                    </div>
+                    <div style={{ marginTop: 8, marginLeft: 42, fontSize: 13, lineHeight: 1.55, color: a ? "var(--mute)" : "var(--faint)", whiteSpace: "pre-line", maxHeight: 240, overflowY: "auto" }}>
+                      {a || "No answer yet"}
+                    </div>
+                  </div>
+                  <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <textarea
+                      value={draft[n.key] || ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, [n.key]: e.target.value }))}
+                      rows={Math.min(10, Math.max(3, Math.ceil((draft[n.key] || "").length / 70) + 1))}
+                      placeholder="Note the client will see under their answer"
+                      aria-label={`NPSA note on ${n.number}`}
+                      style={{ ...inputStyle, fontSize: 13, padding: "8px 10px", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, borderColor: ask ? "var(--warn-fg)" : "var(--bd2)" }}
+                    />
                     <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: ask ? "var(--warn-fg)" : "var(--mute)", cursor: "pointer" }}>
                       <input type="checkbox" checked={ask} onChange={(e) => setAsks((l) => (e.target.checked ? [...l, n.q] : l.filter((k) => k !== n.q)))} />
                       Ask the client (shows as a question on their form)
                     </label>
-                  </>
-                ) : (
-                  <div style={{ whiteSpace: "pre-line", color: "var(--mute)" }}>
-                    {ask && <span className="mono" style={{ fontSize: 10.5, color: "var(--warn-fg)", textTransform: "uppercase", letterSpacing: ".06em", marginRight: 6 }}>question for client</span>}
-                    {ellipsis(saved.get(n.key) || "", 400)}
                   </div>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {editing && (
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
-          <button type="button" disabled={busy || (!Object.keys(changed).length && !asksChanged)} onClick={save} style={{ ...smallBtn, background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)" }}>{busy ? "Saving…" : "Save notes"}</button>
-          <span style={{ fontSize: 11.5, color: "var(--faint)" }}>Clear a note&rsquo;s text to take it off the form.</span>
-        </div>
-      )}
-      {err && <div style={{ color: "var(--err-fg)", fontSize: 12, marginTop: 4 }}>{err}</div>}
-    </Section>
+                </div>
+              );
+            })}
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -679,6 +734,11 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
   const [editing, setEditing] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const stacked = useMedia("(max-width: 900px)");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesVersion, setNotesVersion] = useState(0);
+  // While the notes pane is open, closing the dialog asks first if a note is unsaved.
+  const notesGuard = useRef<(() => boolean) | null>(null);
+  const close = () => { if (!notesGuard.current || notesGuard.current()) onClose(); };
 
   useEffect(() => {
     let live = true;
@@ -692,7 +752,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
 
   // Escape closes; the page behind stays put while the dialog scrolls.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -725,7 +785,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
   // would otherwise turn this "fixed" overlay into one positioned inside it.
   return createPortal(
     <div
-      onClick={onClose}
+      onClick={close}
       role="presentation"
       style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(12,16,24,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: stacked ? 12 : 32 }}
     >
@@ -754,7 +814,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                 {editing ? "Done editing" : "Edit"}
               </button>
               <button
-                ref={closeRef} type="button" aria-label="Close" onClick={onClose}
+                ref={closeRef} type="button" aria-label="Close" onClick={close}
                 style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "1px solid var(--bd2)", borderRadius: 9, color: "var(--sec)", cursor: "pointer", lineHeight: 1, padding: 0 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; e.currentTarget.style.color = "var(--ink)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sec)"; }}
@@ -772,8 +832,10 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
           </div>
         </div>
 
+        {notesOpen && detail && <NotesPane client={c} closeGuard={notesGuard} onClose={(saved) => { setNotesOpen(false); if (saved) setNotesVersion((v) => v + 1); }} />}
+
         {/* Body */}
-        <div style={{ overflowY: "auto", padding: "18px 26px 26px" }}>
+        <div style={{ overflowY: "auto", padding: "18px 26px 26px", display: notesOpen ? "none" : undefined }}>
           {error && <Note>Could not load {row.slug}: {error}</Note>}
           {!error && !s && <Note>Loading…</Note>}
           {s && (
@@ -833,7 +895,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     </div>
                   </Section>
 
-                  <NotesSection client={c} editing={editing} />
+                  <NotesSection client={c} version={notesVersion} onOpen={() => setNotesOpen(true)} />
 
                   {lists.length > 0 && (
                     <Section title="wish list & budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}${s.wish_lists && s.wish_lists.length > 1 ? " now" : ""}` : undefined}>
