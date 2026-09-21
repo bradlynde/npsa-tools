@@ -3,16 +3,17 @@
  * /api/marketing/* (see app/api/marketing/[...path]/route.ts).
  *
  * The upstream endpoints report all-time totals and have no date-range filter,
- * so range-scoped figures (30d / 90d / YTD) are derived here from the weekly
- * time series, which is aggregated server-side and therefore uncapped.
+ * so range-scoped figures (this month, last month, this quarter, YTD) are derived
+ * here from the daily time series, which is aggregated server-side and therefore
+ * uncapped.
  */
 
-export type Range = '30d' | '90d' | 'ytd' | 'all';
+export type Range = 'month' | 'lastmonth' | 'quarter' | 'ytd' | 'all';
 export type Granularity = 'week' | 'month';
 export type SalesGranularity = 'month' | 'quarter';
 
 export type TimeseriesRow = {
-  period: string; // YYYY-MM-DD, start of the week or month
+  period: string; // YYYY-MM-DD (Central), start of the day, week or month
   booked: number;
   held: number;
   /** Meetings whose outcome is known. Absent on backends older than Aug 2026. */
@@ -107,6 +108,8 @@ export type Stats = {
   bookings_this_week: number;
   bookings_this_month: number;
   bookings_last_month: number;
+  /** Last month up to the same day of the month. Absent on backends before Sep 2026. */
+  bookings_last_month_to_date?: number;
   client_rate: number;
   held_rate: number;
   instantly_pct: number;
@@ -223,7 +226,7 @@ export async function fetchSyncStatus(): Promise<SyncStatus | null> {
   }
 }
 export const fetchFunnel = () => get<Funnel>('funnel');
-export const fetchTimeseries = (gran: Granularity = 'week') =>
+export const fetchTimeseries = (gran: Granularity | 'day' = 'week') =>
   get<TimeseriesRow[]>(`timeseries?granularity=${gran}`);
 export const fetchChannels = () => get<ChannelRow[]>('by-channel');
 export const fetchCampaigns = () => get<CampaignRow[]>('by-campaign');
@@ -299,26 +302,89 @@ export async function refreshEnrichment(): Promise<void> {
 
 /* ── Range helpers ──────────────────────────────────────────────── */
 
-/** Inclusive lower bound for a range, relative to now. */
-export function rangeStart(range: Range): Date {
-  const now = new Date();
-  if (range === 'all') return new Date(0);
-  if (range === 'ytd') return new Date(now.getFullYear(), 0, 1);
-  const days = range === '30d' ? 30 : 90;
-  const d = new Date(now);
-  d.setDate(d.getDate() - days);
-  return d;
+/*
+ * Ranges are calendar periods on NPSA's clock, Central, matching the backend,
+ * which cuts every series in America/Chicago. They replaced rolling 30- and
+ * 90-day windows: "last month" should mean all of August, not the 30 days
+ * before today, and a period should be compared with the same point in the
+ * period before it (Sep 1-21 against Aug 1-21), not with a whole period.
+ *
+ * All window math is on Central calendar dates held as 'YYYY-MM-DD' strings.
+ * They compare correctly as strings, and cannot drift with the viewer's own
+ * time zone the way Date arithmetic on the browser clock would.
+ */
+export const REPORT_TZ = 'America/Chicago';
+const CENTRAL_DAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: REPORT_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
+/** The Central calendar date of an instant, as 'YYYY-MM-DD'. */
+export const centralDate = (at: string | Date): string =>
+  CENTRAL_DAY.format(typeof at === 'string' ? new Date(at) : at);
+
+/** Half-open window of Central dates: from <= date < to. null is unbounded. */
+export type Window = { from: string | null; to: string | null };
+
+// Date.UTC normalises overflow, so month 0 is last December and day 0 is the
+// last day of the month before -- which is all the calendar arithmetic needed.
+const ymd = (y: number, m: number, d: number): string =>
+  new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10);
+const daysIn = (y: number, m: number): number => new Date(Date.UTC(y, m, 0)).getUTCDate();
+const parts = (date: string): [number, number, number] =>
+  date.split('-').map(Number) as [number, number, number];
+
+export const inWindow = (date: string, w: Window): boolean =>
+  (!w.from || date >= w.from) && (!w.to || date < w.to);
+
+/** The window a range covers, as of `today` (a Central date). */
+export function rangeWindow(range: Range, today: string = centralDate(new Date())): Window {
+  const [y, m] = parts(today);
+  switch (range) {
+    case 'month': return { from: ymd(y, m, 1), to: null };
+    case 'lastmonth': return { from: ymd(y, m - 1, 1), to: ymd(y, m, 1) };
+    case 'quarter': return { from: ymd(y, m - ((m - 1) % 3), 1), to: null };
+    case 'ytd': return { from: ymd(y, 1, 1), to: null };
+    default: return { from: null, to: null };
+  }
 }
 
-/** The equivalent window immediately before `range`, for period-over-period deltas. */
-function priorWindow(range: Range): { from: Date; to: Date } | null {
-  // All-time has nothing before it to compare against.
-  if (range === 'all') return null;
-  const to = rangeStart(range);
-  const from = new Date(to);
-  if (range === 'ytd') from.setFullYear(from.getFullYear() - 1);
-  else from.setDate(from.getDate() - (range === '30d' ? 30 : 90));
-  return { from, to };
+/**
+ * What a range is compared against: the same point in the period before.
+ * This month so far compares with last month up to the same day; a finished
+ * month compares with the whole month before it. A day that does not exist in
+ * the earlier month clamps to its last day, so Mar 31 compares with Feb 1-28.
+ */
+export function priorWindow(range: Range, today: string = centralDate(new Date())): Window | null {
+  const [y, m, d] = parts(today);
+  // The earlier period, `back` months ago, up to the same day of the month.
+  const samePoint = (fromMonth: number, back: number): Window => {
+    const [py, pm] = parts(ymd(y, m - back, 1));
+    return { from: ymd(y, fromMonth, 1), to: ymd(py, pm, Math.min(d, daysIn(py, pm)) + 1) };
+  };
+  switch (range) {
+    case 'month': return samePoint(m - 1, 1);
+    case 'lastmonth': return { from: ymd(y, m - 2, 1), to: ymd(y, m - 1, 1) };
+    case 'quarter': return samePoint(m - ((m - 1) % 3) - 3, 3);
+    case 'ytd': return samePoint(1 - 12, 12);
+    default: return null;
+  }
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+
+/** "Aug 1–21", "July", "Apr 1–Jun 21", with the year only when it is not this one. */
+export function windowLabel(w: Window, today: string = centralDate(new Date())): string {
+  if (!w.from || !w.to) return '';
+  const [fy, fm, fd] = parts(w.from);
+  const [ty, tm, td] = parts(w.to);
+  const [ly, lm, ld] = parts(ymd(ty, tm, td - 1)); // the last day inside the window
+  const year = ly !== parts(today)[0] ? `, ${ly}` : '';
+  if (fd === 1 && fy === ly && fm === lm && ld === daysIn(ly, lm)) return `${MONTHS_LONG[lm - 1]}${year}`;
+  if (fy === ly && fm === lm && fd === ld) return `${MONTHS[fm - 1]} ${fd}${year}`;
+  if (fy === ly && fm === lm) return `${MONTHS[fm - 1]} ${fd}–${ld}${year}`;
+  return `${MONTHS[fm - 1]} ${fd}–${MONTHS[lm - 1]} ${ld}${year}`;
 }
 
 export type Totals = {
@@ -333,11 +399,11 @@ export type Totals = {
 
 const EMPTY: Totals = { booked: 0, held: 0, resolved: 0, loes: 0, won: 0, wonAmount: 0 };
 
-function sum(rows: TimeseriesRow[], from: Date, to?: Date): Totals {
+/** Totals over a window. The rows must be the DAILY series: week and month
+ *  buckets straddle calendar edges and cannot be cut to a window exactly. */
+function sum(rows: TimeseriesRow[], w: Window): Totals {
   return rows.reduce<Totals>((acc, r) => {
-    const d = new Date(`${r.period}T00:00:00`);
-    if (d < from) return acc;
-    if (to && d >= to) return acc;
+    if (!inWindow(r.period.slice(0, 10), w)) return acc;
     return {
       booked: acc.booked + (Number(r.booked) || 0),
       held: acc.held + (Number(r.held) || 0),
@@ -351,14 +417,13 @@ function sum(rows: TimeseriesRow[], from: Date, to?: Date): Totals {
   }, { ...EMPTY });
 }
 
-export function totalsFor(rows: TimeseriesRow[], range: Range): Totals {
-  return sum(rows, rangeStart(range));
+export function totalsFor(daily: TimeseriesRow[], range: Range, today?: string): Totals {
+  return sum(daily, rangeWindow(range, today));
 }
 
-export function priorTotalsFor(rows: TimeseriesRow[], range: Range): Totals {
-  const w = priorWindow(range);
-  if (!w) return { ...EMPTY };
-  return sum(rows, w.from, w.to);
+export function priorTotalsFor(daily: TimeseriesRow[], range: Range, today?: string): Totals {
+  const w = priorWindow(range, today);
+  return w ? sum(daily, w) : { ...EMPTY };
 }
 
 /**
@@ -397,12 +462,12 @@ export function attributionNote(source?: string | null): string {
 }
 
 /** LOE fee value booked in the range — the time series doesn't carry fees. */
-export function feesInRange(bookings: BookingRow[], range: Range): number {
-  const from = rangeStart(range);
+export function feesInRange(bookings: BookingRow[], range: Range, today?: string): number {
+  const w = rangeWindow(range, today);
   return bookings.reduce((n, b) => {
     if (!countsTowardTotals(b)) return n;
     const credited = creditedOn(b);
-    if (!credited || new Date(credited) < from) return n;
+    if (!credited || !inWindow(centralDate(credited), w)) return n;
     return b.became_client ? n + (Number(b.fee) || 0) : n;
   }, 0);
 }
@@ -511,26 +576,27 @@ export function axisLabelIndices(count: number, maxLabels: number): Set<number> 
  * labelled rather than hidden, which is the whole point of marking instead of
  * deleting. Only the window is applied.
  */
-export function bookingsInRange(bookings: BookingRow[], range: Range): BookingRow[] {
+export function bookingsInRange(bookings: BookingRow[], range: Range, today?: string): BookingRow[] {
   if (range === 'all') return bookings;
-  const from = rangeStart(range);
+  const w = rangeWindow(range, today);
   return bookings.filter((b) => {
     const credited = creditedOn(b);
-    return !credited || new Date(credited) >= from;
+    return !credited || inWindow(centralDate(credited), w);
   });
 }
 
 /** Range-scoped channel breakdown, computed from raw bookings. */
 export function channelsInRange(
   bookings: BookingRow[],
-  range: Range
+  range: Range,
+  today?: string
 ): { name: string; booked: number; loes: number; won: number }[] {
-  const from = rangeStart(range);
+  const w = rangeWindow(range, today);
   const map = new Map<string, { booked: number; loes: number; won: number }>();
   for (const b of bookings) {
     if (!countsTowardTotals(b)) continue;
     const credited = creditedOn(b);
-    if (!credited || new Date(credited) < from) continue;
+    if (!credited || !inWindow(centralDate(credited), w)) continue;
     const key = channelLabel(b.attribution_channel);
     const cur = map.get(key) || { booked: 0, loes: 0, won: 0 };
     cur.booked += 1;
@@ -581,9 +647,10 @@ const CAMPAIGN_DEAD_NAMES: Record<string, { id: string; name: string }> = {
  */
 export function campaignsInRange(
   bookings: BookingRow[],
-  range: Range
+  range: Range,
+  today?: string
 ): { campaign: string; isCampaign: boolean; booked: number; held: number; loes: number; fees: number }[] {
-  const from = rangeStart(range);
+  const w = rangeWindow(range, today);
 
   // A campaign renamed in Instantly leaves its OLD name on every booking taken
   // before the rename, so grouping on the name alone splits one campaign into two
@@ -614,7 +681,7 @@ export function campaignsInRange(
   for (const b of bookings) {
     if (!countsTowardTotals(b)) continue;
     const credited = creditedOn(b);
-    if (!credited || new Date(credited) < from) continue;
+    if (!credited || !inWindow(centralDate(credited), w)) continue;
     const stored = b.instantly_campaign?.trim();
     // The id names the campaign when there is one. Failing that -- rows older than
     // the column -- the dead-name map does, and failing that the stored name is
@@ -678,8 +745,9 @@ export function channelLabel(c?: string | null): string {
 }
 
 export const RANGE_WORD: Record<Range, string> = {
-  '30d': 'last 30 days',
-  '90d': 'last 90 days',
+  month: 'this month',
+  lastmonth: 'last month',
+  quarter: 'this quarter',
   ytd: 'year to date',
   all: 'all time',
 };
@@ -688,13 +756,16 @@ export const RANGE_WORD: Record<Range, string> = {
 export const BOOKINGS_LIMIT = 500;
 
 const RANGE_KEY = 'npsa-range';
-const VALID: Range[] = ['30d', '90d', 'ytd', 'all'];
+const VALID: Range[] = ['month', 'lastmonth', 'quarter', 'ytd', 'all'];
+// A browser that last used the rolling windows keeps the nearest calendar period.
+const LEGACY: Record<string, Range> = { '30d': 'month', '90d': 'quarter' };
 
-export function loadRange(fallback: Range = '90d'): Range {
+export function loadRange(fallback: Range = 'quarter'): Range {
   if (typeof window === 'undefined') return fallback;
   try {
-    const v = localStorage.getItem(RANGE_KEY) as Range | null;
-    return v && VALID.includes(v) ? v : fallback;
+    const raw = localStorage.getItem(RANGE_KEY) || '';
+    const v = (LEGACY[raw] ?? raw) as Range;
+    return VALID.includes(v) ? v : fallback;
   } catch {
     return fallback;
   }

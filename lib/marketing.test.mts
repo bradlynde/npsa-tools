@@ -1,4 +1,5 @@
-import { bookingsInRange, campaignsInRange, channelsInRange, creditedOn, feesInRange, type BookingRow } from "./marketing.ts";
+import { bookingsInRange, campaignsInRange, centralDate, channelsInRange, creditedOn, feesInRange, priorTotalsFor,
+  priorWindow, rangeWindow, totalsFor, windowLabel, type BookingRow, type TimeseriesRow } from "./marketing.ts";
 
 const b = (o: Partial<BookingRow>): BookingRow => ({
   id: 0, booked_on: "2026-08-18", meeting_date: "2026-08-20", name: "n",
@@ -63,35 +64,60 @@ ok("E  an uncatalogued rename folds on the id alone", rows.length, 1);
 ok("E2 and both bookings land on it", rows[0].booked, 2);
 
 // RESCHEDULES: credited to the day the appointment was first set, not the day it
-// moved. A replacement row's own booked_on is the day of the reschedule, so a
-// meeting set 45 days ago and moved 5 days ago must NOT land in a 30-day window --
-// upstream's tiles and chart already date it from its origin, and these panels sit
-// right under them. Relative dates, because rangeStart() reads the clock.
-const recent = new Date(Date.now() - 5 * 86_400_000).toISOString();
-const old = new Date(Date.now() - 45 * 86_400_000).toISOString();
+// moved. A replacement row's own booked_on is the day of the reschedule. Dates are
+// pinned to a fixed "today" so the calendar windows are deterministic.
+const TODAY = "2026-09-21";
+const moved = b({ id: 11, booked_on: "2026-09-18T15:00:00Z", originated_on: "2026-08-10T15:00:00Z", became_client: true, fee: 9500 });
+const fresh = b({ id: 12, booked_on: "2026-09-18T15:00:00Z", became_client: true, fee: 4000 });
+const original = b({ id: 13, booked_on: "2026-08-10T15:00:00Z", exclusion_reason: "rescheduled", cancelled: true });
 
-ok("F  creditedOn uses the origin when there is one",
-   creditedOn(b({ booked_on: recent, originated_on: old })), old);
-ok("F2 and booked_on when the row replaced nothing",
-   creditedOn(b({ booked_on: recent, originated_on: null })), recent);
-ok("F3 and booked_on from a backend that does not send the field yet",
-   creditedOn(b({ booked_on: recent })), recent);
+ok("F  creditedOn uses the origin when there is one", creditedOn(moved), "2026-08-10T15:00:00Z");
+ok("F2 and booked_on when the row replaced nothing", creditedOn(b({ booked_on: "2026-09-18", originated_on: null })), "2026-09-18");
+ok("F3 and booked_on from a backend that does not send the field yet", creditedOn(b({ booked_on: "2026-09-18" })), "2026-09-18");
 
-const moved = b({ id: 11, booked_on: recent, originated_on: old, became_client: true, fee: 9500 });
-const fresh = b({ id: 12, booked_on: recent, became_client: true, fee: 4000 });
-const original = b({ id: 13, booked_on: old, exclusion_reason: "rescheduled", cancelled: true });
 const set = [moved, fresh, original];
 const ids = (r: BookingRow[]) => r.map(x => x.id).sort((x, y) => x - y);
 const booked = (r: { booked: number }[]) => r.reduce((n, x) => n + x.booked, 0);
+ok("G  this month: list holds the new booking only", ids(bookingsInRange(set, "month", TODAY)), [12]);
+ok("G2 this month: channel table counts one", booked(channelsInRange(set, "month", TODAY)), 1);
+ok("G3 this month: campaign table counts one", booked(campaignsInRange(set, "month", TODAY)), 1);
+ok("G4 this month: fees leave out the moved client's", feesInRange(set, "month", TODAY), 4000);
+ok("G5 last month: the moved meeting and its original, not September's", ids(bookingsInRange(set, "lastmonth", TODAY)), [11, 13]);
+ok("G6 last month: the moved client's fee, the excluded original's not", feesInRange(set, "lastmonth", TODAY), 9500);
+ok("G7 quarter: all three rows listed", ids(bookingsInRange(set, "quarter", TODAY)), [11, 12, 13]);
+ok("G8 quarter: fees count the moved client once", feesInRange(set, "quarter", TODAY), 13500);
 
-ok("G  30d list holds the new booking, not the move or its original",
-   ids(bookingsInRange(set, "30d")), [12]);
-ok("G2 30d channel table counts one booking", booked(channelsInRange(set, "30d")), 1);
-ok("G3 30d campaign table counts one booking", booked(campaignsInRange(set, "30d")), 1);
-ok("G4 30d fees leave out the moved client's fee", feesInRange(set, "30d"), 4000);
-ok("G5 90d list holds all three rows", ids(bookingsInRange(set, "90d")), [11, 12, 13]);
-ok("G6 90d fees count the moved client once, the original not at all",
-   feesInRange(set, "90d"), 13500);
+// CENTRAL CALENDAR: a booking at 9 PM Central on Aug 31 is 02:00 UTC on Sep 1. It
+// belongs to August, whatever time zone the viewer's browser is in.
+const aug31 = b({ id: 20, booked_on: "2026-09-01T02:00:00Z" });
+ok("H  centralDate converts an instant to its Central day", centralDate("2026-09-01T02:00:00Z"), "2026-08-31");
+ok("H2 so Aug 31, 9 PM CT is last month, not this month",
+   [ids(bookingsInRange([aug31], "lastmonth", TODAY)), ids(bookingsInRange([aug31], "month", TODAY))], [[20], []]);
+
+// WINDOWS, as of Mon Sep 21 2026. `to` is exclusive.
+ok("I  this month", rangeWindow("month", TODAY), { from: "2026-09-01", to: null });
+ok("I2 last month is all of August", rangeWindow("lastmonth", TODAY), { from: "2026-08-01", to: "2026-09-01" });
+ok("I3 this quarter starts Jul 1", rangeWindow("quarter", TODAY), { from: "2026-07-01", to: null });
+ok("I4 YTD starts Jan 1", rangeWindow("ytd", TODAY), { from: "2026-01-01", to: null });
+ok("I5 all is unbounded, with nothing to compare", [rangeWindow("all", TODAY), priorWindow("all", TODAY)], [{ from: null, to: null }, null]);
+
+// PRIOR PERIODS: the same point in the period before.
+const lab = (r: Parameters<typeof priorWindow>[0], t: string) => { const w = priorWindow(r, t)!; return [w, windowLabel(w, t)]; };
+ok("J  this month vs Aug 1-21", lab("month", TODAY), [{ from: "2026-08-01", to: "2026-08-22" }, "Aug 1–21"]);
+ok("J2 last month (August) vs all of July", lab("lastmonth", TODAY), [{ from: "2026-07-01", to: "2026-08-01" }, "July"]);
+ok("J3 this quarter vs Apr 1-Jun 21", lab("quarter", TODAY), [{ from: "2026-04-01", to: "2026-06-22" }, "Apr 1–Jun 21"]);
+ok("J4 YTD vs the same point last year", lab("ytd", TODAY), [{ from: "2025-01-01", to: "2025-09-22" }, "Jan 1–Sep 21, 2025"]);
+ok("J5 Mar 31 clamps to the whole of February", lab("month", "2026-03-31"), [{ from: "2026-02-01", to: "2026-03-01" }, "February"]);
+ok("J6 January compares with last December, with its year", lab("month", "2026-01-15"), [{ from: "2025-12-01", to: "2025-12-16" }, "Dec 1–15, 2025"]);
+ok("J7 the 1st compares with a single day", lab("month", "2026-10-01"), [{ from: "2026-09-01", to: "2026-09-02" }, "Sep 1"]);
+ok("J8 quarter clamps too: May 31 vs Feb 1-28", lab("quarter", "2026-05-31"), [{ from: "2026-01-01", to: "2026-03-01" }, "Jan 1–Feb 28"]);
+
+// TOTALS come from the daily series, cut exactly at the window edges.
+const day = (period: string, booked: number): TimeseriesRow => ({ period, booked, held: booked, clients: 0, won: 0, won_amount: 0 });
+const daily = [day("2026-08-21", 1), day("2026-08-22", 10), day("2026-08-31", 100), day("2026-09-01", 1000), day("2026-09-21", 10000)];
+ok("K  this month sums Sep 1 onward", totalsFor(daily, "month", TODAY).booked, 11000);
+ok("K2 its comparison stops at Aug 21 inclusive", priorTotalsFor(daily, "month", TODAY).booked, 1);
+ok("K3 last month sums all of August and nothing of September", totalsFor(daily, "lastmonth", TODAY).booked, 111);
 
 console.log(`\n${results.filter(r => r === "P").length}/${results.length} passed`);
 process.exit(results.includes("F") ? 1 : 0);
