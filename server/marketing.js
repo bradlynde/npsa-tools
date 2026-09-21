@@ -1553,6 +1553,24 @@ const COUNTABLE = `exclusion_reason IS NULL`;
 // another. Every figure that is bucketed by date goes through it.
 const ORIGINATED = `COALESCE(originated_on, booked_on)`;
 
+// Weeks and months are counted on NPSA's clock, not the database's. Postgres runs
+// in UTC here, so a Sunday-to-Saturday week used to begin at 7 PM Central on
+// Saturday (6 PM in winter), and a booking taken on a Saturday evening, or on the
+// last evening of a month, was credited to the following week or month. The team
+// reads these numbers in Central, so the boundaries are drawn in Central.
+//
+// AT TIME ZONE turns an instant into Central wall-clock time, and every bucket is
+// cut from that. Both sides of a comparison must be converted -- including NOW() --
+// or "this week" is a Central week measured against a UTC one.
+const REPORT_TZ = 'America/Chicago';
+const central = (expr) => `(${expr} AT TIME ZONE '${REPORT_TZ}')`;
+// date_trunc('week') starts on MONDAY; shifting a day either side gives Sunday.
+const sundayOf = (expr) => `(date_trunc('week', ${expr} + interval '1 day') - interval '1 day')`;
+const WEEK_OF_BOOKING = sundayOf(central(ORIGINATED));
+const MONTH_OF_BOOKING = `date_trunc('month', ${central(ORIGINATED)})`;
+const THIS_WEEK = sundayOf(central('NOW()'));
+const THIS_MONTH = `date_trunc('month', ${central('NOW()')})`;
+
 /**
  * Stamps every row in a reschedule chain with the booked_on of the chain's first
  * booking, and clears it from any row that is no longer in one.
@@ -1852,11 +1870,10 @@ export function registerMarketing(app, pool) {
       const { rows } = await pool.query(`
         SELECT
           COUNT(*)::int AS total_bookings,
-          COUNT(*) FILTER (WHERE date_trunc('month', ${ORIGINATED}) = date_trunc('month', NOW()))::int AS bookings_this_month,
-          COUNT(*) FILTER (WHERE date_trunc('month', ${ORIGINATED}) = date_trunc('month', NOW() - interval '1 month'))::int AS bookings_last_month,
-          -- Sunday 00:00 → Saturday 23:59 (date_trunc('week') is Monday-based, so shift a day to get a Sunday start)
-          COUNT(*) FILTER (WHERE ${ORIGINATED} >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
-                             AND ${ORIGINATED} <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS bookings_this_week,
+          COUNT(*) FILTER (WHERE ${MONTH_OF_BOOKING} = ${THIS_MONTH})::int AS bookings_this_month,
+          COUNT(*) FILTER (WHERE ${MONTH_OF_BOOKING} = ${THIS_MONTH} - interval '1 month')::int AS bookings_last_month,
+          -- Sunday 00:00 → Saturday 23:59, Central
+          COUNT(*) FILTER (WHERE ${WEEK_OF_BOOKING} = ${THIS_WEEK})::int AS bookings_this_week,
           COUNT(*) FILTER (WHERE became_client)::int AS clients,
           COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS total_fees_won,
           COUNT(*) FILTER (WHERE attribution_channel='instantly')::int AS instantly_count,
@@ -1872,9 +1889,7 @@ export function registerMarketing(app, pool) {
       const { rows: exrows } = await pool.query(`
         SELECT exclusion_reason AS reason,
                COUNT(*)::int AS total,
-               COUNT(*) FILTER (WHERE
-                 ${ORIGINATED} >= date_trunc('week', NOW() + interval '1 day') - interval '1 day'
-             AND ${ORIGINATED} <  date_trunc('week', NOW() + interval '1 day') - interval '1 day' + interval '7 days')::int AS this_week
+               COUNT(*) FILTER (WHERE ${WEEK_OF_BOOKING} = ${THIS_WEEK})::int AS this_week
           FROM bookings WHERE exclusion_reason IS NOT NULL
          GROUP BY 1 ORDER BY 2 DESC`);
 
@@ -2101,14 +2116,10 @@ export function registerMarketing(app, pool) {
   app.get('/api/marketing/timeseries', async (req, res) => {
     if (!pool) return guard(res);
     const g = req.query.granularity === 'month' ? 'month' : 'week';
-    // date_trunc('week') starts on MONDAY. The "bookings this week" tile is Sunday
-    // to Saturday and says so, so the two disagreed about which week a booking
-    // belonged to: a Sunday booking sat in the tile's current week and in the
-    // chart's PREVIOUS bar at the same time. Every Sunday, the chart and the number
-    // above it told different stories about the same bookings.
-    const bucket = g === 'week'
-      ? `date_trunc('week', ${ORIGINATED} + interval '1 day') - interval '1 day'`
-      : `date_trunc('month', ${ORIGINATED})`;
+    // The same Sunday-to-Saturday Central weeks as the "bookings this week" tile.
+    // They once disagreed (the chart used Monday weeks), and a Sunday booking sat in
+    // the tile's current week and the chart's previous bar at the same time.
+    const bucket = g === 'week' ? WEEK_OF_BOOKING : MONTH_OF_BOOKING;
     const step = g === 'week' ? '1 week' : '1 month';
     try {
       const { rows } = await pool.query(`
@@ -2164,10 +2175,13 @@ export function registerMarketing(app, pool) {
       const fromFinancials = n > 0;
       const source = fromFinancials
         ? `SELECT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'), ''), financial_id) AS org_key,
-                  date_trunc('${g}', created_date) AS period, amount
+                  date_trunc('${g}', ${central('created_date')}) AS period, amount
              FROM sf_financials
             WHERE created_date IS NOT NULL AND ${COUNTABLE_FINANCIAL}`
         : `SELECT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'), ''), opportunity_id) AS org_key,
+                  -- close_date is a date-only Salesforce field stored as UTC
+                  -- midnight, so it stays as it is: converting it to Central
+                  -- would slide the 1st of every month into the month before.
                   date_trunc('${g}', close_date) AS period, amount
              FROM sf_wins
             WHERE close_date IS NOT NULL`;
