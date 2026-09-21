@@ -389,11 +389,11 @@ await check('a key that is not the proxy cannot name someone else; the state his
 
 const PDF_BYTES = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(200, 0x20)]);
 const PNG_BYTES = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 7)]);
-const DOCX_BYTES = Buffer.concat([
-  Buffer.from([0x50, 0x4b, 0x03, 0x04]),
-  Buffer.from('....[Content_Types].xml application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-  Buffer.alloc(64, 0),
-]);
+// Real zips, deflated the way Word and Excel write them: the content-type text
+// is compressed away and only the part names show in the raw bytes.
+const DOCX_BYTES = Buffer.from('UEsDBBQAAAAIAOpiNV3GEnoHrAAAAPEAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbF2Puw7CMAxFf6XKihoXBgaUlIEdGPgBK3HbiOahJBT4exKQOjBax/dcWxxfdm4Wisl4J9mWd+zYi9s7UGoKcUmyKedwAEhqIouJ+0CukMFHi7mMcYSA6o4jwa7r9qC8y+Rym6uD9eJS5NFoaq4Y8xktSQZPHzVorx62bPJiY83pF6vNkmEIs1GYy02wOP3X2fphMIrWfLWF6BWlZNxoZ74Si8Ztqh56Ad+n+g9QSwMEFAAAAAgA6mI1XYLZHNUSAAAAEAAAAAsAAABfcmVscy8ucmVsc7MJSs1JLMnMzyvOyCwo1rcDAFBLAwQUAAAACADqYjVdbGLxhBcAAABFAQAAEQAAAHdvcmQvZG9jdW1lbnQueG1ssym3SslPLs1NzSuxqxgFRAMbfaSAAwBQSwECFAMUAAAACADqYjVdxhJ6B6wAAADxAAAAEwAAAAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUAxQAAAAIAOpiNV2C2RzVEgAAABAAAAALAAAAAAAAAAAAAACAAd0AAABfcmVscy8ucmVsc1BLAQIUAxQAAAAIAOpiNV1sYvGEFwAAAEUBAAARAAAAAAAAAAAAAACAARgBAAB3b3JkL2RvY3VtZW50LnhtbFBLBQYAAAAAAwADALkAAABeAQAAAAA=', 'base64');
+const XLSX_BYTES = Buffer.from('UEsDBBQAAAAIAOpiNV10vYL2rgAAAOkAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbF2PsQ7CMAxEf6XKihoXBgbUloEdGPgBk7o0ahNHiSnl70lhYzpZp3t3ro+Lm4qZYrLsG7XVlTq29e0dKBXZ8alRg0g4ACQzkMOkOZDPTs/RoeQzPiCgGfFBsKuqPRj2Ql5KWRmqrS8ZHm1HxRWjnNFRo2CZ4MVxvDOPOrNUcfqF1t5GYQiTNSh5Ecy++2ssue+toY7N0+WITiESdmkgEjfpr2qH1m9WMLQ1fJ9pP1BLAwQUAAAACADqYjVdgtkc1RIAAAAQAAAACwAAAF9yZWxzLy5yZWxzswlKzUksyczPK87ILCjWtwMAUEsDBBQAAAAIAOpiNV0GmhV3FQAAAEEBAAAPAAAAeGwvd29ya2Jvb2sueG1ssynPL8pOys/PtqscBUQDG314sAEAUEsBAhQDFAAAAAgA6mI1XXS9gvauAAAA6QAAABMAAAAAAAAAAAAAAIABAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAMUAAAACADqYjVdgtkc1RIAAAAQAAAACwAAAAAAAAAAAAAAgAHfAAAAX3JlbHMvLnJlbHNQSwECFAMUAAAACADqYjVdBpoVdxUAAABBAQAADwAAAAAAAAAAAAAAgAEaAQAAeGwvd29ya2Jvb2sueG1sUEsFBgAAAAADAAMAtwAAAFwBAAAAAA==', 'base64');
+const OTHER_OOXMLISH_ZIP = Buffer.from('UEsDBBQAAAAIAOpiNV3HHBc8CgAAAAgAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLMJqSxILda3AwBQSwMEFAAAAAgA6mI1XYamEDYHAAAABQAAAAkAAABub3Rlcy50eHTLSM3JyQcAUEsBAhQDFAAAAAgA6mI1XcccFzwKAAAACAAAABMAAAAAAAAAAAAAAIABAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAMUAAAACADqYjVdhqYQNgcAAAAFAAAACQAAAAAAAAAAAAAAgAE7AAAAbm90ZXMudHh0UEsFBgAAAAACAAIAeAAAAGkAAAAAAA==', 'base64');
 const PLAIN_ZIP = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('....notes.txt hello')]);
 
 const ticketFor = async (body, headers = WEB) => call('POST', `${G}/files/ticket`, { headers, body });
@@ -449,13 +449,17 @@ await check('a ticket runs out, and the state on it is the state the file lands 
   assert.equal(good.data.file.jurisdiction, 'LA');
 });
 
-await check('the bytes decide the type: a renamed PDF is a PDF, and a plain zip is nothing we take', async () => {
+await check('the bytes decide the type: a renamed PDF is a PDF, real Word and Excel files pass, and other zips do not', async () => {
   const t = async () => (await ticketFor({ jurisdiction: 'TX' })).data.ticket;
   const renamed = await postFile(await t(), { bytes: PDF_BYTES.subarray(0, 120), name: 'budget.xlsx' });
   assert.equal(renamed.data.file.mime, 'application/pdf');
 
   const word = await postFile(await t(), { bytes: DOCX_BYTES, name: 'saa-checklist.docx' });
-  assert.equal(word.data.file.type_name, 'Word');
+  assert.equal(word.data.file.type_name, 'Word', JSON.stringify(word.data));
+  const sheet = await postFile(await t(), { bytes: XLSX_BYTES, name: 'budget.xlsx' });
+  assert.equal(sheet.data.file.type_name, 'Excel', JSON.stringify(sheet.data));
+  const lookalike = await postFile(await t(), { bytes: OTHER_OOXMLISH_ZIP, name: 'package.docx' });
+  assert.equal(lookalike.status, 400, 'a zip with a manifest but no Word or Excel part is neither');
 
   const zip = await postFile(await t(), { bytes: PLAIN_ZIP, name: 'notes.zip' });
   assert.equal(zip.status, 400);
