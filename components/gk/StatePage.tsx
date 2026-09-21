@@ -23,20 +23,40 @@ export function Trust({ rec, quiet = false }: { rec: Pick<Rec, "effective_status
   const text = stale ? "stale" : flagged && rec.effective_status === "verified" ? `${flagged} field${flagged === 1 ? "" : "s"} to confirm` : "unverified";
   const why = stale ? `Verified by ${rec.verified_by} on ${fmtDay(rec.verified_at)}: over a year ago` : flagged && rec.effective_status === "verified" ? `Changed since it was verified: ${rec.unverified_fields.join(", ")}` : `Nobody has confirmed this yet (${rec.origin === "research" ? "found by Claude" : rec.origin === "import" ? "imported" : `added by ${rec.updated_by}`})`;
   return (
-    <span title={why} className="mono" style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".04em", padding: "2px 7px", borderRadius: 999, whiteSpace: "nowrap", color: "var(--warn-fg)", background: "var(--warn-bg)" }}>
+    <span title={why} className="mono" style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", color: "var(--warn-fg)", background: "var(--warn-bg)" }}>
       {text}
     </span>
   );
 }
 
-function Section({ id, title, meta, children }: { id?: string; title: string; meta?: React.ReactNode; children: React.ReactNode }) {
+/**
+ * A section that folds. A native <details>, so find-in-page and a #rec-123 link
+ * open it on their own in Chrome, and the state of each fold is the browser's, not
+ * React's: `open` is rendered from a value fixed at mount, so React never writes it
+ * again and a person's toggle sticks through the reloads that follow every save.
+ */
+function Fold({ id, title, meta, open = true, right, tight = false, children }: { id?: string; title: React.ReactNode; meta?: React.ReactNode; open?: boolean; right?: React.ReactNode; tight?: boolean; children: React.ReactNode }) {
+  const [initial] = useState(open);
   return (
-    <section id={id} style={{ paddingTop: 22, marginTop: 22, borderTop: "1px solid var(--hair2)", scrollMarginTop: 90 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-        <Eyebrow>{title}</Eyebrow>
-        {meta && <div style={{ fontSize: 12.5, color: "var(--mute)" }}>{meta}</div>}
-      </div>
-      {children}
+    <details open={initial} id={id} className="gk-fold" style={{ scrollMarginTop: 90, marginTop: tight ? 14 : 0 }}>
+      <summary style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: "pointer", listStyle: "none", padding: "6px 0", userSelect: "none" }}>
+        <span style={{ display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
+          <span aria-hidden="true" className="gk-chev" style={{ color: "var(--faint)", fontSize: 10, display: "inline-block", transition: "transform .15s", width: 10 }}>▶</span>
+          <Eyebrow style={{ fontSize: 11.5 }}>{title}</Eyebrow>
+          {meta && <span style={{ fontSize: 12.5, color: "var(--mute)" }}>{meta}</span>}
+        </span>
+        {right && <span onClick={(e) => e.preventDefault()} style={{ display: "flex", gap: 10, alignItems: "center" }}>{right}</span>}
+      </summary>
+      <div style={{ paddingTop: 6 }}>{children}</div>
+      <style>{`.gk-fold[open] > summary .gk-chev { transform: rotate(90deg); } .gk-fold > summary::-webkit-details-marker { display: none; }`}</style>
+    </details>
+  );
+}
+
+function Section({ id, title, meta, open = true, children }: { id?: string; title: string; meta?: React.ReactNode; open?: boolean; children: React.ReactNode }) {
+  return (
+    <section style={{ paddingTop: 16, marginTop: 16, borderTop: "1px solid var(--hair2)" }}>
+      <Fold id={id} title={title} meta={meta} open={open}>{children}</Fold>
     </section>
   );
 }
@@ -46,9 +66,9 @@ const Faint = ({ children }: { children: React.ReactNode }) => <span style={{ co
 function Fact({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
   return (
     <div>
-      <div className="mono" style={{ fontSize: 10.5, letterSpacing: ".07em", color: "var(--mute)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 14, color: "var(--ink)", fontWeight: 550 }}>{value}</div>
-      {note && <div style={{ fontSize: 11.5, color: "var(--mute)", marginTop: 3, lineHeight: 1.4 }}>{note}</div>}
+      <div className="mono" style={{ fontSize: 11, letterSpacing: ".07em", color: "var(--mute)", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 14.5, color: "var(--ink)", fontWeight: 550 }}>{value}</div>
+      {note && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 4, lineHeight: 1.45 }}>{note}</div>}
     </div>
   );
 }
@@ -91,26 +111,26 @@ const linkBtn: React.CSSProperties = { background: "none", border: "none", paddi
 function RequirementRow({ r }: { r: Requirement }) {
   const d = r.data;
   return (
-    <li id={`rec-${r.id}`} style={{ display: "flex", gap: 10, padding: "9px 0", borderBottom: "1px solid var(--hair2)", alignItems: "flex-start", scrollMarginTop: 90 }}>
+    <li id={`rec-${r.id}`} style={{ display: "flex", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--hair2)", alignItems: "flex-start", scrollMarginTop: 90 }}>
       <span aria-hidden="true" style={{ width: 8, height: 8, marginTop: 6, borderRadius: 2, flexShrink: 0, background: d.hard_gate ? "var(--err-fg)" : d.owner === "npsa" ? "var(--navy)" : "var(--olive)" }} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "baseline" }}>
-          <span style={{ color: "var(--ink)", fontSize: 13.5, fontWeight: 550 }}>{d.label}</span>
-          {d.hard_gate && <span className="mono" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", color: "var(--err-fg)" }}>HARD GATE</span>}
-          <span className="mono" style={{ fontSize: 10.5, color: "var(--mute)" }}>
+          <span style={{ color: "var(--ink)", fontSize: 14, fontWeight: 550 }}>{d.label}</span>
+          {d.hard_gate && <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", color: "var(--err-fg)" }}>HARD GATE</span>}
+          <span className="mono" style={{ fontSize: 11, color: "var(--mute)" }}>
             {d.owner === "npsa" ? "NPSA" : "client"}{d.lead_time_days ? ` · allow ${d.lead_time_days} days` : ""}{d.format ? ` · ${d.format}` : ""}{r.baseline === "federal" ? " · federal baseline" : ""}{r.inherited_from ? ` · same as ${r.inherited_from}` : ""}
           </span>
           <Trust rec={r} quiet />
           {!r.inherited_from && <RecActions rec={r} />}
         </div>
-        {d.notes && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3, lineHeight: 1.5 }}>{d.notes}</div>}
+        {d.notes && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 4, lineHeight: 1.55 }}>{d.notes}</div>}
       </div>
     </li>
   );
 }
 
 type Owner = "all" | "client" | "npsa";
-function Requirements({ p }: { p: Program }) {
+function Requirements({ p, open }: { p: Program; open: boolean }) {
   const [owner, setOwner] = useState<Owner>("all");
   const all = [...p.inherited_requirements, ...p.requirements];
   const { on: editing } = useEdit();
@@ -119,21 +139,18 @@ function Requirements({ p }: { p: Program }) {
   const show = (t: string) => all.filter((r) => r.data.req_type === t && (owner === "all" || (r.data.owner || "client") === owner)).sort(order);
   const reg = show("registration"), docs = show("document");
   return (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}><Eyebrow>what a submission needs</Eyebrow><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "requirement", parent_id: p.id, heading: `New requirement for ${p.key}` }}>requirement</AddButton></div>
-        <ChipRow<Owner> options={[{ key: "all", label: "Everyone" }, { key: "client", label: "Client" }, { key: "npsa", label: "NPSA" }]} value={owner} onChange={setOwner} />
-      </div>
+    <Fold tight title="what a submission needs" meta={`${reg.length + docs.length}`} open={open}
+      right={<><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "requirement", parent_id: p.id, heading: `New requirement for ${p.key}` }}>requirement</AddButton><ChipRow<Owner> options={[{ key: "all", label: "Everyone" }, { key: "client", label: "Client" }, { key: "npsa", label: "NPSA" }]} value={owner} onChange={setOwner} /></>}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "4px 32px" }}>
         {[["Registration, before anything else", reg], ["Documents in the package", docs]].map(([title, rows]) => (
           <div key={title as string}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--sec)", padding: "8px 0 2px" }}>{title as string} <Faint>({(rows as Requirement[]).length})</Faint></div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--sec)", padding: "8px 0 2px" }}>{title as string} <Faint>({(rows as Requirement[]).length})</Faint></div>
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{(rows as Requirement[]).map((r) => <RequirementRow key={`${r.id}-${r.inherited_from || ""}`} r={r} />)}</ul>
             {!(rows as Requirement[]).length && <div style={{ fontSize: 12.5, padding: "8px 0" }}><Faint>Nothing recorded.</Faint></div>}
           </div>
         ))}
       </div>
-    </div>
+    </Fold>
   );
 }
 
@@ -159,21 +176,20 @@ function FundingChart({ cycles }: { cycles: Cycle[] }) {
   );
 }
 
-function Cycles({ p }: { p: Program }) {
+function Cycles({ p, open }: { p: Program; open: boolean }) {
   const addCycle = <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "cycle", parent_id: p.id, heading: `New cycle for ${p.key}` }}>cycle</AddButton>;
   if (!p.cycles.length) return <div style={{ fontSize: 13, marginTop: 14 }}><Faint>No cycle recorded yet: no deadline history, no funding history.</Faint> {addCycle}</div>;
   const today = new Date().toISOString().slice(0, 10);
   return (
-    <div style={{ marginTop: 18 }}>
-      <Eyebrow style={{ marginBottom: 8 }}>cycles, deadlines and funding</Eyebrow>
+    <Fold tight title="cycles, deadlines and funding" meta={`${p.cycles.length} cycle${p.cycles.length === 1 ? "" : "s"}`} open={open} right={addCycle}>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
           <tbody>
             {p.cycles.map((c) => (
               <tr key={c.id} id={`rec-${c.id}`} style={{ borderBottom: "1px solid var(--hair2)", verticalAlign: "top" }}>
                 <td style={{ padding: "10px 14px 10px 0", whiteSpace: "nowrap" }}>
                   <div style={{ fontWeight: 650, color: "var(--ink)" }}>{c.title}</div>
-                  <div className="mono" style={{ fontSize: 10.5, color: "var(--mute)" }}>{String(c.data.status || "").replace(/_/g, " ")}</div>
+                  <div className="mono" style={{ fontSize: 11, color: "var(--mute)" }}>{String(c.data.status || "").replace(/_/g, " ")}</div>
                 </td>
                 <td style={{ padding: "10px 14px 10px 0", minWidth: 250 }}>
                   {c.deadlines.map((d) => (
@@ -181,22 +197,22 @@ function Cycles({ p }: { p: Program }) {
                       <span style={{ color: "var(--ink)", fontWeight: 550 }}>{fmtDay(d.data.due_date)}</span>
                       {d.data.due_time && <span style={{ color: "var(--sec)" }}> · {fmtTime(d.data.due_time, d.data.tz)}</span>}
                       <span style={{ color: "var(--sec)" }}> · {d.data.label}</span>{" "}
-                      {d.data.confidence && d.data.confidence !== "confirmed" && <span className="mono" style={{ fontSize: 10.5, color: "var(--warn-fg)" }}>{d.data.confidence} </span>}
+                      {d.data.confidence && d.data.confidence !== "confirmed" && <span className="mono" style={{ fontSize: 11, color: "var(--warn-fg)" }}>{d.data.confidence} </span>}
                       <Trust rec={d} quiet /><RecActions rec={d} />
-                      {d.data.note && <div style={{ fontSize: 12, color: "var(--mute)", lineHeight: 1.45, marginTop: 2 }}>{d.data.note}</div>}
+                      {d.data.note && <div style={{ fontSize: 13, color: "var(--sec)", lineHeight: 1.5, marginTop: 3, maxWidth: 640 }}>{d.data.note}</div>}
                     </div>
                   ))}
                   {!c.deadlines.length && <Faint>no deadline recorded</Faint>}
                   <div><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "deadline", parent_id: c.id, heading: `New deadline in ${c.title}` }}>deadline</AddButton></div>
                 </td>
-                <td style={{ padding: "10px 0", fontSize: 12.5, color: "var(--sec)", minWidth: 190 }}>
+                <td style={{ padding: "10px 0", fontSize: 13, color: "var(--sec)", minWidth: 190, lineHeight: 1.5 }}>
                   {c.data.open_date && <div>Opened {fmtDay(c.data.open_date)}</div>}
                   {c.data.nofo_date && <div>NOFO {fmtDay(c.data.nofo_date)}</div>}
                   {typeof c.data.state_allocation === "number" && <div>State allocation <b style={{ color: "var(--ink)" }}>{usd(c.data.state_allocation)}</b></div>}
                   {typeof c.data.total_funding === "number" && <div>Total <b style={{ color: "var(--ink)" }}>{usd(c.data.total_funding)}</b></div>}
                   {c.data.ua_allocations && Object.entries(c.data.ua_allocations as Record<string, number>).map(([k, v]) => <div key={k}>{k}: {usd(v)}</div>)}
                   {typeof c.data.awards === "number" && <div>{c.data.awards} awards{typeof c.data.applications === "number" ? ` of ${c.data.applications} applications` : ""}</div>}
-                  {c.data.notes && <div style={{ color: "var(--mute)", marginTop: 3, lineHeight: 1.45 }}>{c.data.notes}</div>}
+                  {c.data.notes && <div style={{ color: "var(--sec)", marginTop: 3, lineHeight: 1.5 }}>{c.data.notes}</div>}
                   <Trust rec={c} quiet /><RecActions rec={c} />
                 </td>
               </tr>
@@ -204,9 +220,8 @@ function Cycles({ p }: { p: Program }) {
           </tbody>
         </table>
       </div>
-      {addCycle}
       <FundingChart cycles={p.cycles} />
-    </div>
+    </Fold>
   );
 }
 
@@ -225,13 +240,19 @@ function ContactLine({ c }: { c: Rec }) {
         {d.email && <a href={`mailto:${d.email}`} style={{ color: "var(--navy)" }}>{d.email}</a>}
         {d.phone && <a href={`tel:${String(d.phone).replace(/[^\d+]/g, "")}`} style={{ color: "var(--navy)" }}>{d.phone}</a>}
       </div>
-      {d.warning && <div style={{ fontSize: 12, color: "var(--warn-fg)", marginTop: 4, lineHeight: 1.45 }}>⚠ {d.warning}</div>}
-      {d.notes && <div style={{ fontSize: 12, color: "var(--mute)", marginTop: 3, lineHeight: 1.45 }}>{d.notes}</div>}
+      {d.warning && <div style={{ fontSize: 12.5, color: "var(--warn-fg)", marginTop: 4, lineHeight: 1.45 }}>⚠ {d.warning}</div>}
+      {d.notes && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3, lineHeight: 1.45 }}>{d.notes}</div>}
     </div>
   );
 }
 
-function ProgramCard({ p }: { p: Program }) {
+/**
+ * One program. The facts and how it is submitted are always in view; what a
+ * submission needs, the cycles and the notes fold. The first program opens fully;
+ * a second (NSGP-UA repeats NSGP-S's list, a state program sits under the federal
+ * one) opens only its cycles, so a state with four programs reads as four headers.
+ */
+function ProgramCard({ p, first }: { p: Program; first: boolean }) {
   const d = p.data;
   const fn = d.field_notes || {};
   const off = d.status && d.status !== "active";
@@ -248,7 +269,7 @@ function ProgramCard({ p }: { p: Program }) {
       {d.administered_by && <div style={{ fontSize: 13, color: "var(--sec)", marginBottom: 14 }}>Run by {d.administered_by}</div>}
       {d.availability_note && <Note>{d.availability_note}</Note>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px 22px", margin: "14px 0 4px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "16px 24px", margin: "14px 0 4px" }}>
         {typeof d.cap_per_location === "number" && <Fact label="CAP PER SITE" value={usd(d.cap_per_location)} note={fn.cap_per_location} />}
         {typeof d.cap_per_applicant === "number" && <Fact label="CAP PER APPLICANT" value={usd(d.cap_per_applicant)} note={fn.cap_per_applicant} />}
         {typeof d.locations_max === "number" && <Fact label="SITES" value={`up to ${d.locations_max}`} note={fn.locations_max} />}
@@ -266,21 +287,21 @@ function ProgramCard({ p }: { p: Program }) {
             <b>How it is submitted:</b> {d.submission.method || "not recorded"}
             {d.submission.url ? <> via <a href={d.submission.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{d.submission.target || d.submission.url}</a></> : d.submission.target ? <> via {d.submission.target}</> : null}
           </div>
-          {d.submission.package_note && <Markdown style={{ marginTop: 6, fontSize: 13 }}>{d.submission.package_note}</Markdown>}
+          {d.submission.package_note && <Markdown style={{ marginTop: 6, fontSize: 13.5 }}>{d.submission.package_note}</Markdown>}
           {d.file_naming && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 6 }}><b>File naming:</b> {d.file_naming}</div>}
         </div>
       )}
 
-      <Requirements p={p} />
-      <Cycles p={p} />
+      <Requirements p={p} open={first} />
+      <Cycles p={p} open />
 
       {(d.notes_md || d.eligible_costs) && (
-        <div style={{ marginTop: 16 }}>
-          {d.notes_md && <><Eyebrow style={{ marginBottom: 6 }}>program notes</Eyebrow><Markdown>{d.notes_md}</Markdown></>}
+        <Fold tight title="program notes" open={first}>
+          {d.notes_md && <Markdown>{d.notes_md}</Markdown>}
           {d.eligible_costs && <><Eyebrow style={{ margin: "10px 0 6px" }}>eligible costs</Eyebrow><Markdown>{d.eligible_costs}</Markdown></>}
-        </div>
+        </Fold>
       )}
-      {p.contacts.length > 0 && <div style={{ marginTop: 14 }}><Eyebrow style={{ marginBottom: 2 }}>program contacts</Eyebrow>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</div>}
+      {p.contacts.length > 0 && <Fold tight title="program contacts" meta={`${p.contacts.length}`} open={first}>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Fold>}
       <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "note", parent_id: p.id, heading: `New note on ${p.key}` }}>note on this program</AddButton>
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "contact", parent_id: p.id, preset: { contact_kind: "program" }, heading: `New contact for ${p.key}` }}>program contact</AddButton>
@@ -463,7 +484,9 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
   useEffect(() => {
     if (!doc || !window.location.hash) return;
     const el = document.getElementById(window.location.hash.slice(1));
-    if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    if (!el) return;
+    for (let d = el.closest("details"); d; d = d.parentElement?.closest("details") ?? null) d.open = true;
+    setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   }, [doc]);
 
   const allNotes = useMemo(() => (doc ? [...doc.notes.map((n) => ({ n, program: undefined as string | undefined })), ...doc.programs.flatMap((p) => p.notes.map((n) => ({ n, program: p.key })))] : []), [doc]);
@@ -515,7 +538,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
         <Card><div style={{ fontSize: 14, color: "var(--sec)" }}>Nothing has been recorded for {doc.name} yet.{!editing && " Press Edit to start it."}</div></Card>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, 1fr)", gap: 14, marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: 16, marginBottom: 16 }}>
             <Card style={{ padding: "16px 18px", gridColumn: narrow ? "1 / -1" : "span 2" }}>
               <Fact label={nd ? "NEXT DEADLINE" : "WHERE THE CYCLE STANDS"} value={nd
                 ? <>{fmtDay(nd.due_date)}{nd.due_time ? ` · ${fmtTime(nd.due_time, nd.tz)}` : ""} <span style={{ color: nd.days_away <= 14 ? "var(--err-fg)" : "var(--olive)", fontWeight: 650 }}>· {countdown(nd.days_away)}</span></>
@@ -531,10 +554,10 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
           </div>
 
           {stoppers.length > 0 && view !== "history" && (
-            <div role="note" style={{ border: "1px solid var(--err-fg)", background: "var(--err-bg)", borderRadius: 14, padding: "14px 18px", marginBottom: 18 }}>
+            <div role="note" style={{ border: "1px solid var(--err-fg)", background: "var(--err-bg)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
               <div className="mono" style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", color: "var(--err-fg)", marginBottom: 8 }}>READ FIRST: THESE END AN APPLICATION</div>
               {stoppers.map(({ n, program }) => (
-                <div key={n.id} style={{ fontSize: 13.5, color: "var(--ink)", lineHeight: 1.5, marginBottom: 6 }}>
+                <div key={n.id} style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.5, marginBottom: 6 }}>
                   <a href={`#rec-${n.id}`} style={{ color: "var(--ink)", fontWeight: 650 }}>{n.data.title}</a>{program ? ` (${program})` : ""}{n.effective_status !== "verified" ? " · unverified" : ""}
                 </div>
               ))}
@@ -550,14 +573,16 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
                   {j.partner && <div style={{ fontSize: 13, color: "var(--sec)" }}><b>Partner:</b> {j.partner}</div>}
                 </Card>
               )}
-              {doc.programs.map((p) => <ProgramCard key={p.id} p={p} />)}
+              {doc.programs.map((p, i) => <ProgramCard key={p.id} p={p} first={i === 0} />)}
 
-              {doc.contacts.length > 0 && <Section id="contacts" title="contacts" meta={`${doc.contacts.length} on record`}><Card style={{ padding: "8px 22px" }}>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Card></Section>}
+              {doc.contacts.length > 0 && <Section id="contacts" title="contacts" meta={`${doc.contacts.length} on record`}><Card style={{ padding: "6px 24px" }}>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Card></Section>}
 
               {CATEGORY_ORDER.map((cat) => {
                 const mine = allNotes.filter(({ n }) => n.data.category === cat && !(cat === "open_question" && n.data.resolved)).sort((a, b) => SEVERITY_RANK.indexOf(a.n.data.severity) - SEVERITY_RANK.indexOf(b.n.data.severity));
                 if (!mine.length) return null;
-                return <Section key={cat} id={`notes-${cat}`} title={CATEGORY[cat].toLowerCase()} meta={`${mine.length}`}><div style={{ display: "grid", gap: 9 }}>{mine.map(({ n, program }) => <NoteCard key={n.id} n={n} program={program} />)}</div></Section>;
+                // Gotchas, eligibility and open questions are what a reader came for; the long tail folds until asked.
+                const open = ["gotcha", "eligibility", "open_question", "prohibited_cost"].includes(cat) || mine.length <= 3;
+                return <Section key={cat} id={`notes-${cat}`} title={CATEGORY[cat].toLowerCase()} meta={`${mine.length}`} open={open}><div style={{ display: "grid", gap: 9 }}>{mine.map(({ n, program }) => <NoteCard key={n.id} n={n} program={program} />)}</div></Section>;
               })}
 
               {(j.post_award_note) && <Section title="after the award"><Markdown>{j.post_award_note}</Markdown></Section>}
@@ -569,8 +594,8 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
               )}
 
               {sources.length > 0 && (
-                <Section id="sources" title="sources" meta={`${sources.length}`}>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
+                <Section id="sources" title="sources" meta={`${sources.length}`} open={false}>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>
                     {sources.map((s) => <li key={s.id} id={`rec-${s.id}`}><a href={s.data.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{s.data.title || String(s.data.url).replace(/^https?:\/\/(www\.)?/, "")}</a>{s.data.accessed && <span style={{ color: "var(--mute)", fontSize: 11.5 }}> · read {fmtDay(s.data.accessed)}</span>} <RecActions rec={s} /></li>)}
                   </ul>
                 </Section>
