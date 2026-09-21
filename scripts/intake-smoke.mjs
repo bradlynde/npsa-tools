@@ -262,7 +262,7 @@ await check('status reports sections, checklist items and the headline counts', 
   const reg = d.checklist.items.find(i => i.stem === 'state_reg');
   assert.deepEqual([reg.label, reg.status, reg.due, reg.owner], ['State registration', 'In progress', '9/15/2026', 'Pat (DEMES account)']);
   const s1 = d.sections.find(s => s.section === '1. Applicant Information');
-  assert.deepEqual([s1.answered, s1.total], [3, 18]);
+  assert.deepEqual([s1.answered, s1.total], [3, 16], 'an FL client is not asked the TX/IL or NY-only fields');
   assert.equal(d.status_line, '');
   assert.deepEqual(d.uploads, []);
   // Nothing prioritized yet: three facilities, all empty.
@@ -316,7 +316,7 @@ await check('site research: loc<n>_infra is accepted and stays out of the core c
   assert.equal(w.status, 200);
   const after = (await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM })).data;
   assert.deepEqual(after.core, before);
-  assert.equal(after.sections.find(x => x.section === 'Locations').total, 36);
+  assert.equal(after.sections.find(x => x.section === 'Locations').total, 11, 'one site: ten facts plus the programs select, no research box');
 });
 await check('checklist: Not applicable leaves the total and is reported', async () => {
   await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { chk_status_confirm_obtain_ein: 'Not applicable' } } });
@@ -828,6 +828,23 @@ await check('the page has the section rail, 40 program cards and Programs as tab
   assert.match(html, /data-states="TX,IL"/);
   for (const k of QUESTIONS.filter(q => /^q_[1-5]_/.test(q.key) && q.kind !== 'meta').map(q => q.key)) assert.ok(html.includes(`data-key="${k}"`), `${k} is on the page`);
   for (let n = 1; n <= 40; n++) for (const f of ['name', 'desc', 'freq', 'runby', 'partner', 'site', 'demo', 'unique', 'people', 'suggested']) assert.ok(html.includes(`data-key="prog${n}_${f}"`), `prog${n}_${f}`);
+});
+await check('progress counts what this client is asked: their sites, their documents, their state', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Progress Church', state: 'GA', applications: [{ program: 'NSGP-UA', cycle: 'FY2027', sites: [1] }] } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const site = Object.fromEntries(['name', 'addr', 'county', 'ownlease', 'year', 'historic', 'sqft', 'acreage', 'buildings', 'value'].map(f => [`loc1_${f}`, 'x']));
+  await call('PUT', '/api/clients/progress-church/answers', { headers: TEAM, body: { answers: { ...site, loc1_infra: 'research', q_1_3_2: "Doesn't apply", prog1_name: 'Sunday Worship', prog1_unique: 'Yes' } } });
+  await call('PATCH', '/api/clients/progress-church', { headers: TEAM, body: { documents: [{ key: 'up_mission', label: 'Mission' }, { key: 'up_501c3', label: '501(c)(3)' }, { key: 'up_va', label: 'VA' }], mark_documents_received: ['up_mission', 'up_501c3'] } });
+  const st = (await call('GET', '/api/clients/progress-church/status', { headers: TEAM })).data;
+  const sec = n => { const x = st.sections.find(y => y.section === n); return [x.answered, x.total]; };
+  assert.deepEqual(sec('Locations'), [10, 10], 'a fully filled single site is complete; applications replace the programs select');
+  assert.deepEqual(sec('Uploads'), [2, 3], 'their three documents, two received by email');
+  assert.deepEqual(sec('1. Applicant Information'), [1, 16]);
+  assert.deepEqual(sec('3. Community Role'), [2, 13], '3.6 counts a listed program; 3.8 counts a program tagged only one nearby');
+  const list = (await call('GET', '/api/clients?search=Progress', { headers: TEAM })).data.find(c => c.slug === 'progress-church');
+  assert.deepEqual(list.core, st.core, 'the list and the dialog agree');
+  assert.deepEqual((await call('GET', '/api/clients/progress-church', { headers: TEAM })).data.core, st.core);
+  await call('PATCH', '/api/clients/progress-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const before = (await call('GET', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() } })).data.reference.length;
