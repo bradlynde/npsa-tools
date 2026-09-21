@@ -37,6 +37,8 @@ import {
   channelsInRange,
   campaignsInRange,
   RANGE_WORD,
+  priorWindow,
+  windowLabel,
   BOOKINGS_LIMIT,
   loadRange,
   saveRange,
@@ -53,8 +55,9 @@ import {
 } from "../lib/marketing";
 
 const RANGES: { key: Range; label: string }[] = [
-  { key: "30d", label: "30d" },
-  { key: "90d", label: "90d" },
+  { key: "month", label: "This month" },
+  { key: "lastmonth", label: "Last month" },
+  { key: "quarter", label: "Quarter" },
   { key: "ytd", label: "YTD" },
   { key: "all", label: "All" },
 ];
@@ -75,31 +78,34 @@ export default function DashboardPage() {
   const [sync, setSync] = useState<SyncStatus | null>(null);
   const [weekly, setWeekly] = useState<TimeseriesRow[]>([]);
   const [monthly, setMonthly] = useState<TimeseriesRow[]>([]);
+  // Daily, for the range totals: only days can be cut to a calendar window exactly.
+  const [daily, setDaily] = useState<TimeseriesRow[]>([]);
   const [allBookings, setAllBookings] = useState<BookingRow[]>([]);
   const [tableRows, setTableRows] = useState<BookingRow[]>([]);
   const [mktError, setMktError] = useState<string | null>(null);
   const [mktLoading, setMktLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [range, setRange] = useState<Range>("90d");
+  const [range, setRange] = useState<Range>("quarter");
   const [gran, setGran] = useState<Granularity>("week");
   const [search, setSearch] = useState("");
   const aggregateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => setRange(loadRange("90d")), []);
+  useEffect(() => setRange(loadRange("quarter")), []);
   const changeRange = (r: Range) => {
     setRange(r);
     saveRange(r);
   };
 
   const loadMarketing = useCallback(async () => {
-    const [s, f, w, b, a, sy] = await Promise.allSettled([
+    const [s, f, w, b, a, sy, d] = await Promise.allSettled([
       fetchStats(),
       fetchFunnel(),
       fetchTimeseries("week"),
       fetchBookings(),
       fetchApplicationStats(),
       fetchSyncStatus(),
+      fetchTimeseries("day"),
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (f.status === "fulfilled") setFunnelAll(f.value);
@@ -108,6 +114,8 @@ export default function DashboardPage() {
     if (sy.status === "fulfilled") setSync(sy.value);
     if (w.status === "fulfilled") setWeekly(w.value);
     else setMktError((w.reason as Error)?.message || "Could not load marketing data");
+    if (d.status === "fulfilled") setDaily(d.value);
+    else setMktError((d.reason as Error)?.message || "Could not load marketing data");
     if (b.status === "fulfilled") {
       setAllBookings(b.value);
       setTableRows(b.value);
@@ -169,8 +177,9 @@ export default function DashboardPage() {
     [tableRows, range, search]
   );
 
-  const totals = useMemo(() => totalsFor(weekly, range), [weekly, range]);
-  const prior = useMemo(() => priorTotalsFor(weekly, range), [weekly, range]);
+  const totals = useMemo(() => totalsFor(daily, range), [daily, range]);
+  const prior = useMemo(() => priorTotalsFor(daily, range), [daily, range]);
+  const priorLabel = windowLabel(priorWindow(range) ?? { from: null, to: null });
   const channels = useMemo(() => channelsInRange(allBookings, range), [allBookings, range]);
   const campaigns = useMemo(() => campaignsInRange(allBookings, range), [allBookings, range]);
   const bookingsTruncated = allBookings.length >= BOOKINGS_LIMIT;
@@ -184,12 +193,20 @@ export default function DashboardPage() {
 
   // Re-run once the data lands, not just on mount — otherwise the counters
   // finish rolling against zeroes and the numbers appear with no animation.
-  const roll = useRoll(mktLoading ? "loading" : `${range}-${weekly.length}`);
+  const roll = useRoll(mktLoading ? "loading" : `${range}-${daily.length}`);
   const upcoming = Math.max(0, totals.booked - totals.resolved);
   const loeRate = totals.held ? Math.round((totals.loes / totals.held) * 100) : 0;
   const bookingDelta = totals.booked - prior.booked;
-  const rangeTag = range === "all" ? "all time" : range;
-  const mom = stats ? stats.bookings_this_month - stats.bookings_last_month : 0;
+  const rangeTag = RANGE_WORD[range];
+  // This month so far against last month up to the same day, not against all of it.
+  const monthWin = priorWindow("month");
+  const monthPrior = windowLabel(monthWin ?? { from: null, to: null });
+  const lastMonthName = monthWin?.from
+    ? new Date(`${monthWin.from}T12:00:00`).toLocaleDateString("en-US", { month: "short" })
+    : "last month";
+  const mom = stats
+    ? stats.bookings_this_month - (stats.bookings_last_month_to_date ?? stats.bookings_last_month)
+    : 0;
 
   const primaryStats = [
     {
@@ -197,7 +214,7 @@ export default function DashboardPage() {
       value: fmtInt(totals.booked * roll),
       note:
         prior.booked > 0
-          ? `${bookingDelta >= 0 ? "▲" : "▼"} ${Math.abs(bookingDelta)} vs prior period`
+          ? `${bookingDelta >= 0 ? "▲" : "▼"} ${Math.abs(bookingDelta)} vs ${priorLabel}`
           : "no prior period to compare",
       accent: false,
     },
@@ -401,7 +418,10 @@ export default function DashboardPage() {
               {
                 label: "bookings this month",
                 value: fmtInt(stats.bookings_this_month),
-                note: `${mom >= 0 ? "+" : ""}${mom} vs last month`,
+                note:
+                  stats.bookings_last_month_to_date != null
+                    ? `${mom >= 0 ? "▲" : "▼"} ${Math.abs(mom)} vs ${monthPrior} · ${lastMonthName} total ${stats.bookings_last_month}`
+                    : `${mom >= 0 ? "+" : ""}${mom} vs last month`,
                 accent: false,
               },
               {
