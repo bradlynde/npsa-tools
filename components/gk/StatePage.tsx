@@ -4,6 +4,7 @@ import { Card, Eyebrow, SegPill, ChipRow, Tag, Note, PillButton } from "../ui";
 import RecordEditor, { EditContext, RecActions, AddButton, useEdit, type EditTarget } from "./RecordEditor";
 import { useMedia } from "../../lib/useMedia";
 import Markdown from "./Markdown";
+import Files from "./Files";
 import {
   gkGet, gkSend, GkError, usd, fmtDay, fmtTime, countdown, CYCLE_LABEL,
   type StateDoc, type Program, type Rec, type Requirement, type Revision, type Cycle,
@@ -355,6 +356,10 @@ function Playbook({ doc }: { doc: StateDoc }) {
 
 const show = (v: unknown) => (v === undefined || v === null || v === "" ? "nothing" : typeof v === "object" ? JSON.stringify(v) : String(v));
 const ACTION: Record<string, string> = { create: "added", update: "changed", verify: "verified", unverify: "unverified", archive: "archived", restore: "restored", revert: "reverted", import: "imported" };
+// How the change came in. "key" is a caller the backend could only name by its API
+// key — a script, or the toolbox before it could say who was logged in — and reads
+// as that rather than as the bare word "key" wedged between a name and a verb.
+const HOW: Record<string, string> = { user: "in the toolbox", mcp: "via Claude", import: "by import", system: "automatically", key: "through the API" };
 
 function History({ code, onChanged }: { code: string; onChanged: () => void }) {
   const [tick, setTick] = useState(0);
@@ -393,7 +398,7 @@ function History({ code, onChanged }: { code: string; onChanged: () => void }) {
         <div key={r.id} style={{ padding: "11px 0", borderBottom: "1px solid var(--hair2)" }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline", fontSize: 13.5 }}>
             <b style={{ color: "var(--ink)" }}>{r.actor.startsWith("import:") ? "The import" : r.actor}</b>
-            <span style={{ color: "var(--mute)", fontSize: 12 }}>{r.actor_kind === "mcp" ? "via Claude" : r.actor_kind === "user" ? "in the toolbox" : r.actor_kind}</span>
+            <span style={{ color: "var(--mute)", fontSize: 12 }}>{HOW[r.actor_kind] || r.actor_kind}</span>
             <span style={{ color: "var(--sec)" }}>{ACTION[r.action] || r.action}</span>
             <a href={`#rec-${r.record_id}`} style={{ color: "var(--navy)" }}>{r.title}</a>
             <Tag>{r.kind}</Tag>
@@ -556,6 +561,12 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
               })}
 
               {(j.post_award_note) && <Section title="after the award"><Markdown>{j.post_award_note}</Markdown></Section>}
+
+              {(doc.files.length > 0 || editing) && (
+                <Section id="files" title="files" meta={doc.files.length ? `${doc.files.length}` : undefined}>
+                  <Files code={doc.code} files={doc.files} onChanged={reload} />
+                </Section>
+              )}
 
               {sources.length > 0 && (
                 <Section id="sources" title="sources" meta={`${sources.length}`}>
