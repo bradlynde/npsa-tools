@@ -122,6 +122,10 @@ with the offending keys and nothing is written, which replaces the "did it land 
 Checklist or Other?" check that used to follow every seed. `_status` is `meta`: the
 server writes it on completion, the page cannot, imports may.
 
+The per-state facts below now come from the grant knowledge base's verified records (see
+[grant-knowledge.md](grant-knowledge.md#the-client-intake-pages)); the two JSON files answer
+only until its snapshot has loaded, and go with B8.
+
 `server/intake-state-config.json` carries the per-state map the page's checklist banner
 needs (SAA short name, programs, registration steps with a "— hard gate" suffix, per-site
 and state caps), from `getStateConfig_` in the same build. The Kentucky registration line
@@ -142,7 +146,7 @@ pre-registered at 2 MB for `/api/clients` and `/api/intake` so a full seed fits.
 | :-- | :-- | :-- | :-- |
 | GET | `/api/intake/questions?section=&prefix=` | team | The catalog, with the section list. |
 | GET | `/api/clients?status=&phase=&search=` | team | Clients with `intake_url`, contacts, SAA, core answered/total, checklist completed/total, `filled_by`. `status` defaults to `active`; `all` lists everything. |
-| POST | `/api/clients` | team | Create. `name, state` required; `slug` derived from the name when omitted; `contacts[{name,email,role,phone}]` (the client's people; first becomes primary), `npsa_contacts[]` (ours beyond the standing team in `server/intake-team.json`, usually the sales rep), `upload_folder_id, drive_folder_id, asana_project_gid, kickoff_date (YYYY-MM-DD), program_track, notes, phase, status`; `token` only for imports. 201 with the row; 409 on a slug clash; 400 with the reason otherwise. |
+| POST | `/api/clients` | team | Create. `name, state` required; `slug` derived from the name when omitted; `contacts[{name,email,role,phone}]` (the client's people; first becomes primary), `npsa_contacts[]` (ours beyond the standing team in `server/intake-team.json`, usually the sales rep), `upload_folder_id, drive_folder_id, asana_project_gid, kickoff_date (YYYY-MM-DD), program_track, notes, phase, status`; `token` only for imports. The state's verified SAA, program and CISA contacts are added as reference rows unless `reference_contacts` is `false` (or a list, which replaces them). 201 with the row; 409 on a slug clash; 400 with the reason otherwise. |
 | GET | `/api/clients/:slug` | team | Row, contacts, `intake_url`, SAA, core and checklist counts, `filled_by`, `status_line`. |
 | PATCH | `/api/clients/:slug` | team | Any create field except slug/token, plus `phase`, `status`, `add_contacts[]`, `add_npsa_contacts[]`, `remove_contact_emails[]`. `status=submitted` stamps `submitted_at`. "Nothing to change" is a 400. Also `add_reference_contacts` (SAA, CISA; read-only for the client), and the Documents-tab list: `documents` (full list or `null` to reset), `add_documents`, `remove_document_keys`. Defaults come from `server/intake-documents.json` (standard four plus per-state extras; a `by_program` entry replaces them when the client's state and `program_track` match, so a California CSNSGP client gets the Cal OES set). A document may carry `ready` (its line in the checklist's submission box) and `task` (the checklist stem that also satisfies it, or removes it when marked Not applicable). |
 | POST | `/api/clients/:slug/token` | team | Rotate the token; returns the new `intake_url`. The old link stops working at once. |
@@ -421,7 +425,7 @@ add-on (its own wish list, its own submission) rather than a second engagement. 
 CSNSGP now and a federal cycle later has one set of prep tasks and a submission date each.
 
 Vendor quotes are a submission requirement only where the state asks for them: set
-`"quotes_required": true` on that state in `intake-state-config.json` and the 889 row appears in its
+`quotes_required: true` on the state program's knowledge base record and the 889 row appears in its
 submission box. We work from estimates everywhere else.
 
 - The page adds an application header row before each block, so the table reads: shared stages 1–4,
