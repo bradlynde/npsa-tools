@@ -764,6 +764,24 @@ await check('welcome email: automatic when the client adds someone, on request f
   assert.match(encodeHeader('Renée'), /^=\?UTF-8\?B\?/);
   await call('PATCH', '/api/clients/welcome-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
+await check('documents received by email count as received everywhere, and the mark can be taken back', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Emailed Docs Church', state: 'IL' } });
+  assert.equal(r.status, 201);
+  const mark = await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { mark_documents_received: ['up_mission', { key: 'up_501c3', note: 'emailed by Dawn 9/21' }] } });
+  assert.equal(mark.status, 200, JSON.stringify(mark.data));
+  assert.deepEqual(Object.keys(mark.data.documents_received).sort(), ['up_501c3', 'up_mission']);
+  assert.equal(mark.data.documents_received.up_501c3.note, 'emailed by Dawn 9/21');
+  assert.equal(mark.data.documents_received.up_mission.note, 'received by email');
+  assert.equal((await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { mark_documents_received: ['up_not_asked'] } })).status, 400);
+  const st = await call('GET', '/api/clients/emailed-docs-church/status', { headers: TEAM });
+  assert.ok(st.data.documents_received.up_mission);
+  const html = renderClientPage({ client: { slug: 'emailed-docs-church', token: 't', name: 'E', state: 'IL', documents_received: mark.data.documents_received }, stateConfig: {}, existing: {} });
+  assert.match(html, /RECEIVED=\["up_mission","up_501c3"\]|RECEIVED=\["up_501c3","up_mission"\]/);
+  assert.match(html, /Received by your NPSA team/);
+  const undo = await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { unmark_documents_received: ['up_mission'] } });
+  assert.deepEqual(Object.keys(undo.data.documents_received), ['up_501c3']);
+  await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
