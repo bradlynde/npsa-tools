@@ -43,8 +43,12 @@ export default function StateMap({ colorFor, selected, onSelect, renderTooltip, 
     if (rect) setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, slug });
   }, []);
 
-  // Selected and focused states draw last so their outline is not painted over by a neighbour.
-  const order = Object.keys(US_STATE_PATHS).sort((a, b) => Number(a === selected || a === focused) - Number(b === selected || b === focused));
+  // The paths keep one order. Reordering them so the selected one drew last moved
+  // a state's DOM node between mousedown and mouseup (focus fires on mousedown), and
+  // the browser dropped the click: every state took two clicks to open. The heavy
+  // outline is a separate path drawn over everything instead.
+  const order = Object.keys(US_STATE_PATHS);
+  const outlined = [selected, focused].filter((s): s is string => !!s && s in US_STATE_PATHS);
 
   return (
     <div ref={box} style={{ position: "relative", width: "100%" }}>
@@ -54,16 +58,15 @@ export default function StateMap({ colorFor, selected, onSelect, renderTooltip, 
         </defs>
         {order.map((slug) => {
           const isSelected = slug === selected;
-          const isFocused = slug === focused;
           const label = ariaLabelFor ? ariaLabelFor(slug) : nameFromSlug(slug) || slug;
           return (
             <path
               key={slug}
               d={US_STATE_PATHS[slug]}
               fill={colorFor(slug)}
-              stroke={isSelected || isFocused ? "var(--ink)" : dashed?.(slug) ? "var(--faint)" : "var(--card)"}
-              strokeWidth={isSelected ? 2.4 : isFocused ? 2 : 1}
-              strokeDasharray={!isSelected && !isFocused && dashed?.(slug) ? "3 2.5" : undefined}
+              stroke={dashed?.(slug) ? "var(--faint)" : "var(--card)"}
+              strokeWidth={1}
+              strokeDasharray={dashed?.(slug) ? "3 2.5" : undefined}
               strokeLinejoin="round"
               transform={TRANSFORMS[slug]}
               style={{
@@ -82,7 +85,7 @@ export default function StateMap({ colorFor, selected, onSelect, renderTooltip, 
                     "aria-label": label,
                     "aria-pressed": isSelected,
                     onClick: () => onSelect(slug),
-                    onFocus: () => setFocused(slug),
+                    onFocus: (e: React.FocusEvent) => { if (e.currentTarget.matches(":focus-visible")) setFocused(slug); },
                     onBlur: () => setFocused(null),
                     onKeyDown: (e: React.KeyboardEvent) => {
                       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(slug); }
@@ -92,6 +95,9 @@ export default function StateMap({ colorFor, selected, onSelect, renderTooltip, 
             />
           );
         })}
+        {[...new Set(outlined)].map((slug) => (
+          <path key={`outline-${slug}`} d={US_STATE_PATHS[slug]} fill="none" stroke="var(--ink)" strokeWidth={slug === selected ? 2.4 : 2} strokeLinejoin="round" transform={TRANSFORMS[slug]} pointerEvents="none" aria-hidden="true" />
+        ))}
       </svg>
 
       {tip && renderTooltip && (

@@ -224,24 +224,25 @@ function Landing({ rows, onPick, onQueue }: { rows: OverviewRow[]; onPick: (code
         </div>
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 18 }}>
-        <Card>
+      {/* minmax(0, …) and minWidth: 0, or a long change line makes its column wider than the map card above. */}
+      <div style={{ display: "grid", gridTemplateColumns: narrow ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 18 }}>
+        <Card style={{ minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
             <Eyebrow>needs a person</Eyebrow>
             <button onClick={onQueue} className="mono" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: "var(--navy)" }}>open the queue →</button>
           </div>
           {counts ? (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: "10px 26px", flexWrap: "wrap", marginBottom: 14 }}>
                 {([["unverified", counts.unverified], ["stale", counts.stale], ["open questions", counts.open_questions], ["gaps", counts.missing]] as [string, number][]).map(([label, n]) => (
-                  <div key={label}><div className="kpi" style={{ fontSize: 26, color: n ? "var(--ink)" : "var(--faint)" }}>{n}</div><div className="mono" style={{ fontSize: 10.5, color: "var(--mute)", letterSpacing: ".05em" }}>{label}</div></div>
+                  <div key={label}><div className="kpi" style={{ fontSize: 26, color: n ? "var(--ink)" : "var(--faint)" }}>{n}</div><div className="mono" style={{ fontSize: 11, color: "var(--mute)", letterSpacing: ".05em", whiteSpace: "nowrap" }}>{label}</div></div>
                 ))}
               </div>
               {attention!.deadlines_soon.length > 0 && <Eyebrow style={{ margin: "4px 0 6px", fontSize: 11 }}>deadlines in the next 45 days</Eyebrow>}
               {attention!.deadlines_soon.slice(0, 6).map((d) => (
                 <button key={d.record_id} onClick={() => onPick(d.jurisdiction, d.record_id)} style={rowBtn}>
-                  <span className="mono" style={{ color: "var(--olive)", width: 24, fontSize: 11.5 }}>{d.jurisdiction}</span>
-                  <span style={{ flex: 1, color: "var(--ink)" }}>{d.program} · {d.label}</span>
+                  <span className="mono" style={{ color: "var(--olive)", width: 24, fontSize: 11.5, flexShrink: 0 }}>{d.jurisdiction}</span>
+                  <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>{d.program} · {d.label}</span>
                   <span style={{ color: d.days_away <= 14 ? "var(--err-fg)" : "var(--sec)", whiteSpace: "nowrap" }}>{fmtDay(d.due_date, { month: "short", day: "numeric" })}{d.due_time ? `, ${fmtTime(d.due_time, d.tz)}` : ""}</span>
                 </button>
               ))}
@@ -254,13 +255,13 @@ function Landing({ rows, onPick, onQueue }: { rows: OverviewRow[]; onPick: (code
             </>
           ) : <div style={{ fontSize: 13, color: "var(--mute)" }}>Loading…</div>}
         </Card>
-        <Card>
+        <Card style={{ minWidth: 0 }}>
           <Eyebrow style={{ marginBottom: 12 }}>recent changes</Eyebrow>
           {!recent.length && <div style={{ fontSize: 13, color: "var(--mute)" }}>Nobody has edited anything since the import.</div>}
           {recent.map((r) => (
             <button key={r.id} onClick={() => onPick(r.jurisdiction, r.record_id)} style={rowBtn}>
-              <span className="mono" style={{ color: "var(--olive)", width: 24, fontSize: 11.5 }}>{r.jurisdiction}</span>
-              <span style={{ flex: 1, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><b>{r.actor}</b>{r.actor_kind === "mcp" ? " via Claude" : ""} {r.action === "create" ? "added" : r.action === "update" ? "changed" : `${r.action}d`.replace("ed", "ed")} {r.title}</span>
+              <span className="mono" style={{ color: "var(--olive)", width: 24, fontSize: 11.5, flexShrink: 0 }}>{r.jurisdiction}</span>
+              <span style={{ flex: 1, minWidth: 0, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><b>{r.actor}</b>{r.actor_kind === "mcp" ? " via Claude" : ""} {r.action === "create" ? "added" : r.action === "update" ? "changed" : `${r.action}d`.replace("ed", "ed")} {r.title}</span>
               <span style={{ color: "var(--mute)", whiteSpace: "nowrap", fontSize: 11.5 }}>{fmtDay(r.created_at, { month: "short", day: "numeric" })}</span>
             </button>
           ))}
@@ -269,7 +270,7 @@ function Landing({ rows, onPick, onQueue }: { rows: OverviewRow[]; onPick: (code
     </>
   );
 }
-const rowBtn: React.CSSProperties = { display: "flex", gap: 10, alignItems: "baseline", width: "100%", padding: "8px 0", background: "none", border: "none", borderBottom: "1px solid var(--hair2)", cursor: "pointer", fontSize: 13, textAlign: "left", font: "inherit" };
+const rowBtn: React.CSSProperties = { display: "flex", gap: 10, alignItems: "baseline", width: "100%", minWidth: 0, padding: "9px 0", background: "none", border: "none", borderBottom: "1px solid var(--hair2)", cursor: "pointer", fontSize: 13.5, lineHeight: 1.45, textAlign: "left", font: "inherit" };
 
 /* ── The route ──────────────────────────────────────────────────── */
 
