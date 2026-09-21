@@ -10,12 +10,10 @@ import {
   StatTile,
   Bar,
   Note,
-  StatusPill,
   useRoll,
   fmtInt,
   fmtMoney,
 } from "../../components/ui";
-import { DeadlinesModal, useDeadlines } from "../../components/DeadlinesPanel";
 type LetterStats = {
   total: number;
   total_fees: number;
@@ -182,8 +180,6 @@ export default function ToolboxPage() {
   const [letters, setLetters] = useState<LetterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showDeadlines, setShowDeadlines] = useState(false);
-  const deadlines = useDeadlines();
 
   useEffect(() => {
     let alive = true;
@@ -305,36 +301,9 @@ export default function ToolboxPage() {
             description="Paste a Calendly invite and generate AI-powered prep notes."
             onClick={() => router.push("/loe?view=precall")}
           />
-          {/*
-            Sits under the Pre-Call card because that is what it feeds, but it
-            earns its place here rather than inside the generator: "is anything
-            open right now?" is worth answering before a call is even booked.
-
-            A numbered card like the rest — it is one of the tools, not a footnote
-            attached to the one above it.
-          */}
-          <ActionCard
-            numeral="vi."
-            title="NSGP Deadlines"
-            description={
-              deadlines.error
-                ? "Could not reach the Sales Toolbox backend."
-                : "Federal and state grant windows, by jurisdiction."
-            }
-            onClick={() => setShowDeadlines(true)}
-            right={
-              deadlines.loading || deadlines.error ? null : (
-                // A zero is a real answer and stays visible rather than collapsing.
-                <StatusPill tone={deadlines.open.length ? "done" : "queued"}>
-                  {deadlines.open.length ? `${deadlines.open.length} open now` : "none open"}
-                </StatusPill>
-              )
-            }
-          />
-
           <Eyebrow style={{ margin: "8px 0 -4px" }}>settings</Eyebrow>
           <ActionCard
-            numeral="vii."
+            numeral="vi."
             title="Manage Sales Reps"
             description="Add or remove the reps letters are attributed to — they drive the leaderboard."
             onClick={() => router.push("/loe?view=settings")}
@@ -438,13 +407,6 @@ export default function ToolboxPage() {
         </div>
       </div>
 
-      {showDeadlines && deadlines.rows && (
-        <DeadlinesModal
-          rows={deadlines.rows}
-          open={deadlines.open}
-          onClose={() => setShowDeadlines(false)}
-        />
-      )}
     </Page>
   );
 }
