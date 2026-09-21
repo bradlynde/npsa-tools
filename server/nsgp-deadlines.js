@@ -19,166 +19,13 @@
  * appear.
  */
 
-import { readFileSync } from 'fs';
-
 /*
- * The seed comes from NPSA's own grant-knowledge base rather than from this file.
- *
- * server/nsgp-data.json is extracted from the states/*.yaml set in the shared
- * Drive folder — the set the team already maintains, with its own last_verified
- * dates and source URLs per state. Transcribing 51 jurisdictions by hand into a
- * second list would create a rival source of truth that goes stale the first time
- * someone updates Drive and not this repo, so the extraction is kept mechanical
- * and the provenance travels with each row.
- *
- * `confidence` matters and is not cosmetic. The knowledge base distinguishes a
- * date it states plainly from one it flags "verify each cycle" or records as a
- * note about a window that has already closed. Presenting the second kind as
- * confirmed is precisely the failure this whole table replaced.
+ * The rows used to be seeded from nsgp-data.json (an extraction of the Drive YAML)
+ * with a web-check overlay in nsgp-verified.json. The grant knowledge base holds all
+ * of that now, and serves it in this table's shape (server/gk-deadlines.js); the
+ * table stays only as the fallback that adapter reads if the knowledge base cannot
+ * be, and is no longer written.
  */
-const KB = JSON.parse(
-  readFileSync(new URL('./nsgp-data.json', import.meta.url), 'utf8'),
-);
-
-/*
- * ...and the web check of that extraction sits in a second file, deliberately.
- *
- * nsgp-data.json's own header says to re-extract it when Drive changes rather than
- * editing it by hand. Folding the corrections below into it would break exactly that:
- * the next extraction would revert them silently, and a hand-edit would be
- * indistinguishable from something the team actually wrote in Drive. So the check is
- * an overlay applied here, and each row records which layer it came from.
- *
- * The check found four wrong dates. One mattered a great deal — Texas closes its
- * NSGP window in February, five months before the extraction claimed, and there is no
- * second window — which is the case for doing this before shipping rather than after.
- */
-const VERIFIED = JSON.parse(
-  readFileSync(new URL('./nsgp-verified.json', import.meta.url), 'utf8'),
-);
-
-const key = (state, program, cycle) => `${state}|${program}|${cycle}`;
-
-const CORRECTED = new Map(
-  VERIFIED.corrections.map((c) => [key(c.state, c.program, c.cycle), c]),
-);
-const DOWNGRADED = new Map(
-  VERIFIED.downgrades.map((d) => [key(d.state, d.program, d.cycle), d]),
-);
-
-/** One extracted row, with the web check applied over it. */
-function applyCheck(state, d) {
-  const k = key(state, d.program, d.cycle);
-  const fix = CORRECTED.get(k);
-  const drop = DOWNGRADED.get(k);
-
-  const row = {
-    state,
-    program: d.program,
-    cycleYear: fix?.nowCycle ?? d.cycle,
-    deadline: fix?.now && /^\d{4}-\d{2}-\d{2}$/.test(fix.now) ? fix.now : d.date,
-    kind: d.program === 'federal' ? 'sub_applicant' : 'state_program',
-    confidence: drop ? drop.to : d.confidence || 'illustrative',
-    note: d.note || '',
-    source: d.source || '',
-    layer: fix || drop ? 'verified' : 'knowledge-base',
-  };
-
-  // The rep needs to know a date moved and why, not just that it changed.
-  if (fix) row.note = `Corrected ${VERIFIED._checked} (was ${fix.was}): ${fix.why} ${row.note}`.trim();
-  if (drop) row.note = `${row.note} Not corroborated on ${VERIFIED._checked} — ${drop.why}`.trim();
-  return row;
-}
-
-const SEED = [
-  // The one row with no state file behind it: FEMA's own deadline for SAAs, which
-  // bounds every sub-applicant deadline from above.
-  { state: 'US', program: 'federal', cycleYear: 2026, deadline: '2026-07-24', kind: 'fema',
-    confidence: 'confirmed', layer: 'verified',
-    note: 'FEMA deadline for State Administering Agencies. Sub-applicant deadlines are earlier and set per state.',
-    source: 'fema.gov/grants/preparedness/nonprofit-security' },
-
-  ...Object.entries(KB.states).flatMap(([state, s]) =>
-    (s.deadlines || []).filter((d) => d.date).map((d) => applyCheck(state, d)),
-  ),
-
-  // Cycles the check turned up that the extraction did not have at all. Three of
-  // these were still open on the day it ran, which is the most useful thing the
-  // whole exercise produced.
-  ...VERIFIED.additions.map((a) => ({
-    state: a.state,
-    program: a.program,
-    cycleYear: a.cycle,
-    deadline: a.date,
-    kind: a.program === 'federal' || a.program === 'federal-noi' ? 'sub_applicant' : 'state_program',
-    confidence: a.confidence,
-    note: a.note,
-    source: a.source,
-    layer: 'verified',
-  })),
-];
-
-/** SAA name per state, from the knowledge base rather than from memory. */
-export const SAA_BY_STATE = Object.fromEntries(
-  Object.entries(KB.states).map(([state, s]) => [state, s.saa]).filter(([, v]) => v),
-);
-
-/**
- * State-funded programs that stack with (or substitute for) federal NSGP.
- *
- * `stackable` answers one question only — does this stack with FEDERAL NSGP. New
- * Jersey showed that is not the only axis: both its programs stack with the federal
- * award, so both are marked stackable, and yet an organization may be awarded only
- * ONE of them per fiscal year. The knowledge base carries that as a state-level note,
- * which nothing rendering the briefing ever read, so the notes could pitch $120,000 of
- * New Jersey money that cannot both be won. `exclusiveWith` makes it machine-readable.
- *
- * `dormant` and `unconfirmed` cover the other way a program misleads: Florida's has
- * had no cycle since 2023, and Nevada's may never have been enacted. Both have real
- * published caps, so nothing looks wrong until a rep points a client at money that is
- * not there.
- */
-export const STATE_PROGRAMS_BY_STATE = Object.fromEntries(
-  Object.entries(KB.states)
-    .filter(([, s]) => (s.state_programs || []).length)
-    .map(([state, s]) => {
-      const o = VERIFIED.program_overrides[state] || {};
-      return [state, s.state_programs.map((p) => ({
-        ...p,
-        ...(o.exclusiveWith?.includes(p.acronym)
-          ? { exclusiveWith: o.exclusiveWith.filter((a) => a !== p.acronym) }
-          : {}),
-        ...(o.dormant ? { dormant: true, availabilityNote: o.why } : {}),
-        ...(o.unconfirmed ? { unconfirmed: true, availabilityNote: o.why } : {}),
-        ...(o.administeredBy ? { administeredBy: o.administeredBy } : {}),
-      }))];
-    }),
-);
-
-/*
- * Everything about a state that is NOT a date.
- *
- * The deadline table answers "when", and on its own that was the whole editor —
- * 200-odd rows of every jurisdiction at once, which is unreadable and, worse,
- * gives no way to tell whether the handful of rows for the state you care about
- * are current. This is the rest of the answer for one state: who administers it,
- * what state-funded money sits beside the federal award, and when each layer was
- * last checked. `lastVerified` is the state file's own date in Drive, `checkedOn`
- * is the day the web check ran over the extraction — two different claims about
- * freshness, so they are reported as two.
- */
-export const STATE_REFERENCE = {
-  checkedOn: VERIFIED._checked || '',
-  notCovered: KB._not_covered || [],
-  states: Object.fromEntries(
-    Object.entries(KB.states).map(([state, s]) => [state, {
-      saa: s.saa || '',
-      saaShort: s.saa_short || '',
-      lastVerified: s.last_verified || '',
-      programs: STATE_PROGRAMS_BY_STATE[state] || [],
-    }]),
-  ),
-};
 
 export async function ensureDeadlineSchema(pool) {
   if (!pool) return;
@@ -198,35 +45,6 @@ export async function ensureDeadlineSchema(pool) {
     ALTER TABLE nsgp_deadlines ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'confirmed';
     ALTER TABLE nsgp_deadlines ADD COLUMN IF NOT EXISTS layer TEXT DEFAULT 'manual';
   `).catch(err => console.error('nsgp_deadlines schema error:', err.message));
-
-  // Seed once. ON CONFLICT DO NOTHING means an edited row is never overwritten by a
-  // redeploy — the table belongs to whoever maintains it, not to this file.
-  for (const d of SEED) {
-    await pool.query(
-      `INSERT INTO nsgp_deadlines (state, program, cycle_year, deadline, kind, note, source, confidence, layer)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (state, program, cycle_year) DO NOTHING`,
-      [d.state, d.program, d.cycleYear, d.deadline, d.kind, d.note, d.source, d.confidence, d.layer || 'knowledge-base'],
-    ).catch(err => console.error('nsgp_deadlines seed error:', err.message));
-  }
-
-  /*
-   * Corrections are the one thing that must land on an already-seeded table.
-   *
-   * A deployment that seeded before the web check ran holds Texas at July 6 — five
-   * months late, on a row marked confirmed. DO NOTHING would leave it there forever,
-   * and nobody would think to look, because the table would appear to have been
-   * updated. So corrected rows are re-applied by (state, program, cycle) — but only
-   * where the stored value still equals the value the check found to be wrong, so an
-   * edit someone made deliberately in the tool is never clobbered.
-   */
-  for (const c of VERIFIED.corrections) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(c.was || '') || !/^\d{4}-\d{2}-\d{2}$/.test(c.now || '')) continue;
-    await pool.query(
-      `UPDATE nsgp_deadlines SET deadline = $1, layer = 'verified', updated_at = NOW()
-        WHERE state = $2 AND program = $3 AND cycle_year = $4 AND deadline = $5`,
-      [c.now, c.state, c.program, c.cycle, c.was],
-    ).catch(err => console.error('nsgp_deadlines correction error:', err.message));
-  }
 }
 
 /** Every row, newest cycle first — the editor's list. */
@@ -236,33 +54,6 @@ export async function listDeadlines(pool) {
             kind, note, source, confidence, layer, updated_at
        FROM nsgp_deadlines ORDER BY state, program, cycle_year DESC`);
   return rows;
-}
-
-export async function upsertDeadline(pool, d) {
-  const state = String(d.state || '').trim().toUpperCase();
-  const program = String(d.program || 'federal').trim();
-  const cycleYear = parseInt(d.cycleYear ?? d.cycle_year, 10);
-  if (!state) throw new Error('state is required');
-  if (!Number.isInteger(cycleYear)) throw new Error('cycleYear must be a year');
-  const deadline = d.deadline ? String(d.deadline).slice(0, 10) : null;
-  if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) throw new Error('deadline must be YYYY-MM-DD');
-
-  const { rows } = await pool.query(
-    // A row a person edited in the tool becomes 'manual', which is what stops the
-    // correction pass above from ever touching it again.
-    `INSERT INTO nsgp_deadlines (state, program, cycle_year, deadline, kind, note, source, confidence, layer, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'manual',NOW())
-     ON CONFLICT (state, program, cycle_year) DO UPDATE SET
-       deadline = EXCLUDED.deadline, kind = EXCLUDED.kind, note = EXCLUDED.note,
-       source = EXCLUDED.source, confidence = EXCLUDED.confidence, layer = 'manual', updated_at = NOW()
-     RETURNING id`,
-    [state, program, cycleYear, deadline, d.kind || 'sub_applicant', d.note || '', d.source || '',
-     d.confidence === 'illustrative' ? 'illustrative' : 'confirmed']);
-  return rows[0].id;
-}
-
-export async function deleteDeadline(pool, id) {
-  await pool.query('DELETE FROM nsgp_deadlines WHERE id=$1', [id]);
 }
 
 /**
@@ -409,4 +200,4 @@ export function renderDeadlines(rows, { state, saaName, todayIso, now }) {
   return out.map(l => `- ${l}`).join('\n');
 }
 
-export const __test = { project, pretty, renderDeadlines, SEED };
+export const __test = { project, pretty, renderDeadlines };

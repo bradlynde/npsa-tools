@@ -36,7 +36,8 @@ if (!globalThis.crypto) globalThis.crypto = webcrypto;
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { STATE_REFERENCE } from './nsgp-deadlines.js';
+import { legacyReference } from './grant-knowledge.js';
+import { seedRecords } from './knowledge.js';
 import { getBooking } from './precall-bookings.js';
 import { KINDS, SCHEMAS, NOTE_CATEGORIES } from './grant-knowledge-kinds.js';
 
@@ -320,10 +321,11 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     },
     annotations: READ,
   }, tool(async ({ state }) => {
-    // The knowledge base once it has been loaded; the extracted files until then.
-    let ref = STATE_REFERENCE;
-    try { const kb = await api('/grant-knowledge/reference'); if (Object.keys(kb.states || {}).length) ref = kb; } catch { /* no store, or not deployed yet */ }
-    const more = ref.source === 'knowledge-base' ? { source: 'knowledge-base', more: 'gk_state_get / gk_requirements / gk_state_brief have the full picture' } : { source: 'files' };
+    // The knowledge base; the seed bundle it was loaded from if it cannot be read.
+    let ref = null;
+    try { const kb = await api('/grant-knowledge/reference'); if (Object.keys(kb.states || {}).length) ref = kb; } catch { /* no store */ }
+    if (!ref) ref = { ...legacyReference(seedRecords()), source: 'seed' };
+    const more = ref.source === 'knowledge-base' ? { source: 'knowledge-base', more: 'gk_state_get / gk_requirements / gk_state_brief have the full picture' } : { source: 'seed', more: 'the knowledge base could not be read; this is the bundle it was first loaded from' };
     const st = normState(state);
     if (st) {
       const entry = ref.states[st];

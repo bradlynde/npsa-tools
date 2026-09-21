@@ -31,10 +31,14 @@ import crypto from 'crypto';
 import { readFileSync } from 'fs';
 import { driveConfigured, uploadToDrive } from './drive.js';
 import { mailConfigured, sendWelcome, senderFor } from './mail.js';
-import { STATE_REFERENCE } from './nsgp-deadlines.js';
 import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
 import { UPLOAD_MAX_BYTES, sniffUploadType, safeFilename, rawUploadBody, uploadBodyError, readMultipart } from './uploads.js';
-import { knowledgeFor, combinedStateProgram } from './knowledge.js';
+import { knowledgeFor as knowledgeOf, combinedStateProgram } from './knowledge.js';
+
+// A state's facts from the grant knowledge base (server/knowledge.js). A code it does
+// not hold gets nothing rather than a guess: the federal baseline and no state program.
+const NO_STATE = { saa: '', saaShort: '', federal: { perSite: null, locationsMax: null, programs: [] }, programs: [], registration: {}, documents: {}, contacts: [] };
+const knowledgeFor = state => knowledgeOf(state) || NO_STATE;
 
 // Re-exported because the upload rules were this module's before the grant
 // knowledge tab needed the same ones; callers and the smoke test still ask here.
@@ -43,9 +47,7 @@ export { UPLOAD_MAX_BYTES, sniffUploadType };
 // ── Catalog ───────────────────────────────────────────────────────────────────
 
 const CATALOG = JSON.parse(readFileSync(new URL('./intake-questions.json', import.meta.url), 'utf8'));
-const STATE_CONFIG = JSON.parse(readFileSync(new URL('./intake-state-config.json', import.meta.url), 'utf8'));
 const NPSA_TEAM = JSON.parse(readFileSync(new URL('./intake-team.json', import.meta.url), 'utf8')).contacts;
-const DOCUMENTS = JSON.parse(readFileSync(new URL('./intake-documents.json', import.meta.url), 'utf8'));
 const DOC_KEY_RE = /^up_[a-z0-9_]{2,40}$/;
 
 /**
@@ -73,26 +75,16 @@ function appliedCodes(client, kb) {
  * The upload rows a client's Documents tab shows: their own list if the team changed
  * it, else their state program's list where that program has its own (California's
  * CSNSGP), else the federal list: the US baseline in the state's wording plus what
- * the state adds. From the knowledge base's verified records; intake-documents.json
- * until the knowledge base has loaded.
+ * the state adds. From the knowledge base's verified records.
  */
 export function documentsFor(client) {
   if (Array.isArray(client.documents)) return client.documents.map(d => ({ ...d, source: d.source || 'custom' }));
   const st = String(client.state || '').toUpperCase();
   const kb = knowledgeFor(st);
-  if (kb) {
-    const codes = appliedCodes(client, kb);
-    const own = kb.programs.find(p => codes.includes(p.code) && kb.documents[p.code]);
-    const fed = [...codes, 'NSGP-S', ...kb.federal.programs.map(p => p.code)].find(c => kb.federal.programs.some(p => p.code === c) && kb.documents[c]);
-    return (kb.documents[own ? own.code : fed || 'baseline'] || []).map(d => ({ ...d }));
-  }
-  const apps = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn') : null;
-  const prog = (DOCUMENTS.by_program || []).find(p => p.state === st && (apps ? apps.some(a => a.program === p.program) : new RegExp(p.match, 'i').test(String(client.program_track || ''))));
-  if (prog) return prog.documents.map(d => ({ ...d, source: 'program' }));
-  return [
-    ...DOCUMENTS.standard.map(d => ({ ...d, source: 'standard' })),
-    ...((DOCUMENTS.by_state[st] || []).map(d => ({ ...d, source: 'state' }))),
-  ];
+  const codes = appliedCodes(client, kb);
+  const own = kb.programs.find(p => codes.includes(p.code) && kb.documents[p.code]);
+  const fed = [...codes, 'NSGP-S', ...kb.federal.programs.map(p => p.code)].find(c => kb.federal.programs.some(p => p.code === c) && kb.documents[c]);
+  return (kb.documents[own ? own.code : fed || 'baseline'] || []).map(d => ({ ...d }));
 }
 const CHECKLIST_STEM_SET = new Set(CATALOG.questions.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length)));
 function validDocument(d, label) {
@@ -167,18 +159,15 @@ const WISH_FACILITIES = [1, 2, 3].map(n => ({
 
 /**
  * What a "State Program" site can draw on, with its caps (null = not published).
- * From the knowledge base, every live state program counts, one of a set the state
- * awards only one of (New Jersey's THE or SP); before it loads, the reference's first program.
+ * Every live state program counts, only one of a set the state awards only one of
+ * (New Jersey's THE or SP).
  */
 export function stateProgram(state) {
-  const kb = knowledgeFor(state);
-  if (kb) return combinedStateProgram(kb.programs);
-  const p = (STATE_REFERENCE.states[String(state || '').toUpperCase()]?.programs || [])[0];
-  return p ? { acronym: p.acronym, name: p.name, perSite: p.perSite ?? null, perApplicant: p.perApplicant ?? null } : null;
+  return combinedStateProgram(knowledgeFor(state).programs);
 }
 /** The federal per-site cap in this state: the state's own where it sets a lower one (Kansas), else the NOFO's. */
 export function federalSiteCap(state) {
-  return knowledgeFor(state)?.federal.perSite || BUDGET.siteCap;
+  return knowledgeFor(state).federal.perSite || BUDGET.siteCap;
 }
 const usd = n => `$${Math.round(n).toLocaleString('en-US')}`;
 function capText(sp) {
@@ -194,27 +183,23 @@ function capText(sp) {
 export function stateConfig(state, codes = []) {
   const st = String(state || '').toUpperCase();
   const kb = knowledgeFor(st);
-  if (kb) {
-    const sp = stateProgram(st);
-    const keys = [...(kb.federal.programs.length ? kb.federal.programs.map(p => p.code) : ['baseline']), ...kb.programs.filter(p => codes.includes(p.code)).map(p => p.code)];
-    const seen = new Set();
-    const registration = keys.flatMap(k => kb.registration[k] || []).filter(r => (seen.has(r.key) ? false : seen.add(r.key)))
-      .map(({ label, hard_gate, note }) => ({ label, hard_gate, ...(note ? { note } : {}) }));
-    const perSite = kb.federal.perSite || BUDGET.siteCap;
-    return {
-      saa: kb.saaShort || kb.saa || st,
-      programs: [...kb.federal.programs.map(p => `Federal ${p.code}`), ...kb.programs.map(p => p.name)],
-      registration,
-      perSiteCap: `${usd(perSite)} per site${kb.federal.locationsMax ? ` · up to ${kb.federal.locationsMax} sites` : ''}`,
-      stateCap: capText(sp),
-      federalSiteCap: perSite,
-      quotes_required: kb.programs.some(p => p.quotes_required && codes.includes(p.code)),
-      stateProgram: sp,
-    };
-  }
-  const cfg = STATE_CONFIG.states[st] || { ...STATE_CONFIG.fallback, saa: st };
-  // Most states take estimates, so quotes are a submission requirement only where the state says so.
-  return { ...cfg, federalSiteCap: BUDGET.siteCap, quotes_required: cfg.quotes_required === true, stateProgram: stateProgram(st) };
+  const sp = stateProgram(st);
+  const keys = [...(kb.federal.programs.length ? kb.federal.programs.map(p => p.code) : ['baseline']), ...kb.programs.filter(p => codes.includes(p.code)).map(p => p.code)];
+  const seen = new Set();
+  const registration = keys.flatMap(k => kb.registration[k] || []).filter(r => (seen.has(r.key) ? false : seen.add(r.key)))
+    .map(({ label, hard_gate, note }) => ({ label, hard_gate, ...(note ? { note } : {}) }));
+  const perSite = kb.federal.perSite || BUDGET.siteCap;
+  return {
+    saa: kb.saaShort || kb.saa || st,
+    programs: [...kb.federal.programs.map(p => `Federal ${p.code}`), ...kb.programs.map(p => p.name)],
+    registration,
+    perSiteCap: `${usd(perSite)} per site${kb.federal.locationsMax ? ` · up to ${kb.federal.locationsMax} sites` : ''}`,
+    stateCap: capText(sp),
+    federalSiteCap: perSite,
+    // Most states take estimates, so quotes are a submission requirement only where the program says so.
+    quotes_required: kb.programs.some(p => p.quotes_required && codes.includes(p.code)),
+    stateProgram: sp,
+  };
 }
 
 /**
@@ -224,7 +209,6 @@ export function stateConfig(state, codes = []) {
  */
 export function referenceContactsFor(state, codes = []) {
   const kb = knowledgeFor(state);
-  if (!kb) return [];
   const programs = new Set([...kb.federal.programs.map(p => p.code), ...codes]);
   const seen = new Set();
   return kb.contacts
@@ -247,10 +231,7 @@ export const FEDERAL_PROGRAMS = [
 export const APPLICATION_STATUSES = ['active', 'planned', 'submitted', 'awarded', 'not_awarded', 'withdrawn'];
 const CAP_STATUSES = new Set(['active', 'submitted', 'awarded']); // planned work gets its own wish list later, not a share of today's
 export function programsFor(state) {
-  const kb = knowledgeFor(state);
-  const st = kb
-    ? kb.programs.map(p => ({ code: p.code, name: p.name, kind: 'state', per_site: p.per_site, per_applicant: p.per_applicant }))
-    : (STATE_REFERENCE.states[String(state || '').toUpperCase()]?.programs || []).map(p => ({ code: p.acronym, name: p.name, kind: 'state', per_site: p.perSite ?? null, per_applicant: p.perApplicant ?? null }));
+  const st = knowledgeFor(state).programs.map(p => ({ code: p.code, name: p.name, kind: 'state', per_site: p.per_site, per_applicant: p.per_applicant }));
   return [...FEDERAL_PROGRAMS.map(p => ({ ...p, per_site: federalSiteCap(state), per_applicant: null })), ...st];
 }
 function validApplications(list, state) {
@@ -620,7 +601,7 @@ function contactsView(contacts) {
 function clientView(client, base) {
   const { token, documents, applications, ...rest } = client;
   return {
-    ...rest, intake_url: intakeUrl(base, client.slug, token), saa: knowledgeFor(client.state)?.saa || STATE_REFERENCE.states[client.state]?.saa || stateConfig(client.state).saa || null,
+    ...rest, intake_url: intakeUrl(base, client.slug, token), saa: knowledgeFor(client.state).saa || null,
     documents: documentsFor(client), documents_customised: Array.isArray(documents), documents_received: receivedFor(client),
     applications: Array.isArray(applications) ? applicationsFor(client) : [], applications_set: Array.isArray(applications),
     programs: programsFor(client.state),

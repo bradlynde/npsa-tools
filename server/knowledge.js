@@ -9,11 +9,15 @@
  * published" rather than as a guess). A record under an unverified parent drops
  * with it.
  *
- * Intake builds pages synchronously, so this keeps a snapshot in memory: loaded at
- * boot, refreshed every minute and after each knowledge write. Until the first
- * snapshot arrives (or if the database has no knowledge rows) intake keeps using
- * its own JSON files, so a cold start never shows an empty page.
+ * The pre-call briefing reads the same snapshot for a state's SAA and its state-funded
+ * programs (briefingFor), so a rep and a client see the same facts.
+ *
+ * Both build synchronously, so this keeps a snapshot in memory: loaded at boot,
+ * refreshed every minute and after each knowledge write. Until the first one arrives
+ * (or if the database has no knowledge rows) the seed bundle the knowledge base was
+ * loaded from answers instead, so a cold start never shows an empty page.
  */
+import { readFileSync } from 'fs';
 import { activeTree, assemble, federalBaseline } from './grant-knowledge.js';
 
 // ── Records → projection ──────────────────────────────────────────────────────
@@ -128,6 +132,10 @@ export function projectState(doc, baseline, usProgram) {
       per_site: p.data.cap_per_location ?? null, per_applicant: p.data.cap_per_applicant ?? null,
       exclusive_with: Array.isArray(p.data.exclusive_with) ? p.data.exclusive_with : [],
       quotes_required: p.data.quotes_required === true,
+      stackable: typeof p.data.stackable === 'boolean' ? p.data.stackable : null,
+      note: p.data.notes_md || p.data.submission?.package_note || '',
+      administered_by: p.data.administered_by || '',
+      availability_note: p.data.availability_note || '',
     })),
     registration,
     documents,
@@ -176,13 +184,54 @@ export function combinedStateProgram(programs) {
 }
 
 let snapshot = null;
+let seed = null;
 
-/** The current projection, or null before the first load (callers fall back to the JSON files). */
-export function knowledgeSnapshot() { return snapshot; }
-/** For tests and for the sync below. */
+/**
+ * The seed bundle (server/grant-knowledge-seed.json, what the knowledge base was first
+ * loaded from) as store-shaped records. Its import keys become ids and parents.
+ */
+export function seedRecords() {
+  const { records } = JSON.parse(readFileSync(new URL('./grant-knowledge-seed.json', import.meta.url), 'utf8'));
+  const ids = new Map(records.map((r, i) => [r.import_key, i + 1]));
+  return records.map((r, i) => ({
+    id: i + 1, jurisdiction: r.jurisdiction, kind: r.kind, key: r.key, data: r.data,
+    parent_id: r.parent ? ids.get(r.parent) ?? -1 : null, status: r.status || 'unverified', unverified_fields: [],
+    sort_order: r.sort_order || 0, verified_at: r.verified_at || null, verified_by: r.verified_by || '', archived_at: null,
+  }));
+}
+function seedSnapshot() { return (seed ||= buildKnowledge(seedRecords())); }
+
+/** The live projection, or the seed's until the first load. */
+export function knowledgeSnapshot() { return snapshot || seedSnapshot(); }
+/** Whether the live knowledge base has loaded (false: the seed is answering). */
+export function knowledgeLive() { return Boolean(snapshot); }
+/** For tests and for the sync below. An empty projection counts as none. */
 export function setKnowledgeSnapshot(s) { snapshot = s && Object.keys(s.states || {}).length ? s : null; }
-/** One state's projection, or null. */
-export function knowledgeFor(state) { return snapshot?.states[String(state || '').toUpperCase()] || null; }
+/** One state's projection, or null for a code the knowledge base does not have. */
+export function knowledgeFor(state) { return knowledgeSnapshot().states[String(state || '').toUpperCase()] || null; }
+
+/**
+ * What the pre-call briefing needs about a state: the SAA's full name, the federal
+ * per-site cap, and the state-funded programs in the shape its funding block reads.
+ * A program run by someone other than the SAA says so; the SAA running it does not.
+ */
+export function briefingFor(state) {
+  const kb = knowledgeFor(state);
+  if (!kb) return null;
+  const isSaa = who => !who || [kb.saaShort, kb.saa].some(x => x && (x === who || x.includes(who) || who.includes(x)));
+  return {
+    saa: kb.saa || null,
+    federalSiteCap: kb.federal.perSite || 200000,
+    programs: kb.programs.map(p => ({
+      acronym: p.code, name: p.name, perSite: p.per_site, perApplicant: p.per_applicant,
+      stackable: p.stackable ?? 'verify', note: p.note,
+      ...(p.exclusive_with.length ? { exclusiveWith: p.exclusive_with } : {}),
+      ...(p.status === 'dormant' ? { dormant: true, availabilityNote: p.availability_note || 'no current round on record.' } : {}),
+      ...(p.status === 'unconfirmed' ? { unconfirmed: true, availabilityNote: p.availability_note || 'not confirmed that it runs.' } : {}),
+      ...(!isSaa(p.administered_by) ? { administeredBy: p.administered_by } : {}),
+    })),
+  };
+}
 
 /**
  * Keeps the snapshot current. `refresh()` is also what the knowledge routes call

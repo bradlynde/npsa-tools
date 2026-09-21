@@ -4,12 +4,14 @@ What NPSA knows about NSGP and the state-funded programs, per jurisdiction: who
 administers it, what a submission needs, when it opened and closed each year and for
 how much, who to call, and what has gone wrong before. The team edits it in the
 toolbox, Claude reads and writes it through the MCP, and the grant-clients module and
-the pre-call briefing will read from it instead of from files.
+the pre-call briefing read from it instead of from files.
 
-It replaces a Drive folder of YAML (`Operations/grant-knowledge/`) and, in stages, the
-three extractions of that folder this repo carries: `nsgp-data.json` with
-`nsgp-verified.json`, `intake-state-config.json` and `intake-documents.json`. Those
-files stay in use until the PR that repoints each consumer; nothing here touches them.
+It replaces a Drive folder of YAML (`Operations/grant-knowledge/`) and the three
+extractions of that folder this repo used to carry (`nsgp-data.json` with
+`nsgp-verified.json`, `intake-state-config.json`, `intake-documents.json`), which B8
+deleted. The client pages, the pre-call briefing, the deadline feed and the MCP all
+read the knowledge base now; `server/grant-knowledge-seed.json`, the bundle it was
+first loaded from, answers only while it cannot be read.
 
 ## The build, in order
 
@@ -22,8 +24,8 @@ files stay in use until the PR that repoints each consumer; nothing here touches
 | F1, F2 | The Grant Knowledge tab on `frontend`: map, state page, then editing, history, the queue |
 | B5 / F3 | File attachments (NOFOs, state guidance) |
 | B6 | `nsgp_deadlines` served from here behind its existing shape |
-| **B7** | **Intake reads from here: registration steps, documents, caps, reference contacts** |
-| B8 | Pre-call briefing reads from here; the JSON files go |
+| B7 | Intake reads from here: registration steps, documents, caps, reference contacts |
+| **B8** | **Pre-call briefing reads from here; the JSON files go** |
 | F4 / B9 | The old deadline card and editor go |
 
 ## Model
@@ -195,13 +197,19 @@ shows as "not published"). Anything under an unverified parent drops with it.
   CISA contacts with an email (none carrying a `warning`), primary first, to the Contacts
   tab as reference rows. `reference_contacts: false` adds none; a list replaces them.
 
-The snapshot loads at boot, refreshes every minute, and refreshes after every successful
-write to `/api/grant-knowledge`, so an edit reaches client pages at once. Until it has
-loaded, or if the knowledge base is empty, intake answers from its JSON files as before.
+The pre-call briefing's funding block reads the same snapshot (`briefingFor`): the SAA's
+full name, the state's federal per-site cap, and each state program's cap, stackability,
+exclusivity, dormancy and note (`server/precall-state.js` writes the block). A program
+administered by someone other than the SAA says so.
 
-`node scripts/intake-knowledge-smoke.mjs` covers the projection and the create;
-`node scripts/gk-parity.mjs --live` (with `NPSA_API_KEY`) prints, per state, what a client
-page showed from the JSON files against what it shows from the knowledge base.
+The snapshot loads at boot, refreshes every minute, and refreshes after every successful
+write to `/api/grant-knowledge`, so an edit reaches client pages and briefings at once.
+Until it has loaded, or if the knowledge base is empty or unreadable, the seed bundle
+answers (projected the same way, verified records only). The same seed stands in for
+`nsgp_state_reference` and the deadline feed's reference when the database is down.
+
+`node scripts/intake-knowledge-smoke.mjs` covers the projection, the create, the seed
+fallback and the briefing block.
 
 ## Through Claude
 

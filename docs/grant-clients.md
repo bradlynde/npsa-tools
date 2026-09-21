@@ -122,17 +122,11 @@ with the offending keys and nothing is written, which replaces the "did it land 
 Checklist or Other?" check that used to follow every seed. `_status` is `meta`: the
 server writes it on completion, the page cannot, imports may.
 
-The per-state facts below now come from the grant knowledge base's verified records (see
-[grant-knowledge.md](grant-knowledge.md#the-client-intake-pages)); the two JSON files answer
-only until its snapshot has loaded, and go with B8.
-
-`server/intake-state-config.json` carries the per-state map the page's checklist banner
-needs (SAA short name, programs, registration steps with a "— hard gate" suffix, per-site
-and state caps), from `getStateConfig_` in the same build. The Kentucky registration line
-was corrected live in the Apps Script editor on 2026-08-26 and never reached the local
-copy; it is transcribed from the deploy note and should be checked against the live form
-at cutover. `nsgp-data.json` holds SAA names and deadlines for reps; merging the two is a
-follow-up.
+The page's per-state facts (SAA, registration steps, caps, upload rows, the programs an
+application can name, reference contacts) come from the grant knowledge base's verified
+records; see [grant-knowledge.md](grant-knowledge.md#the-client-intake-pages). They used
+to live in `intake-state-config.json` and `intake-documents.json`, extracted from the
+Apps Script build; B8 deleted both.
 
 ## Routes
 

@@ -17,14 +17,18 @@
  *      Jersey), dormant programs left out.
  *   5. Reference contacts. A new client starts with the SAA's verified contacts,
  *      not the ones with no email or a warning, and reference_contacts: false opts out.
- *   6. The sync. A refresh after a knowledge write, and no snapshot at all (the
- *      JSON files) when the knowledge base is empty.
+ *   6. The sync. A refresh after a knowledge write, and the seed bundle answering
+ *      when the knowledge base is empty or not loaded yet.
+ *   7. The pre-call briefing's funding block from the same snapshot: the SAA, the
+ *      state's federal cap, exclusive and dormant programs, a program run by
+ *      someone other than the SAA.
  *
  *   node scripts/intake-knowledge-smoke.mjs
  */
 import assert from 'node:assert/strict';
 import express from 'express';
-import { buildKnowledge, setKnowledgeSnapshot, knowledgeSnapshot, startKnowledgeSync, trustedRecords } from '../server/knowledge.js';
+import { buildKnowledge, setKnowledgeSnapshot, knowledgeLive, startKnowledgeSync, trustedRecords, briefingFor } from '../server/knowledge.js';
+import { stateFundingBlock } from '../server/precall-state.js';
 import { documentsFor, stateConfig, stateProgram, capsFor, programsFor, federalSiteCap, referenceContactsFor, registerIntake, createMemoryStore } from '../server/intake.js';
 
 process.env.MCP_API_KEYS = 'team-key';
@@ -74,13 +78,13 @@ add(rec('KS', 'program', 'NSGP-S', { name: 'NSGP-S', type: 'federal', status: 'a
 add(rec('NJ', 'jurisdiction', 'NJ', { name: 'New Jersey', saa: 'NJ Office of Homeland Security & Preparedness', saa_short: 'NJOHSP' }));
 add(rec('NJ', 'program', 'NSGP-S', { name: 'NSGP-S', type: 'federal', status: 'active' }));
 const the = add(rec('NJ', 'program', 'NJ-NSGP-THE', { name: 'NJ THE', type: 'state', status: 'active', cap_per_applicant: 100000, exclusive_with: ['NJ-NSGP-SP'] }));
-add(rec('NJ', 'program', 'NJ-NSGP-SP', { name: 'NJ SP', type: 'state', status: 'active', cap_per_applicant: 20000, exclusive_with: ['NJ-NSGP-THE'] }));
+add(rec('NJ', 'program', 'NJ-NSGP-SP', { name: 'NJ SP', type: 'state', status: 'active', cap_per_applicant: 20000, exclusive_with: ['NJ-NSGP-THE'], administered_by: 'Department of Community Affairs' }));
 add(req(the, 'portal', { req_type: 'registration', label: 'NJOHSP portal account', hard_gate: true }));
 
 // California: CSNSGP carries its own upload list; FL: a dormant program; MD: a cap changed and not confirmed; OR: an unverified program
 add(rec('CA', 'jurisdiction', 'CA', { name: 'California', saa: 'Cal OES' }));
 add(rec('CA', 'program', 'NSGP-S', { name: 'NSGP-S', type: 'federal', status: 'active' }));
-const cs = add(rec('CA', 'program', 'CSNSGP', { name: 'California State Nonprofit Security Grant Program', type: 'state', status: 'active', cap_per_location: 250000, cap_per_applicant: 500000 }));
+const cs = add(rec('CA', 'program', 'CSNSGP', { name: 'California State Nonprofit Security Grant Program', type: 'state', status: 'active', administered_by: 'Cal OES', cap_per_location: 250000, cap_per_applicant: 500000 }));
 add(req(cs, 'vuln_assessment', { req_type: 'document', label: 'Cal OES VA', upload_key: 'up_va', client_label: 'Cal OES Vulnerability Assessment Worksheet' }));
 add(req(cs, 'proof_of_address', { req_type: 'document', label: 'Proof', upload_key: 'up_proof_address', client_label: 'Proof of ownership or lease' }));
 add(rec('FL', 'jurisdiction', 'FL', { name: 'Florida', saa: 'FDEM' }));
@@ -185,7 +189,7 @@ await check('a new client starts with them on the Contacts tab, unless told not 
   server.close();
 });
 
-await check('the sync: a refresh picks up a write, and an empty base leaves the JSON files in charge', async () => {
+await check('the sync: a refresh picks up a write, and an empty base leaves the seed in charge', async () => {
   const live = [...records];
   const store = { listRecords: async () => live };
   setKnowledgeSnapshot(null);
@@ -200,9 +204,30 @@ await check('the sync: a refresh picks up a write, and an empty base leaves the 
   assert.equal(federalSiteCap('KS'), 175000, 'a failed refresh keeps the last snapshot');
   sync.stop();
   setKnowledgeSnapshot(buildKnowledge([]));
-  assert.equal(knowledgeSnapshot(), null, 'no records, no snapshot');
-  assert.equal(stateConfig('TX').saa, 'OOG PSO', 'intake-state-config.json answers');
-  assert.equal(federalSiteCap('KS'), 200000);
+  assert.equal(knowledgeLive(), false, 'no records, no live snapshot');
+  assert.equal(stateConfig('TX').saa, 'OOG PSO', 'the seed bundle answers');
+  assert.ok(stateConfig('WY').registration.length, 'for every state, not just the ones in this test');
+  assert.equal(federalSiteCap('KS'), 150000, 'the seed carries Kansas\'s own cap too');
+  setKnowledgeSnapshot(kb);
+});
+
+await check('the briefing\'s funding block reads the same snapshot', () => {
+  const nj = briefingFor('NJ');
+  assert.equal(nj.saa, 'NJ Office of Homeland Security & Preparedness');
+  const block = stateFundingBlock({ state: 'NJ', saaName: nj.saa, programs: nj.programs, federalSiteCap: nj.federalSiteCap });
+  assert.match(block, /Administered in-state by \(SAA\): NJ Office of Homeland Security/);
+  assert.match(block, /NJ THE \(NJ-NSGP-THE\)\n  Award cap: \$100,000 per applicant \(NOT per site\)/);
+  assert.match(block, /MUTUALLY EXCLUSIVE with NJ-NSGP-SP/);
+  assert.match(block, /Administered by Department of Community Affairs — NOT the SAA/);
+  assert.equal(briefingFor('CA').programs[0].administeredBy, undefined, 'the SAA running its own program is not called out');
+  const ks = briefingFor('KS');
+  assert.match(stateFundingBlock({ state: 'KS', saaName: ks.saa, programs: ks.programs, federalSiteCap: ks.federalSiteCap }), /Award cap: \$150,000 per physical site/);
+  const fl = briefingFor('FL');
+  assert.equal(fl.programs[0].dormant, true);
+  assert.match(stateFundingBlock({ state: 'FL', saaName: fl.saa, programs: fl.programs }), /AVAILABILITY: dormant/);
+  assert.equal(briefingFor('MD').programs[0].perApplicant, null, 'an unconfirmed cap is not quoted');
+  assert.match(stateFundingBlock({ state: 'TX', saaName: 'x', programs: briefingFor('TX').programs }), /TX does NOT operate a separate state-funded/);
+  assert.equal(briefingFor('ZZ'), null);
 });
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll intake knowledge checks passed');

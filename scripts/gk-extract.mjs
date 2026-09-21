@@ -24,8 +24,14 @@
  * 2026-08-11 audit are never imported as verified: NY.md still says "Grants Gateway".
  *
  * Every record carries an import_key, which is what makes loading it twice safe.
+ *
+ * Kept as the record of how the seed was made, not to be run again: the knowledge
+ * base is the master now, and a re-extraction from Drive would only restate what
+ * people have since corrected in the tab. The three repo files it read went in B8;
+ * `--from-commit 9aa6b2b` reads them from the last commit that had them.
  */
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { parseDocument, isMap, isSeq, isScalar } from 'yaml';
 import { JURISDICTIONS, parseData, slugKey, SCHEMAS } from '../server/grant-knowledge-kinds.js';
@@ -44,7 +50,15 @@ if (!SRC || !existsSync(`${SRC}/_FEDERAL.yaml`)) {
   console.error('usage: node scripts/gk-extract.mjs --src "<path to Operations/grant-knowledge>" [--live-deadlines dump.json]');
   process.exit(2);
 }
-const repoJson = rel => JSON.parse(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'));
+// The three intake/web-check files were deleted in B8; read them from a commit that had them.
+const FROM_COMMIT = (() => { const i = process.argv.indexOf('--from-commit'); return i < 0 ? null : process.argv[i + 1]; })();
+const repoJson = rel => {
+  try { return JSON.parse(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')); }
+  catch (err) {
+    if (!FROM_COMMIT) throw new Error(`${rel} is gone (deleted in B8). Run with --from-commit 9aa6b2b to read it from before then.`);
+    return JSON.parse(execFileSync('git', ['show', `${FROM_COMMIT}:${rel}`], { encoding: 'utf8', maxBuffer: 64 << 20 }));
+  }
+};
 const VERIFIED = repoJson('server/nsgp-verified.json');
 const STATE_CONFIG = repoJson('server/intake-state-config.json');
 const DOCUMENTS = repoJson('server/intake-documents.json');
