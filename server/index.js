@@ -13,14 +13,12 @@ import {
   buildMeetingDetails, buildAttendees, buildVideoConference, buildBookingAnswers,
   writeInLines, writeInField, substituteBlocks, fillEmptySections, formatCentral, NPSA_TITLES,
 } from './precall-facts.js';
-import {
-  ensureDeadlineSchema, listDeadlines, upsertDeadline, deleteDeadline,
-  deadlinesForState, renderDeadlines, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE, STATE_REFERENCE,
-} from './nsgp-deadlines.js';
+import { ensureDeadlineSchema, renderDeadlines, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 import { registerMcp } from './mcp.js';
 import { ensureIntakeSchema, createIntakeStore, registerIntake } from './intake.js';
 import { ensureGrantKnowledgeSchema, createKnowledgeStore, registerGrantKnowledge } from './grant-knowledge.js';
+import { createDeadlineSource } from './gk-deadlines.js';
 import crypto from 'crypto';
 
 const { Pool } = pg;
@@ -63,6 +61,11 @@ if (process.env.DATABASE_URL) {
   ensureIntakeSchema(pool).catch(err => console.error('Intake init error:', err.message));
   ensureGrantKnowledgeSchema(pool).catch(err => console.error('Grant knowledge init error:', err.message));
 }
+
+// One knowledge store for the tab's own routes and for the deadline readers below,
+// which now take their dates from it (see gk-deadlines.js).
+const knowledgeStore = pool ? createKnowledgeStore(pool) : null;
+const deadlineSource = createDeadlineSource({ store: knowledgeStore, pool });
 
 // Minted per process and never stored: the MCP layer presents it on its loopback
 // calls to the grant-client routes, which is what lets those routes require a key
@@ -488,28 +491,24 @@ app.get('/api/precall/bookings', async (req, res) => {
 });
 
 // ── Curated NSGP deadlines ────────────────────────────────────────────────────
+// The dates now come from the grant knowledge base, in this route's old shape
+// (gk-deadlines.js), with stage, time and zone added alongside. The reference
+// travels with them as before: a date without its SAA, its state-funded programs
+// and its freshness is the shape of the table that was too hard to keep current.
 app.get('/api/precall/deadlines', async (req, res) => {
-  if (!pool) return res.status(503).json({ error: 'Storage not configured' });
-  // The reference travels with the dates: the editor shows one state at a time,
-  // and a date without its SAA, its state-funded programs and its freshness is
-  // the shape of the table that was too hard to keep current.
-  try { res.json({ deadlines: await listDeadlines(pool), reference: STATE_REFERENCE }); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  try { res.json(await deadlineSource.list()); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
-app.put('/api/precall/deadlines', async (req, res) => {
-  if (!pool) return res.status(503).json({ error: 'Storage not configured' });
-  try {
-    const id = await upsertDeadline(pool, req.body || {});
-    res.json({ ok: true, id });
-  } catch (e) { res.status(400).json({ error: e.message }); }
+// Edits here would land in the old table, which nothing reads any more: the
+// change would be accepted and then never seen. So they are refused, with where
+// to go instead, rather than quietly dropped.
+const deadlinesMoved = (req, res) => res.status(410).json({
+  error: 'Deadlines are edited in the Grant Knowledge tab now (/grant-knowledge), where each change is kept with who made it.',
+  moved_to: '/grant-knowledge',
 });
-
-app.delete('/api/precall/deadlines/:id', async (req, res) => {
-  if (!pool) return res.status(503).json({ error: 'Storage not configured' });
-  try { await deleteDeadline(pool, req.params.id); res.json({ ok: true }); }
-  catch (e) { res.status(500).json({ error: e.message }); }
-});
+app.put('/api/precall/deadlines', deadlinesMoved);
+app.delete('/api/precall/deadlines/:id', deadlinesMoved);
 
 app.post('/api/precall', async (req, res) => {
   const { formData, calendlyText, eventUri } = req.body || {};
@@ -695,8 +694,8 @@ app.post('/api/precall', async (req, res) => {
     // exactly what produced the section Brad called inaccurate, and "not recorded —
     // confirm with the SAA" is more use to a rep than a confident wrong date.
     const saaName = STATE_SAA[orgState?.toUpperCase()] || (orgState ? `${orgState} State Administering Agency` : null);
-    if (orgState && pool) {
-      try { deadlineRows = await deadlinesForState(pool, orgState); }
+    if (orgState) {
+      try { deadlineRows = await deadlineSource.forState(orgState); }
       catch (e) { console.error('Deadline lookup failed:', e.message); }
     }
 
@@ -835,7 +834,7 @@ app.post('/api/precall', async (req, res) => {
       FUNDING_DEADLINES: {
         heading: 'NSGP Deadlines',
         body: orgState
-          ? renderDeadlines(deadlineRows, { state: orgState, saaName, todayIso })
+          ? renderDeadlines(deadlineRows, { state: orgState, saaName, todayIso, now: new Date() })
           : '- Deadlines depend on the state — set the organization\'s state to see them.',
       },
     });
@@ -1013,7 +1012,7 @@ registerIntake(app, {
 });
 // Grant knowledge: the per-state knowledge base. Team routes only, keyed like the
 // grant-client routes.
-registerGrantKnowledge(app, { store: pool ? createKnowledgeStore(pool) : null, internalKey: INTERNAL_KEY });
+registerGrantKnowledge(app, { store: knowledgeStore, internalKey: INTERNAL_KEY });
 registerMcp(app, { port: () => PORT, internalKey: INTERNAL_KEY });
 
 // An API route that does not exist must say so. Without this the fallback below

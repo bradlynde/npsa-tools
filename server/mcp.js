@@ -289,7 +289,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
   server.registerTool('nsgp_deadlines_list', {
     title: 'NSGP deadlines',
-    description: 'Curated NSGP application deadlines. Filter to one state (rows for that state plus federal "US" rows) and optionally to dates on or after today. Each row carries program, cycle_year, deadline, kind, note, source, confidence and layer. With a state, the state reference (SAA name, state-funded programs, last verified) is attached.',
+    description: 'NSGP application deadlines, from the grant knowledge base, one row per stage. Filter to one state (rows for that state plus federal "US" rows) and optionally to dates on or after today. Each row carries program ("federal", "federal-noi" or a state program acronym), cycle_year, deadline, kind, note, source, confidence ("confirmed" only when a person has verified the date) and, where recorded, stage_label, stage_order, due_time, tz and record_id. With a state, the state reference is attached. To change a deadline use gk_record_upsert with kind "deadline".',
     inputSchema: {
       state: z.string().length(2).optional().describe('Two-letter state code, e.g. "IL"'),
       upcoming_only: z.boolean().optional().describe('Only deadlines on or after today (default false)'),
@@ -340,34 +340,9 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     };
   }));
 
-  if (canWrite) {
-    server.registerTool('nsgp_deadline_upsert', {
-      title: 'Add or update NSGP deadline',
-      description: 'WRITE. Confirm with the user before calling. Adds a deadline, or updates the one that already exists for the same state + program + cycle_year. The row is marked as manually maintained so automated correction passes leave it alone. Use "US" as the state for a federal FEMA date. Returns the row id.',
-      inputSchema: {
-        state: z.string().length(2).describe('Two-letter state code, or "US" for federal'),
-        program: z.string().min(1).optional().describe('"federal" (default), or a state program acronym such as "NSGP-IL"'),
-        cycle_year: z.number().int().min(2020).max(2040).describe('Grant cycle year, e.g. 2027'),
-        deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('YYYY-MM-DD. Omit to record the cycle with no date yet.'),
-        kind: z.string().min(1).optional().describe('"sub_applicant" (default: the deadline nonprofits face) or "fema" (the SAA-to-FEMA date)'),
-        note: z.string().optional(),
-        source: z.string().optional().describe('URL or citation the date came from'),
-        confidence: z.enum(['confirmed', 'illustrative']).optional().describe('Default "confirmed"'),
-      },
-      annotations: WRITE,
-    }, write('nsgp_deadline_upsert', async (args) => {
-      const body = { ...args, state: normState(args.state), cycleYear: args.cycle_year };
-      delete body.cycle_year;
-      return api('/precall/deadlines', { method: 'PUT', body });
-    }));
-
-    server.registerTool('nsgp_deadline_delete', {
-      title: 'Delete NSGP deadline',
-      description: 'WRITE, destructive. Confirm with the user before calling, naming the row. Removes one deadline row by id (from nsgp_deadlines_list). There is no undo.',
-      inputSchema: { id: z.number().int() },
-      annotations: DESTRUCTIVE,
-    }, write('nsgp_deadline_delete', async ({ id }) => api(`/precall/deadlines/${id}`, { method: 'DELETE' })));
-  }
+  // nsgp_deadline_upsert and nsgp_deadline_delete are gone: the old table they
+  // wrote to is no longer what anything reads. A deadline is a gk record now
+  // (gk_record_upsert, kind "deadline"), with a history and a person behind it.
 
   // ── Grant knowledge ───────────────────────────────────────────────────────
   //

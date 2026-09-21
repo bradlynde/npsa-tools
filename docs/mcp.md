@@ -139,7 +139,7 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `letter_get` | One letter's form data and fee (HTML on request) |
 | `reps_list` | Sales reps |
 | `letter_template_get` | Template definition for a document type |
-| `nsgp_deadlines_list` | Curated NSGP deadlines, by state, upcoming only |
+| `nsgp_deadlines_list` | NSGP deadlines from the knowledge base, one row per stage, by state, upcoming only. Changes go through `gk_record_upsert` |
 | `nsgp_state_reference` | SAA, state-funded programs, last verified, per state. Reads the grant knowledge base once it is loaded (`source: knowledge-base`), the extracted files until then. Superseded by `gk_*` |
 | `precall_bookings_list` | Upcoming Calendly consultations with pre-call facts |
 | `precall_booking_get` | One booking by event URI |
@@ -179,8 +179,6 @@ until keys map to people.
 | `letter_update` | Client name, rep name and/or fee total on a saved letter. Content untouched. |
 | `rep_add` | Adds a sales rep |
 | `rep_remove` | Removes a sales rep (destructive) |
-| `nsgp_deadline_upsert` | Adds or updates the deadline for a state + program + cycle year. Row becomes manually maintained. |
-| `nsgp_deadline_delete` | Deletes one deadline row (destructive) |
 | `marketing_booking_update` | Held, became-client, exclusion reason, channel or campaign override on one booking. Same overrides as the dashboard toggles. |
 | `marketing_refresh` | Re-enriches bookings, like the dashboard's "Refresh data" |
 | `client_create` | Registers a grant client and mints their intake link |
