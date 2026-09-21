@@ -162,6 +162,7 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `gk_requirements` | The submission checklist: federal baseline merged with state-added, owner, lead time, hard gates |
 | `gk_search` | Search every record in every jurisdiction |
 | `gk_needs_attention` | Unverified, stale, deadlines soon, open questions, holes |
+| `gk_files_list` | The files kept for a jurisdiction: NOFOs, checklists, screenshots |
 | `gk_revisions` | Who changed what, for a record, a jurisdiction, or everything |
 
 ### Write tools

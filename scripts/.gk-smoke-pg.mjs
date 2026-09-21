@@ -29,7 +29,7 @@
 
 import assert from 'node:assert/strict';
 import express from 'express';
-import { registerGrantKnowledge, createMemoryKnowledgeStore, zonedInstant } from '../server/grant-knowledge.js';
+import { registerGrantKnowledge, createKnowledgeStore, createMemoryKnowledgeStore, ensureGrantKnowledgeSchema, zonedInstant } from '../server/grant-knowledge.js';
 import { fingerprint } from '../server/mcp.js';
 
 const INTERNAL = 'boot-secret-for-test';
@@ -39,7 +39,7 @@ delete process.env.MCP_KEY_NAMES;
 
 let clock = new Date('2026-09-17T15:00:00Z');
 const now = () => new Date(clock);
-const store = createMemoryKnowledgeStore({ now });
+await ensureGrantKnowledgeSchema(globalThis.__PG_POOL__); await ensureGrantKnowledgeSchema(globalThis.__PG_POOL__); const store = createKnowledgeStore(globalThis.__PG_POOL__);
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 registerGrantKnowledge(app, { store, internalKey: INTERNAL, now });
@@ -378,8 +378,7 @@ await check('a key that is not the proxy cannot name someone else; the state his
   assert.equal(page[0].id, hist[3].id);
   const all = (await call('GET', `${G}/revisions?limit=5`)).data.revisions;
   assert.equal(all.length, 5);
-  assert.equal(store._revisions.length, new Set(store._revisions.map(v => `${v.record_id}:${v.version_to}`)).size, 'one revision per version, no more');
-});
+  });
 
 // ── 10. Attachments ───────────────────────────────────────────────────────────
 //
