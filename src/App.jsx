@@ -14,7 +14,6 @@ import {
 import { defaultForm, defaultPreCallForm } from "./generator/defaults.js";
 import Wizard, { stepsOf } from "./generator/Wizard.jsx";
 import BookingPicker, { bookingToForm } from "./generator/BookingPicker.jsx";
-import DeadlineEditor from "./generator/DeadlineEditor.jsx";
 
 /*
  * Review & Edit hands the team a contenteditable copy of the letter. It broke
@@ -31,6 +30,9 @@ function toIsoDate(v) {
   return isNaN(d) ? v : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 import "./generator/wizard.css";
+
+// Where the per-state knowledge base (deadlines included) lives.
+const GRANT_KNOWLEDGE_URL = 'https://npsa-tools.vercel.app/grant-knowledge';
 
 function useAI() {
   const [loading, setLoading] = useState(false);
@@ -96,7 +98,6 @@ export default function App() {
   // The picked booking. Held as a URI rather than a copy of its fields, so the
   // server re-reads it at generation time and a reschedule in between is caught.
   const [preCallEventUri, setPreCallEventUri] = useState(null);
-  const [preCallShowDeadlines, setPreCallShowDeadlines] = useState(false);
 
   /*
    * The review editor is a srcDoc iframe — its own document, so this app's
@@ -1343,14 +1344,15 @@ export default function App() {
         &#8592; Dashboard
       </button>
       <div style={{color:'var(--ink)',fontWeight:800,fontSize:22}}>Pre-Call Notes Generator</div>
-      <button onClick={()=>setPreCallShowDeadlines(true)}
-        style={{marginLeft:'auto',background:'var(--card)',border:'1px solid var(--bd)',borderRadius:10,padding:'9px 16px',color:'var(--sec)',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)'}}>
-        &#128197; Deadlines
-      </button>
+      {/* Deadlines live in the Grant Knowledge tab now, with every other fact about
+          the state. Opening on the state the rep is preparing for saves them
+          finding it on the map. */}
+      <a href={`${GRANT_KNOWLEDGE_URL}${/^[A-Za-z]{2}$/.test(preCallForm.orgState || '') ? `?state=${preCallForm.orgState.toUpperCase()}` : ''}`}
+        target="_blank" rel="noopener noreferrer"
+        style={{marginLeft:'auto',background:'var(--card)',border:'1px solid var(--bd)',borderRadius:10,padding:'9px 16px',color:'var(--sec)',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 2px 8px rgba(2,6,23,0.05)',textDecoration:'none'}}>
+        &#128197; Deadlines &amp; state guide
+      </a>
     </div>
-    {/* Opening on the state the rep is preparing for saves the lookup the editor
-        used to make them do by eye over every jurisdiction at once. */}
-    {preCallShowDeadlines && <DeadlineEditor initialState={preCallForm.orgState} onClose={()=>setPreCallShowDeadlines(false)}/>}
 
     <div style={{maxWidth:900,margin:'28px auto',padding:'0 24px 60px',display:'flex',gap:28,alignItems:'flex-start',flexWrap:'wrap'}}>
 
