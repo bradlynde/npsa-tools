@@ -144,6 +144,30 @@ A deadline's instant is its date and time in its own zone (the jurisdiction's
 `default_tz` when the deadline names none; end of day when it names no time), so "open"
 and "in 3 days" are right at the edges: 4:00 PM in Baton Rouge is still ahead at 3:59.
 
+## Deadlines for the rest of the toolbox
+
+The pre-call briefing, the toolbox's deadline panel and `nsgp_deadlines_list` used to read
+the `nsgp_deadlines` table. They read the knowledge base now, through
+`server/gk-deadlines.js`, which hands back rows in that table's shape (`state`, `program`,
+`cycle_year`, `deadline`, `kind`, `note`, `source`, `confidence`, `layer`) with what the
+table could not hold added alongside: `stage_label`, `stage_order`, `due_time`, `tz`,
+`instant`, `record_id`, `program_key(s)`. `program` is `federal` for NSGP-S and NSGP-UA
+(one row when both carry the same date), `federal-noi` for a notice of intent, the
+acronym for a state program.
+
+A row reads `confirmed` only when the source stated the date plainly and a person has
+verified the record with the date as it now stands; anything else is `illustrative`,
+which the briefing renders as "recorded, confirm before relying on it".
+
+The briefing's section lists a staged cycle's stages in order and measures "next" on
+each deadline's own clock, then names the stages after it. If the knowledge base cannot
+be read, or holds no deadlines, the old table answers instead (`source: 'legacy-table'`
+on `GET /api/precall/deadlines`). The old table is otherwise frozen: `PUT` and `DELETE`
+on `/api/precall/deadlines` answer 410 and point here, since an edit there would be
+accepted and then never seen.
+
+`node scripts/gk-deadlines-smoke.mjs` covers the adapter, the fallback and the section.
+
 ## Through Claude
 
 Eight read tools and four write tools on the MCP (`gk_*`, listed in [mcp.md](mcp.md)).

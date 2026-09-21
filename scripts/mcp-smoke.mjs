@@ -42,7 +42,6 @@ const READ_TOOLS = [
 ];
 const WRITE_TOOLS = [
   'letter_update', 'rep_add', 'rep_remove',
-  'nsgp_deadline_upsert', 'nsgp_deadline_delete',
   'marketing_booking_update', 'marketing_refresh',
   'client_create', 'client_update', 'intake_seed', 'client_token_rotate', 'client_delete',
   'gk_record_upsert', 'gk_mark_verified', 'gk_record_archive', 'gk_revert',
@@ -179,7 +178,7 @@ await check('read tools are annotated read-only, write tools are not', async () 
     }
   }
   const destructive = (await client.listTools()).tools.filter(t => t.annotations?.destructiveHint).map(t => t.name).sort();
-  assert.deepEqual(destructive, ['client_delete', 'client_token_rotate', 'nsgp_deadline_delete', 'rep_remove']);
+  assert.deepEqual(destructive, ['client_delete', 'client_token_rotate', 'rep_remove']);
 });
 
 await check('nsgp_state_reference answers without a database', async () => {
@@ -228,33 +227,11 @@ await check('a 503 route reports itself as a tool error', async () => {
 // ── 4. Writes ─────────────────────────────────────────────────────────────────
 const lastWrite = () => received[received.length - 1];
 
-await check('nsgp_deadline_upsert PUTs the row with the route\'s field names', async () => {
-  const r = await client.callTool({ name: 'nsgp_deadline_upsert', arguments: {
-    state: 'il', program: 'NSGP-IL', cycle_year: 2027, deadline: '2027-03-01', note: 'GATA portal opens Jan',
-  } });
-  assert.ok(!r.isError, r.content?.[0]?.text);
-  assert.equal(text(r).id, 9);
-  const w = lastWrite();
-  assert.equal(w.method, 'PUT');
-  assert.equal(w.path, '/api/precall/deadlines');
-  assert.equal(w.body.state, 'IL');
-  assert.equal(w.body.cycleYear, 2027);
-  assert.equal(w.body.cycle_year, undefined);
-  assert.equal(w.body.deadline, '2027-03-01');
-});
-
-await check('nsgp_deadline_upsert rejects a malformed date before it reaches the route', async () => {
-  const before = received.length;
-  const r = await client.callTool({ name: 'nsgp_deadline_upsert', arguments: { state: 'IL', cycle_year: 2027, deadline: '3/1/2027' } });
-  assert.equal(r.isError, true);
-  assert.match(r.content[0].text, /Invalid arguments/);
-  assert.equal(received.length, before, 'nothing was sent');
-});
-
-await check('nsgp_deadline_delete DELETEs by id', async () => {
-  const r = await client.callTool({ name: 'nsgp_deadline_delete', arguments: { id: 4 } });
-  assert.ok(!r.isError);
-  assert.deepEqual([lastWrite().method, lastWrite().path], ['DELETE', '/api/precall/deadlines/4']);
+await check('the old deadline writes are gone: a deadline is a gk record now', async () => {
+  const all = await names(client);
+  assert.ok(!all.includes('nsgp_deadline_upsert') && !all.includes('nsgp_deadline_delete'));
+  const list = (await client.listTools()).tools.find(t => t.name === 'nsgp_deadlines_list');
+  assert.match(list.description, /gk_record_upsert/);
 });
 
 await check('letter_update merges only the given fields into the existing record', async () => {
