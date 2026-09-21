@@ -118,6 +118,7 @@ function validDocuments(list, field) {
 }
 
 export const QUESTIONS = CATALOG.questions;
+const PRIMARY_CONTACT_KEYS = ['q_1_1_1', 'q_1_1_2', 'q_1_1_3', 'q_1_1_4']; // name, title, email, phone
 const QUESTION_BY_KEY = new Map(QUESTIONS.map(q => [q.key, q]));
 export const SECTIONS = [...new Set(QUESTIONS.map(q => q.section))];
 
@@ -1137,7 +1138,28 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       for (const u of unmarks) delete next[String(u || '').trim().toLowerCase()];
       patch.documents_received = next;
     }
-    if (!Object.keys(patch).length && !add.length && !remove.length && !invite) throw new BadRequest('Nothing to change');
+    // NPSA's notes on the client's answers, and which of them are questions the client should answer.
+    // Both used to be typed into the form itself; the form now only shows them.
+    const noteRows = [];
+    if (b.question_notes !== undefined) {
+      const n = b.question_notes;
+      if (!n || typeof n !== 'object' || Array.isArray(n)) throw new BadRequest('question_notes must be an object of question key → note text');
+      for (const [k, v] of Object.entries(n)) {
+        const key = k.startsWith('note_') ? k : `note_${k}`;
+        if (!QUESTION_BY_KEY.has(key)) throw new BadRequest(`"${k}" is not a question NPSA can leave a note on`);
+        noteRows.push({ key, value: v === null || v === undefined ? '' : String(v).slice(0, MAX_VALUE) });
+      }
+    }
+    if (b.note_asks !== undefined) {
+      const list = asArray(b.note_asks);
+      if (!Array.isArray(list)) throw new BadRequest('note_asks must be an array of question keys');
+      const keys = [...new Set(list.map(k => String(k).trim().replace(/^note_/, '')).filter(Boolean))];
+      const bad = keys.filter(k => !QUESTION_BY_KEY.has(`note_${k}`));
+      if (bad.length) throw new BadRequest(`note_asks: not questions NPSA can ask about: ${bad.join(', ')}`);
+      noteRows.push({ key: '_note_asks', value: keys.join(',') });
+    }
+    if (!Object.keys(patch).length && !add.length && !remove.length && !invite && !noteRows.length) throw new BadRequest('Nothing to change');
+    if (noteRows.length) await store.upsertAnswers(c.id, noteRows, `npsa:${req.actor}`);
     if (Object.keys(patch).length) await store.updateClient(c.slug, patch);
     if (remove.length) await store.removeContacts(c.id, remove);
     if (add.length) await store.addContacts(c.id, add, `npsa:${req.actor}`);
@@ -1192,7 +1214,8 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       const who = app ? app.label : id;
       return { key: k, id, q, section: q.section.replace(/^(Wish List|Checklist)/, `$1 (${who})`), label: `${who} · ${q.label}` };
     }).filter(x => x.q).sort((x, y) => (x.id === y.id ? x.q.ordinal - y.q.ordinal : x.id.localeCompare(y.id, 'en', { numeric: true })));
-    const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
+    const extras = q => ({ ...(q.number ? { number: q.number } : {}), ...(q.prompt ? { prompt: q.prompt } : {}) });
+    const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind, ...extras(q) })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
       .filter(q => !section || q.section.toLowerCase() === section)
       .map(q => { const a = answers.get(q.key); return { ...q, value: a?.value || '', updated_at: a?.updated_at || null, updated_by: a?.updated_by || '' }; })
       .filter(r => includeEmpty || r.value !== '');
@@ -1241,6 +1264,12 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const t = healToken(req.query, req.originalUrl.split('?')[1]);
     if (!tokenMatches(t, c.token)) return res.status(404).type('html').send(errorPage(INVALID));
     const answers = await store.getAnswers(c.id);
+    // 1.1 Primary contact starts from the client's primary contact, the first time the form opens with it blank.
+    const primary = (c.contacts || []).filter(x => x.side !== 'npsa' && x.side !== 'reference').sort((a, b) => (b.is_primary === true) - (a.is_primary === true))[0];
+    if (primary && PRIMARY_CONTACT_KEYS.every(k => !answers.get(k)?.value)) {
+      const rows = PRIMARY_CONTACT_KEYS.map((key, i) => ({ key, value: String([primary.name, primary.role, primary.email, primary.phone][i] || '') })).filter(r => r.value);
+      if (rows.length) { await store.upsertAnswers(c.id, rows, 'contacts'); rows.forEach(r => answers.set(r.key, { key: r.key, value: r.value })); }
+    }
     const uploads = await store.listUploads(c.id);
     const html = renderPage && renderPage({
       client: c, stateConfig: stateConfig(c.state, (Array.isArray(c.applications) ? c.applications : []).filter(a => a.status !== 'withdrawn').map(a => a.program)), apiBase, uploadBase, contacts: contactsView(c.contacts || []),
@@ -1253,7 +1282,9 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
 
   app.put('/api/intake/:slug/answers', guard(async (req, res) => {
     const c = await clientAuth(req, res); if (!c) return;
-    const rows = normaliseAnswers((req.body || {}).answers);
+    // NPSA's notes are the team's to write (Grant Writing page, intake_seed); a page that still
+    // sends them, from before the form showed them read-only, has them dropped rather than refused.
+    const rows = normaliseAnswers((req.body || {}).answers).filter(r => !r.key.startsWith('note_'));
     const existing = await store.getAnswers(c.id);
     const who = rows.find(r => r.key === '_filled_by')?.value || existing.get('_filled_by')?.value || '';
     const n = await store.upsertAnswers(c.id, rows, who ? `client:${who.slice(0, 80)}` : 'client', { clientActivity: true });

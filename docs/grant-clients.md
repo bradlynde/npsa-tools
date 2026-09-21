@@ -481,3 +481,43 @@ Writing dialog ("mark received" under any document not yet in, with undo), or wi
 upload would: the dialog's count, the client's Documents tab ("Received by your NPSA team ✓"), and
 the submission box. The mark does not store the file; save the emailed copy to the client's Phase 2
 folder as usual.
+
+## Information Collection and Programs redesign (2026-09-21)
+
+**Information Collection** shows one section at a time. A rail on the left lists the five sections
+with an answered count and a progress bar each, plus the overall count, and "Who is filling this
+out?" sits under it. Each section ends with Back / Next (section 5's Next goes to Programs), and the
+page opens on the first section with questions left, with a "Welcome back" card, once the client has
+answered anything. A link ending `#q-<section>-<n>` (e.g. `#q-3-9`) opens that section and scrolls to
+the question; the grey number beside each question copies that link.
+
+- **Numbers** are two levels. Section 3 was renumbered (3.1.1 → 3.1 … 3.3.5 → 3.13); keys did not
+  change. The catalog now carries `number`, `prompt` (the wording the page shows) and `hint` for these
+  questions, and the team answers route returns `number` and `prompt`, so the Grant Writing page and
+  Claude say "3.9" for the same question the client sees.
+- **Doesn't apply** is a link beside an empty answer. It stores the answer as the text `Doesn't apply`,
+  so it counts as answered everywhere and reads plainly in the answers; Undo clears it.
+- **NPSA notes** (`note_q_…`) show read-only under the answer, only when there is one. The client
+  page no longer edits them, and the client save route drops any `note_…` key a stale page still
+  sends. The team writes them from the Grant Writing page (`PATCH` with `question_notes`) or
+  `intake_seed`. `_note_asks` (meta, comma-separated question keys) marks the notes that are questions
+  for the client: amber on the page, "Question for you" beside the question, a dot on the section.
+  The mark stays until the team clears it.
+- **1.1 Primary contact** fills from the client's primary contact the first time the page opens with
+  all four fields blank, written as `contacts`. A client edit is never overwritten.
+- **State-only fields** hide by state: SAM.gov expiration (TX, IL) and volunteers (NY).
+- **3.6** is a live summary of the Programs tab; **3.8** ("only one of its kind") counts as answered
+  once a program is tagged Only one nearby.
+
+**Programs** moved to tab 3 and is one card per program, 40 slots (was 20 table rows). Each card:
+name (the card title), what it is, how often, people each time, Run by (Us / Outside group; Outside
+asks for the group's name in `prog<n>_partner`), Where (`prog<n>_site`, comma-separated site numbers,
+shown only when the client has two or more sites), and Who it serves (`prog<n>_demo` as
+comma-separated tags from a preset list or typed; `prog<n>_unique` = `Yes` for Only one nearby). A
+program seeded with `prog<n>_suggested` = `Yes` shows "Suggested by NPSA" and a Looks right button,
+which clears it. A client with no programs sees an empty state instead of blank rows.
+
+| Method | Path | Body | What it does |
+| :-- | :-- | :-- | :-- |
+| PATCH | `/api/clients/:slug` | `question_notes: { q_3_1_1: "…" }` | Writes NPSA notes (keys with or without `note_`), as `npsa:<actor>`. |
+| PATCH | `/api/clients/:slug` | `note_asks: ["q_3_3_1"]` | Replaces the list of notes that are questions for the client. |
