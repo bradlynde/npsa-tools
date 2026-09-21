@@ -38,17 +38,17 @@ export function Trust({ rec, quiet = false }: { rec: Pick<Rec, "effective_status
 function Fold({ id, title, meta, open = true, right, tight = false, children }: { id?: string; title: React.ReactNode; meta?: React.ReactNode; open?: boolean; right?: React.ReactNode; tight?: boolean; children: React.ReactNode }) {
   const [initial] = useState(open);
   return (
-    <details open={initial} id={id} className="gk-fold" style={{ scrollMarginTop: 90, marginTop: tight ? 14 : 0 }}>
-      <summary style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: "pointer", listStyle: "none", padding: "6px 0", userSelect: "none" }}>
+    <details open={initial} id={id} className="gk-fold" style={{ scrollMarginTop: 90, marginTop: tight ? 20 : 0, paddingTop: tight ? 14 : 0, borderTop: tight ? "1px solid var(--hair2)" : undefined }}>
+      <summary style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: "pointer", listStyle: "none", padding: "4px 0", userSelect: "none" }}>
         <span style={{ display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
           <span aria-hidden="true" className="gk-chev" style={{ color: "var(--faint)", fontSize: 10, display: "inline-block", transition: "transform .15s", width: 10 }}>▶</span>
-          <Eyebrow style={{ fontSize: 11.5 }}>{title}</Eyebrow>
-          {meta && <span style={{ fontSize: 12.5, color: "var(--mute)" }}>{meta}</span>}
+          <span style={{ fontSize: 14, fontWeight: 650, color: "var(--ink)" }}>{title}</span>
+          {meta && <span className="mono" style={{ fontSize: 11.5, color: "var(--mute)" }}>{meta}</span>}
         </span>
         {right && <span onClick={(e) => e.preventDefault()} style={{ display: "flex", gap: 10, alignItems: "center" }}>{right}</span>}
       </summary>
-      <div style={{ paddingTop: 6 }}>{children}</div>
-      <style>{`.gk-fold[open] > summary .gk-chev { transform: rotate(90deg); } .gk-fold > summary::-webkit-details-marker { display: none; }`}</style>
+      <div style={{ paddingTop: 10 }}>{children}</div>
+      <style>{`.gk-fold[open] > summary .gk-chev { transform: rotate(90deg); } .gk-fold > summary::-webkit-details-marker { display: none; } .gk-rows > li:last-child, .gk-rows > div:last-child { border-bottom: none; }`}</style>
     </details>
   );
 }
@@ -65,10 +65,22 @@ const Faint = ({ children }: { children: React.ReactNode }) => <span style={{ co
 
 function Fact({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
   return (
-    <div>
-      <div className="mono" style={{ fontSize: 11, letterSpacing: ".07em", color: "var(--mute)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 14.5, color: "var(--ink)", fontWeight: 550 }}>{value}</div>
-      {note && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 4, lineHeight: 1.45 }}>{note}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "148px minmax(0, 1fr)", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--hair2)", alignItems: "baseline", breakInside: "avoid" }}>
+      <div className="mono" style={{ fontSize: 11, letterSpacing: ".07em", color: "var(--mute)", paddingTop: 2 }}>{label}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 14.5, color: "var(--ink)", fontWeight: 550 }}>{value}</div>
+        {note && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3, lineHeight: 1.45 }}>{note}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** A group of rows inside a fold: a small heading, then a bordered panel the rows sit in. */
+function Panel({ title, count, children }: { title?: string; count?: number; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {title && <div style={{ fontSize: 13, fontWeight: 600, color: "var(--sec)", margin: "0 0 6px 2px" }}>{title}{typeof count === "number" && <Faint> · {count}</Faint>}</div>}
+      <div className="gk-rows" style={{ border: "1px solid var(--bd2)", borderRadius: 10, padding: "2px 14px" }}>{children}</div>
     </div>
   );
 }
@@ -139,17 +151,15 @@ function Requirements({ p, open }: { p: Program; open: boolean }) {
   const show = (t: string) => all.filter((r) => r.data.req_type === t && (owner === "all" || (r.data.owner || "client") === owner)).sort(order);
   const reg = show("registration"), docs = show("document");
   return (
-    <Fold tight title="what a submission needs" meta={`${reg.length + docs.length}`} open={open}
+    <Fold tight title="What a submission needs" meta={`${reg.length + docs.length}`} open={open}
       right={<><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "requirement", parent_id: p.id, heading: `New requirement for ${p.key}` }}>requirement</AddButton><ChipRow<Owner> options={[{ key: "all", label: "Everyone" }, { key: "client", label: "Client" }, { key: "npsa", label: "NPSA" }]} value={owner} onChange={setOwner} /></>}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "4px 32px" }}>
-        {[["Registration, before anything else", reg], ["Documents in the package", docs]].map(([title, rows]) => (
-          <div key={title as string}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--sec)", padding: "8px 0 2px" }}>{title as string} <Faint>({(rows as Requirement[]).length})</Faint></div>
-            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{(rows as Requirement[]).map((r) => <RequirementRow key={`${r.id}-${r.inherited_from || ""}`} r={r} />)}</ul>
-            {!(rows as Requirement[]).length && <div style={{ fontSize: 12.5, padding: "8px 0" }}><Faint>Nothing recorded.</Faint></div>}
-          </div>
-        ))}
-      </div>
+      {[["Registration, before anything else", reg], ["Documents in the package", docs]].map(([title, rows]) => (
+        <Panel key={title as string} title={title as string} count={(rows as Requirement[]).length}>
+          {(rows as Requirement[]).length
+            ? <ul style={{ listStyle: "none", margin: 0, padding: 0 }} className="gk-rows">{(rows as Requirement[]).map((r) => <RequirementRow key={`${r.id}-${r.inherited_from || ""}`} r={r} />)}</ul>
+            : <div style={{ fontSize: 13, padding: "9px 0" }}><Faint>Nothing recorded.</Faint></div>}
+        </Panel>
+      ))}
     </Fold>
   );
 }
@@ -180,46 +190,47 @@ function Cycles({ p, open }: { p: Program; open: boolean }) {
   const addCycle = <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "cycle", parent_id: p.id, heading: `New cycle for ${p.key}` }}>cycle</AddButton>;
   if (!p.cycles.length) return <div style={{ fontSize: 13, marginTop: 14 }}><Faint>No cycle recorded yet: no deadline history, no funding history.</Faint> {addCycle}</div>;
   const today = new Date().toISOString().slice(0, 10);
+  const money = (c: Cycle) => typeof c.data.state_allocation === "number" ? ["State allocation", usd(c.data.state_allocation)] : typeof c.data.total_funding === "number" ? ["Total", usd(c.data.total_funding)] : null;
   return (
-    <Fold tight title="cycles, deadlines and funding" meta={`${p.cycles.length} cycle${p.cycles.length === 1 ? "" : "s"}`} open={open} right={addCycle}>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
-          <tbody>
-            {p.cycles.map((c) => (
-              <tr key={c.id} id={`rec-${c.id}`} style={{ borderBottom: "1px solid var(--hair2)", verticalAlign: "top" }}>
-                <td style={{ padding: "10px 14px 10px 0", whiteSpace: "nowrap" }}>
-                  <div style={{ fontWeight: 650, color: "var(--ink)" }}>{c.title}</div>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--mute)" }}>{String(c.data.status || "").replace(/_/g, " ")}</div>
-                </td>
-                <td style={{ padding: "10px 14px 10px 0", minWidth: 250 }}>
-                  {c.deadlines.map((d) => (
-                    <div key={d.id} id={`rec-${d.id}`} style={{ marginBottom: 5, opacity: d.data.due_date < today ? 0.78 : 1 }}>
-                      <span style={{ color: "var(--ink)", fontWeight: 550 }}>{fmtDay(d.data.due_date)}</span>
-                      {d.data.due_time && <span style={{ color: "var(--sec)" }}> · {fmtTime(d.data.due_time, d.data.tz)}</span>}
-                      <span style={{ color: "var(--sec)" }}> · {d.data.label}</span>{" "}
-                      {d.data.confidence && d.data.confidence !== "confirmed" && <span className="mono" style={{ fontSize: 11, color: "var(--warn-fg)" }}>{d.data.confidence} </span>}
-                      <Trust rec={d} quiet /><RecActions rec={d} />
-                      {d.data.note && <div style={{ fontSize: 13, color: "var(--sec)", lineHeight: 1.5, marginTop: 3, maxWidth: 640 }}>{d.data.note}</div>}
-                    </div>
-                  ))}
-                  {!c.deadlines.length && <Faint>no deadline recorded</Faint>}
-                  <div><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "deadline", parent_id: c.id, heading: `New deadline in ${c.title}` }}>deadline</AddButton></div>
-                </td>
-                <td style={{ padding: "10px 0", fontSize: 13, color: "var(--sec)", minWidth: 190, lineHeight: 1.5 }}>
-                  {c.data.open_date && <div>Opened {fmtDay(c.data.open_date)}</div>}
-                  {c.data.nofo_date && <div>NOFO {fmtDay(c.data.nofo_date)}</div>}
-                  {typeof c.data.state_allocation === "number" && <div>State allocation <b style={{ color: "var(--ink)" }}>{usd(c.data.state_allocation)}</b></div>}
-                  {typeof c.data.total_funding === "number" && <div>Total <b style={{ color: "var(--ink)" }}>{usd(c.data.total_funding)}</b></div>}
-                  {c.data.ua_allocations && Object.entries(c.data.ua_allocations as Record<string, number>).map(([k, v]) => <div key={k}>{k}: {usd(v)}</div>)}
-                  {typeof c.data.awards === "number" && <div>{c.data.awards} awards{typeof c.data.applications === "number" ? ` of ${c.data.applications} applications` : ""}</div>}
-                  {c.data.notes && <div style={{ color: "var(--sec)", marginTop: 3, lineHeight: 1.5 }}>{c.data.notes}</div>}
-                  <Trust rec={c} quiet /><RecActions rec={c} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <Fold tight title="Cycles, deadlines and funding" meta={`${p.cycles.length} cycle${p.cycles.length === 1 ? "" : "s"}`} open={open} right={addCycle}>
+      {p.cycles.map((c) => {
+        const m = money(c);
+        const meta = [c.data.open_date ? `Opened ${fmtDay(c.data.open_date)}` : "", c.data.nofo_date ? `NOFO ${fmtDay(c.data.nofo_date)}` : "",
+          typeof c.data.awards === "number" ? `${c.data.awards} awards${typeof c.data.applications === "number" ? ` of ${c.data.applications} applications` : ""}` : ""].filter(Boolean);
+        return (
+          <div key={c.id} id={`rec-${c.id}`} style={{ border: "1px solid var(--bd2)", borderRadius: 10, padding: "12px 16px", marginBottom: 10, scrollMarginTop: 90 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 650, color: "var(--ink)", fontSize: 15 }}>{c.title}</span>
+                <span className="mono" style={{ fontSize: 11, color: "var(--mute)" }}>{String(c.data.status || "").replace(/_/g, " ")}</span>
+                <Trust rec={c} quiet /><RecActions rec={c} />
+              </div>
+              {m && <div style={{ fontSize: 13.5, color: "var(--sec)" }}>{m[0]} <b style={{ color: "var(--ink)" }}>{m[1]}</b></div>}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {c.deadlines.map((d) => (
+                <div key={d.id} id={`rec-${d.id}`} style={{ padding: "7px 0", borderTop: "1px solid var(--hair2)", opacity: d.data.due_date < today ? 0.82 : 1, fontSize: 13.5 }}>
+                  <span style={{ color: "var(--ink)", fontWeight: 600 }}>{fmtDay(d.data.due_date)}</span>
+                  {d.data.due_time && <span style={{ color: "var(--sec)" }}> · {fmtTime(d.data.due_time, d.data.tz)}</span>}
+                  <span style={{ color: "var(--sec)" }}> · {d.data.label}</span>{" "}
+                  {d.data.confidence && d.data.confidence !== "confirmed" && <span className="mono" style={{ fontSize: 11, color: "var(--warn-fg)" }}>{d.data.confidence} </span>}
+                  <Trust rec={d} quiet /><RecActions rec={d} />
+                  {d.data.note && <div style={{ fontSize: 13, color: "var(--sec)", lineHeight: 1.5, marginTop: 3, maxWidth: 760 }}>{d.data.note}</div>}
+                </div>
+              ))}
+              {!c.deadlines.length && <div style={{ padding: "7px 0", borderTop: "1px solid var(--hair2)", fontSize: 13 }}><Faint>No deadline recorded.</Faint></div>}
+              {(meta.length > 0 || c.data.notes || c.data.ua_allocations) && (
+                <div style={{ paddingTop: 8, borderTop: "1px solid var(--hair2)", fontSize: 13, color: "var(--sec)", lineHeight: 1.5 }}>
+                  {meta.length > 0 && <div className="mono" style={{ fontSize: 11.5, color: "var(--mute)", marginBottom: c.data.notes ? 3 : 0 }}>{meta.join(" · ")}</div>}
+                  {c.data.ua_allocations && <div>{Object.entries(c.data.ua_allocations as Record<string, number>).map(([k, v]) => <span key={k} style={{ marginRight: 14 }}>{k.replace(/_/g, " ")} <b style={{ color: "var(--ink)" }}>{usd(v)}</b></span>)}</div>}
+                  {c.data.notes && <div style={{ maxWidth: 760 }}>{c.data.notes}</div>}
+                </div>
+              )}
+              <div style={{ marginTop: 4 }}><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "deadline", parent_id: c.id, heading: `New deadline in ${c.title}` }}>deadline</AddButton></div>
+            </div>
+          </div>
+        );
+      })}
       <FundingChart cycles={p.cycles} />
     </Fold>
   );
@@ -253,6 +264,7 @@ function ContactLine({ c }: { c: Rec }) {
  * one) opens only its cycles, so a state with four programs reads as four headers.
  */
 function ProgramCard({ p, first }: { p: Program; first: boolean }) {
+  const narrow = useMedia("(max-width: 760px)");
   const d = p.data;
   const fn = d.field_notes || {};
   const off = d.status && d.status !== "active";
@@ -269,7 +281,8 @@ function ProgramCard({ p, first }: { p: Program; first: boolean }) {
       {d.administered_by && <div style={{ fontSize: 13, color: "var(--sec)", marginBottom: 14 }}>Run by {d.administered_by}</div>}
       {d.availability_note && <Note>{d.availability_note}</Note>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "16px 24px", margin: "14px 0 4px" }}>
+      {/* Two balanced columns rather than a grid: a grid aligns rows, so one long note (Texas's period of performance) would open a hole beside every short fact. */}
+      <div style={{ columnCount: narrow ? 1 : 2, columnGap: 40, margin: "12px 0 4px" }}>
         {typeof d.cap_per_location === "number" && <Fact label="CAP PER SITE" value={usd(d.cap_per_location)} note={fn.cap_per_location} />}
         {typeof d.cap_per_applicant === "number" && <Fact label="CAP PER APPLICANT" value={usd(d.cap_per_applicant)} note={fn.cap_per_applicant} />}
         {typeof d.locations_max === "number" && <Fact label="SITES" value={`up to ${d.locations_max}`} note={fn.locations_max} />}
@@ -282,8 +295,8 @@ function ProgramCard({ p, first }: { p: Program; first: boolean }) {
       </div>
 
       {d.submission && (
-        <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--hover)", borderRadius: 10 }}>
-          <div style={{ fontSize: 13.5, color: "var(--ink)" }}>
+        <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--hover)", borderRadius: 10 }}>
+          <div style={{ fontSize: 14, color: "var(--ink)" }}>
             <b>How it is submitted:</b> {d.submission.method || "not recorded"}
             {d.submission.url ? <> via <a href={d.submission.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{d.submission.target || d.submission.url}</a></> : d.submission.target ? <> via {d.submission.target}</> : null}
           </div>
@@ -296,13 +309,13 @@ function ProgramCard({ p, first }: { p: Program; first: boolean }) {
       <Cycles p={p} open />
 
       {(d.notes_md || d.eligible_costs) && (
-        <Fold tight title="program notes" open={first}>
+        <Fold tight title="Program notes" open={first}>
           {d.notes_md && <Markdown>{d.notes_md}</Markdown>}
           {d.eligible_costs && <><Eyebrow style={{ margin: "10px 0 6px" }}>eligible costs</Eyebrow><Markdown>{d.eligible_costs}</Markdown></>}
         </Fold>
       )}
-      {p.contacts.length > 0 && <Fold tight title="program contacts" meta={`${p.contacts.length}`} open={first}>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Fold>}
-      <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
+      {p.contacts.length > 0 && <Fold tight title="Program contacts" meta={`${p.contacts.length}`} open={first}><Panel>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Fold>}
+      <div style={{ display: "flex", gap: 16, marginTop: 14 }}>
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "note", parent_id: p.id, heading: `New note on ${p.key}` }}>note on this program</AddButton>
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "contact", parent_id: p.id, preset: { contact_kind: "program" }, heading: `New contact for ${p.key}` }}>program contact</AddButton>
       </div>
@@ -568,6 +581,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
             <>
               {(j.summary_md || j.partner || j.cycle_timing_note) && (
                 <Card style={{ marginBottom: 16 }}>
+                  <Eyebrow style={{ marginBottom: 8 }}>in short</Eyebrow>
                   {j.summary_md && <Markdown>{j.summary_md}</Markdown>}
                   {j.cycle_timing_note && <Markdown>{j.cycle_timing_note}</Markdown>}
                   {j.partner && <div style={{ fontSize: 13, color: "var(--sec)" }}><b>Partner:</b> {j.partner}</div>}
@@ -575,26 +589,26 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
               )}
               {doc.programs.map((p, i) => <ProgramCard key={p.id} p={p} first={i === 0} />)}
 
-              {doc.contacts.length > 0 && <Section id="contacts" title="contacts" meta={`${doc.contacts.length} on record`}><Card style={{ padding: "6px 24px" }}>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Card></Section>}
+              {doc.contacts.length > 0 && <Section id="contacts" title="Contacts" meta={`${doc.contacts.length} on record`}><Panel>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Section>}
 
               {CATEGORY_ORDER.map((cat) => {
                 const mine = allNotes.filter(({ n }) => n.data.category === cat && !(cat === "open_question" && n.data.resolved)).sort((a, b) => SEVERITY_RANK.indexOf(a.n.data.severity) - SEVERITY_RANK.indexOf(b.n.data.severity));
                 if (!mine.length) return null;
                 // Gotchas, eligibility and open questions are what a reader came for; the long tail folds until asked.
                 const open = ["gotcha", "eligibility", "open_question", "prohibited_cost"].includes(cat) || mine.length <= 3;
-                return <Section key={cat} id={`notes-${cat}`} title={CATEGORY[cat].toLowerCase()} meta={`${mine.length}`} open={open}><div style={{ display: "grid", gap: 9 }}>{mine.map(({ n, program }) => <NoteCard key={n.id} n={n} program={program} />)}</div></Section>;
+                return <Section key={cat} id={`notes-${cat}`} title={CATEGORY[cat]} meta={`${mine.length}`} open={open}><div style={{ display: "grid", gap: 9 }}>{mine.map(({ n, program }) => <NoteCard key={n.id} n={n} program={program} />)}</div></Section>;
               })}
 
-              {(j.post_award_note) && <Section title="after the award"><Markdown>{j.post_award_note}</Markdown></Section>}
+              {(j.post_award_note) && <Section title="After the award"><Markdown>{j.post_award_note}</Markdown></Section>}
 
               {(doc.files.length > 0 || editing) && (
-                <Section id="files" title="files" meta={doc.files.length ? `${doc.files.length}` : undefined}>
+                <Section id="files" title="Files" meta={doc.files.length ? `${doc.files.length}` : undefined}>
                   <Files code={doc.code} files={doc.files} onChanged={reload} />
                 </Section>
               )}
 
               {sources.length > 0 && (
-                <Section id="sources" title="sources" meta={`${sources.length}`} open={false}>
+                <Section id="sources" title="Sources" meta={`${sources.length}`} open={false}>
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>
                     {sources.map((s) => <li key={s.id} id={`rec-${s.id}`}><a href={s.data.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{s.data.title || String(s.data.url).replace(/^https?:\/\/(www\.)?/, "")}</a>{s.data.accessed && <span style={{ color: "var(--mute)", fontSize: 11.5 }}> · read {fmtDay(s.data.accessed)}</span>} <RecActions rec={s} /></li>)}
                   </ul>
