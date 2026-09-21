@@ -65,6 +65,8 @@ type ClientRow = {
   contacts?: Contact[]; // present on the single-client route, not the list
   documents?: Doc[]; // the Documents-tab rows; single-client route only
   documents_customised?: boolean;
+  /** Documents the team marked received outside the form (usually by email). */
+  documents_received?: Record<string, { at: string; by: string; note: string }>;
   applications?: Application[]; // stored list; empty until the team sets one
   applications_set?: boolean;
   programs?: ProgramOption[]; // what this client's state can apply for
@@ -383,7 +385,8 @@ function DocumentsSection({ client, uploads, editing, onSaved }: { client: Clien
   const byKey = new Map<string, Upload[]>();
   for (const u of uploads) byKey.set(u.key, [...(byKey.get(u.key) || []), u]);
   const orphans = uploads.filter((u) => !docs.some((d) => d.key === u.key));
-  const received = docs.filter((d) => byKey.has(d.key)).length;
+  const marks = client.documents_received || {};
+  const received = docs.filter((d) => byKey.has(d.key) || marks[d.key]).length;
   const run = async (body: unknown) => {
     setBusy(true); setErr(null);
     try { onSaved(await patchJson<ClientRow>(`/api/clients/${client.slug}`, body)); setLabel(""); setHint(""); }
@@ -403,12 +406,25 @@ function DocumentsSection({ client, uploads, editing, onSaved }: { client: Clien
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
         {docs.map((d) => {
           const files = byKey.get(d.key) || [];
+          const mark = marks[d.key];
+          const got = files.length > 0 || !!mark;
           return (
             <li key={d.key} style={{ display: "grid", gridTemplateColumns: "14px minmax(0, 1fr) auto", gap: 10, alignItems: "start" }}>
-              <span aria-hidden style={{ marginTop: 5, width: 10, height: 10, borderRadius: "50%", justifySelf: "center", border: `2px solid ${files.length ? "var(--ok-fg)" : "var(--bd2)"}`, background: files.length ? "var(--ok-fg)" : "transparent" }} />
+              <span aria-hidden style={{ marginTop: 5, width: 10, height: 10, borderRadius: "50%", justifySelf: "center", border: `2px solid ${got ? "var(--ok-fg)" : "var(--bd2)"}`, background: got ? "var(--ok-fg)" : "transparent" }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ color: files.length ? "var(--mute)" : "var(--ink)" }}>{d.label}</div>
-                {files.length === 0 && <div style={{ fontSize: 11.5, color: "var(--faint)" }}>not received yet{d.hint ? ` · ${d.hint}` : ""}</div>}
+                <div style={{ color: got ? "var(--mute)" : "var(--ink)" }}>{d.label}</div>
+                {!got && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontSize: 11.5, color: "var(--faint)" }}>
+                    <span>not received yet{d.hint ? ` · ${d.hint}` : ""}</span>
+                    <button type="button" disabled={busy} onClick={() => run({ mark_documents_received: [d.key] })} title="They sent it another way, e.g. by email" style={{ ...xBtn, fontSize: 11.5, padding: 0, color: "var(--navy)", textDecoration: "underline" }}>mark received</button>
+                  </div>
+                )}
+                {mark && files.length === 0 && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 11.5, color: "var(--faint)" }}>
+                    <span>{mark.note} · {fmtDate(mark.at)}</span>
+                    <button type="button" disabled={busy} onClick={() => run({ unmark_documents_received: [d.key] })} style={{ ...xBtn, fontSize: 11.5, padding: 0, textDecoration: "underline" }}>undo</button>
+                  </div>
+                )}
                 {files.map(fileRow)}
               </div>
               {editing ? <button type="button" aria-label={`Remove ${d.label}`} title="Take this off the client's Documents tab" disabled={busy} onClick={() => run({ remove_document_keys: [d.key] })} style={xBtn}>×</button> : <span />}
