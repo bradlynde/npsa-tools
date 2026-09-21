@@ -1098,9 +1098,11 @@
     else window.prompt('Copy this link',url);});});
   /* open where a link points, else where the client left off */
   icxReady=true;icxCount();
-  (function(){var m=/^#q-(\d+)-(\d+)$/.exec(location.hash||'');
-    if(m){var target=document.getElementById('q-'+m[1]+'-'+m[2]);if(target){goTab('ic');icxShow(m[1],{scroll:false});
-      setTimeout(function(){target.scrollIntoView({behavior:'smooth',block:'center'});target.classList.add('flash');},60);return;}}
+  function icxFromHash(){var m=/^#q-(\d+)-(\d+)$/.exec(location.hash||''),target=m&&document.getElementById('q-'+m[1]+'-'+m[2]);if(!target)return false;
+    goTab('ic');icxShow(m[1],{scroll:false});target.classList.remove('flash');
+    setTimeout(function(){target.scrollIntoView({behavior:'smooth',block:'center'});target.classList.add('flash');},60);return true;}
+  window.addEventListener('hashchange',icxFromHash);
+  (function(){if(icxFromHash())return;
     var started=Object.keys(EXISTING).some(function(k){return /^q_/.test(k)&&PRIMARY_KEYS.indexOf(k)<0;});
     var open=icxSecs.filter(function(s){return Number(s.getAttribute('data-left'))>0;})[0];
     if(!started||!open){icxShow(1,{scroll:false});return;}
