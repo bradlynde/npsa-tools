@@ -140,7 +140,7 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `reps_list` | Sales reps |
 | `letter_template_get` | Template definition for a document type |
 | `nsgp_deadlines_list` | NSGP deadlines from the knowledge base, one row per stage, by state, upcoming only. Changes go through `gk_record_upsert` |
-| `nsgp_state_reference` | SAA, state-funded programs, last verified, per state. Reads the grant knowledge base once it is loaded (`source: knowledge-base`), the extracted files until then. Superseded by `gk_*` |
+| `nsgp_state_reference` | SAA, state-funded programs, last verified, per state. Reads the grant knowledge base (`source: knowledge-base`); the seed bundle if the database cannot be read (`source: seed`). Superseded by `gk_*` |
 | `precall_bookings_list` | Upcoming Calendly consultations with pre-call facts |
 | `precall_booking_get` | One booking by event URI |
 | `marketing_overview` | Stats, funnel, application stats, Salesforce sync status |

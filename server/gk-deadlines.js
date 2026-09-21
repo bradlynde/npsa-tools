@@ -24,7 +24,8 @@
  */
 
 import { recordView, zonedInstant, legacyReference } from './grant-knowledge.js';
-import { listDeadlines, deadlinesForState, STATE_REFERENCE } from './nsgp-deadlines.js';
+import { listDeadlines, deadlinesForState } from './nsgp-deadlines.js';
+import { seedRecords } from './knowledge.js';
 
 const DEFAULT_TZ = 'America/New_York';
 
@@ -131,7 +132,7 @@ export function createDeadlineSource({ store, pool, now = () => new Date(), log 
       const kb = await fromKnowledge();
       if (kb) return { deadlines: kb.rows, reference: legacyReference(kb.records, now()), source: 'knowledge-base' };
       if (!pool) throw Object.assign(new Error('Storage not configured'), { status: 503 });
-      return { deadlines: await listDeadlines(pool), reference: STATE_REFERENCE, source: 'legacy-table' };
+      return { deadlines: await listDeadlines(pool), reference: legacyReference(seedRecords(), now()), source: 'legacy-table' };
     },
     /** One state's rows plus the federal (US) ones, newest cycle first. */
     async forState(state) {

@@ -13,13 +13,14 @@ import {
   buildMeetingDetails, buildAttendees, buildVideoConference, buildBookingAnswers,
   writeInLines, writeInField, substituteBlocks, fillEmptySections, formatCentral, NPSA_TITLES,
 } from './precall-facts.js';
-import { ensureDeadlineSchema, renderDeadlines, SAA_BY_STATE, STATE_PROGRAMS_BY_STATE } from './nsgp-deadlines.js';
+import { ensureDeadlineSchema, renderDeadlines } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 import { registerMcp } from './mcp.js';
 import { ensureIntakeSchema, createIntakeStore, registerIntake } from './intake.js';
 import { ensureGrantKnowledgeSchema, createKnowledgeStore, registerGrantKnowledge } from './grant-knowledge.js';
 import { createDeadlineSource } from './gk-deadlines.js';
-import { startKnowledgeSync } from './knowledge.js';
+import { stateFundingBlock } from './precall-state.js';
+import { startKnowledgeSync, briefingFor } from './knowledge.js';
 import crypto from 'crypto';
 
 const { Pool } = pg;
@@ -221,27 +222,12 @@ function normalizeBaseUrl(raw) {
 
 // ── NSGP State Administering Agency (SAA) and state-funded programs ──────────
 //
-// Both of these used to be written out here from memory, and both were wrong in
-// ways that reached the page. Hawaii's SAA is the Office of Homeland Security
-// under the Department of Law Enforcement, not HI-EMA; Kansas's is the Highway
-// Patrol, not a division of emergency management; Massachusetts is the Office of
-// Grants and Research, not MEMA; South Carolina is SLED; New Hampshire is the
-// Department of Safety's grants bureau. A briefing naming the wrong agency sends
-// a rep somewhere confidently wrong.
-//
-// The state-funded list was worse for being short rather than wrong: only IL, CA
-// and NY were recorded, so briefings for AZ, CO, CT, FL, GA, LA, MD, MA, MN, NE,
-// NV, NJ, OH, PA and TN never mentioned a funding source those clients qualify
-// for — in California's case a track worth more per site than the federal one.
-//
-// Both now come from NPSA's own grant-knowledge base; see server/nsgp-data.json.
-const STATE_SAA = SAA_BY_STATE;
-
-// Keyed by state, each entry a LIST of programs — several states run more than
-// one (New Jersey and Massachusetts each have an equipment track and a personnel
-// track). A program may cap per site, per applicant, or both, so a null of either
-// is normal and callers have to cope with it.
-const STATE_FUNDED_PROGRAMS = STATE_PROGRAMS_BY_STATE;
+// A state's SAA and its state-funded programs used to be written out here from
+// memory, and both were wrong in ways that reached the page (Hawaii's SAA is not
+// HI-EMA; only IL, CA and NY had state programs at all). Then they came from a file
+// extracted from Drive, which went stale on its own schedule. They come from the
+// grant knowledge base now, the same verified records the client pages read
+// (server/knowledge.js briefingFor), so an edit in the tab reaches the next briefing.
 
 const PRECALL_MASTER_PROMPT = `You are preparing pre-call notes for an NPSA (Nonprofit Security Advisors) sales meeting. You are given structured meeting information (from a form the rep filled out), plus — when available — text scraped from the organization's website to help you verify attendee titles, mission, and campus addresses.
 
@@ -687,7 +673,7 @@ app.post('/api/precall', async (req, res) => {
         // published address rather than leaving it to the rep to remember.
         if (!orgState && /^[A-Za-z]{2}$/.test(String(parsed.org_state || '').trim())) {
           orgState = String(parsed.org_state).trim().toUpperCase();
-          if (!STATE_SAA[orgState]) orgState = null;   // a real abbreviation, or none
+          if (!briefingFor(orgState)) orgState = null;   // a real abbreviation, or none
         }
       } catch (e) { console.error('Attendee research failed:', e.message); }
     }
@@ -696,74 +682,14 @@ app.post('/api/precall', async (req, res) => {
     // gone rather than kept as a fallback: scraping search results for dates is
     // exactly what produced the section Brad called inaccurate, and "not recorded —
     // confirm with the SAA" is more use to a rep than a confident wrong date.
-    const saaName = STATE_SAA[orgState?.toUpperCase()] || (orgState ? `${orgState} State Administering Agency` : null);
+    const briefing = orgState ? briefingFor(orgState) : null;
+    const saaName = briefing?.saa || (orgState ? `${orgState} State Administering Agency` : null);
     if (orgState) {
       try { deadlineRows = await deadlineSource.forState(orgState); }
       catch (e) { console.error('Deadline lookup failed:', e.message); }
     }
 
-    const statePrograms = STATE_FUNDED_PROGRAMS[orgState?.toUpperCase()] || [];
-
-    // A cap can be per site, per applicant, or unpublished, and the difference is
-    // the difference between "up to $250,000 per building" and "up to $50,000 full
-    // stop". Stating the wrong one inflates the number a rep quotes on a call.
-    const capLine = (p) => {
-      if (p.perSite && p.perApplicant) return `$${p.perSite.toLocaleString()} per site, up to $${p.perApplicant.toLocaleString()} per applicant`;
-      if (p.perSite) return `$${p.perSite.toLocaleString()} per site`;
-      if (p.perApplicant) return `$${p.perApplicant.toLocaleString()} per applicant (NOT per site)`;
-      return 'cap not published — do not state an amount';
-    };
-    // Several of these are alternatives to federal NSGP rather than additions:
-    // Arizona, Colorado and Nebraska all bar applicants who have federal awards.
-    // Presenting them as stackable would be a straightforwardly wrong pitch.
-    const stackLine = (p) => p.stackable === true
-      ? 'Stackable with federal NSGP.'
-      : p.stackable === false
-        ? 'NOT stackable — this is an ALTERNATIVE to federal NSGP, and eligibility usually depends on NOT holding a federal award. Do not present the two as additive.'
-        : 'Stackability not confirmed — do not claim the two can be combined.';
-
-    /*
-     * Stackability against the federal award is not the only way two numbers get
-     * wrongly added together. New Jersey runs two state programs, each of which
-     * stacks with federal NSGP, and an organization may be awarded only one of
-     * them — so the honest ceiling is $100,000, not $120,000.
-     */
-    const exclusiveLine = (p) => p.exclusiveWith?.length
-      ? `  MUTUALLY EXCLUSIVE with ${p.exclusiveWith.join(', ')} — the organization may apply to both but can be AWARDED only one state program per fiscal year. Do not add these two caps together.`
-      : null;
-
-    // A program with published caps and no live cycle is the quietest way to be
-    // wrong: everything reads correctly and the money is not there.
-    const availabilityLine = (p) => p.dormant
-      ? `  AVAILABILITY: dormant — ${p.availabilityNote} Do not present this as currently available funding; mention it only as something to watch.`
-      : p.unconfirmed
-        ? `  AVAILABILITY: unconfirmed — ${p.availabilityNote} Do not present this as available funding.`
-        : null;
-
-    const nsgpBlock = orgState ? [
-      `NSGP GRANT FUNDING DATA:`,
-      `State: ${orgState}`,
-      ``,
-      `PROGRAM 1 — Federal NSGP (always applicable):`,
-      `  Program: Federal Nonprofit Security Grant Program (NSGP)`,
-      `  Award cap: $200,000 per physical site/location`,
-      `  Administered in-state by (SAA): ${saaName}`,
-      statePrograms.length
-        ? statePrograms.map((p, i) => [
-            ``,
-            `PROGRAM ${i + 2} — State-funded (${orgState}):`,
-            `  Program: ${p.name} (${p.acronym})`,
-            `  Award cap: ${capLine(p)}`,
-            `  ${stackLine(p)}`,
-            exclusiveLine(p),
-            availabilityLine(p),
-            p.administeredBy ? `  Administered by ${p.administeredBy} — NOT the SAA named above. Point the client at the right office.` : null,
-            p.note ? `  Note: ${p.note}` : null,
-          ].filter(Boolean).join('\n')).join('\n')
-        : `\nSTATE-FUNDED PROGRAMS: ${orgState} does NOT operate a separate state-funded nonprofit security grant program. Federal NSGP is the only track — present only the federal track and note there is no separate state program.`,
-      ``,
-      `DEADLINES: filled in by the application from a curated table and inserted at the <<FUNDING_DEADLINES>> token. Do NOT write any deadline date anywhere in your output.`,
-    ].join('\n') : null;
+    const nsgpBlock = orgState ? stateFundingBlock({ state: orgState, saaName, programs: briefing?.programs || [], federalSiteCap: briefing?.federalSiteCap }) : null;
 
     const context = [
       `MEETING INFORMATION (background only — the Meeting Details, Attendees and`,

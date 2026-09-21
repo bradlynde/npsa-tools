@@ -118,6 +118,7 @@ await check('client_create derives the slug, mints a token, builds the link, rec
   const r = await call('POST', '/api/clients', { headers: INTERNAL_H, body: {
     name: 'Trinity Wellsprings Church', state: 'fl', kickoff_date: '2026-09-08', upload_folder_id: 'PHASE2',
     contacts: [{ name: 'Pat Lee', email: 'Pat@Trinity.org', role: 'Executive Pastor' }, { email: 'admin@trinity.org' }],
+    reference_contacts: false, // the knowledge base's SAA contacts are intake-knowledge-smoke's business
   } });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   created = r.data;
@@ -300,11 +301,11 @@ await check('caps follow the programs each site applies for', async () => {
   assert.deepEqual([three.federal, three.state, three.cap], [600000, 500000, 1100000]);
   const stateOnly = capsFor('CA', [{ facility: 1, programs: 'State Program' }]);
   assert.deepEqual([stateOnly.federal, stateOnly.state, stateOnly.sites[0].programs], [0, 250000, ['CSNSGP']]);
-  // New York's SCAHC has only an applicant cap; Georgia's FPC has none published.
+  // New York's SCAHC has only an applicant cap; Massachusetts's two programs have none published.
   const ny = capsFor('NY', [{ facility: 1, programs: 'Federal + State' }, { facility: 2, programs: 'Federal + State' }]);
   assert.deepEqual([ny.federal, ny.state, ny.sites[0].cap], [400000, 250000, 200000]);
-  const ga = capsFor('GA', [{ facility: 1, programs: 'Federal + State' }]);
-  assert.deepEqual([ga.cap, ga.state_cap_unknown], [200000, true]);
+  const ma = capsFor('MA', [{ facility: 1, programs: 'Federal + State' }]);
+  assert.deepEqual([ma.cap, ma.state_cap_unknown], [200000, true]);
   // Blank means federal, and says so.
   const blank = capsFor('TX', [{ facility: 1, programs: '' }]);
   assert.deepEqual([blank.cap, blank.assumed_federal], [200000, true]);
@@ -570,14 +571,14 @@ await check('CORS on the upload route answers only for the page origin', async (
 // ── 8. Documents and contacts ─────────────────────────────────────────────────
 await check('documents: defaults by state, team edits, custom keys upload', async () => {
   const c = await call('GET', `/api/clients/${created.slug}`, { headers: TEAM });
-  assert.deepEqual(c.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_bios']);
+  assert.deepEqual(c.data.documents.map(d => d.key), ['up_va', 'up_mission', 'up_501c3', 'up_bios']);
   assert.equal(c.data.documents_customised, false);
   const tx = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Lone Star Chapel', state: 'TX' } });
-  assert.deepEqual(tx.data.documents.map(d => d.key).slice(4), ['up_gov_resolution', 'up_tx_payee']);
+  assert.deepEqual(tx.data.documents.map(d => d.key), ['up_va', 'up_mission', 'up_501c3', 'up_gov_resolution', 'up_tx_payee'], 'Texas records no bios requirement, so none is asked for');
   await call('PATCH', '/api/clients/lone-star-chapel', { headers: TEAM, body: { status: 'cancelled' } });
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { remove_document_keys: ['up_bios'], add_documents: [{ key: 'up_board_list', label: 'Board roster', hint: 'PDF' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
-  assert.deepEqual(r.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_board_list']);
+  assert.deepEqual(r.data.documents.map(d => d.key), ['up_va', 'up_mission', 'up_501c3', 'up_board_list']);
   assert.equal(r.data.documents_customised, true);
   const bad = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_documents: [{ key: 'board', label: 'x' }] } });
   assert.equal(bad.status, 400);
@@ -594,11 +595,11 @@ await check('documents: defaults by state, team edits, custom keys upload', asyn
 await check('documents: California state-program clients get the Cal OES set; tasks and ready lines validate', async () => {
   const ca = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Del Mar Chapel', state: 'CA', program_track: '2026-27 CSNSGP' } });
   assert.equal(ca.status, 201, JSON.stringify(ca.data));
-  assert.deepEqual(ca.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_proof_address', 'up_landlord_letter', 'up_site_map']);
+  assert.deepEqual(ca.data.documents.map(d => d.key), ['up_va', 'up_mission', 'up_501c3', 'up_site_map', 'up_proof_address', 'up_landlord_letter']);
   assert.ok(ca.data.documents.every(d => d.source === 'program'));
   assert.match(ca.data.documents.find(d => d.key === 'up_va').label, /Cal OES/);
   const fed = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Orange Federal Church', state: 'CA', program_track: 'FY2027 federal NSGP-S' } });
-  assert.deepEqual(fed.data.documents.map(d => d.key), ['up_mission', 'up_501c3', 'up_va', 'up_bios']);
+  assert.deepEqual(fed.data.documents.map(d => d.key), ['up_va', 'up_mission', 'up_501c3', 'up_bios']);
   const drop = await call('PATCH', '/api/clients/del-mar-chapel', { headers: TEAM, body: { remove_document_keys: ['up_landlord_letter'] } });
   assert.equal(drop.data.documents.find(d => d.key === 'up_va').task, 'vulnerability_assessment_received');
   const badTask = await call('PATCH', '/api/clients/del-mar-chapel', { headers: TEAM, body: { documents: [{ key: 'up_x', label: 'X', task: 'not_a_task' }] } });
@@ -783,10 +784,11 @@ await check('documents received by email count as received everywhere, and the m
   await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
+  const before = (await call('GET', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() } })).data.reference.length;
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const view = await call('GET', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() } });
-  assert.equal(view.data.reference.length, 1);
+  assert.equal(view.data.reference.length, before + 1);
   assert.ok(!view.data.client.some(x => x.email === 'egrants@gov.texas.gov'));
   const edit = await call('PUT', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() }, body: { email: 'pat@example.org', name: 'Pat Lee', role: 'Executive Pastor', phone: '555-0100' } });
   assert.equal(edit.status, 200, JSON.stringify(edit.data));
