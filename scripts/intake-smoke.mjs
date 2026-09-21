@@ -101,11 +101,11 @@ await check('with MCP_API_KEYS unset only the internal key gets in', async () =>
 });
 
 // ── 2. Registration ───────────────────────────────────────────────────────────
-await check('catalog is served with 685 questions and the section list', async () => {
+await check('catalog is served with 966 questions and the section list', async () => {
   const r = await call('GET', '/api/intake/questions', { headers: TEAM });
   assert.equal(r.status, 200);
-  assert.equal(r.data.count, 685);
-  assert.equal(QUESTIONS.length, 685);
+  assert.equal(r.data.count, 966);
+  assert.equal(QUESTIONS.length, 966);
   assert.ok(r.data.sections.includes('Checklist'));
   const chk = await call('GET', '/api/intake/questions?prefix=chk_who_', { headers: TEAM });
   assert.ok(chk.data.count > 0 && chk.data.questions.every(q => q.key.startsWith('chk_who_')));
@@ -324,11 +324,11 @@ await check('checklist: Not applicable leaves the total and is reported', async 
   assert.deepEqual([r.data.checklist.completed, r.data.checklist.total, r.data.checklist.not_applicable], [1, 23, 1]);
   assert.equal(r.data.checklist.items.find(i => i.stem === 'confirm_obtain_ein').status, 'Not applicable');
 });
-await check('programs: 20 slots accepted, status counts the named rows, 3.2.1 is retired but still readable', async () => {
-  const w = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { prog1_name: 'Sunday Service', prog12_name: 'GriefShare', prog12_runby: 'Outside', prog20_desc: 'no name yet', q_3_2_1: 'legacy free text' } } });
+await check('programs: 40 slots accepted, status counts the named rows, 3.2.1 is retired but still readable', async () => {
+  const w = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { prog1_name: 'Sunday Service', prog12_name: 'GriefShare', prog12_runby: 'Outside', prog40_suggested: 'Yes', prog12_partner: 'GriefShare Atlanta', prog12_demo: 'Adults, Families', prog20_desc: 'no name yet', q_3_2_1: 'legacy free text' } } });
   assert.equal(w.status, 200);
   const r = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
-  assert.deepEqual(r.data.programs, { listed: 2, slots: 20 });
+  assert.deepEqual(r.data.programs, { listed: 2, slots: 40 });
   assert.ok(!r.data.sections.find(x => x.section === '3. Community Role').total.toString().includes('x'));
   const a = await call('GET', `/api/clients/${created.slug}/answers?section=3.%20Community%20Role`, { headers: TEAM });
   const legacy = a.data.answers.find(x => x.key === 'q_3_2_1');
@@ -782,6 +782,52 @@ await check('documents received by email count as received everywhere, and the m
   const undo = await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { unmark_documents_received: ['up_mission'] } });
   assert.deepEqual(Object.keys(undo.data.documents_received), ['up_501c3']);
   await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
+await check('NPSA notes: the team writes them and marks questions for the client; the page only reads them', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Notes Church', state: 'GA', contacts: [{ name: 'Dawn Reed', email: 'dawn@notes.example', role: 'Exec Pastor' }] } });
+  assert.equal(r.status, 201);
+  const t = new URL(r.data.intake_url).searchParams.get('t');
+  const w = await call('PATCH', '/api/clients/notes-church', { headers: TEAM, body: { question_notes: { q_3_1_1: 'Confirmed 9/4', note_q_3_3_1: 'When was the PD visit?' }, note_asks: ['q_3_3_1'] } });
+  assert.equal(w.status, 200, JSON.stringify(w.data));
+  const a = await call('GET', '/api/clients/notes-church/answers', { headers: TEAM });
+  const get = k => a.data.answers.find(x => x.key === k);
+  assert.equal(get('note_q_3_1_1').value, 'Confirmed 9/4');
+  assert.match(get('note_q_3_1_1').updated_by, /^npsa:/);
+  assert.equal(get('_note_asks').value, 'q_3_3_1');
+  assert.equal(get('note_q_3_3_1').number, '3.9');
+  assert.equal(get('note_q_3_3_1').prompt, 'Have police, fire, or emergency management ever visited for a security reason?');
+  assert.equal((await call('PATCH', '/api/clients/notes-church', { headers: TEAM, body: { question_notes: { q_9_9: 'x' } } })).status, 400);
+  assert.equal((await call('PATCH', '/api/clients/notes-church', { headers: TEAM, body: { note_asks: ['prog1_name'] } })).status, 400);
+  // a page from before the change that still sends a note has it dropped, and the answer beside it saved
+  const save = await call('PUT', '/api/intake/notes-church/answers', { headers: { 'X-Intake-Token': t }, body: { answers: { note_q_3_1_1: 'client typed here', q_3_1_1: '425' } } });
+  assert.equal(save.status, 200);
+  const a2 = await call('GET', '/api/clients/notes-church/answers', { headers: TEAM });
+  assert.equal(a2.data.answers.find(x => x.key === 'note_q_3_1_1').value, 'Confirmed 9/4');
+  assert.equal(a2.data.answers.find(x => x.key === 'q_3_1_1').value, '425');
+  assert.equal((await call('PUT', '/api/intake/notes-church/answers', { headers: { 'X-Intake-Token': t }, body: { answers: { _note_asks: '' } } })).status, 400);
+  // opening the page fills 1.1 from the primary contact once, as "contacts"
+  assert.equal((await call('GET', `/client/notes-church?t=${t}`)).status, 200);
+  const a3 = await call('GET', '/api/clients/notes-church/answers?section=1.%20Applicant%20Information', { headers: TEAM });
+  const one = Object.fromEntries(a3.data.answers.map(x => [x.key, x]));
+  assert.equal(one.q_1_1_1.value, 'Dawn Reed');
+  assert.equal(one.q_1_1_2.value, 'Exec Pastor');
+  assert.equal(one.q_1_1_3.value, 'dawn@notes.example');
+  assert.equal(one.q_1_1_1.updated_by, 'contacts');
+  await call('PUT', '/api/intake/notes-church/answers', { headers: { 'X-Intake-Token': t }, body: { answers: { q_1_1_1: 'Someone Else' } } });
+  await call('GET', `/client/notes-church?t=${t}`);
+  const a4 = await call('GET', '/api/clients/notes-church/answers?section=1.%20Applicant%20Information', { headers: TEAM });
+  assert.equal(a4.data.answers.find(x => x.key === 'q_1_1_1').value, 'Someone Else', 'a client edit is never overwritten');
+  await call('PATCH', '/api/clients/notes-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
+await check('the page has the section rail, 40 program cards and Programs as tab 3', async () => {
+  const html = renderClientPage({ client: { slug: 'a-b', token: 't', name: 'A', state: 'GA' }, stateConfig: {}, existing: {} });
+  assert.equal((html.match(/class="icx-nav"/g) || []).length, 5);
+  assert.equal((html.match(/class="pg-card"/g) || []).length, 40);
+  assert.match(html, /data-tab="ic"><span class="tnum">2<\/span>[^<]*<\/button><button class="tab" data-tab="prog"><span class="tnum">3</);
+  assert.ok(!/class="nfield"|data-key="note_q_/.test(html), 'notes are shown, not edited');
+  assert.match(html, /data-states="TX,IL"/);
+  for (const k of QUESTIONS.filter(q => /^q_[1-5]_/.test(q.key) && q.kind !== 'meta').map(q => q.key)) assert.ok(html.includes(`data-key="${k}"`), `${k} is on the page`);
+  for (let n = 1; n <= 40; n++) for (const f of ['name', 'desc', 'freq', 'runby', 'partner', 'site', 'demo', 'unique', 'people', 'suggested']) assert.ok(html.includes(`data-key="prog${n}_${f}"`), `prog${n}_${f}`);
 });
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const before = (await call('GET', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() } })).data.reference.length;
