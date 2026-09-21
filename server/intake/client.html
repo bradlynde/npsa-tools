@@ -654,7 +654,7 @@
      server-side as JSON; the page talks to /api/intake/<slug>/* with the token in
      a header. Everything below the API helper is the form as it always was. */
   var CLIENT={{client}},TOKEN={{token}},CLIENT_NAME={{clientName}},STATE={{state}};
-  var CFG={{stateConfig}}, EXISTING={{existing}}, CONTACTS={{contacts}}, DOCUMENTS={{documents}}, APPLICATIONS={{applications}}, UPLOADED={{uploaded}}, API_BASE={{apiBase}}, UPLOAD_BASE={{uploadBase}};
+  var CFG={{stateConfig}}, EXISTING={{existing}}, CONTACTS={{contacts}}, DOCUMENTS={{documents}}, APPLICATIONS={{applications}}, UPLOADED={{uploaded}}, RECEIVED={{received}}, API_BASE={{apiBase}}, UPLOAD_BASE={{uploadBase}};
   var API=API_BASE+'/api/intake/'+encodeURIComponent(CLIENT);
   var UPLOAD_API=(UPLOAD_BASE||API_BASE)+'/api/intake/'+encodeURIComponent(CLIENT);
   function call(method,path,body,isForm){
@@ -745,7 +745,9 @@
   /* documents: the rows this client is asked for (standard + state, or NPSA's own list) */
   document.getElementById('uploads').innerHTML=(DOCUMENTS||[]).map(function(d){return '<div class="uprow"><div class="upmeta"><div class="uplbl">'+escT(d.label)+'</div>'+(d.hint?'<div class="uphint">'+escT(d.hint)+'</div>':'')+'</div>'+
     '<div class="upctrl"><input type="file" data-upload="'+escT(d.key)+'" accept=".pdf,.doc,.docx,image/*"><div class="upstat" id="u_'+escT(d.key)+'">No file yet</div></div></div>';}).join('')||'<div class="ct-empty">No documents are needed from you right now.</div>';
-  (DOCUMENTS||[]).forEach(function(d){var k=d.key;if(EXISTING[k]||(UPLOADED||[]).indexOf(k)>=0){var s=document.getElementById('u_'+k);if(s)s.innerHTML='Uploaded ✓';}});
+  (DOCUMENTS||[]).forEach(function(d){var k=d.key,s=document.getElementById('u_'+k);if(!s)return;
+    if(EXISTING[k]||(UPLOADED||[]).indexOf(k)>=0)s.innerHTML='Uploaded ✓';
+    else if((RECEIVED||[]).indexOf(k)>=0)s.innerHTML='Received by your NPSA team ✓';});
   growAll();
   /* programs: rows appear as they are used */
   var progRows=[].slice.call(document.querySelectorAll('tr.prog-row'));
@@ -909,7 +911,7 @@
     /* Not applicable takes a requirement out of the box; a document also counts once it is uploaded */
     function srState(it){
       if(it.keys.length&&it.keys.every(function(k){return ckVal(k)==='Not applicable';}))return 'na';
-      if(it.doc&&(EXISTING[it.doc]||(UPLOADED||[]).indexOf(it.doc)>=0))return 'done';
+      if(it.doc&&(EXISTING[it.doc]||(UPLOADED||[]).indexOf(it.doc)>=0||(RECEIVED||[]).indexOf(it.doc)>=0))return 'done';
       if(it.doc&&it.keys.length)return ckVal(it.keys[0])==='Completed'?'done':'open';
       return it.keys.length&&it.keys.every(function(k){var v=ckVal(k);return v==='Completed'||v==='Not applicable';})?'done':'open';}
     function updCk(){

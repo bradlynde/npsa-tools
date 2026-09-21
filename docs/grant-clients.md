@@ -473,3 +473,13 @@ Deleting a client is `DELETE /api/clients/:slug`, and `client_delete` over MCP. 
 the first writes nothing and reports what would be lost (answers, uploads, contacts), and only a
 second call with `confirm=<slug>` commits. An active client is refused outright. Deletion is for
 demo and test records; a finished engagement is closed, not deleted.
+
+## Documents received outside the form (2026-09-21)
+
+Clients often email a file instead of uploading it. The team marks it received from the Grant
+Writing dialog ("mark received" under any document not yet in, with undo), or with
+`client_update mark_documents_received` / `unmark_documents_received`. Marks live in
+`clients.documents_received` as `{ key: { at, by, note } }` and count as received everywhere an
+upload would: the dialog's count, the client's Documents tab ("Received by your NPSA team ✓"), and
+the submission box. The mark does not store the file; save the emailed copy to the client's Phase 2
+folder as usual.

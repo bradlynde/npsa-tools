@@ -47,6 +47,16 @@ const NPSA_TEAM = JSON.parse(readFileSync(new URL('./intake-team.json', import.m
 const DOCUMENTS = JSON.parse(readFileSync(new URL('./intake-documents.json', import.meta.url), 'utf8'));
 const DOC_KEY_RE = /^up_[a-z0-9_]{2,40}$/;
 
+/**
+ * Documents the team has marked as received outside the form (a client often emails a file
+ * instead of uploading it): { key: { at, by, note } }. Received counts the same as an upload
+ * everywhere: the dialog, the client's Documents tab and the submission box.
+ */
+export function receivedFor(client) {
+  const r = client.documents_received;
+  return r && typeof r === 'object' && !Array.isArray(r) ? r : {};
+}
+
 /** The upload rows a client's Documents tab shows: their own list if the team changed it, else their program's list, else standard + state. */
 export function documentsFor(client) {
   if (Array.isArray(client.documents)) return client.documents.map(d => ({ ...d, source: d.source || 'custom' }));
@@ -505,6 +515,7 @@ function statusView(client, answers, base, uploads = []) {
       items,
     },
     uploads: uploads.map(u => uploadView(u, client.slug, documentsFor(client))),
+    documents_received: receivedFor(client),
   };
 }
 
@@ -523,7 +534,7 @@ function clientView(client, base) {
   const { token, documents, applications, ...rest } = client;
   return {
     ...rest, intake_url: intakeUrl(base, client.slug, token), saa: STATE_REFERENCE.states[client.state]?.saa || stateConfig(client.state).saa || null,
-    documents: documentsFor(client), documents_customised: Array.isArray(documents),
+    documents: documentsFor(client), documents_customised: Array.isArray(documents), documents_received: receivedFor(client),
     applications: Array.isArray(applications) ? applicationsFor(client) : [], applications_set: Array.isArray(applications),
     programs: programsFor(client.state),
   };
@@ -531,7 +542,7 @@ function clientView(client, base) {
 
 // ── Stores ────────────────────────────────────────────────────────────────────
 
-const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes', 'documents', 'applications'];
+const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes', 'documents', 'applications', 'documents_received'];
 
 export async function ensureIntakeSchema(pool) {
   if (!pool) return;
@@ -570,6 +581,7 @@ export async function ensureIntakeSchema(pool) {
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS side  TEXT NOT NULL DEFAULT 'client';
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents JSONB;
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS applications JSONB;
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents_received JSONB;
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS welcomed_at TIMESTAMPTZ;
     CREATE TABLE IF NOT EXISTS intake_answers (
       client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -598,7 +610,7 @@ export async function ensureIntakeSchema(pool) {
 const UPLOAD_COLS = 'id, client_id, key, filename, mime, size_bytes, drive_file_id, drive_url, uploaded_by, uploaded_at';
 
 const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track, drive_folder_id, upload_folder_id,
-  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, documents, applications, created_at, updated_at,
+  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, documents, applications, documents_received, created_at, updated_at,
   submitted_at, last_client_activity_at`;
 
 /** Postgres-backed store. Every method takes and returns plain objects. */
@@ -635,7 +647,7 @@ export function createIntakeStore(pool) {
       const sets = fields.map((k, i) => `${k}=$${i + 2}`);
       if (patch.submitted_at !== undefined) sets.push(`submitted_at=$${fields.length + 2}`);
       sets.push('updated_at=NOW()');
-      const params = [slug, ...fields.map(k => ((k === 'documents' || k === 'applications') && patch[k] !== null ? JSON.stringify(patch[k]) : patch[k]))];
+      const params = [slug, ...fields.map(k => ((k === 'documents' || k === 'applications' || k === 'documents_received') && patch[k] !== null ? JSON.stringify(patch[k]) : patch[k]))];
       if (patch.submitted_at !== undefined) params.push(patch.submitted_at);
       return withContacts(await one(`UPDATE clients SET ${sets.join(', ')} WHERE slug=$1 RETURNING ${CLIENT_COLS}`, params));
     },
@@ -736,7 +748,7 @@ export function createMemoryStore() {
   return {
     async createClient(c) {
       if (find(c.slug)) { const e = new Error(`slug "${c.slug}" is already registered`); e.status = 409; throw e; }
-      const row = { id: nextId++, documents: null, applications: null, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
+      const row = { id: nextId++, documents: null, applications: null, documents_received: null, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
       clients.push(row); return view(row);
     },
     async getClient(slug) { return view(find(slug)); },
@@ -860,12 +872,12 @@ function jsForInject(value) {
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-export function renderClientPage({ client, stateConfig, existing, contacts = { npsa: [], client: [], reference: [] }, documents = documentsFor(client), applications = Array.isArray(client.applications) ? applicationsFor(client) : [], uploaded = [], apiBase = '', uploadBase = '' }) {
+export function renderClientPage({ client, stateConfig, existing, contacts = { npsa: [], client: [], reference: [] }, documents = documentsFor(client), applications = Array.isArray(client.applications) ? applicationsFor(client) : [], uploaded = [], received = Object.keys(receivedFor(client)), apiBase = '', uploadBase = '' }) {
   if (pageTemplate === undefined) {
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, apiBase, uploadBase };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, received, apiBase, uploadBase };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 
@@ -1034,6 +1046,21 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     ];
     const remove = validEmails(b.remove_contact_emails, 'remove_contact_emails');
     const invite = b.invite_contact_email === undefined ? '' : String(b.invite_contact_email).trim().toLowerCase();
+    // Marking a document received (by email, in person) or taking the mark back.
+    if (b.mark_documents_received !== undefined || b.unmark_documents_received !== undefined) {
+      const docs = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
+      const marks = asArray(b.mark_documents_received) ?? [];
+      const unmarks = asArray(b.unmark_documents_received) ?? [];
+      if (!Array.isArray(marks) || !Array.isArray(unmarks)) throw new BadRequest('mark_documents_received and unmark_documents_received must be arrays');
+      const next = { ...receivedFor(c) };
+      for (const m of marks) {
+        const key = String(typeof m === 'object' && m ? m.key : m || '').trim().toLowerCase();
+        if (!docs.some(d => d.key === key)) throw new BadRequest(`"${key}" is not one of this client's documents`);
+        next[key] = { at: new Date().toISOString(), by: req.actor || 'npsa', note: String((typeof m === 'object' && m && m.note) || 'received by email').slice(0, 140) };
+      }
+      for (const u of unmarks) delete next[String(u || '').trim().toLowerCase()];
+      patch.documents_received = next;
+    }
     if (!Object.keys(patch).length && !add.length && !remove.length && !invite) throw new BadRequest('Nothing to change');
     if (Object.keys(patch).length) await store.updateClient(c.slug, patch);
     if (remove.length) await store.removeContacts(c.id, remove);
