@@ -880,6 +880,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                   </Section>
                   <PeopleSection client={c} editing={editing} onSaved={saved} />
                   <DocumentsSection client={c} uploads={s.uploads} editing={editing} onSaved={saved} />
+                  <NotesSection client={c} version={notesVersion} onOpen={() => setNotesOpen(true)} />
                 </div>
 
                 {/* Right: how far along */}
@@ -894,8 +895,6 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                       ))}
                     </div>
                   </Section>
-
-                  <NotesSection client={c} version={notesVersion} onOpen={() => setNotesOpen(true)} />
 
                   {lists.length > 0 && (
                     <Section title="wish list & budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}${s.wish_lists && s.wish_lists.length > 1 ? " now" : ""}` : undefined}>
