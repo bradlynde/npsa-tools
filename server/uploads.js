@@ -37,18 +37,19 @@ const ZIP = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
  * whatever the extension says, so the bytes get the deciding word.
  *
  * A Word or Excel file is a zip, so its first four bytes only say "some zip".
- * What makes it an Office file is the package manifest, and the manifest names
- * the application that wrote it — so that is what is looked for, in the first
- * 8 KB, which is where the manifest sits.
+ * What makes it an Office file is what the zip holds: every Office package has
+ * a [Content_Types].xml part, and a Word document has word/document.xml where a
+ * workbook has xl/workbook.xml. Zip stores entry names uncompressed (in each
+ * entry's header and again in the directory at the end), so the names can be
+ * found in the raw bytes. The parts' contents cannot: they are deflated, which
+ * is why an earlier version that looked for the manifest's content type text
+ * passed a hand-built test file and refused every real one.
  */
 export function sniffType(buf) {
   for (const [mime, magic] of MAGIC) if (buf.length >= magic.length && buf.subarray(0, magic.length).equals(magic)) return mime;
-  if (buf.length >= 4 && buf.subarray(0, 4).equals(ZIP)) {
-    const head = buf.subarray(0, 8192).toString('latin1');
-    if (head.includes('[Content_Types].xml')) {
-      if (head.includes('wordprocessingml.document')) return DOCX;
-      if (head.includes('spreadsheetml.sheet')) return XLSX;
-    }
+  if (buf.length >= 4 && buf.subarray(0, 4).equals(ZIP) && buf.includes('[Content_Types].xml')) {
+    if (buf.includes('word/document.xml')) return DOCX;
+    if (buf.includes('xl/workbook.xml')) return XLSX;
   }
   return null;
 }
