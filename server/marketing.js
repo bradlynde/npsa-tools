@@ -1570,6 +1570,7 @@ const WEEK_OF_BOOKING = sundayOf(central(ORIGINATED));
 const MONTH_OF_BOOKING = `date_trunc('month', ${central(ORIGINATED)})`;
 const THIS_WEEK = sundayOf(central('NOW()'));
 const THIS_MONTH = `date_trunc('month', ${central('NOW()')})`;
+const DAY_OF_BOOKING = `date_trunc('day', ${central(ORIGINATED)})`;
 
 /**
  * Stamps every row in a reschedule chain with the booked_on of the chain's first
@@ -1872,6 +1873,13 @@ export function registerMarketing(app, pool) {
           COUNT(*)::int AS total_bookings,
           COUNT(*) FILTER (WHERE ${MONTH_OF_BOOKING} = ${THIS_MONTH})::int AS bookings_this_month,
           COUNT(*) FILTER (WHERE ${MONTH_OF_BOOKING} = ${THIS_MONTH} - interval '1 month')::int AS bookings_last_month,
+          -- Last month up to the same day of the month, so "this month so far" has a
+          -- like-for-like comparison: Sep 1-21 against Aug 1-21, not against all of
+          -- August. The whole of today's day-number counts, matching the daily
+          -- series the dashboard sums its ranges from. Subtracting a month from a
+          -- date clamps at month end, so Mar 31 compares against Feb 28 or 29.
+          COUNT(*) FILTER (WHERE ${MONTH_OF_BOOKING} = ${THIS_MONTH} - interval '1 month'
+                             AND ${DAY_OF_BOOKING} <= date_trunc('day', ${central('NOW()')}) - interval '1 month')::int AS bookings_last_month_to_date,
           -- Sunday 00:00 → Saturday 23:59, Central
           COUNT(*) FILTER (WHERE ${WEEK_OF_BOOKING} = ${THIS_WEEK})::int AS bookings_this_week,
           COUNT(*) FILTER (WHERE became_client)::int AS clients,
@@ -1961,6 +1969,7 @@ export function registerMarketing(app, pool) {
         bookings_this_week: s.bookings_this_week,
         bookings_this_month: s.bookings_this_month,
         bookings_last_month: s.bookings_last_month,
+        bookings_last_month_to_date: s.bookings_last_month_to_date,
         client_rate: s.total_bookings ? s.clients / s.total_bookings : 0,
         held_rate: s.resolved_meetings ? s.held_count / s.resolved_meetings : 0,
         instantly_pct: s.total_bookings ? s.instantly_count / s.total_bookings : 0,
@@ -2115,12 +2124,15 @@ export function registerMarketing(app, pool) {
   // Time series
   app.get('/api/marketing/timeseries', async (req, res) => {
     if (!pool) return guard(res);
-    const g = req.query.granularity === 'month' ? 'month' : 'week';
+    // day exists so the dashboard can total any calendar window exactly -- this
+    // month so far, last month, the same point last quarter -- which week buckets
+    // cannot do, because a week straddles the first of the month.
+    const g = ['month', 'day'].includes(req.query.granularity) ? req.query.granularity : 'week';
     // The same Sunday-to-Saturday Central weeks as the "bookings this week" tile.
     // They once disagreed (the chart used Monday weeks), and a Sunday booking sat in
     // the tile's current week and the chart's previous bar at the same time.
-    const bucket = g === 'week' ? WEEK_OF_BOOKING : MONTH_OF_BOOKING;
-    const step = g === 'week' ? '1 week' : '1 month';
+    const bucket = { week: WEEK_OF_BOOKING, month: MONTH_OF_BOOKING, day: DAY_OF_BOOKING }[g];
+    const step = { week: '1 week', month: '1 month', day: '1 day' }[g];
     try {
       const { rows } = await pool.query(`
         WITH b AS (
