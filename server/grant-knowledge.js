@@ -810,8 +810,15 @@ export function registerGrantKnowledge(app, {
   store, internalKey, now = () => new Date(),
   drive, driveFolderId = process.env.GK_DRIVE_FOLDER_ID || '',
   appOrigins = splitOrigins(process.env.GK_APP_ORIGINS), uploadBase = process.env.GK_UPLOAD_BASE || '',
+  onChange = null,
 } = {}) {
   const team = teamGate({ internalKey });
+  // Whatever reads a snapshot of the records (the intake pages, via server/knowledge.js)
+  // hears about each write that succeeded, so an edit reaches client pages at once.
+  if (onChange) app.use('/api/grant-knowledge', (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'OPTIONS') res.on('finish', () => { if (res.statusCode < 300) onChange(); });
+    next();
+  });
   if (drive === undefined) drive = driveConfigured() ? { upload: uploadToDrive } : null;
   const guard = fn => async (req, res) => {
     if (!store) return res.status(503).json({ error: 'Storage not configured' });

@@ -794,7 +794,7 @@
     d.innerHTML=here.length?here.map(function(a){return escT(a.label)+(APP_ST[a.status]?' ('+APP_ST[a.status]+')':'');}).join(' · '):'<span class="none">None yet. NPSA sets the applications for each site.</span>';f.appendChild(d);});
   siteCards.forEach(function(c){c.addEventListener('input',siteTitles);c.addEventListener('change',function(e){if(/_programs$/.test(e.target.getAttribute('data-key')||''))renderBudgets();});});
   /* budget: what each site has asked for against what its applications allow, M&A on by default */
-  var SITE_CAP=200000,MA_RATE=0.05,SP=CFG.stateProgram||null,PALETTE=['#5f7d3a','#7f9a4f','#a3b76a','#4a6b8a','#6f93b0','#9bb7cc','#b07a4a','#cfa06b','#8a6f9b','#b39ac4','#5c8d89','#88b5b0'];
+  var SITE_CAP=CFG.federalSiteCap||200000,MA_RATE=0.05,SP=CFG.stateProgram||null,PALETTE=['#5f7d3a','#7f9a4f','#a3b76a','#4a6b8a','#6f93b0','#9bb7cc','#b07a4a','#cfa06b','#8a6f9b','#b39ac4','#5c8d89','#88b5b0'];
   function money(v){var t=String(v||'').replace(/,/g,''),m=t.match(/(\d+(?:\.\d+)?)\s*(k|m)?/i);if(!m)return null;var n=Number(m[1]);if(m[2])n*=m[2].toLowerCase()==='k'?1000:1000000;return Math.round(n);}
   function usd(n){return '$'+Math.round(n).toLocaleString('en-US');}
   function maOn(id,n){var sel=document.querySelector('.wl-ma-on[data-key="'+wlPrefix(id)+n+'_ma_on"]');return !sel||sel.value!=='off';}

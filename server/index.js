@@ -19,6 +19,7 @@ import { registerMcp } from './mcp.js';
 import { ensureIntakeSchema, createIntakeStore, registerIntake } from './intake.js';
 import { ensureGrantKnowledgeSchema, createKnowledgeStore, registerGrantKnowledge } from './grant-knowledge.js';
 import { createDeadlineSource } from './gk-deadlines.js';
+import { startKnowledgeSync } from './knowledge.js';
 import crypto from 'crypto';
 
 const { Pool } = pg;
@@ -66,6 +67,8 @@ if (process.env.DATABASE_URL) {
 // which now take their dates from it (see gk-deadlines.js).
 const knowledgeStore = pool ? createKnowledgeStore(pool) : null;
 const deadlineSource = createDeadlineSource({ store: knowledgeStore, pool });
+// The intake pages read the knowledge base from an in-memory snapshot (server/knowledge.js).
+const knowledgeSync = startKnowledgeSync({ store: knowledgeStore });
 
 // Minted per process and never stored: the MCP layer presents it on its loopback
 // calls to the grant-client routes, which is what lets those routes require a key
@@ -1012,7 +1015,7 @@ registerIntake(app, {
 });
 // Grant knowledge: the per-state knowledge base. Team routes only, keyed like the
 // grant-client routes.
-registerGrantKnowledge(app, { store: knowledgeStore, internalKey: INTERNAL_KEY });
+registerGrantKnowledge(app, { store: knowledgeStore, internalKey: INTERNAL_KEY, onChange: knowledgeSync.refresh });
 registerMcp(app, { port: () => PORT, internalKey: INTERNAL_KEY });
 
 // An API route that does not exist must say so. Without this the fallback below

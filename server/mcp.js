@@ -755,7 +755,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     });
     server.registerTool('client_create', {
       title: 'Register grant client',
-      description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. contacts are the client\'s people (the first becomes primary); they appear under "Your team" on the form\'s Contacts tab, where the client can add more. npsa_contacts are NPSA people shown under "Your NPSA team": Stuart and Brad are added automatically, so pass only the consultant who brought the client in (name, email, role "Consultant"). Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
+      description: 'WRITE. Confirm with the user before calling. Registers a new in-house grant-writing client and mints their intake link. The slug is derived from the name unless given; the returned intake_url is what goes in the kickoff email. contacts are the client\'s people (the first becomes primary); they appear under "Your team" on the form\'s Contacts tab, where the client can add more. npsa_contacts are NPSA people shown under "Your NPSA team": Stuart and Brad are added automatically, so pass only the consultant who brought the client in (name, email, role "Consultant"). The state\'s verified SAA, program and CISA contacts from the grant knowledge base are added as read-only reference contacts; pass reference_contacts: false to skip them. Pass the Drive Phase 2 folder id as upload_folder_id when known; it can be set later with client_update. Fails if the slug is already registered.',
       inputSchema: {
         name: z.string().min(1).describe('Organization name as the client uses it'),
         state: z.string().length(2).describe('Two-letter state code'),
@@ -768,6 +768,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         kickoff_date: z.string().regex(ISO_DATE).optional().describe('Day 0, YYYY-MM-DD'),
         program_track: z.string().optional().describe('e.g. "2026 federal NSGP + NSGP-IL"'),
         applications: z.array(applicationShape).optional().describe('The applications NPSA is writing: one per program and cycle, with the sites each covers. The client form shows them in its header and sets budget caps and documents from them.'),
+        reference_contacts: z.union([z.literal(false), z.array(contactShape)]).optional().describe('Leave out to start the client with the state\'s SAA and program contacts from the knowledge base; false for none; a list to use instead'),
         notes: z.string().optional(),
       },
       annotations: WRITE,

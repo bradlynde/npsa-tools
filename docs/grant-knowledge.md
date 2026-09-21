@@ -16,13 +16,13 @@ files stay in use until the PR that repoints each consumer; nothing here touches
 | PR | What |
 | :-- | :-- |
 | B1 | Identity: `MCP_KEY_NAMES`, `ACTOR_PROXY_KEYS` (see [mcp.md](mcp.md)) |
-| **B2** | **This module: tables, stores, routes, `scripts/gk-smoke.mjs`** |
+| B2 | This module: tables, stores, routes, `scripts/gk-smoke.mjs` |
 | B3 | Import from the Drive YAML, with a conflict report to rule on; `/import`, `/export` |
 | B4 | MCP tools (`gk_*`), and `nsgp_state_reference` read from here |
 | F1, F2 | The Grant Knowledge tab on `frontend`: map, state page, then editing, history, the queue |
 | B5 / F3 | File attachments (NOFOs, state guidance) |
 | B6 | `nsgp_deadlines` served from here behind its existing shape |
-| B7 | Intake reads from here: registration steps, documents, caps, reference contacts |
+| **B7** | **Intake reads from here: registration steps, documents, caps, reference contacts** |
 | B8 | Pre-call briefing reads from here; the JSON files go |
 | F4 / B9 | The old deadline card and editor go |
 
@@ -167,6 +167,41 @@ on `/api/precall/deadlines` answer 410 and point here, since an edit there would
 accepted and then never seen.
 
 `node scripts/gk-deadlines-smoke.mjs` covers the adapter, the fallback and the section.
+
+## The client intake pages
+
+The grant-clients module reads its per-state facts from here through `server/knowledge.js`:
+the SAA, the registration steps on the page's checklist, the upload rows on the Documents
+tab, the federal and state caps its budget checks against, the programs an application may
+name, and the reference contacts a new client starts with. These reach clients, so only
+**verified** records count. A verified record whose field changed and has not been
+confirmed keeps its other fields; that one reads as unknown (a cap nobody has confirmed
+shows as "not published"). Anything under an unverified parent drops with it.
+
+- **Uploads.** The US program's document requirements that carry an `upload_key`, each in
+  the state's own wording where the state has the same requirement, then the state's own
+  additions. A state program with upload rows of its own (California's CSNSGP) replaces
+  that list for a client applying to it (by application, or by `program_track` naming the
+  program before applications are set). A list the team set on the client still wins.
+- **Registration.** The federal programs' steps for every client, hard gates and the
+  longest lead times first; a state program's steps only for a client applying to it.
+  A requirement's `client_label` is what the client reads, `client_hint` pre-fills the note.
+- **Caps.** The federal per-site cap is the state's own where it sets a lower one (Kansas,
+  $150,000), else the NOFO's; the page's budget uses it. A site marked "State Program" draws
+  on every live state program, but of a set the state awards only one of
+  (`exclusive_with`: New Jersey's THE or SP) only the largest counts. Dormant programs are
+  left out; an application can still name one, for a past round.
+- **Reference contacts.** `POST /api/clients` adds up to four verified SAA, program and
+  CISA contacts with an email (none carrying a `warning`), primary first, to the Contacts
+  tab as reference rows. `reference_contacts: false` adds none; a list replaces them.
+
+The snapshot loads at boot, refreshes every minute, and refreshes after every successful
+write to `/api/grant-knowledge`, so an edit reaches client pages at once. Until it has
+loaded, or if the knowledge base is empty, intake answers from its JSON files as before.
+
+`node scripts/intake-knowledge-smoke.mjs` covers the projection and the create;
+`node scripts/gk-parity.mjs --live` (with `NPSA_API_KEY`) prints, per state, what a client
+page showed from the JSON files against what it shows from the knowledge base.
 
 ## Through Claude
 
