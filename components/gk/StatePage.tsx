@@ -603,6 +603,22 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
             </div>
           </Card>
 
+          {/* Contacts and files: short, and wanted at the top, so they share a row under the strip. */}
+          {view === "overview" && (doc.contacts.length > 0 || doc.files.length > 0 || editing) && (
+            <div style={{ display: "grid", gridTemplateColumns: narrow || !(doc.contacts.length > 0 && (doc.files.length > 0 || editing)) ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, marginBottom: 16, alignItems: "start" }}>
+              {doc.contacts.length > 0 && (
+                <Card style={{ padding: "6px 24px", minWidth: 0 }}>
+                  <Fold id="contacts" title="Contacts" meta={`${doc.contacts.length} on record`}><Panel>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Fold>
+                </Card>
+              )}
+              {(doc.files.length > 0 || editing) && (
+                <Card style={{ padding: "6px 24px", minWidth: 0 }}>
+                  <Fold id="files" title="Files" meta={doc.files.length ? `${doc.files.length}` : undefined}><Files code={doc.code} files={doc.files} onChanged={reload} /></Fold>
+                </Card>
+              )}
+            </div>
+          )}
+
           {stoppers.length > 0 && view !== "history" && (
             <div role="note" style={{ border: "1px solid var(--err-fg)", background: "var(--err-bg)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
               <div className="mono" style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", color: "var(--err-fg)", marginBottom: 8 }}>READ FIRST: THESE END AN APPLICATION</div>
@@ -626,7 +642,6 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
               )}
               {doc.programs.map((p) => <ProgramCard key={p.id} p={p} />)}
 
-              {doc.contacts.length > 0 && <Section id="contacts" title="Contacts" meta={`${doc.contacts.length} on record`}><Panel>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Section>}
 
               {CATEGORY_ORDER.map((cat) => {
                 const mine = allNotes.filter(({ n }) => n.data.category === cat && !(cat === "open_question" && n.data.resolved)).sort((a, b) => SEVERITY_RANK.indexOf(a.n.data.severity) - SEVERITY_RANK.indexOf(b.n.data.severity));
@@ -636,11 +651,6 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
 
               {(j.post_award_note) && <Section title="After the award"><Markdown>{j.post_award_note}</Markdown></Section>}
 
-              {(doc.files.length > 0 || editing) && (
-                <Section id="files" title="Files" meta={doc.files.length ? `${doc.files.length}` : undefined}>
-                  <Files code={doc.code} files={doc.files} onChanged={reload} />
-                </Section>
-              )}
 
               {sources.length > 0 && (
                 <Section id="sources" title="Sources" meta={`${sources.length}`}>
