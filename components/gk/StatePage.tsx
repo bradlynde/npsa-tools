@@ -75,6 +75,17 @@ function Fact({ label, value, note }: { label: string; value: React.ReactNode; n
   );
 }
 
+/** The header cards: label above value, a short note beneath. */
+function Stat({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
+  return (
+    <div>
+      <div className="mono" style={{ fontSize: 11, letterSpacing: ".07em", color: "var(--mute)", marginBottom: 5 }}>{label}</div>
+      <div style={{ fontSize: 15, color: "var(--ink)", fontWeight: 550, lineHeight: 1.35 }}>{value}</div>
+      {note && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 5, lineHeight: 1.45 }}>{note}</div>}
+    </div>
+  );
+}
+
 /** A group of rows inside a fold: a small heading, then a bordered panel the rows sit in. */
 function Panel({ title, count, children }: { title?: string; count?: number; children: React.ReactNode }) {
   return (
@@ -258,27 +269,43 @@ function ContactLine({ c }: { c: Rec }) {
 }
 
 /**
- * One program. The facts and how it is submitted are always in view; what a
- * submission needs, the cycles and the notes fold. The first program opens fully;
- * a second (NSGP-UA repeats NSGP-S's list, a state program sits under the federal
- * one) opens only its cycles, so a state with four programs reads as four headers.
+ * One program, folded: the header is a one-line digest (caps, sites, the latest
+ * deadline) so a state with four programs is four lines until one is opened. Inside,
+ * the facts and how it is submitted come first; what a submission needs, the cycles
+ * and the notes fold again. The first program's inner folds open; a second's
+ * (NSGP-UA repeats NSGP-S's list) open only its cycles.
  */
 function ProgramCard({ p, first }: { p: Program; first: boolean }) {
   const narrow = useMedia("(max-width: 760px)");
+  const [initial] = useState(false);
   const d = p.data;
   const fn = d.field_notes || {};
   const off = d.status && d.status !== "active";
+  const latest = p.cycles.flatMap((c) => c.deadlines).sort((a, b) => b.data.due_date.localeCompare(a.data.due_date))[0];
+  const today = new Date().toISOString().slice(0, 10);
+  const digest = [
+    typeof d.cap_per_location === "number" ? `${usd(d.cap_per_location)} per site` : "",
+    typeof d.cap_per_applicant === "number" ? `${usd(d.cap_per_applicant)} per applicant` : "",
+    typeof d.locations_max === "number" ? `up to ${d.locations_max} sites` : "",
+    latest ? `${latest.data.due_date >= today ? "next" : "last"} deadline ${fmtDay(latest.data.due_date)}` : "",
+  ].filter(Boolean).join(" · ");
   return (
-    <Card style={{ marginBottom: 16, scrollMarginTop: 90 }} className="" >
-      <div id={`program-${p.key}`} style={{ scrollMarginTop: 90 }} />
-      <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
-        <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: d.type === "state" ? "var(--olive)" : "var(--navy)" }}>{p.key}</span>
-        <h3 className="serif" style={{ margin: 0, fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{d.name}</h3>
-        <Tag>{d.type === "state" ? "state-funded" : "federal"}</Tag>
-        {off && <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, color: "var(--warn-fg)", background: "var(--warn-bg)" }}>{String(d.status).toUpperCase()}</span>}
-        <Trust rec={p} /><RecActions rec={p} />
-      </div>
-      {d.administered_by && <div style={{ fontSize: 13, color: "var(--sec)", marginBottom: 14 }}>Run by {d.administered_by}</div>}
+    <Card style={{ marginBottom: 12, scrollMarginTop: 90, padding: "6px 24px" }} className="" >
+      <details open={initial} id={`program-${p.key}`} className="gk-fold" style={{ scrollMarginTop: 90 }}>
+      <summary style={{ cursor: "pointer", listStyle: "none", padding: "14px 0", userSelect: "none" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span aria-hidden="true" className="gk-chev" style={{ color: "var(--faint)", fontSize: 10, display: "inline-block", transition: "transform .15s", width: 10 }}>▶</span>
+          <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: d.type === "state" ? "var(--olive)" : "var(--navy)" }}>{p.key}</span>
+          <h3 className="serif" style={{ margin: 0, fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{d.name}</h3>
+          <Tag>{d.type === "state" ? "state-funded" : "federal"}</Tag>
+          {off && <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, color: "var(--warn-fg)", background: "var(--warn-bg)" }}>{String(d.status).toUpperCase()}</span>}
+          <Trust rec={p} />
+        </div>
+        {(digest || d.administered_by) && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 5, marginLeft: 20 }}>{digest}{digest && d.administered_by ? " · " : ""}{d.administered_by ? `run by ${d.administered_by}` : ""}</div>}
+        <style>{`.gk-fold[open] > summary .gk-chev { transform: rotate(90deg); } .gk-fold > summary::-webkit-details-marker { display: none; }`}</style>
+      </summary>
+      <div style={{ paddingBottom: 16 }}>
+      <div style={{ display: "flex", gap: 14, marginBottom: 4 }}><RecActions rec={p} /></div>
       {d.availability_note && <Note>{d.availability_note}</Note>}
 
       {/* Two balanced columns rather than a grid: a grid aligns rows, so one long note (Texas's period of performance) would open a hole beside every short fact. */}
@@ -319,6 +346,8 @@ function ProgramCard({ p, first }: { p: Program; first: boolean }) {
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "note", parent_id: p.id, heading: `New note on ${p.key}` }}>note on this program</AddButton>
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "contact", parent_id: p.id, preset: { contact_kind: "program" }, heading: `New contact for ${p.key}` }}>program contact</AddButton>
       </div>
+      </div>
+      </details>
     </Card>
   );
 }
@@ -494,12 +523,20 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
   }
 
   // A deep link to one record (#rec-123, #program-SCAHC) lands once the page has drawn.
+  // Also on a hash change without a reload (one program's link to another), which
+  // the browser scrolls to on its own but does not unfold.
   useEffect(() => {
-    if (!doc || !window.location.hash) return;
-    const el = document.getElementById(window.location.hash.slice(1));
-    if (!el) return;
-    for (let d = el.closest("details"); d; d = d.parentElement?.closest("details") ?? null) d.open = true;
-    setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    if (!doc) return;
+    const reveal = () => {
+      if (!window.location.hash) return;
+      const el = document.getElementById(window.location.hash.slice(1));
+      if (!el) return;
+      for (let d = el.closest("details"); d; d = d.parentElement?.closest("details") ?? null) d.open = true;
+      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    };
+    reveal();
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
   }, [doc]);
 
   const allNotes = useMemo(() => (doc ? [...doc.notes.map((n) => ({ n, program: undefined as string | undefined })), ...doc.programs.flatMap((p) => p.notes.map((n) => ({ n, program: p.key })))] : []), [doc]);
@@ -551,18 +588,18 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
         <Card><div style={{ fontSize: 14, color: "var(--sec)" }}>Nothing has been recorded for {doc.name} yet.{!editing && " Press Edit to start it."}</div></Card>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: 16, marginBottom: 16, alignItems: "stretch" }}>
             <Card style={{ padding: "16px 18px", gridColumn: narrow ? "1 / -1" : "span 2" }}>
-              <Fact label={nd ? "NEXT DEADLINE" : "WHERE THE CYCLE STANDS"} value={nd
+              <Stat label={nd ? "NEXT DEADLINE" : "WHERE THE CYCLE STANDS"} value={nd
                 ? <>{fmtDay(nd.due_date)}{nd.due_time ? ` · ${fmtTime(nd.due_time, nd.tz)}` : ""} <span style={{ color: nd.days_away <= 14 ? "var(--err-fg)" : "var(--olive)", fontWeight: 650 }}>· {countdown(nd.days_away)}</span></>
                 : CYCLE_LABEL[doc.cycle_state]}
                 note={nd ? `${nd.program} · ${nd.label}${nd.status !== "verified" ? " · unverified" : ""}` : doc.cycle_state === "closed" ? "The last recorded deadline has passed; no date for the next cycle yet." : j.cycle_status} />
             </Card>
             <Card style={{ padding: "16px 18px" }}>
-              <Fact label="HOW MUCH IS CONFIRMED" value={`${f.verified} of ${f.records}`} note={[f.unverified ? `${f.unverified} unverified` : "", f.stale ? `${f.stale} stale` : "", doc.open_questions ? `${doc.open_questions} open question${doc.open_questions === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ") || "everything has a verifier"} />
+              <Stat label="HOW MUCH IS CONFIRMED" value={`${f.verified} of ${f.records}`} note={[f.unverified ? `${f.unverified} unverified` : "", f.stale ? `${f.stale} stale` : "", doc.open_questions ? `${doc.open_questions} open question${doc.open_questions === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ") || "everything has a verifier"} />
             </Card>
             <Card style={{ padding: "16px 18px" }}>
-              <Fact label="PORTAL" value={portal ? <a href={portal} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word", fontSize: 13 }}>{portal.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</a> : <Faint>none recorded</Faint>} note={j.urban_areas?.length ? `Urban areas: ${j.urban_areas.join("; ")}` : undefined} />
+              <Stat label="PORTAL" value={portal ? <a href={portal} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word", fontSize: 13.5 }}>{portal.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</a> : <Faint>none recorded</Faint>} note={j.urban_areas?.length ? `Urban areas: ${j.urban_areas.join("; ")}` : undefined} />
             </Card>
           </div>
 
