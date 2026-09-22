@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { Card, Tag } from "../ui";
+import { Tag } from "../ui";
 import { useEdit } from "./RecordEditor";
 import { gkSend, gkUpload, fmtDay, fmtSize, type GkFile } from "./api";
 
@@ -55,7 +55,7 @@ export default function Files({ code, files, onChanged }: { code: string; files:
   if (!files.length && !on) return null;
 
   return (
-    <Card>
+    <div className="gk-rows">
       {err && <div role="alert" style={{ color: "var(--err-fg)", fontSize: 13, marginBottom: 10 }}>{err}</div>}
 
       {files.map((f) => (
@@ -104,6 +104,6 @@ export default function Files({ code, files, onChanged }: { code: string; files:
           <span style={{ fontSize: 11.5, color: "var(--mute)" }}>PDF, JPG, PNG, Word or Excel, up to 25 MB</span>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
