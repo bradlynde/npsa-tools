@@ -35,7 +35,7 @@ export function Trust({ rec, quiet = false }: { rec: Pick<Rec, "effective_status
  * React's: `open` is rendered from a value fixed at mount, so React never writes it
  * again and a person's toggle sticks through the reloads that follow every save.
  */
-function Fold({ id, title, meta, open = true, right, tight = false, children }: { id?: string; title: React.ReactNode; meta?: React.ReactNode; open?: boolean; right?: React.ReactNode; tight?: boolean; children: React.ReactNode }) {
+function Fold({ id, title, meta, open = false, right, tight = false, children }: { id?: string; title: React.ReactNode; meta?: React.ReactNode; open?: boolean; right?: React.ReactNode; tight?: boolean; children: React.ReactNode }) {
   const [initial] = useState(open);
   return (
     <details open={initial} id={id} className="gk-fold" style={{ scrollMarginTop: 90, marginTop: tight ? 20 : 0, paddingTop: tight ? 14 : 0, borderTop: tight ? "1px solid var(--hair2)" : undefined }}>
@@ -53,7 +53,7 @@ function Fold({ id, title, meta, open = true, right, tight = false, children }: 
   );
 }
 
-function Section({ id, title, meta, open = true, children }: { id?: string; title: string; meta?: React.ReactNode; open?: boolean; children: React.ReactNode }) {
+function Section({ id, title, meta, open = false, children }: { id?: string; title: string; meta?: React.ReactNode; open?: boolean; children: React.ReactNode }) {
   return (
     <section style={{ paddingTop: 16, marginTop: 16, borderTop: "1px solid var(--hair2)" }}>
       <Fold id={id} title={title} meta={meta} open={open}>{children}</Fold>
@@ -153,7 +153,7 @@ function RequirementRow({ r }: { r: Requirement }) {
 }
 
 type Owner = "all" | "client" | "npsa";
-function Requirements({ p, open }: { p: Program; open: boolean }) {
+function Requirements({ p }: { p: Program }) {
   const [owner, setOwner] = useState<Owner>("all");
   const all = [...p.inherited_requirements, ...p.requirements];
   const { on: editing } = useEdit();
@@ -162,7 +162,7 @@ function Requirements({ p, open }: { p: Program; open: boolean }) {
   const show = (t: string) => all.filter((r) => r.data.req_type === t && (owner === "all" || (r.data.owner || "client") === owner)).sort(order);
   const reg = show("registration"), docs = show("document");
   return (
-    <Fold tight title="What a submission needs" meta={`${reg.length + docs.length}`} open={open}
+    <Fold tight title="What a submission needs" meta={`${reg.length + docs.length}`}
       right={<><AddButton spec={{ jurisdiction: p.jurisdiction, kind: "requirement", parent_id: p.id, heading: `New requirement for ${p.key}` }}>requirement</AddButton><ChipRow<Owner> options={[{ key: "all", label: "Everyone" }, { key: "client", label: "Client" }, { key: "npsa", label: "NPSA" }]} value={owner} onChange={setOwner} /></>}>
       {[["Registration, before anything else", reg], ["Documents in the package", docs]].map(([title, rows]) => (
         <Panel key={title as string} title={title as string} count={(rows as Requirement[]).length}>
@@ -197,13 +197,13 @@ function FundingChart({ cycles }: { cycles: Cycle[] }) {
   );
 }
 
-function Cycles({ p, open }: { p: Program; open: boolean }) {
+function Cycles({ p }: { p: Program }) {
   const addCycle = <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "cycle", parent_id: p.id, heading: `New cycle for ${p.key}` }}>cycle</AddButton>;
   if (!p.cycles.length) return <div style={{ fontSize: 13, marginTop: 14 }}><Faint>No cycle recorded yet: no deadline history, no funding history.</Faint> {addCycle}</div>;
   const today = new Date().toISOString().slice(0, 10);
   const money = (c: Cycle) => typeof c.data.state_allocation === "number" ? ["State allocation", usd(c.data.state_allocation)] : typeof c.data.total_funding === "number" ? ["Total", usd(c.data.total_funding)] : null;
   return (
-    <Fold tight title="Cycles, deadlines and funding" meta={`${p.cycles.length} cycle${p.cycles.length === 1 ? "" : "s"}`} open={open} right={addCycle}>
+    <Fold tight title="Cycles, deadlines and funding" meta={`${p.cycles.length} cycle${p.cycles.length === 1 ? "" : "s"}`} right={addCycle}>
       {p.cycles.map((c) => {
         const m = money(c);
         const meta = [c.data.open_date ? `Opened ${fmtDay(c.data.open_date)}` : "", c.data.nofo_date ? `NOFO ${fmtDay(c.data.nofo_date)}` : "",
@@ -272,10 +272,9 @@ function ContactLine({ c }: { c: Rec }) {
  * One program, folded: the header is a one-line digest (caps, sites, the latest
  * deadline) so a state with four programs is four lines until one is opened. Inside,
  * the facts and how it is submitted come first; what a submission needs, the cycles
- * and the notes fold again. The first program's inner folds open; a second's
- * (NSGP-UA repeats NSGP-S's list) open only its cycles.
+ * and the notes fold again, closed like everything else until asked for.
  */
-function ProgramCard({ p, first }: { p: Program; first: boolean }) {
+function ProgramCard({ p }: { p: Program }) {
   const narrow = useMedia("(max-width: 760px)");
   const [initial] = useState(false);
   const d = p.data;
@@ -332,16 +331,16 @@ function ProgramCard({ p, first }: { p: Program; first: boolean }) {
         </div>
       )}
 
-      <Requirements p={p} open={first} />
-      <Cycles p={p} open />
+      <Requirements p={p} />
+      <Cycles p={p} />
 
       {(d.notes_md || d.eligible_costs) && (
-        <Fold tight title="Program notes" open={first}>
+        <Fold tight title="Program notes">
           {d.notes_md && <Markdown>{d.notes_md}</Markdown>}
           {d.eligible_costs && <><Eyebrow style={{ margin: "10px 0 6px" }}>eligible costs</Eyebrow><Markdown>{d.eligible_costs}</Markdown></>}
         </Fold>
       )}
-      {p.contacts.length > 0 && <Fold tight title="Program contacts" meta={`${p.contacts.length}`} open={first}><Panel>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Fold>}
+      {p.contacts.length > 0 && <Fold tight title="Program contacts" meta={`${p.contacts.length}`}><Panel>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Fold>}
       <div style={{ display: "flex", gap: 16, marginTop: 14 }}>
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "note", parent_id: p.id, heading: `New note on ${p.key}` }}>note on this program</AddButton>
         <AddButton spec={{ jurisdiction: p.jurisdiction, kind: "contact", parent_id: p.id, preset: { contact_kind: "program" }, heading: `New contact for ${p.key}` }}>program contact</AddButton>
@@ -588,20 +587,21 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
         <Card><div style={{ fontSize: 14, color: "var(--sec)" }}>Nothing has been recorded for {doc.name} yet.{!editing && " Press Edit to start it."}</div></Card>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: 16, marginBottom: 16, alignItems: "stretch" }}>
-            <Card style={{ padding: "16px 18px", gridColumn: narrow ? "1 / -1" : "span 2" }}>
+          {/* One strip, three cells, sized to what is in it: separate cards stretched to the tallest one and read as three half-empty boxes. */}
+          <Card style={{ padding: 0, marginBottom: 16, display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.2fr)" }}>
+            <div style={{ padding: "14px 18px" }}>
               <Stat label={nd ? "NEXT DEADLINE" : "WHERE THE CYCLE STANDS"} value={nd
                 ? <>{fmtDay(nd.due_date)}{nd.due_time ? ` · ${fmtTime(nd.due_time, nd.tz)}` : ""} <span style={{ color: nd.days_away <= 14 ? "var(--err-fg)" : "var(--olive)", fontWeight: 650 }}>· {countdown(nd.days_away)}</span></>
                 : CYCLE_LABEL[doc.cycle_state]}
                 note={nd ? `${nd.program} · ${nd.label}${nd.status !== "verified" ? " · unverified" : ""}` : doc.cycle_state === "closed" ? "The last recorded deadline has passed; no date for the next cycle yet." : j.cycle_status} />
-            </Card>
-            <Card style={{ padding: "16px 18px" }}>
+            </div>
+            <div style={{ padding: "14px 18px", borderLeft: narrow ? undefined : "1px solid var(--hair2)", borderTop: narrow ? "1px solid var(--hair2)" : undefined }}>
               <Stat label="HOW MUCH IS CONFIRMED" value={`${f.verified} of ${f.records}`} note={[f.unverified ? `${f.unverified} unverified` : "", f.stale ? `${f.stale} stale` : "", doc.open_questions ? `${doc.open_questions} open question${doc.open_questions === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ") || "everything has a verifier"} />
-            </Card>
-            <Card style={{ padding: "16px 18px" }}>
+            </div>
+            <div style={{ padding: "14px 18px", borderLeft: narrow ? undefined : "1px solid var(--hair2)", borderTop: narrow ? "1px solid var(--hair2)" : undefined }}>
               <Stat label="PORTAL" value={portal ? <a href={portal} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word", fontSize: 13.5 }}>{portal.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</a> : <Faint>none recorded</Faint>} note={j.urban_areas?.length ? `Urban areas: ${j.urban_areas.join("; ")}` : undefined} />
-            </Card>
-          </div>
+            </div>
+          </Card>
 
           {stoppers.length > 0 && view !== "history" && (
             <div role="note" style={{ border: "1px solid var(--err-fg)", background: "var(--err-bg)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
@@ -624,16 +624,14 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
                   {j.partner && <div style={{ fontSize: 13, color: "var(--sec)" }}><b>Partner:</b> {j.partner}</div>}
                 </Card>
               )}
-              {doc.programs.map((p, i) => <ProgramCard key={p.id} p={p} first={i === 0} />)}
+              {doc.programs.map((p) => <ProgramCard key={p.id} p={p} />)}
 
               {doc.contacts.length > 0 && <Section id="contacts" title="Contacts" meta={`${doc.contacts.length} on record`}><Panel>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Section>}
 
               {CATEGORY_ORDER.map((cat) => {
                 const mine = allNotes.filter(({ n }) => n.data.category === cat && !(cat === "open_question" && n.data.resolved)).sort((a, b) => SEVERITY_RANK.indexOf(a.n.data.severity) - SEVERITY_RANK.indexOf(b.n.data.severity));
                 if (!mine.length) return null;
-                // Gotchas, eligibility and open questions are what a reader came for; the long tail folds until asked.
-                const open = ["gotcha", "eligibility", "open_question", "prohibited_cost"].includes(cat) || mine.length <= 3;
-                return <Section key={cat} id={`notes-${cat}`} title={CATEGORY[cat]} meta={`${mine.length}`} open={open}><div style={{ display: "grid", gap: 9 }}>{mine.map(({ n, program }) => <NoteCard key={n.id} n={n} program={program} />)}</div></Section>;
+                return <Section key={cat} id={`notes-${cat}`} title={CATEGORY[cat]} meta={`${mine.length}`}><div style={{ display: "grid", gap: 9 }}>{mine.map(({ n, program }) => <NoteCard key={n.id} n={n} program={program} />)}</div></Section>;
               })}
 
               {(j.post_award_note) && <Section title="After the award"><Markdown>{j.post_award_note}</Markdown></Section>}
@@ -645,7 +643,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
               )}
 
               {sources.length > 0 && (
-                <Section id="sources" title="Sources" meta={`${sources.length}`} open={false}>
+                <Section id="sources" title="Sources" meta={`${sources.length}`}>
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>
                     {sources.map((s) => <li key={s.id} id={`rec-${s.id}`}><a href={s.data.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{s.data.title || String(s.data.url).replace(/^https?:\/\/(www\.)?/, "")}</a>{s.data.accessed && <span style={{ color: "var(--mute)", fontSize: 11.5 }}> · read {fmtDay(s.data.accessed)}</span>} <RecActions rec={s} /></li>)}
                   </ul>
