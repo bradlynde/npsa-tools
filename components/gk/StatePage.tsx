@@ -605,14 +605,16 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
 
           {/* Contacts and files: short, and wanted at the top, so they share a row under the strip. */}
           {view === "overview" && (doc.contacts.length > 0 || doc.files.length > 0 || editing) && (
-            <div style={{ display: "grid", gridTemplateColumns: narrow || !(doc.contacts.length > 0 && (doc.files.length > 0 || editing)) ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, marginBottom: 16, alignItems: "start" }}>
+            <div className="gk-pair" style={{ display: "grid", gridTemplateColumns: narrow || !(doc.contacts.length > 0 && (doc.files.length > 0 || editing)) ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, marginBottom: 16 }}>
+              {/* Both open: the cards stretch to one height. One closed: they sit at their own heights. */}
+              <style>{`.gk-pair { align-items: stretch; } .gk-pair:has(> .gk-card > details:not([open])) { align-items: start; }`}</style>
               {doc.contacts.length > 0 && (
-                <Card style={{ padding: "6px 24px", minWidth: 0 }}>
-                  <Fold id="contacts" title="Contacts" meta={`${doc.contacts.length} on record`}><Panel>{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Fold>
+                <Card className="gk-card" style={{ padding: "6px 24px", minWidth: 0 }}>
+                  <Fold id="contacts" title="Contacts" meta={`${doc.contacts.length} on record`}><div className="gk-rows">{doc.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</div></Fold>
                 </Card>
               )}
               {(doc.files.length > 0 || editing) && (
-                <Card style={{ padding: "6px 24px", minWidth: 0 }}>
+                <Card className="gk-card" style={{ padding: "6px 24px", minWidth: 0 }}>
                   <Fold id="files" title="Files" meta={doc.files.length ? `${doc.files.length}` : undefined}><Files code={doc.code} files={doc.files} onChanged={reload} /></Fold>
                 </Card>
               )}
