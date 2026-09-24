@@ -47,6 +47,7 @@ export { UPLOAD_MAX_BYTES, sniffUploadType };
 // ── Catalog ───────────────────────────────────────────────────────────────────
 
 const CATALOG = JSON.parse(readFileSync(new URL('./intake-questions.json', import.meta.url), 'utf8'));
+const CHECKLIST_META = JSON.parse(readFileSync(new URL('./intake-checklist.json', import.meta.url), 'utf8')).tasks;
 const NPSA_TEAM = JSON.parse(readFileSync(new URL('./intake-team.json', import.meta.url), 'utf8')).contacts;
 const DOC_KEY_RE = /^up_[a-z0-9_]{2,40}$/;
 
@@ -86,6 +87,8 @@ export function documentsFor(client) {
   const fed = [...codes, 'NSGP-S', ...kb.federal.programs.map(p => p.code)].find(c => kb.federal.programs.some(p => p.code === c) && kb.documents[c]);
   return (kb.documents[own ? own.code : fed || 'baseline'] || []).map(d => ({ ...d }));
 }
+const npsaChecklistKey = k => { const m = /^chk_(?:a\d{1,2}_)?(?:status|due|who|note)_(.+)$/.exec(k); return !!m && CHECKLIST_META[m[1]]?.owner === 'npsa'; };
+const CHECKLIST_STATUSES = ['Not started', 'In progress', 'Completed', 'Not applicable'];
 const CHECKLIST_STEM_SET = new Set(CATALOG.questions.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length)));
 function validDocument(d, label) {
   const key = String(d?.key || '').trim().toLowerCase();
@@ -594,6 +597,9 @@ function statusView(client, answers, base, uploads = []) {
     stem, label: checklistLabel(stem), application, application_label: label,
     status: val(`${prefix}status_${stem}`) || 'Not started',
     due: val(`${prefix}due_${stem}`), owner: val(`${prefix}who_${stem}`), note: val(`${prefix}note_${stem}`),
+    // side: who does it (client tasks are the client's to mark on the form; npsa tasks are the team's).
+    // prefix: where its keys live (chk_ or chk_<application>_), for the team's checklist editor.
+    side: CHECKLIST_META[stem]?.owner || 'client', title: CHECKLIST_META[stem]?.title || checklistLabel(stem), prefix,
   });
   const liveApps = stored ? applications.filter(a => a.status !== 'withdrawn') : [];
   const items = liveApps.length
@@ -982,7 +988,7 @@ export function renderClientPage({ client, stateConfig, existing, contacts = { n
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, received, apiBase, uploadBase };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, received, apiBase, uploadBase, checklistMeta: CHECKLIST_META };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 
@@ -1195,6 +1201,18 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       if (bad.length) throw new BadRequest(`note_asks: not questions NPSA can ask about: ${bad.join(', ')}`);
       noteRows.push({ key: '_note_asks', value: keys.join(',') });
     }
+    // The checklist, from the Grant Writing page: { "chk_status_kickoff_call": "Completed", "chk_a2_due_submit_application": "11/20/2026", … }.
+    if (b.checklist !== undefined) {
+      const ck = b.checklist;
+      if (!ck || typeof ck !== 'object' || Array.isArray(ck)) throw new BadRequest('checklist must be an object of checklist key → value');
+      for (const [key, v] of Object.entries(ck)) {
+        const m = /^chk_(?:a(?:[2-9]|[1-9]\d)_)?(status|due|who|note)_(.+)$/.exec(key);
+        if (!m || !CHECKLIST_STEM_SET.has(m[2])) throw new BadRequest(`"${key}" is not a checklist key`);
+        const value = v === null || v === undefined ? '' : String(v).trim().slice(0, m[1] === 'note' ? 2000 : 120);
+        if (m[1] === 'status' && value && !CHECKLIST_STATUSES.includes(value)) throw new BadRequest(`${key}: status must be one of ${CHECKLIST_STATUSES.join(', ')}`);
+        noteRows.push({ key, value });
+      }
+    }
     if (!Object.keys(patch).length && !add.length && !remove.length && !invite && !noteRows.length) throw new BadRequest('Nothing to change');
     if (noteRows.length) await store.upsertAnswers(c.id, noteRows, `npsa:${req.actor}`);
     if (Object.keys(patch).length) await store.updateClient(c.slug, patch);
@@ -1321,7 +1339,8 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const c = await clientAuth(req, res); if (!c) return;
     // NPSA's notes are the team's to write (Grant Writing page, intake_seed); a page that still
     // sends them, from before the form showed them read-only, has them dropped rather than refused.
-    const rows = normaliseAnswers((req.body || {}).answers).filter(r => !r.key.startsWith('note_'));
+    // NPSA's checklist tasks are the team's to update too (Grant Writing page); the form shows them read-only.
+    const rows = normaliseAnswers((req.body || {}).answers).filter(r => !r.key.startsWith('note_') && !npsaChecklistKey(r.key));
     const existing = await store.getAnswers(c.id);
     const who = rows.find(r => r.key === '_filled_by')?.value || existing.get('_filled_by')?.value || '';
     const n = await store.upsertAnswers(c.id, rows, who ? `client:${who.slice(0, 80)}` : 'client', { clientActivity: true });

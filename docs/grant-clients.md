@@ -521,3 +521,20 @@ which clears it. A client with no programs sees an empty state instead of blank 
 | :-- | :-- | :-- | :-- |
 | PATCH | `/api/clients/:slug` | `question_notes: { q_3_1_1: "…" }` | Writes NPSA notes (keys with or without `note_`), as `npsa:<actor>`. |
 | PATCH | `/api/clients/:slug` | `note_asks: ["q_3_3_1"]` | Replaces the list of notes that are questions for the client. |
+
+## Checklist redesign (2026-09-24)
+
+The client's Checklist tab no longer shows the task table. It shows **Your tasks** (the client's open
+tasks for the next three weeks, one bordered box per due date, nearest in amber, under a "Today" line;
+To do / Working on it / Done on each; Later, Done and "Don't apply" fold away) and **What NPSA is
+working on** (read-only, same date order). The table stays in the page, hidden, as the data layer:
+its selects still autosave and feed the progress bar and the submission box.
+
+- Who owns each task, and the client-facing wording, live in `server/intake-checklist.json`
+  (`owner`: client | npsa, `title`, `hint`). Status items gain `side`, `title` and `prefix`.
+- The client save route drops `chk_…` keys for NPSA-owned tasks, so only the team changes those.
+- The team edits every task from the Grant Writing dialog (**Edit checklist**): `PATCH
+  /api/clients/:slug` with `checklist: { "chk_status_<stem>": "Completed", "chk_due_<stem>": "11/20/2026",
+  "chk_note_<stem>": "…" }` (per-application tasks use `chk_<id>_…`). Status must be Not started, In
+  progress, Completed or Not applicable. A "Not applicable" task's note is the reason the client sees.
+- Notes that are only the "Day N" guide never show to the client.

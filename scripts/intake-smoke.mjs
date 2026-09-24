@@ -846,6 +846,29 @@ await check('progress counts what this client is asked: their sites, their docum
   assert.deepEqual((await call('GET', '/api/clients/progress-church', { headers: TEAM })).data.core, st.core);
   await call('PATCH', '/api/clients/progress-church', { headers: TEAM, body: { status: 'cancelled' } });
 });
+await check('checklist: the team edits any task; the client page can only change its own tasks', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Checklist Church', state: 'GA' } });
+  assert.equal(r.status, 201);
+  const t = new URL(r.data.intake_url).searchParams.get('t');
+  const w = await call('PATCH', '/api/clients/checklist-church', { headers: TEAM, body: { checklist: { chk_status_kickoff_call: 'Completed', chk_due_submit_application: '11/20/2026', chk_status_leadership_bios_resumes_pii_scrubb: 'Not applicable', chk_note_leadership_bios_resumes_pii_scrubb: 'Not needed this cycle' } } });
+  assert.equal(w.status, 200, JSON.stringify(w.data));
+  assert.equal((await call('PATCH', '/api/clients/checklist-church', { headers: TEAM, body: { checklist: { chk_status_kickoff_call: 'Finished' } } })).status, 400);
+  assert.equal((await call('PATCH', '/api/clients/checklist-church', { headers: TEAM, body: { checklist: { chk_status_not_a_task: 'Completed' } } })).status, 400);
+  // the client marks their own task; a stale page changing an NPSA task has that key dropped
+  const save = await call('PUT', '/api/intake/checklist-church/answers', { headers: { 'X-Intake-Token': t }, body: { answers: { chk_status_mission_statement_on_letterhead: 'In progress', chk_status_kickoff_call: 'Not started' } } });
+  assert.equal(save.status, 200);
+  const st = (await call('GET', '/api/clients/checklist-church/status', { headers: TEAM })).data;
+  const item = s => st.checklist.items.find(i => i.stem === s);
+  assert.equal(item('kickoff_call').status, 'Completed');
+  assert.equal(item('mission_statement_on_letterhead').status, 'In progress');
+  assert.deepEqual([item('kickoff_call').side, item('kickoff_call').prefix, item('mission_statement_on_letterhead').side], ['npsa', 'chk_', 'client']);
+  assert.equal(item('wish_list_ideation_per_location').title, 'Brainstorm your wish list');
+  assert.equal(item('leadership_bios_resumes_pii_scrubb').note, 'Not needed this cycle');
+  const html = renderClientPage({ client: { slug: 'a-b', token: 't', name: 'A', state: 'GA' }, stateConfig: {}, existing: {} });
+  assert.match(html, /id="ckx"/);
+  assert.match(html, /var CHECKLIST_META=\{"kickoff_call":\{"owner":"npsa"/);
+  await call('PATCH', '/api/clients/checklist-church', { headers: TEAM, body: { status: 'cancelled' } });
+});
 await check('contacts: reference side is read-only for the client; the client can edit their own people', async () => {
   const before = (await call('GET', `/api/intake/${created.slug}/contacts`, { headers: { 'X-Intake-Token': token() } })).data.reference.length;
   const r = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'eGrants help desk', role: 'Texas SAA', email: 'egrants@gov.texas.gov', phone: '(512) 463-1919' }], add_contacts: [{ name: 'Pat Lee', role: 'Exec Pastor', email: 'pat@example.org' }] } });
