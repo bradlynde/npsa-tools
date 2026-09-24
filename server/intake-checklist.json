@@ -1,0 +1,29 @@
+{
+  "_about": "Who owns each checklist task, and how the client form names it. owner: client tasks get To do / Working on it / Done on the form; npsa tasks show read-only there and are updated from the Grant Writing page or intake_seed. title is the client-facing wording (the catalog label stays the internal name). hint is the quiet line under a client task. 2026-09-24.",
+  "tasks": {
+    "kickoff_call": { "owner": "npsa", "title": "Kickoff call" },
+    "sam_gov_uei_registration": { "owner": "client", "title": "SAM.gov / UEI registration", "hint": "Free at sam.gov. Renews every year." },
+    "confirm_obtain_ein": { "owner": "client", "title": "Confirm your EIN" },
+    "501_c_3_determination_letter": { "owner": "client", "title": "501(c)(3) determination letter", "hint": "Upload it on the Documents tab." },
+    "confirm_legal_org_name_w_secretary": { "owner": "npsa", "title": "Confirm your legal name with the Secretary of State" },
+    "schedule_follow_up_call": { "owner": "npsa", "title": "Schedule your follow-up call" },
+    "state_reg": { "owner": "client", "title": "Your state registration steps" },
+    "information_collection_workbook_co": { "owner": "client", "title": "Finish the Information Collection tab" },
+    "mission_statement_on_letterhead": { "owner": "client", "title": "Mission statement on letterhead", "hint": "Upload it on the Documents tab." },
+    "preparedness_efforts_law_enforceme": { "owner": "client", "title": "Preparedness efforts (law-enforcement relationships)", "hint": "Covered by section 3 of Information Collection." },
+    "leadership_bios_resumes_pii_scrubb": { "owner": "client", "title": "Leadership bios and resumes (personal details removed)", "hint": "Upload them on the Documents tab." },
+    "vulnerability_assessment_request": { "owner": "client", "title": "Request your vulnerability assessment" },
+    "vulnerability_assessment_scheduled": { "owner": "client", "title": "Vulnerability assessment scheduled" },
+    "vulnerability_assessment_received": { "owner": "client", "title": "Vulnerability assessment received", "hint": "Upload it on the Documents tab." },
+    "wish_list_ideation_per_location": { "owner": "client", "title": "Brainstorm your wish list", "hint": "On the Wish List & Budget tab." },
+    "wish_list_prioritization": { "owner": "npsa", "title": "Prioritize your wish list with you" },
+    "vendor_quotes_for_wish_list_items": { "owner": "client", "title": "Vendor quotes for wish-list items" },
+    "wish_list_budget_finalization": { "owner": "npsa", "title": "Finalize the budget" },
+    "investment_justification_ij_prepar": { "owner": "npsa", "title": "Prepare the Investment Justification" },
+    "application_drafting": { "owner": "npsa", "title": "Draft the application" },
+    "final_review_edits": { "owner": "npsa", "title": "Final review and edits" },
+    "review_application_with_you": { "owner": "npsa", "title": "Review the application with you" },
+    "assemble_submission_package": { "owner": "npsa", "title": "Assemble the submission package" },
+    "submit_application": { "owner": "npsa", "title": "Submit the application" }
+  }
+}
