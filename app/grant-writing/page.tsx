@@ -75,7 +75,7 @@ type ClientRow = {
   filled_by: string;
 };
 
-type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string; application?: string | null; application_label?: string | null };
+type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string; application?: string | null; application_label?: string | null; side?: "client" | "npsa"; title?: string; prefix?: string };
 type Upload = { id: number; key: string; label: string; filename: string; size_bytes: number; uploaded_at: string; drive_url: string | null };
 
 /** Fetches a client upload with the login token and hands it to the browser as a download. */
@@ -528,7 +528,98 @@ function PeopleSection({ client, editing, onSaved }: { client: ClientRow; editin
 }
 
 /** The 24 tasks, open ones first; finished and not-applicable ones fold away behind a count. */
-function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
+const CK_STATUS: [string, string][] = [["Not started", "To do"], ["In progress", "Working on it"], ["Completed", "Done"], ["Not applicable", "Doesn't apply"]];
+/** "10/8/2026" or "2026-10-08" → "2026-10-08" for a date input; blank when unreadable. */
+function toIsoDate(v: string): string {
+  const s = String(v || "").trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(s);
+  if (m) return `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  return "";
+}
+/** The client form's own format, which its checklist reads: M/D/YYYY. */
+const fromIsoDate = (v: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); return m ? `${Number(m[2])}/${Number(m[3])}/${m[1]}` : ""; };
+const isDayGuide = (n: string) => /^Day \d+/.test(n);
+
+/**
+ * The checklist editor: every task with its status, due date and note, the client's tasks first, then
+ * NPSA's. The client form lets the client mark only their own tasks; NPSA's are updated here. A task set
+ * to "Doesn't apply" shows its note to the client as the reason. Takes over the dialog like the notes pane.
+ */
+function ChecklistPane({ client, items, onClose, closeGuard }: { client: ClientRow; items: ChecklistItem[]; onClose: (saved: boolean) => void; closeGuard: React.MutableRefObject<(() => boolean) | null> }) {
+  const stacked = useMedia("(max-width: 900px)");
+  const key = (it: ChecklistItem, f: string) => `${it.prefix || "chk_"}${f}_${it.stem}`;
+  const initial = () => Object.fromEntries(items.flatMap((it) => [
+    [key(it, "status"), it.status || "Not started"], [key(it, "due"), toIsoDate(it.due)], [key(it, "note"), isDayGuide(it.note) ? "" : it.note || ""],
+  ]));
+  const [base, setBase] = useState<Record<string, string>>(initial);
+  const [draft, setDraft] = useState<Record<string, string>>(initial);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [savedOnce, setSavedOnce] = useState(false);
+  const changed = Object.keys(draft).filter((k) => draft[k] !== base[k]);
+  const dirty = changed.length > 0;
+  closeGuard.current = () => !dirty || window.confirm("Close without saving your checklist changes?");
+  useEffect(() => () => { closeGuard.current = null; }, [closeGuard]);
+  const leave = () => { if (dirty && !window.confirm("Leave without saving your checklist changes?")) return; onClose(savedOnce); };
+  const set = (k: string, v: string) => setDraft((d) => ({ ...d, [k]: v }));
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const checklist = Object.fromEntries(changed.map((k) => [k, /_due_/.test(k) ? fromIsoDate(draft[k]) : draft[k]]));
+      await patchJson(`/api/clients/${client.slug}`, { checklist });
+      setBase(draft); setSavedOnce(true);
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const byDue = (a: ChecklistItem, b: ChecklistItem) => (draft[key(a, "due")] || "9999").localeCompare(draft[key(b, "due")] || "9999");
+  const groups: [string, string, ChecklistItem[]][] = [
+    ["client", "The client's tasks", items.filter((it) => it.side !== "npsa").sort(byDue)],
+    ["npsa", "NPSA's tasks", items.filter((it) => it.side === "npsa").sort(byDue)],
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
+      <div style={{ padding: "12px 26px", borderBottom: "1px solid var(--hair)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button type="button" onClick={leave} style={{ ...xBtn, fontSize: 13, color: "var(--navy)", padding: 0 }}>← Back to client</button>
+        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginLeft: 6 }}>Checklist</span>
+        <span style={{ fontSize: 12, color: "var(--faint)" }}>The client marks their own tasks on the form; NPSA&rsquo;s are set here. A &ldquo;doesn&rsquo;t apply&rdquo; note is the reason the client sees.</span>
+        <span style={{ flex: 1 }} />
+        {dirty && <span style={{ fontSize: 12, color: "var(--warn-fg)" }}>Unsaved changes</span>}
+        <button type="button" disabled={busy || !dirty} onClick={save} style={{ ...smallBtn, background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)", opacity: busy || !dirty ? 0.55 : 1 }}>{busy ? "Saving…" : "Save checklist"}</button>
+      </div>
+      <div style={{ overflowY: "auto", padding: "8px 26px 30px" }}>
+        {err && <Note>{err}</Note>}
+        {groups.map(([gk, title, list]) => (
+          <section key={gk} style={{ marginTop: 18 }}>
+            <Eyebrow style={{ fontSize: 11, marginBottom: 4 }}>{title} · {list.length}</Eyebrow>
+            {list.map((it) => {
+              const sk = key(it, "status"), dk = key(it, "due"), nk = key(it, "note");
+              const na = draft[sk] === "Not applicable";
+              return (
+                <div key={sk} style={{ display: "grid", gridTemplateColumns: stacked ? "1fr" : "minmax(0, 1.3fr) 150px 150px minmax(0, 1.4fr)", gap: stacked ? 8 : 14, alignItems: "start", padding: "12px 0", borderTop: "1px solid var(--hair)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.35 }}>{it.title || it.label}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--faint)" }}>{[it.application_label, it.title && it.title !== it.label ? it.label : ""].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <select value={draft[sk]} onChange={(e) => set(sk, e.target.value)} aria-label={`Status of ${it.label}`} style={{ ...inputStyle, fontSize: 12.5 }}>
+                    {CK_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                  <input type="date" value={draft[dk]} onChange={(e) => set(dk, e.target.value)} aria-label={`Due date for ${it.label}`} style={{ ...inputStyle, fontSize: 12.5 }} />
+                  <textarea value={draft[nk]} onChange={(e) => set(nk, e.target.value)} rows={na || draft[nk] ? 2 : 1}
+                    placeholder={na ? "Why it doesn't apply (the client sees this)" : "Note the client sees under the task"}
+                    aria-label={`Note on ${it.label}`} style={{ ...inputStyle, fontSize: 12.5, resize: "vertical", fontFamily: "inherit", lineHeight: 1.45, borderColor: na && !draft[nk] ? "var(--warn-fg)" : "var(--bd2)" }} />
+                </div>
+              );
+            })}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChecklistSection({ checklist, onEdit }: { checklist: Status["checklist"]; onEdit: () => void }) {
   const [showDone, setShowDone] = useState(false);
   const open = checklist.items.filter((it) => it.status !== "Completed" && it.status !== "Not applicable");
   const rest = checklist.items.filter((it) => it.status === "Completed" || it.status === "Not applicable");
@@ -548,7 +639,7 @@ function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
     return (
       <li key={it.stem} style={{ display: "grid", gridTemplateColumns: "14px minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "6px 0", borderTop: i ? "1px solid var(--hair2)" : undefined, fontSize: 13 }}>
         <span aria-hidden style={{ width: 10, height: 10, borderRadius: "50%", justifySelf: "center", border: `2px solid ${done ? "var(--ok-fg)" : prog ? "var(--warn-fg)" : "var(--bd2)"}`, background: done ? "var(--ok-fg)" : prog ? "var(--warn-bg)" : na ? "var(--bd2)" : "transparent", opacity: na ? 0.5 : 1 }} />
-        <span style={{ minWidth: 0, color: done || na ? "var(--mute)" : "var(--ink)", lineHeight: 1.35, textDecoration: na ? "line-through" : undefined, opacity: na ? 0.6 : 1 }}>{it.label}</span>
+        <span style={{ minWidth: 0, color: done || na ? "var(--mute)" : "var(--ink)", lineHeight: 1.35, textDecoration: na ? "line-through" : undefined, opacity: na ? 0.6 : 1 }}>{it.label}{it.side === "npsa" && <span className="mono" style={{ fontSize: 10, color: "var(--faint)", marginLeft: 6, textTransform: "uppercase", letterSpacing: ".06em" }}>npsa</span>}</span>
         <span className="mono" style={{ fontSize: 11.5, color: prog ? "var(--warn-fg)" : "var(--faint)", whiteSpace: "nowrap", textAlign: "right" }}>{meta}</span>
       </li>
     );
@@ -581,6 +672,7 @@ function ChecklistSection({ checklist }: { checklist: Status["checklist"] }) {
           ))}
         </ul>
       )}
+      <button type="button" onClick={onEdit} style={{ ...smallBtn, marginTop: 10 }}>Edit checklist</button>
     </Section>
   );
 }
@@ -736,6 +828,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
   const stacked = useMedia("(max-width: 900px)");
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesVersion, setNotesVersion] = useState(0);
+  const [ckOpen, setCkOpen] = useState(false);
   // While the notes pane is open, closing the dialog asks first if a note is unsaved.
   const notesGuard = useRef<(() => boolean) | null>(null);
   const close = () => { if (!notesGuard.current || notesGuard.current()) onClose(); };
@@ -832,10 +925,11 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
           </div>
         </div>
 
+        {ckOpen && detail && <ChecklistPane client={c} items={detail.status.checklist.items} closeGuard={notesGuard} onClose={(didSave) => { setCkOpen(false); if (didSave) getJson<Status>(`/api/clients/${row.slug}/status`).then((status) => setDetail((d) => (d ? { ...d, status } : d))).catch(() => {}); }} />}
         {notesOpen && detail && <NotesPane client={c} closeGuard={notesGuard} onClose={(saved) => { setNotesOpen(false); if (saved) setNotesVersion((v) => v + 1); }} />}
 
         {/* Body */}
-        <div style={{ overflowY: "auto", padding: "18px 26px 26px", display: notesOpen ? "none" : undefined }}>
+        <div style={{ overflowY: "auto", padding: "18px 26px 26px", display: notesOpen || ckOpen ? "none" : undefined }}>
           {error && <Note>Could not load {row.slug}: {error}</Note>}
           {!error && !s && <Note>Loading…</Note>}
           {s && (
@@ -940,7 +1034,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     </Section>
                   )}
 
-                  <ChecklistSection checklist={s.checklist} />
+                  <ChecklistSection checklist={s.checklist} onEdit={() => setCkOpen(true)} />
                 </div>
               </div>
             </>
