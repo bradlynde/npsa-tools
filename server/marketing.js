@@ -35,6 +35,8 @@
 // An ID does not drift. Rename a campaign in Instantly and the name follows on
 // the next lookup, on the UTM path and the reverse-match path alike, because
 // both now read it from the same place.
+import { zapSecretOk } from './api-gate.js';
+
 const CAMPAIGN_SLUG_IDS = {
   'broader-church-p1':       'a2a95058-21b8-41c4-8c39-a340976e66d3',
   'broader-church-p2':       'e95713bc-1d2d-4d8b-8475-c1a77771ba8c',
@@ -1660,7 +1662,7 @@ export function registerMarketing(app, pool) {
   // Ingest (called by Zapier). Protect with a shared secret.
   app.post('/api/marketing/bookings/ingest', async (req, res) => {
     if (!pool) return guard(res);
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     try {
@@ -1674,7 +1676,7 @@ export function registerMarketing(app, pool) {
   // Body: { organization, domain, amount, close_date, opportunity_id }. Same shared secret.
   app.post('/api/marketing/wins/ingest', async (req, res) => {
     if (!pool) return guard(res);
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     try {
@@ -1691,7 +1693,7 @@ export function registerMarketing(app, pool) {
   // drifting ABOVE Salesforce over time. Guarded by the same shared secret.
   app.post('/api/marketing/wins/reconcile', async (req, res) => {
     if (!pool) return guard(res);
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     const ids = Array.isArray(req.body?.opportunity_ids) ? req.body.opportunity_ids.map(String) : null;
@@ -1721,7 +1723,7 @@ export function registerMarketing(app, pool) {
   // Applications ingest (called by the Salesforce Application Zap on create+update).
   app.post('/api/marketing/applications/ingest', async (req, res) => {
     if (!pool) return guard(res);
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     try {
@@ -1733,7 +1735,7 @@ export function registerMarketing(app, pool) {
   // Same drift protection as wins: delete any application not in the authoritative set.
   app.post('/api/marketing/applications/reconcile', async (req, res) => {
     if (!pool) return guard(res);
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     const ids = Array.isArray(req.body?.application_ids) ? req.body.application_ids.map(String) : null;
@@ -2435,7 +2437,7 @@ export function registerMarketing(app, pool) {
   // cancelled deal back on the dashboard.
   app.post('/api/marketing/bookings/backfill-calendly', async (req, res) => {
     if (!pool) return guard(res);
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     const eventType = req.body?.event_type;

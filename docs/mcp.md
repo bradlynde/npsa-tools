@@ -62,6 +62,35 @@ Keys are secrets. Do not commit them -- `.mcp.json` carries `${NPSA_MCP_KEY}`
 rather than a key for exactly that reason -- and do not keep them under
 `~/Documents` (iCloud-synced).
 
+## The /api gate
+
+Every `/api` route on this service needs a credential (`server/api-gate.js`,
+mounted first in `server/index.js`). A route added later is locked by default.
+
+| Caller | Credential | Reaches |
+| :--- | :--- | :--- |
+| MCP tools (loopback) | per-process internal key, sent automatically | everything |
+| Vercel shell's proxies | a key from `MCP_API_KEYS`, as a bearer token | everything |
+| Sales Toolbox iframe | the person's login token, handed in by the shell | everything |
+| Zaps and backfill scripts | `X-Zap-Secret` | the Zapier routes only |
+| Client intake page, GK uploads | the client's token, or a signed ticket | their own routes |
+
+`/api/clients`, `/api/intake` and `/api/grant-knowledge` pass the gate untouched:
+those modules check every route themselves.
+
+Two Railway variables the gate depends on:
+
+```
+JWT_SECRET              # the same value as JWT_SECRET on Vercel (the auth service's secret)
+ZAPIER_WEBHOOK_SECRET   # already set; the Zaps send it
+```
+
+Without `JWT_SECRET`, the toolbox iframe's calls are refused (no login token is
+trusted unverified). Without `ZAPIER_WEBHOOK_SECRET`, the Zapier routes refuse
+everything with 503; before the gate they accepted everything.
+
+`scripts/api-gate-smoke.mjs` checks all of this with no database.
+
 ## Connecting
 
 ### Claude Code

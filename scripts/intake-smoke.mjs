@@ -396,13 +396,41 @@ await check('the client can list, add and remove their own contacts but not the 
   assert.equal((await call('DELETE', `/api/intake/${created.slug}/contacts?email=nobody%40trinity.org`, { headers: h })).status, 404);
 });
 
+await check('the client cannot take over a reference contact such as the SAA official', async () => {
+  const h = { 'X-Intake-Token': token() };
+  const ref = await call('PATCH', `/api/clients/${created.slug}`, { headers: TEAM, body: { add_reference_contacts: [{ name: 'State Official', email: 'official@saa.example.gov', role: 'SAA' }] } });
+  assert.equal(ref.status, 200, JSON.stringify(ref.data));
+  const before = mailbox.length;
+  const grab = await call('POST', `/api/intake/${created.slug}/contacts`, { headers: h, body: { name: 'Mine Now', email: 'Official@saa.example.gov' } });
+  assert.equal(grab.status, 400);
+  assert.match(grab.data.error, /managed by Nonprofit Security Advisors/);
+  assert.equal(mailbox.length, before, 'the reference contact was not mailed the intake link');
+  const team = await call('GET', `/api/clients/${created.slug}`, { headers: TEAM });
+  assert.equal(team.data.contacts.find(c => c.email === 'official@saa.example.gov').side, 'reference');
+});
+
+await check('welcome emails the client can trigger are capped per client per hour', async () => {
+  const h = { 'X-Intake-Token': token() };
+  const welcomed = [];
+  for (let i = 1; i <= 6; i++) {
+    const r = await call('POST', `/api/intake/${created.slug}/contacts`, { headers: h, body: { name: `Helper ${i}`, email: `helper${i}@trinity.org` } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    welcomed.push(r.data.welcomed);
+  }
+  assert.equal(welcomed[5], false, 'the sixth add inside the hour sends nothing');
+  assert.ok(welcomed.filter(Boolean).length <= 5);
+  for (let i = 1; i <= 6; i++) await call('DELETE', `/api/intake/${created.slug}/contacts?email=helper${i}%40trinity.org`, { headers: h });
+});
+
 await check('page route: unknown slug and wrong token get the error page, right token renders', async () => {
   const unknown = await call('GET', '/client/nobody?t=abc');
   assert.equal(unknown.status, 404);
   assert.match(unknown.data, /isn’t recognized/);
   const wrong = await call('GET', `/client/${created.slug}?t=nope`);
   assert.equal(wrong.status, 404);
-  assert.match(wrong.data, /invalid or has expired/);
+  assert.equal(wrong.data, unknown.data, 'a wrong token and an unknown client look the same');
+  // Same page as an unknown slug: a wrong token must not confirm the client exists.
+  assert.match(wrong.data, /isn’t recognized/);
   assert.equal(rendered, null);
   const ok = await call('GET', `/client/${created.slug}?t=${token()}`);
   assert.equal(ok.status, 200);
@@ -496,6 +524,9 @@ await check('an upload needs the token, an upload key, and a real PDF/JPG/PNG', 
   const t = token();
   assert.equal((await upload(created.slug, null, multipart('up_mission', 'm.pdf', PDF))).status, 401);
   assert.equal((await upload(created.slug, 'ffffffffffffffffffff', multipart('up_mission', 'm.pdf', PDF))).status, 401);
+  // Refused on the token before the body is read: 30 MB with no token is a 401, not a 413.
+  const big = await fetch(`${origin}/api/intake/${created.slug}/upload`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: Buffer.alloc(30 * 1024 * 1024) });
+  assert.equal(big.status, 401);
   const badKey = await upload(created.slug, t, multipart('q_1_1_1', 'm.pdf', PDF));
   assert.equal(badKey.status, 400);
   assert.match((await badKey.json()).error, /not one of this client's documents/);

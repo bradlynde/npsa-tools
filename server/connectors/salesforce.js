@@ -46,6 +46,7 @@
 import express from 'express';
 import { createSign } from 'node:crypto';
 import { recordWin, recordFinancial, recordApplication, rebuildBookingWins } from '../marketing.js';
+import { zapSecretOk } from '../api-gate.js';
 
 const DEFAULT_STAGE = 'Won - Data Migrated to 2012 Processes';
 const DEFAULT_SINCE = '2024-10-01';
@@ -588,7 +589,7 @@ export function registerSalesforceConnector(app, pool) {
   // here is a no-op when that has already run, and the correct limit when this
   // connector is mounted somewhere that has not.
   app.post('/api/marketing/sync/push', express.json({ limit: '10mb' }), async (req, res) => {
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     // The source can ride in the query string, and the records can arrive still
@@ -691,7 +692,7 @@ export function registerSalesforceConnector(app, pool) {
   // Writes nothing, reads nothing, and truncates to one record: this is for
   // checking shape, not for moving data.
   app.post('/api/marketing/sync/echo', express.json({ limit: '10mb' }), (req, res) => {
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     const body = req.body || {};
@@ -718,7 +719,7 @@ export function registerSalesforceConnector(app, pool) {
 
   // Manual kick — same shared secret as the ingest endpoints.
   app.post('/api/marketing/sync/salesforce', async (req, res) => {
-    if (process.env.ZAPIER_WEBHOOK_SECRET && req.headers['x-zap-secret'] !== process.env.ZAPIER_WEBHOOK_SECRET) {
+    if (!zapSecretOk(req)) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     try {
