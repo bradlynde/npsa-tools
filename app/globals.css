@@ -11,140 +11,215 @@ body {
 }
 
 /* ── Design tokens ──────────────────────────────────────────────
+   The palette is the NPSA website's: cream, sand, navy, olive and
+   deep navy. Every text color below passes WCAG AA (4.5:1) on both
+   the cream page and a white card; the numbers are noted beside each.
+
    Light is the default. Dark is applied by adding `.dark` to <body>
-   (see ThemeScript in app/layout.tsx + the toggle in TopBar).
-   Every component reads these through var(--x) — never a per-component
-   light/dark conditional.
+   (see THEME_SCRIPT in app/layout.tsx and lib/theme.ts). Components
+   read these through var(--x), never a per-component light/dark branch.
    ─────────────────────────────────────────────────────────────── */
 
 body {
   /* surfaces */
-  --bg: #fbfaf8;
+  --bg: #faf8f0; /* website cream: the page */
   --card: #ffffff;
-  --bd: #e7e2d6;
-  --bd2: #d9d5cc;
-  --hair: #e4e0d6;
-  --hair2: #f0ede5;
-  --track: #efece4;
-  --hover: #f6f4ee;
+  --sand: #f5eee2; /* website sand: quiet fills */
+  --raised: #ffffff; /* menus and popovers */
+  --hover: #f5efe3;
+  --track: #ede6d7;
+  --seg: #f0eadd;
+  --seg-active: #ffffff;
+
+  /* lines */
+  --hair2: #f0ebe1; /* rows inside a card */
+  --hair: #e7e0d2; /* section rules */
+  --bd: #e4ddcd; /* quiet card edge */
+  --bd2: #dcd4c3; /* card edge */
+  --line-strong: #cfc6b3; /* tags, chips, secondary buttons */
+  --field: #8a8373; /* input borders: 3.5:1 on cream, 3.8:1 on white */
 
   /* ink */
-  --ink: #182230;
-  --sec: #4a5462;
-  --mute: #8a8577;
-  --faint: #a09a8c;
-  --chip-muted: #6b7583;
+  --ink: #072a41; /* website deep navy · 13.9:1 */
+  --sec: #3f4d5a; /* 8.2:1 */
+  --mute: #56636f; /* 5.8:1 */
+  --faint: #66717d; /* 4.7:1; not for text on sand */
+  --chip-muted: #56636f;
 
-  /* brand — navy and olive are the only two hues */
-  --navy: #1e3a5f;
-  --navycard: #1e3a5f;
-  --olive: #6b8e23;
+  /* brand */
+  --navy: #0d3d5b; /* website navy · 10.8:1 */
+  --navy-strong: #072a41;
+  --navy-tint: #e6eef4;
+  --navy-ink: #0d3d5b;
+  --navycard: #0d3d5b;
+  --olive: #7c781a; /* website olive: fills and figures 24px and up (4.3:1) */
+  --olive-ink: #625f12; /* olive for small text · 6.2:1 */
+  --olive-tint: #efeed8;
   --on-accent: #ffffff;
+  --focus: #0d3d5b;
 
-  /* controls */
-  --seg: rgba(24, 34, 48, 0.05);
-  --seg-active: #ffffff;
   /* Previous-period bars: must read clearly against paper, without competing
      with the navy series bar in front of it. */
-  --ghost: #c3bba6;
+  --ghost: #c9c0ab;
 
-  /* status */
-  --ok-fg: #4a6417;
-  --ok-bg: #eef3e0;
-  --run-fg: #1e3a5f;
-  --run-bg: #e9eef5;
-  --q-fg: #6a675f;
-  --q-bg: #efece4;
+  /* status: fg on its own bg, all 5:1 or better */
+  --ok-fg: #5a5c0e;
+  --ok-bg: #efefd8;
+  --run-fg: #0d3d5b;
+  --run-bg: #e6eef4;
+  --q-fg: #56636f;
+  --q-bg: #efeae0;
   --err-fg: #a3341f;
-  --err-bg: #fbeee9;
+  --err-bg: #fbece7;
+  --err-line: #e5b3a6;
   --warn-fg: #8a5a12;
-  --warn-bg: #fbf3e2;
+  --warn-bg: #fbf1de;
 
   /* misc */
-  --tip-bg: #182230;
-  --tip-fg: #fbfaf8;
+  --tip-bg: #072a41;
+  --tip-fg: #faf8f0;
   --logo-filter: none;
-  /* A tight contact shadow does the edge-defining work; the wide one keeps the
-     paper feel. One soft ambient shadow alone left white cards floating. */
-  --shadow-card: 0 1px 2px rgba(60, 50, 30, 0.07), 0 3px 14px rgba(60, 50, 30, 0.07);
-  --shadow-card-hover: 0 2px 4px rgba(60, 50, 30, 0.08), 0 14px 30px rgba(60, 50, 30, 0.13);
-  --shadow-navy: 0 10px 26px rgba(30, 58, 95, 0.25);
-  --shadow-navy-hover: 0 16px 36px rgba(30, 58, 95, 0.35);
+  --shadow-card: 0 1px 2px rgba(7, 42, 65, 0.05);
+  --shadow-card-hover: 0 2px 4px rgba(7, 42, 65, 0.06), 0 8px 24px rgba(7, 42, 65, 0.08);
+  --shadow-pop: 0 2px 6px rgba(7, 42, 65, 0.08), 0 16px 40px rgba(7, 42, 65, 0.14);
+  --shadow-navy: 0 1px 2px rgba(7, 42, 65, 0.12);
+  --shadow-navy-hover: 0 2px 4px rgba(7, 42, 65, 0.14), 0 8px 24px rgba(7, 42, 65, 0.16);
+  --scrim: rgba(7, 26, 38, 0.42);
 
+  /* shape */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  /* shell */
+  --sidebar-w: 248px;
+  --mobile-header-h: 56px;
+  --mobile-tabs-h: 64px;
+
+  color-scheme: light;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background 0.3s;
+  text-rendering: optimizeLegibility;
 }
 
 body.dark {
-  --bg: #10161e;
-  --card: #1a2430;
-  --bd: #273244;
-  --bd2: #33415a;
-  --hair: #26313f;
-  --hair2: #222d3a;
-  --track: #242f3d;
-  --hover: #202b38;
+  --bg: #0a1824;
+  --card: #10212e;
+  --sand: #152a39;
+  --raised: #142838;
+  --hover: #16293a;
+  --track: #1a2f3f;
+  --seg: #0c1c28;
+  --seg-active: #1d3547;
 
-  --ink: #e8edf4;
-  --sec: #a7b4c6;
-  --mute: #8796aa;
-  --faint: #66748a;
-  --chip-muted: #8ea0b5;
+  --hair2: #172a38;
+  --hair: #1e3444;
+  --bd: #1e3444;
+  --bd2: #274052;
+  --line-strong: #34506a;
+  --field: #627a8c; /* 3.7:1 on a card */
 
-  /* the accessibility-validated brand siblings — dark mode only */
-  --navy: #4a8bc4;
-  --navycard: #1e3a5f;
-  --olive: #7d9c30;
-  --on-accent: #0e1620;
+  --ink: #f1eee6; /* 14.2:1 on a card */
+  --sec: #bac4cc; /* 9.3:1 */
+  --mute: #98a5b0; /* 6.5:1 */
+  --faint: #8c9aa6; /* 5.7:1 */
+  --chip-muted: #98a5b0;
 
-  --seg: rgba(255, 255, 255, 0.06);
-  --seg-active: #26344a;
-  --ghost: #46586f;
+  /* navy can't carry text on a dark ground, so dark mode uses its light sibling */
+  --navy: #8cbbe0; /* 8.1:1 on a card */
+  --navy-strong: #a9cdea;
+  --navy-tint: #15334a;
+  --navy-ink: #8cbbe0;
+  --navycard: #0d3d5b;
+  --olive: #b5af45;
+  --olive-ink: #c8c26a;
+  --olive-tint: #262a12;
+  --on-accent: #0a1824;
+  --focus: #8cbbe0;
 
-  --ok-fg: #a8c860;
-  --ok-bg: #28331a;
-  --run-fg: #8fb9e4;
-  --run-bg: #1d3145;
-  --q-fg: #9aa5b1;
-  --q-bg: #242f3d;
-  --err-fg: #f0a08c;
-  --err-bg: #3a1f19;
-  --warn-fg: #e8bd6d;
-  --warn-bg: #33260a;
+  --ghost: #3d5163;
 
-  --tip-bg: #e8edf4;
-  --tip-fg: #10161e;
-  --logo-filter: brightness(0) invert(1);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
-  --shadow-card-hover: 0 14px 30px rgba(0, 0, 0, 0.45);
-  --shadow-navy: 0 10px 26px rgba(0, 0, 0, 0.45);
-  --shadow-navy-hover: 0 16px 36px rgba(0, 0, 0, 0.6);
+  --ok-fg: #c8c26a;
+  --ok-bg: #262a12;
+  --run-fg: #9cc4e4;
+  --run-bg: #12304a;
+  --q-fg: #a3afba;
+  --q-bg: #1a2c3a;
+  --err-fg: #f2a18e;
+  --err-bg: #3a1d17;
+  --err-line: #6b3226;
+  --warn-fg: #e8be6d;
+  --warn-bg: #33260c;
+
+  --tip-bg: #f1eee6;
+  --tip-fg: #0a1824;
+  --logo-filter: none;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 44px rgba(0, 0, 0, 0.5);
+  --shadow-navy: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-navy-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.45);
+  --scrim: rgba(2, 8, 13, 0.6);
+
+  color-scheme: dark;
+}
+
+/* Theme switches animate; first paint and route changes don't. */
+body.theme-anim,
+body.theme-anim * {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease !important;
 }
 
 a {
   color: var(--navy);
 }
 a:hover {
-  color: var(--olive);
+  color: var(--navy-strong);
 }
 
+/* Form controls inherit the interface face instead of the OS default. */
+button,
 input,
 select,
 textarea {
-  outline-color: var(--navy);
+  font-family: inherit;
+  color: inherit;
 }
 
-/* Keyboard focus stays visible everywhere */
+::selection {
+  background: rgba(13, 61, 91, 0.16);
+}
+body.dark ::selection {
+  background: rgba(140, 187, 224, 0.28);
+}
+
+/* One focus ring for every control, never removed. */
 :focus-visible {
-  outline: 2px solid var(--navy);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-offset: 0;
+}
 
-/* ── Type roles ──────────────────────────────────────────────── */
+/* Quiet scrollbars that match the palette. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ── Type ────────────────────────────────────────────────────────
+   Three families, each with one job:
+   Newsreader for page titles and the figures people come to read,
+   IBM Plex Sans for everything you click or scan,
+   IBM Plex Mono for codes and IDs only.
+   ─────────────────────────────────────────────────────────────── */
 
 .mono {
   font-family: var(--font-mono);
@@ -152,22 +227,25 @@ textarea {
 .serif {
   font-family: var(--font-serif);
 }
-
-/* Eyebrow label — mono, lowercase, wide tracking */
-.eyebrow {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: var(--olive);
+.num {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Page headline — Newsreader with a 500-weight italic phrase */
+/* Small label that names the thing below it: sentence case, never tracked mono. */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* Page title */
 .headline {
   font-family: var(--font-serif);
   font-weight: 400;
-  font-size: 40px;
-  line-height: 1.1;
+  font-size: 32px;
+  line-height: 40px;
   letter-spacing: -0.01em;
   margin: 0;
   text-wrap: balance;
@@ -175,15 +253,670 @@ textarea {
 .headline em {
   font-weight: 500;
 }
+.headline-hero {
+  font-size: 40px;
+  line-height: 46px;
+}
 
-/* KPI number */
+/* Section title inside a page */
+.section-title {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* KPI figure */
 .kpi {
   font-family: var(--font-serif);
   font-weight: 500;
-  font-size: 42px;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  font-size: 40px;
+  line-height: 44px;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* Page frame padding; the width lives on <Page>. */
+.page {
+  padding: 32px 40px 56px;
+}
+
+/* ── Controls ────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.btn svg {
+  flex-shrink: 0;
+}
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn[aria-busy="true"] {
+  cursor: progress;
+}
+.btn-sm {
+  height: 32px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  border-radius: var(--r-sm);
+}
+.btn-lg {
+  height: 44px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+.btn-icon {
+  width: 36px;
+  padding: 0;
+}
+.btn-sm.btn-icon {
+  width: 32px;
+}
+.btn-block {
+  width: 100%;
+}
+
+.btn-primary {
+  background: var(--navy);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-navy);
+}
+.btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--navy-strong);
+  color: var(--on-accent);
+}
+.btn-secondary {
+  background: var(--card);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.btn-secondary:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--hover);
+  border-color: var(--field);
+  color: var(--ink);
+}
+.btn-quiet {
+  background: transparent;
+  color: var(--sec);
+}
+.btn-quiet:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--hover);
+  color: var(--ink);
+}
+.btn-danger {
+  background: var(--card);
+  color: var(--err-fg);
+  border-color: var(--err-line);
+}
+.btn-danger:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--err-bg);
+  color: var(--err-fg);
+}
+/* On a filled navy surface */
+.btn-inverse {
+  background: #ffffff;
+  color: #0d3d5b;
+}
+.btn-inverse:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #f5eee2;
+  color: #072a41;
+}
+
+/* Segmented control: switches the view. */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--seg);
+  border-radius: var(--r-md);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.seg::-webkit-scrollbar {
+  display: none;
+}
+.seg-btn {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--sec);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.seg-btn:hover {
+  color: var(--ink);
+}
+.seg-btn[aria-pressed="true"],
+.seg-btn[aria-selected="true"] {
+  background: var(--seg-active);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(7, 42, 65, 0.12), 0 0 0 1px rgba(7, 42, 65, 0.04);
+}
+body.dark .seg-btn[aria-pressed="true"],
+body.dark .seg-btn[aria-selected="true"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.seg-sm .seg-btn {
+  height: 26px;
+  padding: 0 10px;
+}
+
+/* Filter chips: narrow a list. */
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  color: var(--sec);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.chip:hover {
+  border-color: var(--field);
+  color: var(--ink);
+}
+.chip[aria-pressed="true"] {
+  background: var(--navy-tint);
+  border-color: var(--navy);
+  color: var(--navy-ink);
+}
+
+/* Status badge: the dot keeps status readable without color. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+}
+.badge-dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.badge-ok {
+  color: var(--ok-fg);
+  background: var(--ok-bg);
+}
+.badge-run {
+  color: var(--run-fg);
+  background: var(--run-bg);
+}
+.badge-neutral {
+  color: var(--q-fg);
+  background: var(--q-bg);
+}
+.badge-err {
+  color: var(--err-fg);
+  background: var(--err-bg);
+}
+.badge-warn {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+}
+.badge-outline {
+  color: var(--sec);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+}
+
+/* Text fields */
+.field {
+  height: 36px;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--field);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+.field::placeholder {
+  color: var(--faint);
+}
+
+/* Plain data table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 20px;
+}
+.data-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--sec);
+  border-bottom: 1px solid var(--hair);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hair2);
+  vertical-align: top;
+}
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+.data-table th:first-child,
+.data-table td:first-child {
+  padding-left: 24px;
+}
+.data-table th:last-child,
+.data-table td:last-child {
+  padding-right: 24px;
+}
+
+/* A list row that highlights under the pointer. */
+.row-hover {
+  transition: background-color 0.12s ease;
+}
+.row-hover:hover {
+  background: var(--hover);
+}
+
+/* Action card: a whole card that starts a task. */
+.action-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--bd2);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.action-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+.action-card-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: var(--navy-tint);
+  color: var(--navy-ink);
+  flex-shrink: 0;
+}
+.action-card-title {
+  display: block;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.action-card-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sec);
+}
+.action-card-chevron {
+  color: var(--mute);
+  flex-shrink: 0;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.action-card:hover .action-card-chevron {
+  color: var(--ink);
+  transform: translateX(2px);
+}
+.action-card-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.action-card-feature {
+  background: var(--navycard);
+  border-color: var(--navycard);
+  color: #ffffff;
+  box-shadow: var(--shadow-navy);
+}
+.action-card-feature:hover {
+  border-color: var(--navycard);
+  box-shadow: var(--shadow-navy-hover);
+}
+.action-card-feature .action-card-icon {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+.action-card-feature .action-card-desc {
+  color: rgba(255, 255, 255, 0.84);
+}
+body.dark .action-card-feature {
+  border-color: #1d5480;
+}
+
+/* ── Shell ───────────────────────────────────────────────────── */
+
+/* The sidebar's state lives on <html data-sidebar>, set before first paint by
+   SIDEBAR_SCRIPT in app/layout.tsx so the layout never jumps. */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+html[data-sidebar="collapsed"] .app {
+  --sidebar-w: 68px;
+}
+html.sidebar-anim .app {
+  transition: grid-template-columns 0.2s ease;
+}
+.app-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-main > main {
+  flex: 1;
+  width: 100%;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 12px 12px;
+  border-right: 1px solid var(--hair);
+  background: var(--bg);
+  z-index: 30;
+}
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 8px;
+  margin-bottom: 14px;
+  text-decoration: none;
+  overflow: hidden;
+}
+.sidebar-brand img {
+  flex-shrink: 0;
+}
+.brand-word,
+.brand-mark {
+  display: flex;
+  align-items: center;
+}
+.sidebar .brand-mark {
+  display: none;
+}
+.nav-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 11px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--sec);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.nav-item svg {
+  flex-shrink: 0;
+  color: var(--mute);
+  transition: color 0.15s ease;
+}
+.nav-item:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.nav-item:hover svg {
+  color: var(--ink);
+}
+.nav-item[aria-current="page"] {
+  background: var(--navy-tint);
+  color: var(--navy-ink);
+  font-weight: 600;
+}
+.nav-item[aria-current="page"] svg {
+  color: var(--navy-ink);
+}
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair);
+}
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--navycard);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Collapsed rail: icons only, names on hover. */
+html[data-sidebar="collapsed"] .sidebar {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+html[data-sidebar="collapsed"] .nav-item {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+}
+html[data-sidebar="collapsed"] .nav-label,
+html[data-sidebar="collapsed"] .sidebar-hide {
+  display: none;
+}
+html[data-sidebar="collapsed"] .sidebar .brand-word {
+  display: none;
+}
+html[data-sidebar="collapsed"] .sidebar .brand-mark {
+  display: flex;
+}
+html[data-sidebar="collapsed"] .sidebar-brand {
+  justify-content: center;
+  padding: 0;
+}
+.rail-tip {
+  display: none;
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--tip-bg);
+  color: var(--tip-fg);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-pop);
+  z-index: 70;
+}
+html[data-sidebar="collapsed"] .nav-item:hover .rail-tip,
+html[data-sidebar="collapsed"] .nav-item:focus-visible .rail-tip {
+  display: block;
+}
+
+/* Theme logos: the light files by default, the reversed ones in dark mode.
+   !important because each <img> also sits under layout rules (a flex row, a
+   centered column) that would otherwise decide its display. */
+img.logo-light {
+  display: block;
+}
+img.logo-dark {
+  display: none !important;
+}
+body.dark img.logo-light {
+  display: none !important;
+}
+body.dark img.logo-dark {
+  display: block !important;
+}
+
+.menu {
+  position: absolute;
+  min-width: 232px;
+  padding: 6px;
+  background: var(--raised);
+  border: 1px solid var(--bd2);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  z-index: 60;
+  animation: menuIn 0.14s ease both;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menu-item svg {
+  color: var(--mute);
+  flex-shrink: 0;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.menu-sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--hair);
+}
+.menu-label {
+  padding: 8px 10px 6px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--mute);
+}
+
+/* The embedded Sales Toolbox takes the rest of the viewport. On phones that is
+   what's left between the header and the tab bar, so the app's own fixed
+   Back / Next bar sits above the tabs instead of under them. */
+.tool-frame {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.mobile-header {
+  display: none;
+}
+.mobile-tabs {
+  display: none;
 }
 
 /* ── Animations ──────────────────────────────────────────────── */
@@ -221,7 +954,7 @@ textarea {
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -229,15 +962,49 @@ textarea {
   }
 }
 
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200px 0;
+  }
+  to {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .fade-up {
-  animation: fadeUp 0.4s ease both;
+  animation: fadeUp 0.35s ease both;
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--track) 0, var(--hover) 80px, var(--track) 160px) var(--track);
+  background-size: 200px 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
 /* Legacy helpers still referenced by run-detail / new-run screens */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -245,7 +1012,7 @@ textarea {
   }
 }
 .animate-in {
-  animation: fadeInUp 0.4s ease-out both;
+  animation: fadeInUp 0.35s ease-out both;
 }
 .delay-1 { animation-delay: 0.05s; }
 .delay-2 { animation-delay: 0.1s; }
@@ -258,24 +1025,23 @@ textarea {
   box-shadow: var(--shadow-card);
 }
 
-/* Same lift for the filled navy/olive tiles, which carry their own deeper
-   shadow rather than the paper one. */
+/* Filled navy tiles */
 .lift-accent {
   box-shadow: var(--shadow-navy);
-  transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.4, 1), box-shadow 0.25s;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 .lift-accent:hover {
-  transform: translateY(-3px);
   box-shadow: var(--shadow-navy-hover);
 }
 
-/* Card lift — the signature overshoot easing */
+/* Clickable cards: a quiet lift, no bounce. */
 .lift {
-  transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.4, 1), box-shadow 0.25s;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .lift:hover {
-  transform: translateY(-3px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-card-hover);
+  border-color: var(--line-strong) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -291,18 +1057,96 @@ textarea {
 /* ── Responsive ──────────────────────────────────────────────── */
 
 @media (max-width: 760px) {
-  /* Room for the fixed bottom tab bar (see MobileTabs in TopBar.tsx). */
-  main {
-    padding-bottom: 84px;
+  .app {
+    display: block;
+  }
+  .sidebar {
+    display: none;
+  }
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: var(--mobile-header-h);
+    padding: 0 12px 0 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--hair);
+  }
+  /* Fixed, not sticky: `overflow-x: hidden` on <body> makes it a scroll
+     container, which breaks sticky pinning at the bottom. */
+  .mobile-tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: flex;
+    padding: 4px 4px env(safe-area-inset-bottom);
+    background: var(--card);
+    border-top: 1px solid var(--hair);
+  }
+  .mobile-tab {
+    flex: 1;
+    min-width: 0;
+    height: calc(var(--mobile-tabs-h) - 4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: var(--r-sm);
+    color: var(--mute);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .mobile-tab[aria-current="page"] {
+    color: var(--navy-ink);
+    font-weight: 600;
+  }
+  .mobile-tab[aria-current="page"] .mobile-tab-icon {
+    background: var(--navy-tint);
+  }
+  .mobile-tab-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 28px;
+    border-radius: 999px;
+    transition: background-color 0.15s ease;
+  }
+  /* Room for the fixed tab bar. */
+  .app-main > main {
+    padding-bottom: calc(var(--mobile-tabs-h) + env(safe-area-inset-bottom) + 16px);
+  }
+  .app-main > main.frame-main {
+    padding-bottom: 0;
+  }
+  .tool-frame {
+    height: calc(100dvh - var(--mobile-header-h) - var(--mobile-tabs-h) - env(safe-area-inset-bottom));
   }
   .headline {
+    font-size: 28px;
+    line-height: 34px;
+  }
+  .headline-hero {
     font-size: 30px;
+    line-height: 36px;
   }
   .kpi {
-    font-size: 34px;
+    font-size: 32px;
+    line-height: 36px;
   }
   .grid-responsive {
     grid-template-columns: 1fr !important;
+  }
+  .page {
+    padding: 20px 16px 32px;
   }
   .page-container {
     padding: 16px 14px !important;
@@ -318,6 +1162,12 @@ textarea {
   }
   .btn-row-responsive {
     flex-wrap: wrap !important;
+  }
+  /* iOS zooms into any field under 16px; don't let it. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
 

@@ -1,26 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   Page,
   Card,
   PageHeading,
+  SectionHeader,
   Eyebrow,
   StatTile,
   SegPill,
   Bar,
-  Pulse,
-  PillButton,
+  Button,
   Note,
   useRoll,
   fmtInt,
   fmtMoney,
   fmtPct,
-} from "../components/ui";
-import TimeSeriesChart from "../components/marketing/TimeSeriesChart";
-import SalesBand from "../components/marketing/SalesBand";
-import CampaignTable from "../components/marketing/CampaignTable";
-import BookingsTable from "../components/marketing/BookingsTable";
+} from "../../components/ui";
+import TimeSeriesChart from "../../components/marketing/TimeSeriesChart";
+import SalesBand from "../../components/marketing/SalesBand";
+import CampaignTable from "../../components/marketing/CampaignTable";
+import BookingsTable from "../../components/marketing/BookingsTable";
 import {
   fetchStats,
   fetchApplicationStats,
@@ -52,7 +53,7 @@ import {
   type SalesGranularity,
   type SalesPoint,
   type SyncStatus,
-} from "../lib/marketing";
+} from "../../lib/marketing";
 
 const RANGES: { key: Range; label: string }[] = [
   { key: "month", label: "This month" },
@@ -63,9 +64,10 @@ const RANGES: { key: Range; label: string }[] = [
 ];
 
 const todayLine = () =>
-  new Date()
-    .toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-    .toLowerCase();
+  new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+/** "this quarter" → "This quarter" for section meta. */
+const sentenceWord = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
 export default function DashboardPage() {
 
@@ -225,7 +227,7 @@ export default function DashboardPage() {
     // past meeting and the rate read 100% of 232 with no input that could lower it.
     // Attendance is not measured anywhere, so it is not reported as though it were.
     {
-      label: `loes sent · ${rangeTag}`,
+      label: `LOEs sent · ${rangeTag}`,
       value: fmtInt(totals.loes * roll),
       note: totals.held ? `${loeRate}% of held meetings` : "no held meetings yet",
       accent: false,
@@ -280,46 +282,26 @@ export default function DashboardPage() {
           alignItems: "flex-end",
           justifyContent: "space-between",
           gap: 20,
-          marginBottom: 26,
+          marginBottom: 28,
           flexWrap: "wrap",
         }}
       >
-        <PageHeading eyebrow={`sales & marketing · ${todayLine()}`}>
+        <PageHeading hero eyebrow={`Dashboard · ${todayLine()}`}>
           The business, <em>up front.</em>
         </PageHeading>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="mono"
-            style={{
-              fontWeight: 600,
-              fontSize: 12,
-              padding: "8px 14px",
-              borderRadius: 999,
-              border: "1px solid var(--bd2)",
-              background: "transparent",
-              color: "var(--sec)",
-              cursor: refreshing ? "wait" : "pointer",
-              transition: "background .2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            {refreshing ? "refreshing…" : "↻ refresh data"}
-          </button>
+          <Button variant="secondary" size="sm" icon={RefreshCw} onClick={handleRefresh} busy={refreshing} disabled={refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh data"}
+          </Button>
         </div>
       </div>
 
-
-
       {mktError && (
-        <Card style={{ marginBottom: 14, borderColor: "var(--err-fg)" }}>
-          <Eyebrow color="var(--err-fg)" style={{ marginBottom: 6 }}>
-            marketing data unavailable
+        <Card style={{ marginBottom: 16, borderColor: "var(--err-line)", background: "var(--err-bg)" }}>
+          <Eyebrow color="var(--err-fg)" style={{ marginBottom: 4, fontWeight: 600 }}>
+            Marketing data unavailable
           </Eyebrow>
-          <div style={{ fontSize: 13.5, color: "var(--sec)" }}>
+          <div style={{ fontSize: 14, lineHeight: "20px", color: "var(--sec)" }}>
             {mktError}. The Sales Toolbox backend may be unreachable — the rest of the toolbox is
             unaffected.
           </div>
@@ -340,43 +322,12 @@ export default function DashboardPage() {
 
       {/* The range selector scopes the marketing figures only — the Salesforce
           band above is all-time — so it belongs to this section, not the page. */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          margin: "22px 0 10px",
-        }}
-      >
-        <Eyebrow>marketing · what feeds the pipeline</Eyebrow>
-        <SegPill options={RANGES} value={range} onChange={changeRange} size="sm" />
-      </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
-          marginBottom: 14,
-        }}
-      >
-        <span
-          className="mono"
-          style={{
-            fontSize: 11,
-            letterSpacing: ".06em",
-            color: "var(--mute)",
-            background: "var(--seg)",
-            border: "1px solid var(--hair)",
-            padding: "4px 12px",
-            borderRadius: 999,
-          }}
-        >
-          funnel tracked since Feb 2026
-        </span>
-      </div>
+      <SectionHeader
+        title="Marketing"
+        meta="What feeds the pipeline · tracked since February 2026"
+        actions={<SegPill options={RANGES} value={range} onChange={changeRange} size="sm" label="Marketing range" />}
+        style={{ margin: "32px 0 12px" }}
+      />
       {/* Primary, range-scoped KPIs */}
       <div
         style={{
@@ -400,7 +351,7 @@ export default function DashboardPage() {
 
       {/* Fixed-window pulse — these don't move with the range selector */}
       {stats && (
-        <Card hover style={{ marginBottom: 14, padding: "16px 22px" }}>
+        <Card style={{ marginBottom: 14, padding: "16px 22px" }}>
           <div
             style={{
               display: "grid",
@@ -410,13 +361,13 @@ export default function DashboardPage() {
           >
             {[
               {
-                label: "bookings this week",
+                label: "Bookings this week",
                 value: fmtInt(stats.bookings_this_week),
-                note: "sun–sat",
+                note: "Sunday to Saturday",
                 accent: false,
               },
               {
-                label: "bookings this month",
+                label: "Bookings this month",
                 value: fmtInt(stats.bookings_this_month),
                 note:
                   stats.bookings_last_month_to_date != null
@@ -425,29 +376,20 @@ export default function DashboardPage() {
                 accent: false,
               },
               {
-                label: "from instantly",
+                label: "From Instantly",
                 value: fmtPct(stats.instantly_pct * 100),
-                note: "of all bookings",
+                note: "Of all bookings",
                 accent: false,
               },
               {
-                label: "loe value won",
+                label: "LOE value won",
                 value: fmtMoney(stats.total_fees_won),
-                note: "all signed letters",
+                note: "All signed letters",
                 accent: true,
               },
             ].map((s) => (
               <div key={s.label}>
-                <div
-                  className="mono"
-                  style={{
-                    fontWeight: 500,
-                    fontSize: 10.5,
-                    letterSpacing: ".07em",
-                    color: "var(--mute)",
-                    marginBottom: 7,
-                  }}
-                >
+                <div className="eyebrow" style={{ marginBottom: 6 }}>
                   {s.label}
                 </div>
                 <div
@@ -455,14 +397,14 @@ export default function DashboardPage() {
                   style={{
                     fontSize: 24,
                     fontWeight: 500,
-                    lineHeight: 1,
+                    lineHeight: "32px",
                     fontVariantNumeric: "tabular-nums",
                     color: s.accent ? "var(--olive)" : "var(--ink)",
                   }}
                 >
                   {s.value}
                 </div>
-                <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6 }}>{s.note}</div>
+                <div style={{ fontSize: 13, lineHeight: "18px", color: "var(--mute)", marginTop: 4 }}>{s.note}</div>
               </div>
             ))}
           </div>
@@ -478,7 +420,8 @@ export default function DashboardPage() {
             alignItems: "center",
             gap: 8,
             margin: "0 0 16px",
-            fontSize: 12.5,
+            fontSize: 13,
+            lineHeight: "18px",
             color: "var(--mute)",
           }}
         >
@@ -501,7 +444,7 @@ export default function DashboardPage() {
                 ({stats.excluded_this_week} this week)
               </strong>
             )}
-            <span style={{ color: "var(--faint)" }}> — still listed below</span>
+            <span> · still listed below</span>
           </span>
         </div>
       ) : null}
@@ -536,7 +479,7 @@ export default function DashboardPage() {
         }}
       >
         <Card>
-          <Eyebrow style={{ marginBottom: 22 }}>funnel — {RANGE_WORD[range]}</Eyebrow>
+          <SectionHeader title="Funnel" meta={sentenceWord(RANGE_WORD[range])} style={{ marginBottom: 20 }} />
           {totals.booked === 0 ? (
             <Note>{mktLoading ? "Loading…" : "No bookings in this range."}</Note>
           ) : (
@@ -581,29 +524,29 @@ export default function DashboardPage() {
                     >
                       <span
                         className="serif"
-                        style={{ fontStyle: "italic", fontSize: 16, color: "var(--faint)" }}
+                        style={{ fontStyle: "italic", fontSize: 16, color: "var(--mute)" }}
                       >
                         {f.rn}
                       </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--sec)" }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>
                         {f.name}
                       </span>
                       <Bar
                         pct={pct}
-                        height={20}
-                        radius={6}
+                        height={16}
+                        radius={4}
                         color={f.won ? "var(--olive)" : "var(--navy)"}
                       />
                       <span
                         style={{
-                          fontSize: 13,
-                          fontWeight: 700,
+                          fontSize: 14,
+                          fontWeight: 600,
                           fontVariantNumeric: "tabular-nums",
                           textAlign: "right",
                         }}
                       >
                         {f.val}{" "}
-                        <span style={{ color: "var(--faint)", fontWeight: 500, fontSize: 11 }}>
+                        <span style={{ color: "var(--mute)", fontWeight: 400, fontSize: 13 }}>
                           {pct}%
                         </span>
                       </span>
@@ -611,10 +554,10 @@ export default function DashboardPage() {
                     {f.foot && (
                       <div
                         style={{
-                          fontSize: 12.5,
-                          fontWeight: 700,
-                          color: "var(--olive)",
-                          marginTop: 5,
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: "var(--olive-ink)",
+                          marginTop: 4,
                           paddingLeft: 134,
                         }}
                       >
@@ -629,11 +572,13 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <Eyebrow style={{ marginBottom: bookingsTruncated ? 8 : 22 }}>
-            bookings by channel — {RANGE_WORD[range]}
-          </Eyebrow>
+          <SectionHeader
+            title="Bookings by channel"
+            meta={sentenceWord(RANGE_WORD[range])}
+            style={{ marginBottom: bookingsTruncated ? 6 : 20 }}
+          />
           {bookingsTruncated && (
-            <div style={{ fontSize: 11.5, color: "var(--faint)", marginBottom: 16 }}>
+            <div style={{ fontSize: 13, lineHeight: "18px", color: "var(--mute)", marginBottom: 16 }}>
               Based on the most recent {BOOKINGS_LIMIT} bookings — older ones aren’t counted here.
             </div>
           )}
@@ -651,13 +596,13 @@ export default function DashboardPage() {
                     gap: 12,
                   }}
                 >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--sec)" }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>
                     {c.name}
                   </span>
                   <Bar pct={(c.booked / channels[0].booked) * 100} />
                   <span
                     style={{
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontVariantNumeric: "tabular-nums",
                       color: "var(--sec)",
                       textAlign: "right",
@@ -668,7 +613,7 @@ export default function DashboardPage() {
                     {c.won ? (
                       <>
                         {" · "}
-                        <span style={{ color: "var(--olive)", fontWeight: 700 }}>
+                        <span style={{ color: "var(--olive-ink)", fontWeight: 600 }}>
                           {c.won >= 1000 ? `$${Math.round(c.won / 1000)}k` : fmtMoney(c.won)}
                         </span>
                       </>

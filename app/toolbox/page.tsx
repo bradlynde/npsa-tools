@@ -3,9 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
+  ChevronRight,
+  FileMinus2,
+  FilePlus2,
+  FileText,
+  FolderOpen,
+  NotebookPen,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
+import {
   Page,
   Card,
   PageHeading,
+  SectionHeader,
   Eyebrow,
   StatTile,
   Bar,
@@ -48,7 +60,7 @@ function authHeaders(): Record<string, string> {
 }
 
 /**
- * Roman-numeral action card. `feature` renders it as the navy hero card.
+ * Action card. `feature` renders it as the navy card for the main job here.
  *
  * `right` is for a card that carries live state — the deadline count, say. It
  * goes through here rather than being styled at the call site, so a card with a
@@ -56,7 +68,7 @@ function authHeaders(): Record<string, string> {
  * card without one.
  */
 function ActionCard({
-  numeral,
+  icon: Icon,
   title,
   description,
   onClick,
@@ -64,7 +76,7 @@ function ActionCard({
   badge,
   right,
 }: {
-  numeral: string;
+  icon: LucideIcon;
   title: string;
   description: string;
   onClick: () => void;
@@ -72,105 +84,31 @@ function ActionCard({
   badge?: string;
   right?: React.ReactNode;
 }) {
-  const base: React.CSSProperties = {
-    borderRadius: 16,
-    padding: "22px 24px",
-    cursor: "pointer",
-    display: "flex",
-    gap: 18,
-    alignItems: "baseline",
-    transition: "transform .25s cubic-bezier(.34,1.4,.4,1), box-shadow .25s",
-  };
-
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      style={
-        feature
-          ? { ...base, background: "var(--navycard)", boxShadow: "var(--shadow-navy)" }
-          : {
-              ...base,
-              background: "var(--card)",
-              border: "1px solid var(--bd)",
-              boxShadow: "var(--shadow-card)",
-            }
-      }
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-3px)";
-        e.currentTarget.style.boxShadow = feature
-          ? "0 16px 36px rgba(30,58,95,.35)"
-          : "var(--shadow-card-hover)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = feature ? "var(--shadow-navy)" : "var(--shadow-card)";
-      }}
-    >
-      <span
-        className="serif"
-        style={{
-          fontStyle: "italic",
-          fontSize: 20,
-          color: feature ? "rgba(255,255,255,.5)" : "var(--faint)",
-        }}
-      >
-        {numeral}
+    <button type="button" onClick={onClick} className={feature ? "action-card action-card-feature" : "action-card"}>
+      <span className="action-card-icon" aria-hidden>
+        <Icon size={20} strokeWidth={1.75} />
       </span>
-      <div style={{ flex: 1 }}>
-        <h3
-          style={{
-            margin: "0 0 5px",
-            fontSize: 16.5,
-            fontWeight: 700,
-            color: feature ? "#fff" : "var(--ink)",
-          }}
-        >
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span className="action-card-title">
           {title}
           {badge && (
-            <span
-              className="mono"
-              style={{
-                fontWeight: 600,
-                fontSize: 9.5,
-                letterSpacing: ".07em",
-                color: "var(--olive)",
-                border: "1px solid var(--olive)",
-                padding: "2px 8px",
-                borderRadius: 999,
-                verticalAlign: 2,
-                marginLeft: 6,
-              }}
-            >
+            <span className="badge badge-outline" style={{ marginLeft: 8, verticalAlign: 1 }}>
               {badge}
             </span>
           )}
-        </h3>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: feature ? "rgba(255,255,255,.72)" : "var(--sec)",
-          }}
-        >
-          {description}
-        </p>
-      </div>
-      {right}
-      {feature && (
-        <span className="mono" style={{ fontWeight: 600, fontSize: 12, color: "#fff" }}>
-          start →
         </span>
+        <span className="action-card-desc">{description}</span>
+      </span>
+      {right}
+      {feature ? (
+        <span className="action-card-go">
+          Start <ArrowRight size={16} strokeWidth={1.75} aria-hidden />
+        </span>
+      ) : (
+        <ChevronRight className="action-card-chevron" size={18} strokeWidth={1.75} aria-hidden />
       )}
-    </div>
+    </button>
   );
 }
 
@@ -219,18 +157,20 @@ export default function ToolboxPage() {
 
   return (
     <Page>
-      <PageHeading eyebrow="sales toolbox · loes & proposals" style={{ marginBottom: 26 }}>
-        Paper that <em>closes.</em>
+      <PageHeading
+        description="Engagement letters, proposals and addendums, pre-call notes, and the reps letters are credited to."
+        style={{ marginBottom: 28 }}
+      >
+        Sales Toolbox
       </PageHeading>
 
       {error && (
-        <Card style={{ marginBottom: 14, borderColor: "var(--err-fg)" }}>
-          <Eyebrow color="var(--err-fg)" style={{ marginBottom: 6 }}>
-            letter data unavailable
+        <Card style={{ marginBottom: 16, borderColor: "var(--err-line)", background: "var(--err-bg)" }}>
+          <Eyebrow color="var(--err-fg)" style={{ marginBottom: 4, fontWeight: 600 }}>
+            Letter data unavailable
           </Eyebrow>
-          <div style={{ fontSize: 13.5, color: "var(--sec)" }}>
-            {error}. You can still open the Sales Toolbox directly — the tools below work
-            regardless.
+          <div style={{ fontSize: 14, lineHeight: "20px", color: "var(--sec)" }}>
+            {error}. The tools below still work.
           </div>
         </Card>
       )}
@@ -244,14 +184,14 @@ export default function ToolboxPage() {
         }}
       >
         <StatTile
-          label="total letters generated"
+          label="Letters generated"
           value={loading ? "—" : fmtInt((stats?.total || 0) * roll)}
-          note="all time · all reps"
+          note="All time · all reps"
         />
         <StatTile
-          label="total fees generated"
+          label="Fees in saved letters"
           value={loading ? "—" : fmtMoney((stats?.total_fees || 0) * roll)}
-          note="across all saved letters"
+          note="Across every saved letter"
           accent
         />
       </div>
@@ -264,55 +204,56 @@ export default function ToolboxPage() {
           alignItems: "start",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Eyebrow style={{ margin: "6px 0 -4px" }}>engagement letters</Eyebrow>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Eyebrow style={{ margin: "4px 0 0" }}>Engagement letters</Eyebrow>
           <ActionCard
             feature
-            numeral="i."
-            title="Generate New Letter"
-            description="Pre-award, in-house, or post-award — pricing computed from the 6.14.2026 NPSA sheet."
+            icon={FilePlus2}
+            title="Generate a new letter"
+            description="Pre-award, in-house or post-award, priced from the 6.14.2026 NPSA sheet."
             onClick={() => router.push("/loe?view=generator")}
           />
           <ActionCard
-            numeral="ii."
-            title="Load Previous Letter"
+            icon={FolderOpen}
+            title="Open a saved letter"
             description="Search and reload a saved draft."
             onClick={() => router.push("/loe?view=letters")}
           />
 
-          <Eyebrow style={{ margin: "8px 0 -4px" }}>proposals &amp; addendums</Eyebrow>
+          <Eyebrow style={{ margin: "14px 0 0" }}>Proposals and addendums</Eyebrow>
           <ActionCard
-            numeral="iii."
-            title="New Proposal"
-            description="One-page leadership summary of scope & price."
+            icon={FileText}
+            title="New proposal"
+            description="A one-page summary of scope and price for leadership."
             onClick={() => router.push("/loe?view=proposal")}
           />
           <ActionCard
-            numeral="iv."
-            title="New Addendum"
+            icon={FileMinus2}
+            title="New addendum"
             description="Remove Implementation Period services from a signed letter."
             onClick={() => router.push("/loe?view=addendum")}
           />
 
-          <Eyebrow style={{ margin: "8px 0 -4px" }}>tools</Eyebrow>
+          <Eyebrow style={{ margin: "14px 0 0" }}>Before a call</Eyebrow>
           <ActionCard
-            numeral="v."
-            title="Pre-Call Notes Generator"
-            description="Paste a Calendly invite and generate AI-powered prep notes."
+            icon={NotebookPen}
+            title="Pre-call notes"
+            description="Paste a Calendly invite and get prep notes for the meeting."
             onClick={() => router.push("/loe?view=precall")}
           />
-          <Eyebrow style={{ margin: "8px 0 -4px" }}>settings</Eyebrow>
+
+          <Eyebrow style={{ margin: "14px 0 0" }}>Settings</Eyebrow>
           <ActionCard
-            numeral="vi."
-            title="Manage Sales Reps"
-            description="Add or remove the reps letters are attributed to — they drive the leaderboard."
+            icon={UsersRound}
+            title="Sales reps"
+            description="Add or remove the reps letters are credited to. They drive the leaderboard."
             onClick={() => router.push("/loe?view=settings")}
           />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Card>
-            <Eyebrow style={{ marginBottom: 16 }}>rep leaderboard</Eyebrow>
+            <SectionHeader title="Rep leaderboard" meta="Letters generated" style={{ marginBottom: 16 }} />
             {loading ? (
               <Note>Loading…</Note>
             ) : leaders.length === 0 ? (
@@ -330,35 +271,34 @@ export default function ToolboxPage() {
                     }}
                   >
                     <span
-                      className="mono"
                       style={{
-                        width: 22,
-                        height: 22,
+                        width: 24,
+                        height: 24,
                         borderRadius: "50%",
                         display: "grid",
                         placeItems: "center",
                         fontWeight: 600,
-                        fontSize: 11,
-                        background: p.rank === 1 ? "var(--navy)" : "var(--card)",
-                        color: p.rank === 1 ? "var(--on-accent)" : "var(--mute)",
-                        border: p.rank === 1 ? "none" : "1px solid var(--bd2)",
+                        fontSize: 12,
+                        fontVariantNumeric: "tabular-nums",
+                        background: p.rank === 1 ? "var(--navy)" : "var(--sand)",
+                        color: p.rank === 1 ? "var(--on-accent)" : "var(--sec)",
                       }}
                     >
                       {p.rank}
                     </span>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>
                       {p.name}
                     </span>
-                    <Bar pct={p.pct} height={12} radius={4} />
+                    <Bar pct={p.pct} height={8} />
                     <span
                       style={{
-                        fontSize: 12.5,
+                        fontSize: 13,
                         fontVariantNumeric: "tabular-nums",
                         color: "var(--sec)",
                         textAlign: "right",
                       }}
                     >
-                      <strong style={{ color: "var(--ink)" }}>{p.count}</strong>{" "}
+                      <strong style={{ color: "var(--ink)", fontWeight: 600 }}>{p.count}</strong>{" "}
                       {p.count === 1 ? "letter" : "letters"}
                     </span>
                   </div>
@@ -368,14 +308,14 @@ export default function ToolboxPage() {
           </Card>
 
           <Card>
-            <Eyebrow style={{ marginBottom: 14 }}>recent letters</Eyebrow>
+            <SectionHeader title="Recent letters" style={{ marginBottom: 6 }} />
             {loading ? (
               <Note>Loading…</Note>
             ) : letters.length === 0 ? (
               <Note>No letters saved yet.</Note>
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
-                {letters.slice(0, 6).map((l) => (
+                {letters.slice(0, 6).map((l, i, shown) => (
                   <div
                     key={l.id}
                     style={{
@@ -383,20 +323,17 @@ export default function ToolboxPage() {
                       justifyContent: "space-between",
                       alignItems: "center",
                       gap: 10,
-                      padding: "12px 2px",
-                      borderBottom: "1px solid var(--hair2)",
+                      padding: "10px 0",
+                      borderBottom: i < shown.length - 1 ? "1px solid var(--hair2)" : "none",
                     }}
                   >
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>
-                      {l.client_name || "Untitled"}{" "}
-                      <span style={{ fontWeight: 500, color: "var(--mute)" }}>
-                        — {docLabel(l.doc_tab)}
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>
+                        {l.client_name || "Untitled"}
                       </span>
+                      <span style={{ display: "block", fontSize: 13, color: "var(--mute)" }}>{docLabel(l.doc_tab)}</span>
                     </span>
-                    <span
-                      className="mono"
-                      style={{ fontSize: 11, color: "var(--faint)", whiteSpace: "nowrap" }}
-                    >
+                    <span style={{ fontSize: 13, color: "var(--sec)", whiteSpace: "nowrap" }}>
                       {l.rep_name || ""}
                     </span>
                   </div>

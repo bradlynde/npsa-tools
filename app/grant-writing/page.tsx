@@ -294,7 +294,7 @@ function Section({ title, meta, children }: { title: string; meta?: React.ReactN
   return (
     <section style={{ paddingTop: 18, borderTop: "1px solid var(--hair2)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
-        <Eyebrow style={{ fontSize: 11 }}>{title}</Eyebrow>
+        <Eyebrow>{title}</Eyebrow>
         {meta && <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)", whiteSpace: "nowrap" }}>{meta}</span>}
       </div>
       {children}
@@ -307,7 +307,7 @@ function Stat({ label, value, sub, bar, tone }: { label: string; value: React.Re
   const color = tone === "err" ? "var(--err-fg)" : tone === "warn" ? "var(--warn-fg)" : "var(--ink)";
   return (
     <div style={{ padding: "12px 14px", background: "var(--bg)", border: "1px solid var(--hair)", borderRadius: 12, minWidth: 0 }}>
-      <Eyebrow style={{ fontSize: 10.5, marginBottom: 6 }}>{label}</Eyebrow>
+      <Eyebrow style={{ marginBottom: 4 }}>{label}</Eyebrow>
       <div className="headline" style={{ fontSize: 20, lineHeight: 1.1, color, fontVariantNumeric: "tabular-nums" }}>{value}</div>
       {bar !== undefined && <div style={{ marginTop: 8 }}><Bar pct={Math.min(100, bar)} color={tone === "err" ? "var(--err-fg)" : "var(--olive)"} height={5} radius={3} animate={false} /></div>}
       {sub && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
@@ -335,7 +335,7 @@ function ApplicationsSection({ client, derived, editing, onSaved }: { client: Cl
   const dirty = JSON.stringify(draft) !== JSON.stringify(seed());
   if (!editing && client.applications_set && stored.length) return null; // the dialog header already shows them
   return (
-    <Section title="applications" meta={client.applications_set ? `${stored.length} set` : derived.length ? "from the Locations tab, not set" : "not set"}>
+    <Section title="Applications" meta={client.applications_set ? `${stored.length} set` : derived.length ? "from the Locations tab, not set" : "not set"}>
       {!editing && (shown.length ? <AppChips apps={shown} size="md" /> : <Faint>No applications set. Use Edit to add the programs and cycles we are writing.</Faint>)}
       {!editing && !client.applications_set && derived.length > 0 && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 6 }}>Guessed from the client&rsquo;s &ldquo;Programs applying&rdquo; answers. Set them so the form&rsquo;s header, caps and documents follow.</div>}
       {editing && (
@@ -402,7 +402,7 @@ function DocumentsSection({ client, uploads, editing, onSaved }: { client: Clien
     </div>
   );
   return (
-    <Section title="documents" meta={`${received} of ${docs.length} received${client.documents_customised ? " · customised" : ""}`}>
+    <Section title="Documents" meta={`${received} of ${docs.length} received${client.documents_customised ? " · customised" : ""}`}>
       <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
         {docs.map((d) => {
           const files = byKey.get(d.key) || [];
@@ -499,7 +499,7 @@ function PeopleSection({ client, editing, onSaved }: { client: ClientRow; editin
   );
   const sub = (t: string) => <div style={{ fontSize: 11, color: "var(--faint)", letterSpacing: ".06em", textTransform: "uppercase", marginTop: 12, marginBottom: 6 }} className="mono">{t}</div>;
   return (
-    <Section title="people" meta={`${own.length} at the client`}>
+    <Section title="People" meta={`${own.length} at the client`}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {own.length === 0 && <Faint>No client contacts on file yet.</Faint>}
         {own.map((x) => person(x, false, editing))}
@@ -592,7 +592,7 @@ function ChecklistPane({ client, items, onClose, closeGuard }: { client: ClientR
         {err && <Note>{err}</Note>}
         {groups.map(([gk, title, list]) => (
           <section key={gk} style={{ marginTop: 18 }}>
-            <Eyebrow style={{ fontSize: 11, marginBottom: 4 }}>{title} · {list.length}</Eyebrow>
+            <Eyebrow style={{ marginBottom: 4 }}>{title} · {list.length}</Eyebrow>
             {list.map((it) => {
               const sk = key(it, "status"), dk = key(it, "due"), nk = key(it, "note");
               const na = draft[sk] === "Not applicable";
@@ -700,7 +700,7 @@ function NotesSection({ client, version, onOpen }: { client: ClientRow; version:
   const withNote = data ? data.notes.filter((n) => n.note || data.asks.includes(n.q)) : [];
   const open = data ? data.asks.length : 0;
   return (
-    <Section title="npsa notes" meta={data ? `${data.notes.filter((n) => n.note).length} on the form${open ? ` · ${open} question${open === 1 ? "" : "s"} for the client` : ""}` : undefined}>
+    <Section title="NPSA notes" meta={data ? `${data.notes.filter((n) => n.note).length} on the form${open ? ` · ${open} question${open === 1 ? "" : "s"} for the client` : ""}` : undefined}>
       {err && <div style={{ color: "var(--err-fg)", fontSize: 12 }}>{err}</div>}
       {!data && !err && <Faint>Loading…</Faint>}
       {data && withNote.length === 0 && <Faint>No notes yet. The client sees a note under their answer.</Faint>}
@@ -778,7 +778,7 @@ function NotesPane({ client, onClose, closeGuard }: { client: ClientRow; onClose
         {data && groups.length === 0 && <div style={{ padding: "18px 0" }}><Faint>No notes in this view yet.</Faint></div>}
         {groups.map((g) => (
           <section key={g.sec} style={{ marginTop: 18 }}>
-            <Eyebrow style={{ fontSize: 11, marginBottom: 4 }}>Section {g.sec} · {NOTE_SECTIONS[g.sec]}</Eyebrow>
+            <Eyebrow style={{ marginBottom: 4 }}>Section {g.sec} · {NOTE_SECTIONS[g.sec]}</Eyebrow>
             {g.rows.map((n) => {
               const a = data!.answer.get(n.q) || "";
               const ask = asks.includes(n.q);
@@ -936,17 +936,17 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
             <>
               {/* The four numbers that answer "where do they stand" */}
               <div style={{ display: "grid", gridTemplateColumns: stacked ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10, marginBottom: 8 }}>
-                <Stat label="intake" value={`${pct(s.core.answered, s.core.total)}%`} sub={`${s.core.answered} of ${s.core.total} core answers`} bar={pct(s.core.answered, s.core.total)} />
-                <Stat label="checklist" value={`${s.checklist.completed} / ${s.checklist.total}`} sub={s.checklist.not_applicable ? `${s.checklist.not_applicable} not applicable` : "tasks completed"} bar={pct(s.checklist.completed, s.checklist.total)} />
+                <Stat label="Intake" value={`${pct(s.core.answered, s.core.total)}%`} sub={`${s.core.answered} of ${s.core.total} core answers`} bar={pct(s.core.answered, s.core.total)} />
+                <Stat label="Checklist" value={`${s.checklist.completed} / ${s.checklist.total}`} sub={s.checklist.not_applicable ? `${s.checklist.not_applicable} not applicable` : "tasks completed"} bar={pct(s.checklist.completed, s.checklist.total)} />
                 <Stat
-                  label="wish list"
+                  label="Wish list"
                   value={picked ? `${picked} item${picked === 1 ? "" : "s"}` : "none yet"}
                   sub={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)} allowed` : "nothing costed yet"}
                   bar={s.budget && s.budget.requested > 0 ? pct(s.budget.requested, s.budget.cap) : undefined}
                   tone={s.budget && s.budget.room < 0 ? "err" : undefined}
                 />
                 <Stat
-                  label="last save"
+                  label="Last save"
                   value={quiet === null ? "never" : quiet === 0 ? "today" : `${quiet}d ago`}
                   sub={s.filled_by ? `by ${s.filled_by}` : "nobody filling it in yet"}
                   tone={c.status === "active" && quiet !== null && quiet > 14 ? "warn" : undefined}
@@ -957,7 +957,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                 {/* Left: the engagement and the people and papers around it */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
                   <ApplicationsSection client={c} derived={s.applications_set ? [] : s.applications || []} editing={editing} onSaved={saved} />
-                  <Section title="engagement">
+                  <Section title="Engagement">
                     <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "7px 16px", fontSize: 13.5, margin: 0 }}>
                       <dt className="mono" style={dt}>Track</dt><dd style={dd}>{c.program_track || <Faint>not set</Faint>}</dd>
                       <dt className="mono" style={dt}>Kickoff</dt><dd style={dd}>{c.kickoff_date ? `${fmtDate(c.kickoff_date, { month: "short", day: "numeric", year: "numeric" })} (Day 0)` : <span style={{ color: "var(--warn-fg)" }}>not booked</span>}</dd>
@@ -979,7 +979,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
 
                 {/* Right: how far along */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
-                  <Section title="intake by section" meta={s.programs ? `${s.programs.listed} program${s.programs.listed === 1 ? "" : "s"} listed` : undefined}>
+                  <Section title="Intake by section" meta={s.programs ? `${s.programs.listed} program${s.programs.listed === 1 ? "" : "s"} listed` : undefined}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                       {s.sections.filter((x) => CORE_SECTION.test(x.section) && !(s.programs && x.section === "Programs")).map((x) => (
                         <div key={x.section} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", fontSize: 13 }}>
@@ -991,7 +991,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                   </Section>
 
                   {lists.length > 0 && (
-                    <Section title="wish list & budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}${s.wish_lists && s.wish_lists.length > 1 ? " now" : ""}` : undefined}>
+                    <Section title="Wish list and budget" meta={s.budget && s.budget.requested > 0 ? `${usd(s.budget.requested)} of ${usd(s.budget.cap)}${s.wish_lists && s.wish_lists.length > 1 ? " now" : ""}` : undefined}>
                       {picked === 0 && <Faint>Nothing picked yet. An item counts once the client gives it a priority.</Faint>}
                       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                         {lists.filter((l) => l.facilities.some((f) => f.prioritized > 0)).map((l) => (
@@ -1087,49 +1087,47 @@ export default function GrantWritingPage() {
   };
 
   const th: React.CSSProperties = {
-    textAlign: "left", fontWeight: 600, fontSize: 10.5, letterSpacing: ".08em", color: "var(--faint)",
+    textAlign: "left", fontWeight: 600, fontSize: 12, lineHeight: "16px", color: "var(--sec)",
     padding: "10px 16px", borderBottom: "1px solid var(--hair)", whiteSpace: "nowrap",
   };
-  const td: React.CSSProperties = { padding: "12px 16px", borderBottom: "1px solid var(--hair)", verticalAlign: "middle" };
+  const td: React.CSSProperties = { padding: "12px 16px", borderBottom: "1px solid var(--hair2)", verticalAlign: "middle" };
 
   return (
     <Page>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 26 }}>
-        <PageHeading eyebrow={`grant writing · in-house clients · ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }).toLowerCase()}`}>
-          Every client, <em>where they stand.</em>
+      <div style={{ marginBottom: 28 }}>
+        <PageHeading description="In-house clients: what each one has answered, who is filling it in, and how long since they last touched it. Registering and seeding happen through Claude; this page reads.">
+          Grant Writing
         </PageHeading>
-        <div style={{ fontSize: 13, color: "var(--mute)", maxWidth: 420, lineHeight: 1.5 }}>
-          What each client has answered, who is filling it in, and how long since they last touched it.
-          Registering and seeding happen through Claude; this page reads.
-        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, 1fr)", gap: 14, marginBottom: 22 }}>
-        <StatTile label="active clients" value={all ? String(tiles.active) : "…"} note="in grant writing" />
-        <StatTile label="awaiting kickoff" value={all ? String(tiles.awaiting) : "…"} note="registered, Day 0 not set" delay={60} />
-        <StatTile label="quiet over 14 days" value={all ? String(tiles.quiet) : "…"} note="no client save since then" accent={tiles.quiet > 0} delay={120} />
-        <StatTile label="submitted" value={all ? String(tiles.submitted) : "…"} note="marked complete by the client" delay={180} />
+        <StatTile label="Active clients" value={all ? String(tiles.active) : "…"} note="In grant writing" />
+        <StatTile label="Awaiting kickoff" value={all ? String(tiles.awaiting) : "…"} note="Registered, Day 0 not set" delay={60} />
+        <StatTile label="Quiet over 14 days" value={all ? String(tiles.quiet) : "…"} note="No client save since then" delay={120} />
+        <StatTile label="Submitted" value={all ? String(tiles.submitted) : "…"} note="Marked complete by the client" delay={180} />
       </div>
 
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--hair)", flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            <span className="headline" style={{ fontSize: 20 }}>Clients</span>
+            <h2 className="section-title">Clients</h2>
             <SegPill<Filter>
               size="sm"
+              label="Show"
               value={filter}
               onChange={setFilter}
               options={[{ key: "active", label: "Active" }, { key: "submitted", label: "Submitted" }, { key: "all", label: "All" }]}
             />
-            {rows && <span className="mono" style={{ fontSize: 11.5, color: "var(--faint)" }}>{visible.length} of {rows.length}</span>}
+            {rows && <span className="meta">{visible.length} of {rows.length}</span>}
           </div>
           <input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, slug or state"
             aria-label="Search clients"
-            className="mono"
-            style={{ fontSize: 12.5, padding: "7px 12px", borderRadius: 999, border: "1px solid var(--bd2)", background: "var(--bg)", color: "var(--ink)", minWidth: 220 }}
+            className="field"
+            style={{ width: 260, maxWidth: "100%" }}
           />
         </div>
 
@@ -1141,13 +1139,13 @@ export default function GrantWritingPage() {
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5, minWidth: 860 }}>
               <thead>
                 <tr>
-                  <th className="mono" style={{ ...th, width: "34%" }}>client</th>
-                  <th className="mono" style={{ ...th, width: 150 }}>state · saa</th>
-                  <th className="mono" style={th}>phase</th>
-                  <th className="mono" style={th}>status</th>
-                  <th className="mono" style={th}>intake</th>
-                  <th className="mono" style={th}>checklist</th>
-                  <th className="mono" style={th}>last save</th>
+                  <th style={{ ...th, width: "34%" }}>Client</th>
+                  <th style={{ ...th, width: 150 }}>State · SAA</th>
+                  <th style={th}>Phase</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Intake</th>
+                  <th style={th}>Checklist</th>
+                  <th style={th}>Last save</th>
                   <th style={{ ...th, width: 28 }} aria-label="Open" />
                 </tr>
               </thead>
@@ -1159,14 +1157,13 @@ export default function GrantWritingPage() {
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(r); } }}
                     style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--hover)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
+                    className="row-hover"
                   >
                     <td style={td}>
-                      <div style={{ fontWeight: 600, color: "var(--ink)", lineHeight: 1.3 }}>{r.name}</div>
+                      <div style={{ fontWeight: 500, fontSize: 14, color: "var(--ink)", lineHeight: 1.3 }}>{r.name}</div>
                       {r.applications && r.applications.length > 0
                         ? <div style={{ marginTop: 5 }}><AppChips apps={r.applications} /></div>
-                        : <div className="mono" style={{ fontSize: 11, color: "var(--faint)", marginTop: 2 }}>{r.slug} · no applications set</div>}
+                        : <div style={{ fontSize: 13, color: "var(--mute)", marginTop: 2 }}><span className="mono" style={{ fontSize: 12 }}>{r.slug}</span> · no applications set</div>}
                     </td>
                     <td style={{ ...td, maxWidth: 150 }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
