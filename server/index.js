@@ -16,6 +16,7 @@ import {
 import { ensureDeadlineSchema, renderDeadlines } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 import { registerMcp } from './mcp.js';
+import { apiGate } from './api-gate.js';
 import { ensureIntakeSchema, createIntakeStore, registerIntake } from './intake.js';
 import { ensureGrantKnowledgeSchema, createKnowledgeStore, registerGrantKnowledge } from './grant-knowledge.js';
 import { createDeadlineSource } from './gk-deadlines.js';
@@ -75,6 +76,11 @@ const knowledgeSync = startKnowledgeSync({ store: knowledgeStore });
 // calls to the grant-client routes, which is what lets those routes require a key
 // from outside without a second secret to configure or rotate.
 const INTERNAL_KEY = crypto.randomBytes(24).toString('hex');
+
+// Every /api route needs a credential unless its module gates itself (the client
+// intake and grant knowledge routes). First, so an unauthenticated request is turned
+// away before any body is parsed. See server/api-gate.js.
+app.use('/api', apiGate({ internalKey: INTERNAL_KEY }));
 
 // The scheduled Salesforce sync delivers its whole record set in one request, which
 // outgrows the 100kb default as the business does. This has to be registered BEFORE

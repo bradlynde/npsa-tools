@@ -1005,6 +1005,15 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
    * who added them, and the link. Best-effort — a mail failure never fails the request that
    * added the person, and NPSA and reference rows are never written to.
    */
+  // Welcome emails a client can trigger from the Contacts tab, per client per hour.
+  // Removing and re-adding a contact clears its welcomed flag, so without a cap the
+  // form could send any number of emails under the grant writer's name.
+  const WELCOME_LIMIT = 5, WELCOME_WINDOW_MS = 60 * 60 * 1000, welcomeLog = new Map();
+  const welcomeAllowed = (clientId, at = Date.now()) => {
+    const recent = (welcomeLog.get(clientId) || []).filter(t => at - t < WELCOME_WINDOW_MS);
+    if (recent.length >= WELCOME_LIMIT) { welcomeLog.set(clientId, recent); return false; }
+    recent.push(at); welcomeLog.set(clientId, recent); return true;
+  };
   const welcome = async (client, email, { addedBy = '', force = false, req } = {}) => {
     if (!mail) return { sent: false, reason: 'welcome email is not configured' };
     const fresh = await store.getClient(client.slug);
@@ -1315,9 +1324,10 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (!store) return res.status(503).type('html').send(errorPage('The intake form is temporarily unavailable. Please try again shortly.'));
     const slug = String(req.params.slug || '');
     const c = SLUG_RE.test(slug) ? await store.getClient(slug) : null;
-    if (!c) return res.status(404).type('html').send(errorPage(NOT_RECOGNISED));
-    const t = healToken(req.query, req.originalUrl.split('?')[1]);
-    if (!tokenMatches(t, c.token)) return res.status(404).type('html').send(errorPage(INVALID));
+    // An unknown client and a wrong token get the same answer, so the page can't be
+    // used to find out which organizations are NPSA clients.
+    const t = c ? healToken(req.query, req.originalUrl.split('?')[1]) : '';
+    if (!c || !tokenMatches(t, c.token)) return res.status(404).type('html').send(errorPage(NOT_RECOGNISED));
     const answers = await store.getAnswers(c.id);
     // 1.1 Primary contact starts from the client's primary contact, the first time the form opens with it blank.
     const primary = (c.contacts || []).filter(x => x.side !== 'npsa' && x.side !== 'reference').sort((a, b) => (b.is_primary === true) - (a.is_primary === true))[0];
@@ -1365,8 +1375,15 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     next();
   };
   app.options('/api/intake/:slug/upload', uploadCors);
-  app.post('/api/intake/:slug/upload', uploadCors, rawUploadBody(), uploadBodyError, guard(async (req, res) => {
-    const c = await clientAuth(req, res); if (!c) return;
+  // The token is checked before the body is read, so nobody without one can make the
+  // server hold a 25 MB upload in memory.
+  const clientFirst = async (req, res, next) => {
+    if (!store) return res.status(503).json({ error: 'Storage not configured' });
+    try { const c = await clientAuth(req, res); if (!c) return; req.intakeClient = c; next(); }
+    catch (err) { next(err); }
+  };
+  app.post('/api/intake/:slug/upload', uploadCors, clientFirst, rawUploadBody(), uploadBodyError, guard(async (req, res) => {
+    const c = req.intakeClient;
     const form = await readMultipart(req);
     if (!form) throw new BadRequest('Send the file as multipart form data with fields "key" and "file".');
     const key = String(form.get('key') || '');
@@ -1419,7 +1436,9 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     let contact;
     try { contact = validContact({ name: b.name, email: b.email, role: b.role, phone: b.phone, side: 'client' }, 'contact'); }
     catch { throw new BadRequest('Please give a valid email address.'); }
-    if ((c.contacts || []).some(x => x.email === contact.email && x.side === 'npsa')) throw new BadRequest('That address belongs to the NPSA team.');
+    // NPSA and reference contacts (the SAA official, the CISA advisor) are the team's. Re-adding
+    // one here would turn it into a client contact the client can edit and mail the link to.
+    if ((c.contacts || []).some(x => x.email === contact.email && x.side !== 'client')) throw new BadRequest('That address is managed by Nonprofit Security Advisors.');
     const existing = await store.getAnswers(c.id);
     const who = existing.get('_filled_by')?.value || '';
     await store.addContacts(c.id, [contact], who ? `client:${who.slice(0, 80)}` : 'client');
@@ -1427,7 +1446,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     await store.updateClient(c.slug, {}).catch(() => {});
     const fresh = await store.getClient(c.slug);
     console.log(`[intake] contact added ${c.slug} ${contact.email}`);
-    const mailed = await welcome(c, contact.email, { addedBy: who, req });
+    const mailed = welcomeAllowed(c.id) ? await welcome(c, contact.email, { addedBy: who, req }) : { sent: false, reason: 'too many welcome emails for this client; try again later' };
     res.json({ ok: true, welcomed: mailed.sent, ...contactsView(fresh.contacts || []) });
   }));
 

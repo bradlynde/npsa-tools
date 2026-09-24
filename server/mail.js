@@ -21,6 +21,7 @@
 // Step 3 lets the account send as anyone in the domain, so keep the scope to
 // gmail.send and nothing wider.
 
+import crypto from 'crypto';
 import { accessToken } from './drive.js';
 
 const SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
@@ -66,9 +67,19 @@ const addr = (name, email) => {
 };
 
 /** Subject and body for one welcome. Kept here so it can be read and changed without touching the plumbing. */
+/**
+ * Text a client typed, made safe to put on one line of an email body. The "added by"
+ * name comes straight off the intake form; with newlines in it, it could start a new
+ * MIME part of its own and send whatever it liked under the grant writer's name.
+ */
+export function oneLine(raw, max = 80) {
+  return String(raw || '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
 export function welcomeMessage({ client, contact, addedBy, sender, intakeUrl }) {
-  const hi = firstName(contact.name);
-  const who = addedBy ? `${addedBy} added you to` : 'You have been added to';
+  const hi = oneLine(firstName(contact.name), 40);
+  const by = oneLine(addedBy);
+  const who = by ? `${by} added you to` : 'You have been added to';
   // "Director of Grants, your grant writer" reads oddly under a signature; the client already knows.
   const role = String(sender?.role || '').replace(/,?\s*your grant writer/i, '').trim();
   const signoff = [sender?.name, role ? `${role}, Nonprofit Security Advisors` : 'Nonprofit Security Advisors', sender?.phone]
@@ -102,7 +113,9 @@ export function welcomeMessage({ client, contact, addedBy, sender, intakeUrl }) 
 }
 
 /** One RFC 822 message, plain text with an HTML alternative. */
-export function buildRaw({ from, to, subject, text, html, boundary = 'npsa-welcome-boundary' }) {
+// The boundary is random per message: a fixed one is a string anyone can type into a
+// form field to close the real part and open one of their own.
+export function buildRaw({ from, to, subject, text, html, boundary = `npsa-${crypto.randomBytes(16).toString('hex')}` }) {
   return [
     `From: ${from}`,
     `To: ${to}`,

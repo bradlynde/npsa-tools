@@ -1211,11 +1211,18 @@ export function registerGrantKnowledge(app, {
   }));
 
   app.options('/api/grant-knowledge/files/upload', filesCors);
-  app.post('/api/grant-knowledge/files/upload', filesCors, rawUploadBody(), uploadBodyError, guard(async (req, res) => {
+  // The ticket travels as a header and is checked before the body is read, so nobody
+  // without one can make the server hold a 25 MB upload in memory.
+  const ticketFirst = (req, res, next) => {
+    const t = tickets.read(req.get('x-gk-ticket'), now().getTime());
+    if (!t || t.p !== 'up') return res.status(401).json({ error: 'That upload window has closed. Start the upload again.' });
+    req.gkTicket = t;
+    next();
+  };
+  app.post('/api/grant-knowledge/files/upload', filesCors, ticketFirst, rawUploadBody(), uploadBodyError, guard(async (req, res) => {
     const form = await readMultipart(req);
     if (!form) throw bad('Send the file as multipart form data with a "file" field.');
-    const t = tickets.read(req.get('x-gk-ticket') || form.get('ticket'), now().getTime());
-    if (!t || t.p !== 'up') throw new HttpError(401, 'That upload window has closed. Start the upload again.');
+    const t = req.gkTicket;
 
     const file = form.get('file');
     if (!file || typeof file !== 'object' || typeof file.arrayBuffer !== 'function') throw bad('No file was attached.');
