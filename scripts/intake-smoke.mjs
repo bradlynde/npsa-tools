@@ -198,6 +198,17 @@ await check('a key on ACTOR_PROXY_KEYS may say who it acts for; without X-Actor 
     assert.equal(await by(), `seed:${fp}`);
   } finally { delete process.env.ACTOR_PROXY_KEYS; }
 });
+await check('a seed is held to the checklist statuses and cannot be signed as the client', async () => {
+  const typo = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { chk_status_kickoff_call: 'Done' } } });
+  assert.equal(typo.status, 400);
+  assert.match(typo.data.error, /status must be one of/);
+  const forged = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { q_1_1_1: 'Someone' }, by: 'client:Pat Lee' } });
+  assert.equal(forged.status, 400);
+  assert.match(forged.data.error, /cannot name the client/);
+  const labelled = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { chk_status_kickoff_call: '' }, by: 'import:apps-script' } });
+  assert.equal(labelled.status, 200, 'an import may still name its source');
+});
+
 await check('a good seed lands as seed:<actor> and does not bump client activity', async () => {
   const r = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: {
     q_1_1_1: 'Pat Lee', q_1_3_1: 'Trinity Wellsprings Church, Inc.', loc1_name: 'Main campus',
@@ -1002,6 +1013,61 @@ await check('with no store the team routes say so and the page is a 503', async 
   assert.match((await r.json()).error, /Storage not configured/);
   assert.equal((await fetch(`${o2}/client/anyone?t=x`)).status, 503);
   s2.close();
+});
+
+await check('two document edits at once both land', async () => {
+  // Reads take a moment here, as they do against Postgres, so the two requests
+  // really overlap. Without the lock, both start from the same read and the
+  // second write drops the first one's document.
+  const mem = createMemoryStore();
+  const slow = Object.create(mem);
+  slow.getClient = async (...args) => { const row = await mem.getClient(...args); await new Promise(r => setTimeout(r, 25)); return row; };
+  const app5 = express(); app5.use(express.json());
+  registerIntake(app5, { store: slow, internalKey: INTERNAL, publicBase: BASE });
+  const s5 = await new Promise(resolve => { const s = app5.listen(0, () => resolve(s)); });
+  const o5 = `http://127.0.0.1:${s5.address().port}`;
+  const req5 = (method, path, body) => fetch(`${o5}${path}`, { method, headers: { ...TEAM, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+  try {
+    assert.equal((await req5('POST', '/api/clients', { name: 'Race Church', state: 'IL' })).status, 201);
+    const [one, two] = await Promise.all([
+      req5('PATCH', '/api/clients/race-church', { add_documents: [{ key: 'up_race_one', label: 'Race one' }] }),
+      req5('PATCH', '/api/clients/race-church', { add_documents: [{ key: 'up_race_two', label: 'Race two' }] }),
+    ]);
+    assert.equal(one.status, 200);
+    assert.equal(two.status, 200);
+    const keys = (await (await req5('GET', '/api/clients/race-church')).json()).documents.map(d => d.key);
+    assert.ok(keys.includes('up_race_one') && keys.includes('up_race_two'), `both kept: ${keys.join(', ')}`);
+  } finally { s5.close(); }
+});
+
+await check('a client create that fails partway leaves no half-made client, and a retry succeeds', async () => {
+  const mem = createMemoryStore();
+  const flaky = Object.create(mem);
+  flaky.addContacts = async (id, list, by) => {
+    if (list.some(c => c.email === 'boom@halfmade.org')) throw new Error('database went away');
+    return mem.addContacts(id, list, by);
+  };
+  const app4 = express(); app4.use(express.json());
+  registerIntake(app4, { store: flaky, internalKey: INTERNAL, publicBase: BASE });
+  const s4 = await new Promise(resolve => { const s = app4.listen(0, () => resolve(s)); });
+  const o4 = `http://127.0.0.1:${s4.address().port}`;
+  const post = contacts => fetch(`${o4}/api/clients`, { method: 'POST', headers: { ...TEAM, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Half Made Church', state: 'IL', contacts }) });
+  try {
+    const failed = await post([{ name: 'Boom', email: 'boom@halfmade.org' }]);
+    assert.equal(failed.status, 500);
+    assert.equal((await fetch(`${o4}/api/clients/half-made-church`, { headers: TEAM })).status, 404, 'nothing left behind');
+    const retry = await post([{ name: 'Pat', email: 'pat@halfmade.org' }]);
+    assert.equal(retry.status, 201, 'a retry is not refused as a duplicate');
+  } finally { s4.close(); }
+});
+
+await check('a filename outside Latin-1 downloads instead of failing', async () => {
+  const r = await upload(created.slug, token(), multipart('up_501c3', 'Pastor’s letter.pdf', PDF, 'application/pdf'));
+  const body = await r.text();
+  assert.equal(r.status, 200, body);
+  const dl = await fetch(`${origin}/api/clients/${created.slug}/uploads/${JSON.parse(body).id}`, { headers: TEAM });
+  assert.equal(dl.status, 200);
+  assert.match(dl.headers.get('content-disposition'), /filename\*=UTF-8''Pastor%E2%80%99s%20letter\.pdf/);
 });
 
 server.close();

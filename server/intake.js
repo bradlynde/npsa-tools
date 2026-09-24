@@ -32,7 +32,7 @@ import { readFileSync } from 'fs';
 import { driveConfigured, uploadToDrive } from './drive.js';
 import { mailConfigured, sendWelcome, senderFor } from './mail.js';
 import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
-import { UPLOAD_MAX_BYTES, sniffUploadType, safeFilename, rawUploadBody, uploadBodyError, readMultipart } from './uploads.js';
+import { UPLOAD_MAX_BYTES, sniffUploadType, safeFilename, rawUploadBody, uploadBodyError, readMultipart, contentDisposition } from './uploads.js';
 import { knowledgeFor as knowledgeOf, combinedStateProgram } from './knowledge.js';
 
 // A state's facts from the grant knowledge base (server/knowledge.js). A code it does
@@ -90,6 +90,11 @@ export function documentsFor(client) {
 const npsaChecklistKey = k => { const m = /^chk_(?:a\d{1,2}_)?(?:status|due|who|note)_(.+)$/.exec(k); return !!m && CHECKLIST_META[m[1]]?.owner === 'npsa'; };
 const CHECKLIST_STATUSES = ['Not started', 'In progress', 'Completed', 'Not applicable'];
 const CHECKLIST_STEM_SET = new Set(CATALOG.questions.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length)));
+/** A checklist status is one of the four the page offers, whichever route writes it. */
+function checkChecklistValue(key, value) {
+  if (!/^chk_(?:a(?:[2-9]|[1-9]\d)_)?status_/.test(key) || !value) return;
+  if (!CHECKLIST_STATUSES.includes(String(value).trim())) throw new BadRequest(`${key}: status must be one of ${CHECKLIST_STATUSES.join(', ')}`);
+}
 function validDocument(d, label) {
   const key = String(d?.key || '').trim().toLowerCase();
   if (!DOC_KEY_RE.test(key)) throw new BadRequest(`${label}.key must look like up_something (letters, digits, underscores)`);
@@ -723,14 +728,31 @@ const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track,
   submitted_at, last_client_activity_at`;
 
 /** Postgres-backed store. Every method takes and returns plain objects. */
-export function createIntakeStore(pool) {
-  const one = async (sql, params) => (await pool.query(sql, params)).rows[0] || null;
-  const contactsFor = async id => (await pool.query(
+export function createIntakeStore(pool, db = pool) {
+  // `db` is what every query runs on: the pool, or inside transaction() one client
+  // holding BEGIN, so the same methods work in and out of a transaction.
+  const inTransaction = db !== pool;
+  const one = async (sql, params) => (await db.query(sql, params)).rows[0] || null;
+  const contactsFor = async id => (await db.query(
     `SELECT id, name, email, role, phone, side, is_primary, added_by, welcomed_at, created_at FROM client_contacts WHERE client_id=$1
       ORDER BY (side = 'npsa') DESC, is_primary DESC, id`, [id])).rows;
   const withContacts = async row => row && { ...row, contacts: await contactsFor(row.id) };
 
   return {
+    /** Runs fn with a store bound to one connection inside BEGIN … COMMIT; any throw rolls it all back. */
+    async transaction(fn) {
+      if (inTransaction) return fn(this);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const out = await fn(createIntakeStore(pool, client));
+        await client.query('COMMIT');
+        return out;
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally { client.release(); }
+    },
     async createClient(c) {
       const dup = await one('SELECT 1 FROM clients WHERE slug=$1', [c.slug]);
       if (dup) { const e = new Error(`slug "${c.slug}" is already registered`); e.status = 409; throw e; }
@@ -740,11 +762,13 @@ export function createIntakeStore(pool) {
         [c.slug, c.name, c.state, c.token, c.phase, c.status, c.program_track, c.drive_folder_id, c.upload_folder_id, c.asana_project_gid, c.kickoff_date, c.notes]);
       return withContacts(row);
     },
-    async getClient(slug) {
-      return withContacts(await one(`SELECT ${CLIENT_COLS} FROM clients WHERE slug=$1`, [slug]));
+    // lock: hold the row until the transaction ends, so a second update of the same
+    // client waits for this one instead of working from the same stale read.
+    async getClient(slug, { lock = false } = {}) {
+      return withContacts(await one(`SELECT ${CLIENT_COLS} FROM clients WHERE slug=$1${lock ? ' FOR UPDATE' : ''}`, [slug]));
     },
     async listClients({ status, phase, search }) {
-      const { rows } = await pool.query(
+      const { rows } = await db.query(
         `SELECT ${CLIENT_COLS} FROM clients
           WHERE ($1 = '' OR status = $1) AND ($2 = 0 OR phase = $2)
             AND ($3 = '' OR name ILIKE '%' || $3 || '%' OR slug ILIKE '%' || $3 || '%')
@@ -765,7 +789,7 @@ export function createIntakeStore(pool) {
     },
     async addContacts(clientId, contacts, addedBy) {
       for (const c of contacts) {
-        await pool.query(
+        await db.query(
           `INSERT INTO client_contacts (client_id, name, email, role, phone, side, is_primary, added_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
            ON CONFLICT (client_id, email) DO UPDATE SET name = CASE WHEN EXCLUDED.name <> '' THEN EXCLUDED.name ELSE client_contacts.name END,
              role = CASE WHEN EXCLUDED.role <> '' THEN EXCLUDED.role ELSE client_contacts.role END,
@@ -776,13 +800,13 @@ export function createIntakeStore(pool) {
       }
     },
     async removeContacts(clientId, emails) {
-      if (emails.length) await pool.query('DELETE FROM client_contacts WHERE client_id=$1 AND email = ANY($2)', [clientId, emails]);
+      if (emails.length) await db.query('DELETE FROM client_contacts WHERE client_id=$1 AND email = ANY($2)', [clientId, emails]);
     },
     async markWelcomed(clientId, email) {
-      await pool.query('UPDATE client_contacts SET welcomed_at=NOW() WHERE client_id=$1 AND email=$2', [clientId, email]);
+      await db.query('UPDATE client_contacts SET welcomed_at=NOW() WHERE client_id=$1 AND email=$2', [clientId, email]);
     },
     async countsFor(clientId) {
-      const q = async (sql) => Number((await pool.query(sql, [clientId])).rows[0].n);
+      const q = async (sql) => Number((await db.query(sql, [clientId])).rows[0].n);
       return {
         answers: await q('SELECT COUNT(*)::int AS n FROM intake_answers WHERE client_id=$1'),
         uploads: await q('SELECT COUNT(*)::int AS n FROM intake_uploads WHERE client_id=$1'),
@@ -790,42 +814,46 @@ export function createIntakeStore(pool) {
       };
     },
     async deleteClient(slug) {
-      await pool.query('DELETE FROM clients WHERE slug=$1', [slug]); // contacts, answers and uploads cascade
+      await db.query('DELETE FROM clients WHERE slug=$1', [slug]); // contacts, answers and uploads cascade
     },
     async updateContact(clientId, email, patch) {
-      const { rows } = await pool.query(
+      const { rows } = await db.query(
         `UPDATE client_contacts SET name=$3, role=$4, phone=$5, email=$6 WHERE client_id=$1 AND email=$2 RETURNING id`,
         [clientId, email, patch.name, patch.role, patch.phone, patch.email]);
       return rows.length > 0;
     },
     async getAnswers(clientId) {
-      const { rows } = await pool.query('SELECT key, value, updated_at, updated_by FROM intake_answers WHERE client_id=$1', [clientId]);
+      const { rows } = await db.query('SELECT key, value, updated_at, updated_by FROM intake_answers WHERE client_id=$1', [clientId]);
       return new Map(rows.map(r => [r.key, r]));
     },
     async answerStats(clientIds) {
       if (!clientIds.length) return {};
-      const { rows } = await pool.query(
+      const { rows } = await db.query(
         `SELECT client_id,
                 ARRAY_AGG(key) FILTER (WHERE value <> '' AND key ~ $2) AS answered_keys,
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Completed')::int AS checklist_completed,
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Not applicable')::int AS checklist_na,
                 MAX(value) FILTER (WHERE key = '_filled_by') AS filled_by
            FROM intake_answers WHERE client_id = ANY($1) GROUP BY client_id`, [clientIds, PROGRESS_KEY_RE.source]);
-      const up = await pool.query('SELECT client_id, ARRAY_AGG(DISTINCT key) AS keys FROM intake_uploads WHERE client_id = ANY($1) GROUP BY client_id', [clientIds]);
+      const up = await db.query('SELECT client_id, ARRAY_AGG(DISTINCT key) AS keys FROM intake_uploads WHERE client_id = ANY($1) GROUP BY client_id', [clientIds]);
       const uploaded = Object.fromEntries(up.rows.map(r => [r.client_id, r.keys]));
       return Object.fromEntries(rows.map(r => [r.client_id, { ...r, answered_keys: r.answered_keys || [], uploaded_keys: uploaded[r.client_id] || [] }]));
     },
     async upsertAnswers(clientId, rows, by, { clientActivity = false } = {}) {
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
+      const write = async q => {
         for (const r of rows) {
-          await client.query(
+          await q.query(
             `INSERT INTO intake_answers (client_id, key, value, updated_at, updated_by) VALUES ($1,$2,$3,NOW(),$4)
              ON CONFLICT (client_id, key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW(), updated_by=EXCLUDED.updated_by`,
             [clientId, r.key, r.value, by]);
         }
-        if (clientActivity) await client.query('UPDATE clients SET last_client_activity_at=NOW() WHERE id=$1', [clientId]);
+        if (clientActivity) await q.query('UPDATE clients SET last_client_activity_at=NOW() WHERE id=$1', [clientId]);
+      };
+      if (inTransaction) { await write(db); return rows.length; } // the outer transaction commits or rolls back
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await write(client);
         await client.query('COMMIT');
       } catch (err) { await client.query('ROLLBACK'); throw err; }
       finally { client.release(); }
@@ -838,10 +866,10 @@ export function createIntakeStore(pool) {
         [clientId, u.key, u.filename, u.mime, u.size_bytes, u.content, u.uploaded_by]);
     },
     async setUploadDrive(id, { drive_file_id, drive_url }) {
-      await pool.query('UPDATE intake_uploads SET drive_file_id=$2, drive_url=$3 WHERE id=$1', [id, drive_file_id, drive_url]);
+      await db.query('UPDATE intake_uploads SET drive_file_id=$2, drive_url=$3 WHERE id=$1', [id, drive_file_id, drive_url]);
     },
     async listUploads(clientId) {
-      return (await pool.query(`SELECT ${UPLOAD_COLS} FROM intake_uploads WHERE client_id=$1 ORDER BY uploaded_at DESC, id DESC`, [clientId])).rows;
+      return (await db.query(`SELECT ${UPLOAD_COLS} FROM intake_uploads WHERE client_id=$1 ORDER BY uploaded_at DESC, id DESC`, [clientId])).rows;
     },
     async getUpload(clientId, id) {
       return one(`SELECT ${UPLOAD_COLS}, content FROM intake_uploads WHERE client_id=$1 AND id=$2`, [clientId, id]);
@@ -856,7 +884,29 @@ export function createMemoryStore() {
   const find = slug => clients.find(c => c.slug === slug) || null;
   const view = c => c && { ...c, contacts: contacts.filter(x => x.client_id === c.id).sort((a, b) => ((b.side === 'npsa') - (a.side === 'npsa')) || (b.is_primary - a.is_primary) || (a.id - b.id)) };
   const bucket = id => { if (!answers.has(id)) answers.set(id, new Map()); return answers.get(id); };
+  // Transactions run one at a time (standing in for Postgres's row lock) and put
+  // everything back if they throw (standing in for ROLLBACK).
+  let queue = Promise.resolve();
+  const snapshot = () => ({
+    clients: structuredClone(clients), contacts: structuredClone(contacts),
+    answers: new Map([...answers].map(([id, m]) => [id, new Map([...m].map(([k, v]) => [k, { ...v }]))])),
+    ids: [nextId, nextContactId, nextUploadId],
+  });
+  const restore = snap => {
+    clients.splice(0, clients.length, ...snap.clients);
+    contacts.splice(0, contacts.length, ...snap.contacts);
+    answers.clear(); for (const [id, m] of snap.answers) answers.set(id, m);
+    [nextId, nextContactId, nextUploadId] = snap.ids;
+  };
   return {
+    async transaction(fn) {
+      const run = queue.then(async () => {
+        const snap = snapshot();
+        try { return await fn(this); } catch (err) { restore(snap); throw err; }
+      });
+      queue = run.catch(() => {});
+      return run;
+    },
     async createClient(c) {
       if (find(c.slug)) { const e = new Error(`slug "${c.slug}" is already registered`); e.status = 409; throw e; }
       const row = { id: nextId++, documents: null, applications: null, documents_received: null, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
@@ -1109,29 +1159,33 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (b.npsa_contacts !== undefined && b.include_team !== false) {
       for (const t of NPSA_TEAM) if (!npsa.some(c => c.email === t.email.toLowerCase())) npsa.push(validContact({ ...t, side: 'npsa' }, 'team'));
     }
-    const row = await store.createClient({
-      slug, name, state, token, phase, status,
-      program_track: text(b.program_track, 'program_track'),
-      drive_folder_id: text(b.drive_folder_id, 'drive_folder_id', 200).trim(),
-      upload_folder_id: text(b.upload_folder_id, 'upload_folder_id', 200).trim(),
-      asana_project_gid: text(b.asana_project_gid, 'asana_project_gid', 100).trim(),
-      kickoff_date: validDate(b.kickoff_date, 'kickoff_date'),
-      notes: text(b.notes, 'notes', 5000),
+    // One transaction: a failure partway (a contact row, the applications) leaves no
+    // half-made client behind for a retry to trip over with a 409.
+    await store.transaction(async tx => {
+      const row = await tx.createClient({
+        slug, name, state, token, phase, status,
+        program_track: text(b.program_track, 'program_track'),
+        drive_folder_id: text(b.drive_folder_id, 'drive_folder_id', 200).trim(),
+        upload_folder_id: text(b.upload_folder_id, 'upload_folder_id', 200).trim(),
+        asana_project_gid: text(b.asana_project_gid, 'asana_project_gid', 100).trim(),
+        kickoff_date: validDate(b.kickoff_date, 'kickoff_date'),
+        notes: text(b.notes, 'notes', 5000),
+      });
+      if (contacts.length) {
+        if (!contacts.some(c => c.is_primary)) contacts[0].is_primary = true;
+        await tx.addContacts(row.id, contacts, `npsa:${req.actor}`);
+      }
+      if (npsa.length) await tx.addContacts(row.id, npsa, `npsa:${req.actor}`);
+      // The SAA and program contacts from the knowledge base, unless the caller passes
+      // reference_contacts: false (or names its own, which then replace them).
+      const reference = b.reference_contacts === false ? []
+        : b.reference_contacts !== undefined ? validContacts(b.reference_contacts, 'reference_contacts').map(c => ({ ...c, side: 'reference' }))
+        : referenceContactsFor(state, (applications || []).map(a => a.program)).flatMap(c => { try { return [validContact(c, 'reference')]; } catch { return []; } }); // a malformed address in the base is skipped, not a failed create
+      const taken = new Set([...contacts, ...npsa].map(c => c.email));
+      const refs = reference.filter(c => !taken.has(c.email));
+      if (refs.length) await tx.addContacts(row.id, refs, `npsa:${req.actor}`);
+      if (applications) await tx.updateClient(slug, { applications });
     });
-    if (contacts.length) {
-      if (!contacts.some(c => c.is_primary)) contacts[0].is_primary = true;
-      await store.addContacts(row.id, contacts, `npsa:${req.actor}`);
-    }
-    if (npsa.length) await store.addContacts(row.id, npsa, `npsa:${req.actor}`);
-    // The SAA and program contacts from the knowledge base, unless the caller passes
-    // reference_contacts: false (or names its own, which then replace them).
-    const reference = b.reference_contacts === false ? []
-      : b.reference_contacts !== undefined ? validContacts(b.reference_contacts, 'reference_contacts').map(c => ({ ...c, side: 'reference' }))
-      : referenceContactsFor(state, (applications || []).map(a => a.program)).flatMap(c => { try { return [validContact(c, 'reference')]; } catch { return []; } }); // a malformed address in the base is skipped, not a failed create
-    const taken = new Set([...contacts, ...npsa].map(c => c.email));
-    const refs = reference.filter(c => !taken.has(c.email));
-    if (refs.length) await store.addContacts(row.id, refs, `npsa:${req.actor}`);
-    if (applications) await store.updateClient(slug, { applications });
     console.log(`[intake] client_create ${slug} by ${req.actor}`);
     res.status(201).json(clientView(await store.getClient(slug), base(req)));
   }));
@@ -1144,93 +1198,101 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
   }));
 
   app.patch('/api/clients/:slug', team, guard(async (req, res) => {
-    const c = await loadClient(req, res); if (!c) return;
+    const found = await loadClient(req, res); if (!found) return;
     const b = req.body || {};
-    const patch = {};
-    if (b.name !== undefined) { patch.name = text(b.name, 'name', 200).trim(); if (!patch.name) throw new BadRequest('name cannot be blank'); }
-    if (b.state !== undefined) patch.state = validState(b.state);
-    if (b.phase !== undefined) { patch.phase = parseInt(b.phase, 10); if (![1, 2, 3, 4].includes(patch.phase)) throw new BadRequest('phase must be 1–4'); }
-    if (b.status !== undefined) {
-      patch.status = String(b.status);
-      if (!STATUSES.includes(patch.status)) throw new BadRequest(`status must be one of ${STATUSES.join(', ')}`);
-      if (patch.status === 'submitted' && !c.submitted_at) patch.submitted_at = new Date();
-    }
-    for (const k of ['program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid']) if (b[k] !== undefined) patch[k] = text(b[k], k, 200).trim();
-    if (b.notes !== undefined) patch.notes = text(b.notes, 'notes', 5000);
-    if (b.kickoff_date !== undefined) patch.kickoff_date = validDate(b.kickoff_date, 'kickoff_date');
-    // Documents: replace the list, reset it (null), or add/remove against the current one.
-    if (b.applications !== undefined) patch.applications = validApplications(b.applications, patch.state || c.state);
-    if (b.documents !== undefined) patch.documents = validDocuments(b.documents, 'documents');
-    if (b.add_documents !== undefined || b.remove_document_keys !== undefined) {
-      const adds = validDocuments(b.add_documents, 'add_documents') || [];
-      const removes = b.remove_document_keys === undefined ? [] : (Array.isArray(asArray(b.remove_document_keys)) ? asArray(b.remove_document_keys).map(k => String(k).toLowerCase()) : (() => { throw new BadRequest('remove_document_keys must be an array'); })());
-      const current = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
-      const list = current.filter(d => !removes.includes(d.key) && !adds.some(a => a.key === d.key)).concat(adds.map(a => ({ ...a, source: 'custom' })));
-      patch.documents = list;
-    }
-    const add = [
-      ...validContacts(b.add_contacts),
-      ...validContacts(b.add_npsa_contacts, 'add_npsa_contacts').map(x => ({ ...x, side: 'npsa' })),
-      ...validContacts(b.add_reference_contacts, 'add_reference_contacts').map(x => ({ ...x, side: 'reference' })),
-    ];
-    const remove = validEmails(b.remove_contact_emails, 'remove_contact_emails');
     const invite = b.invite_contact_email === undefined ? '' : String(b.invite_contact_email).trim().toLowerCase();
-    // Marking a document received (by email, in person) or taking the mark back.
-    if (b.mark_documents_received !== undefined || b.unmark_documents_received !== undefined) {
-      const docs = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
-      const marks = asArray(b.mark_documents_received) ?? [];
-      const unmarks = asArray(b.unmark_documents_received) ?? [];
-      if (!Array.isArray(marks) || !Array.isArray(unmarks)) throw new BadRequest('mark_documents_received and unmark_documents_received must be arrays');
-      const next = { ...receivedFor(c) };
-      for (const m of marks) {
-        const key = String(typeof m === 'object' && m ? m.key : m || '').trim().toLowerCase();
-        if (!docs.some(d => d.key === key)) throw new BadRequest(`"${key}" is not one of this client's documents`);
-        next[key] = { at: new Date().toISOString(), by: req.actor || 'npsa', note: String((typeof m === 'object' && m && m.note) || 'received by email').slice(0, 140) };
+    // Read, work out and write under one lock, in one transaction. The document lists
+    // are rebuilt from the current row, so two edits at once must not both start from
+    // the same read (the second would drop the first's change), and a failure partway
+    // must not leave some of the writes in place.
+    await store.transaction(async tx => {
+      const c = await tx.getClient(found.slug, { lock: true });
+      if (!c) { const e = new Error('Not found'); e.status = 404; throw e; }
+      const patch = {};
+      if (b.name !== undefined) { patch.name = text(b.name, 'name', 200).trim(); if (!patch.name) throw new BadRequest('name cannot be blank'); }
+      if (b.state !== undefined) patch.state = validState(b.state);
+      if (b.phase !== undefined) { patch.phase = parseInt(b.phase, 10); if (![1, 2, 3, 4].includes(patch.phase)) throw new BadRequest('phase must be 1–4'); }
+      if (b.status !== undefined) {
+        patch.status = String(b.status);
+        if (!STATUSES.includes(patch.status)) throw new BadRequest(`status must be one of ${STATUSES.join(', ')}`);
+        if (patch.status === 'submitted' && !c.submitted_at) patch.submitted_at = new Date();
       }
-      for (const u of unmarks) delete next[String(u || '').trim().toLowerCase()];
-      patch.documents_received = next;
-    }
-    // NPSA's notes on the client's answers, and which of them are questions the client should answer.
-    // Both used to be typed into the form itself; the form now only shows them.
-    const noteRows = [];
-    if (b.question_notes !== undefined) {
-      const n = b.question_notes;
-      if (!n || typeof n !== 'object' || Array.isArray(n)) throw new BadRequest('question_notes must be an object of question key → note text');
-      for (const [k, v] of Object.entries(n)) {
-        const key = k.startsWith('note_') ? k : `note_${k}`;
-        if (!QUESTION_BY_KEY.has(key)) throw new BadRequest(`"${k}" is not a question NPSA can leave a note on`);
-        noteRows.push({ key, value: v === null || v === undefined ? '' : String(v).slice(0, MAX_VALUE) });
+      for (const k of ['program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid']) if (b[k] !== undefined) patch[k] = text(b[k], k, 200).trim();
+      if (b.notes !== undefined) patch.notes = text(b.notes, 'notes', 5000);
+      if (b.kickoff_date !== undefined) patch.kickoff_date = validDate(b.kickoff_date, 'kickoff_date');
+      // Documents: replace the list, reset it (null), or add/remove against the current one.
+      if (b.applications !== undefined) patch.applications = validApplications(b.applications, patch.state || c.state);
+      if (b.documents !== undefined) patch.documents = validDocuments(b.documents, 'documents');
+      if (b.add_documents !== undefined || b.remove_document_keys !== undefined) {
+        const adds = validDocuments(b.add_documents, 'add_documents') || [];
+        const removes = b.remove_document_keys === undefined ? [] : (Array.isArray(asArray(b.remove_document_keys)) ? asArray(b.remove_document_keys).map(k => String(k).toLowerCase()) : (() => { throw new BadRequest('remove_document_keys must be an array'); })());
+        const current = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
+        const list = current.filter(d => !removes.includes(d.key) && !adds.some(a => a.key === d.key)).concat(adds.map(a => ({ ...a, source: 'custom' })));
+        patch.documents = list;
       }
-    }
-    if (b.note_asks !== undefined) {
-      const list = asArray(b.note_asks);
-      if (!Array.isArray(list)) throw new BadRequest('note_asks must be an array of question keys');
-      const keys = [...new Set(list.map(k => String(k).trim().replace(/^note_/, '')).filter(Boolean))];
-      const bad = keys.filter(k => !QUESTION_BY_KEY.has(`note_${k}`));
-      if (bad.length) throw new BadRequest(`note_asks: not questions NPSA can ask about: ${bad.join(', ')}`);
-      noteRows.push({ key: '_note_asks', value: keys.join(',') });
-    }
-    // The checklist, from the Grant Writing page: { "chk_status_kickoff_call": "Completed", "chk_a2_due_submit_application": "11/20/2026", … }.
-    if (b.checklist !== undefined) {
-      const ck = b.checklist;
-      if (!ck || typeof ck !== 'object' || Array.isArray(ck)) throw new BadRequest('checklist must be an object of checklist key → value');
-      for (const [key, v] of Object.entries(ck)) {
-        const m = /^chk_(?:a(?:[2-9]|[1-9]\d)_)?(status|due|who|note)_(.+)$/.exec(key);
-        if (!m || !CHECKLIST_STEM_SET.has(m[2])) throw new BadRequest(`"${key}" is not a checklist key`);
-        const value = v === null || v === undefined ? '' : String(v).trim().slice(0, m[1] === 'note' ? 2000 : 120);
-        if (m[1] === 'status' && value && !CHECKLIST_STATUSES.includes(value)) throw new BadRequest(`${key}: status must be one of ${CHECKLIST_STATUSES.join(', ')}`);
-        noteRows.push({ key, value });
+      const add = [
+        ...validContacts(b.add_contacts),
+        ...validContacts(b.add_npsa_contacts, 'add_npsa_contacts').map(x => ({ ...x, side: 'npsa' })),
+        ...validContacts(b.add_reference_contacts, 'add_reference_contacts').map(x => ({ ...x, side: 'reference' })),
+      ];
+      const remove = validEmails(b.remove_contact_emails, 'remove_contact_emails');
+      // Marking a document received (by email, in person) or taking the mark back.
+      if (b.mark_documents_received !== undefined || b.unmark_documents_received !== undefined) {
+        const docs = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
+        const marks = asArray(b.mark_documents_received) ?? [];
+        const unmarks = asArray(b.unmark_documents_received) ?? [];
+        if (!Array.isArray(marks) || !Array.isArray(unmarks)) throw new BadRequest('mark_documents_received and unmark_documents_received must be arrays');
+        const next = { ...receivedFor(c) };
+        for (const m of marks) {
+          const key = String(typeof m === 'object' && m ? m.key : m || '').trim().toLowerCase();
+          if (!docs.some(d => d.key === key)) throw new BadRequest(`"${key}" is not one of this client's documents`);
+          next[key] = { at: new Date().toISOString(), by: req.actor || 'npsa', note: String((typeof m === 'object' && m && m.note) || 'received by email').slice(0, 140) };
+        }
+        for (const u of unmarks) delete next[String(u || '').trim().toLowerCase()];
+        patch.documents_received = next;
       }
-    }
-    if (!Object.keys(patch).length && !add.length && !remove.length && !invite && !noteRows.length) throw new BadRequest('Nothing to change');
-    if (noteRows.length) await store.upsertAnswers(c.id, noteRows, `npsa:${req.actor}`);
-    if (Object.keys(patch).length) await store.updateClient(c.slug, patch);
-    if (remove.length) await store.removeContacts(c.id, remove);
-    if (add.length) await store.addContacts(c.id, add, `npsa:${req.actor}`);
+      // NPSA's notes on the client's answers, and which of them are questions the client should answer.
+      // Both used to be typed into the form itself; the form now only shows them.
+      const noteRows = [];
+      if (b.question_notes !== undefined) {
+        const n = b.question_notes;
+        if (!n || typeof n !== 'object' || Array.isArray(n)) throw new BadRequest('question_notes must be an object of question key → note text');
+        for (const [k, v] of Object.entries(n)) {
+          const key = k.startsWith('note_') ? k : `note_${k}`;
+          if (!QUESTION_BY_KEY.has(key)) throw new BadRequest(`"${k}" is not a question NPSA can leave a note on`);
+          noteRows.push({ key, value: v === null || v === undefined ? '' : String(v).slice(0, MAX_VALUE) });
+        }
+      }
+      if (b.note_asks !== undefined) {
+        const list = asArray(b.note_asks);
+        if (!Array.isArray(list)) throw new BadRequest('note_asks must be an array of question keys');
+        const keys = [...new Set(list.map(k => String(k).trim().replace(/^note_/, '')).filter(Boolean))];
+        const bad = keys.filter(k => !QUESTION_BY_KEY.has(`note_${k}`));
+        if (bad.length) throw new BadRequest(`note_asks: not questions NPSA can ask about: ${bad.join(', ')}`);
+        noteRows.push({ key: '_note_asks', value: keys.join(',') });
+      }
+      // The checklist, from the Grant Writing page: { "chk_status_kickoff_call": "Completed", "chk_a2_due_submit_application": "11/20/2026", … }.
+      if (b.checklist !== undefined) {
+        const ck = b.checklist;
+        if (!ck || typeof ck !== 'object' || Array.isArray(ck)) throw new BadRequest('checklist must be an object of checklist key → value');
+        for (const [key, v] of Object.entries(ck)) {
+          const m = /^chk_(?:a(?:[2-9]|[1-9]\d)_)?(status|due|who|note)_(.+)$/.exec(key);
+          if (!m || !CHECKLIST_STEM_SET.has(m[2])) throw new BadRequest(`"${key}" is not a checklist key`);
+          const value = v === null || v === undefined ? '' : String(v).trim().slice(0, m[1] === 'note' ? 2000 : 120);
+          if (m[1] === 'status' && value && !CHECKLIST_STATUSES.includes(value)) throw new BadRequest(`${key}: status must be one of ${CHECKLIST_STATUSES.join(', ')}`);
+          noteRows.push({ key, value });
+        }
+      }
+      if (!Object.keys(patch).length && !add.length && !remove.length && !invite && !noteRows.length) throw new BadRequest('Nothing to change');
+      if (noteRows.length) await tx.upsertAnswers(c.id, noteRows, `npsa:${req.actor}`);
+      if (Object.keys(patch).length) await tx.updateClient(c.slug, patch);
+      if (remove.length) await tx.removeContacts(c.id, remove);
+      if (add.length) await tx.addContacts(c.id, add, `npsa:${req.actor}`);
+    });
     // An invite is the team saying "send it now", so it goes even to someone welcomed before.
-    const invited = invite ? await welcome(c, invite, { addedBy: '', force: true, req }) : null;
-    console.log(`[intake] client_update ${c.slug} by ${req.actor} ${JSON.stringify(Object.keys(b))}`);
-    const view = clientView(await store.getClient(c.slug), base(req));
+    const invited = invite ? await welcome(found, invite, { addedBy: '', force: true, req }) : null;
+    console.log(`[intake] client_update ${found.slug} by ${req.actor} ${JSON.stringify(Object.keys(b))}`);
+    const view = clientView(await store.getClient(found.slug), base(req));
     res.json(invited ? { ...view, invite: invited } : view);
   }));
 
@@ -1289,7 +1351,12 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
   app.put('/api/clients/:slug/answers', team, guard(async (req, res) => {
     const c = await loadClient(req, res); if (!c) return;
     const rows = normaliseAnswers((req.body || {}).answers, { allowMeta: true });
-    const by = text((req.body || {}).by, 'by', 60) || `seed:${req.actor}`;
+    for (const r of rows) checkChecklistValue(r.key, r.value);
+    // A seed is the team's write. It may carry its own label (an import names its
+    // source), but never one that reads as the client's, which the form alone writes.
+    const label = text((req.body || {}).by, 'by', 60).trim();
+    if (/^client\b/i.test(label)) throw new BadRequest('by cannot name the client: client answers come only from the intake form');
+    const by = label || `seed:${req.actor}`;
     const n = await store.upsertAnswers(c.id, rows, by);
     console.log(`[intake] seed ${c.slug} by ${req.actor} ${n} key(s)`);
     res.json({ ok: true, slug: c.slug, written: n, keys: rows.map(r => r.key) });
@@ -1313,7 +1380,9 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     if (!u) return res.status(404).json({ error: 'No such upload' });
     if (!u.content) return res.status(404).json({ error: 'This file is not stored here' + (u.drive_url ? `; see ${u.drive_url}` : '') });
     res.set('Content-Type', u.mime);
-    res.set('Content-Disposition', `attachment; filename="${u.filename.replace(/["\r\n]/g, "_")}"`);
+    // Built by the shared helper: a filename outside Latin-1 (a Mac's curly apostrophe)
+    // makes a hand-built header throw, and the download fail with a 500.
+    res.set('Content-Disposition', contentDisposition(u.filename));
     res.set('Cache-Control', 'no-store');
     res.send(Buffer.from(u.content));
   }));

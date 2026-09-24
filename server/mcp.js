@@ -257,16 +257,9 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
       if (client_name === undefined && rep_name === undefined && total_fee === undefined) {
         throw new Error('Nothing to change: give client_name, rep_name and/or total_fee');
       }
-      const cur = await api(`/letters/${id}`);
-      const next = {
-        client_name: client_name ?? cur.client_name,
-        rep_name: rep_name ?? cur.rep_name,
-        doc_tab: cur.doc_tab,
-        form_data: cur.form_data,
-        saved_html: cur.saved_html,
-        total_fee: total_fee ?? cur.total_fee,
-      };
-      await api(`/letters/${id}`, { method: 'PUT', body: next });
+      // Only the named fields, in one write, so nothing edited in the generator meanwhile is lost.
+      const body = Object.fromEntries(Object.entries({ client_name, rep_name, total_fee }).filter(([, v]) => v !== undefined));
+      await api(`/letters/${id}`, { method: 'PATCH', body });
       const { saved_html, ...rest } = await api(`/letters/${id}`);
       return { ...rest, has_saved_html: Boolean(saved_html) };
     }));
@@ -821,7 +814,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
       inputSchema: {
         slug: z.string().min(1),
         answers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).describe('Map of intake key → value, e.g. {"q_1_3_1": "Trinity Wellsprings Church, Inc.", "chk_status_kickoff_call": "Completed"}'),
-        by: z.string().optional().describe('Attribution label instead of the default "seed:<key>"'),
+        by: z.string().optional().describe('Attribution label instead of the default "seed:<key>", such as "import:apps-script". Cannot start with "client".'),
       },
       annotations: WRITE,
     }, write('intake_seed', async ({ slug, answers, by }) => {

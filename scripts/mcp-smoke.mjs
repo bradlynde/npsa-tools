@@ -67,7 +67,7 @@ const app = express();
 app.use(express.json());
 app.get('/api/letters/stats', (_req, res) => res.json(FAKE_STATS));
 app.get('/api/letters/:id', (req, res) => req.params.id === '42' ? res.json(FAKE_LETTER) : res.status(404).json({ error: 'Not found' }));
-app.put('/api/letters/:id', (req, res) => { Object.assign(FAKE_LETTER, req.body); record(req, res); });
+app.patch('/api/letters/:id', (req, res) => { Object.assign(FAKE_LETTER, req.body); record(req, res); });
 app.post('/api/reps', (req, res) => record(req, res, { id: 5, name: req.body.name }));
 app.delete('/api/reps/:id', (req, res) => record(req, res));
 app.get('/api/precall/deadlines', (_req, res) => res.json(FAKE_DEADLINES));
@@ -234,17 +234,15 @@ await check('the old deadline writes are gone: a deadline is a gk record now', a
   assert.match(list.description, /gk_record_upsert/);
 });
 
-await check('letter_update merges only the given fields into the existing record', async () => {
+await check('letter_update PATCHes only the given fields, never the whole letter', async () => {
   const r = await client.callTool({ name: 'letter_update', arguments: { id: 42, total_fee: 5000 } });
   assert.ok(!r.isError, r.content?.[0]?.text);
   const w = lastWrite();
-  assert.equal(w.method, 'PUT');
-  assert.equal(w.body.total_fee, 5000);
-  assert.equal(w.body.client_name, 'Trinity', 'untouched field carried over');
-  assert.deepEqual(w.body.form_data, { fee: 1 }, 'form data carried over');
-  assert.equal(w.body.saved_html, '<p>big</p>', 'html carried over');
+  assert.deepEqual([w.method, w.path], ['PATCH', '/api/letters/42']);
+  assert.deepEqual(w.body, { total_fee: 5000 }, 'nothing read back and rewritten: no form data, no HTML');
   assert.equal(text(r).saved_html, undefined, 'response leaves the HTML out');
   assert.equal(text(r).total_fee, 5000);
+  assert.equal(text(r).client_name, 'Trinity');
 });
 
 await check('letter_update with nothing to change is a tool error and sends nothing', async () => {

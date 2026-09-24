@@ -884,6 +884,33 @@ app.put('/api/letters/:id', async (req, res) => {
   }
 });
 
+// Changes only the fields it is given, in one statement. The MCP's letter_update uses
+// this rather than reading the whole letter and writing it all back, which would
+// overwrite an edit made in the generator between the two.
+app.patch('/api/letters/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'Storage not configured' });
+  if (!/^\d+$/.test(req.params.id)) return res.status(404).json({ error: 'Not found' });
+  try {
+    const b = req.body || {};
+    const sets = [];
+    const params = [req.params.id];
+    const put = (col, v) => { params.push(v); sets.push(`${col}=$${params.length}`); };
+    if (b.client_name !== undefined) put('client_name', String(b.client_name).trim() || 'Untitled');
+    if (b.rep_name !== undefined) put('rep_name', String(b.rep_name).trim() || 'Unknown');
+    if (b.total_fee !== undefined) {
+      const fee = Number(b.total_fee);
+      if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ error: 'total_fee must be a number, 0 or more' });
+      put('total_fee', fee);
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to change: give client_name, rep_name and/or total_fee' });
+    const r = await pool.query(`UPDATE letters SET ${sets.join(', ')}, updated_at=NOW() WHERE id=$1 RETURNING id`, params);
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/letters/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Storage not configured' });
   try {
