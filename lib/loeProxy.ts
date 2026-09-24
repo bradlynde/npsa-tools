@@ -6,9 +6,15 @@ import crypto from "crypto";
  *
  * Why: the marketing and letter data live in that Express + Postgres service.
  * Proxying keeps the browser same-origin (no CORS change needed on the LOE
- * service) and lets us require a login here — those upstream endpoints have no
- * auth of their own. Only GETs are forwarded; writes stay with the LOE app.
+ * service) and lets us require a login here. The backend gates every /api route
+ * too (server/api-gate.js on loe-generator), so each call carries the toolbox's
+ * key, LOE_API_KEY.
  */
+
+/** The key this app presents to the backend. Every proxied route needs it. */
+export function loeKey(): string {
+  return process.env.LOE_API_KEY || process.env.NPSA_MCP_KEY || "";
+}
 
 export function loeBaseUrl(): string {
   const url =
@@ -26,10 +32,10 @@ export function loeBaseUrl(): string {
  */
 function verifyToken(token: string): { ok: boolean; username?: string } {
   const secret = process.env.JWT_SECRET;
-  // Without the shared secret we can't check a signature. Still requiring a
-  // bearer token keeps this off the open internet; set JWT_SECRET in Vercel
-  // to get full verification.
-  if (!secret) return { ok: token.length > 0 };
+  // Without the shared secret no token can be checked, so none is accepted.
+  // These routes now carry the backend key, so a proxy that let any string
+  // through would open the backend to anyone who found this app.
+  if (!secret) return { ok: false };
 
   const parts = token.split(".");
   if (parts.length !== 3) return { ok: false };
@@ -115,7 +121,7 @@ export async function proxyRequest(
       headers: {
         Accept: "application/json",
         ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
-        ...(options.upstreamKey ? { Authorization: `Bearer ${options.upstreamKey}` } : {}),
+        ...((options.upstreamKey || loeKey()) ? { Authorization: `Bearer ${options.upstreamKey || loeKey()}` } : {}),
         ...(options.forwardActor && who.username ? { "X-Actor": who.username } : {}),
       },
       body: method === "GET" ? undefined : body || "{}",
