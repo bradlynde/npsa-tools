@@ -12,7 +12,8 @@
 
 import { useEffect } from "react";
 import {
-  fmt, calcFees, totalMaxAward, applicationCount, engagementModelFor, isoDatePlus, PROGRAMS,
+  fmt, calcFees, totalMaxAward, applicationCount, engagementModelFor, reimbursementChoice,
+  isoDatePlus, PROGRAMS,
   TIER_LABELS,
 } from "./engine.js";
 
@@ -136,6 +137,22 @@ function ReviewStep({ form, docTab, fees, numLocs, signByKey, tierKey }) {
     rows.push([`Location${(form.locations || []).length === 1 ? "" : "s"}`, sites]);
   }
   if (docTab !== "gw" && docTab !== "addendum") rows.push(["Applications", numLocs]);
+  /*
+   * Which reimbursement clause the Award Implementation letter will print.
+   *
+   * The Terms step wrote a value the letter did not recognise, so clause 6
+   * vanished with nothing on screen to show it had. The clause is now named on
+   * Review, and an unset choice says so rather than reading as a clause that
+   * happens to be short.
+   */
+  if (docTab === "post") {
+    const choice = reimbursementChoice(form.postReimbursementOption);
+    rows.push(["Reimbursement", choice === "reimbursable"
+      ? "Reimbursable from grant funds — clause 6 prints"
+      : choice === "not-reimbursable"
+        ? "Not reimbursable — clause 6 prints"
+        : "Not chosen — no clause 6 in Compensation"]);
+  }
   if (terms.length) rows.push(["Terms", terms.join(" · ")]);
   if (form[tierKey] === "discounted" && form[signByKey]) {
     rows.push(["Sign by", fmtDate(form[signByKey])]);

@@ -5,6 +5,7 @@ import { LOGO_SRC } from "./generator/logo.js";
 import {
   fmt, calcFees, buildCompBlock, applicationCount, totalMaxAward, locationInProgram,
   programsKeyFor, oneApplicationPerLetter, engagementModelFor, enumerateApplications, divideFee,
+  REIMBURSEMENT_CLAUSE, reimbursementChoice, nextSectionNumeral,
   PROGRAMS, NPSA_SIGNATURES,
 } from "./generator/engine.js";
 import {
@@ -700,11 +701,7 @@ export default function App() {
           return `       ${i+1}. ${parts.join(" — ")}`;
         }).join("\n")
       : "       1. [No addresses entered — add locations in the Locations section]";
-    const reimbOption = form.postReimbursementOption === "optionA"
-      ? "\n6. CLIENT acknowledges that M&A consulting fees may be eligible for reimbursement through NSGP grant proceeds, subject to approval by the administering State agency. CLIENT further acknowledges that the timing of grant reimbursements may not align with NPSA's payment schedule, and that CLIENT is solely responsible for making all payments to NPSA in accordance with the schedule above, regardless of whether or when CLIENT receives grant reimbursement."
-      : form.postReimbursementOption === "optionB"
-      ? "\n6. CLIENT acknowledges that NPSA's M&A consulting fees are not reimbursable through NSGP grant proceeds and that CLIENT is solely responsible for all payments to NPSA from CLIENT's own funds."
-      : "";
+    const reimbOption = REIMBURSEMENT_CLAUSE[form.postReimbursementOption] || "";
     return t
       .replace(/\[CLIENT_NAME\]/g, form.clientName||"[CLIENT NAME]")
       .replace(/\[GRANT_YEAR\]/g, postGrantYear)
@@ -948,6 +945,13 @@ export default function App() {
   };
   const SH = ({id}) => { const s=sections.find(x=>x.id===id); if(!s||!s.roman) return null;
     return <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"var(--navy)",borderBottom:"2px solid var(--navy)",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{s.roman} {s.title}</div>; };
+  /*
+   * A section appended after the template's own, styled exactly as SH styles a
+   * template section — the short-notice heading used to carry its own literal
+   * copy of these rules plus a hard-coded numeral, so it could drift from the
+   * others and did.
+   */
+  const ExtraSH = ({roman,title}) => <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"var(--navy)",borderBottom:"2px solid var(--navy)",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{roman ? `${roman} ` : ""}{title}</div>;
   const SubH = ({label}) => <div style={{fontSize:13,fontWeight:700,fontStyle:"italic",marginTop:14,marginBottom:6,color:"#333",pageBreakAfter:"avoid",breakAfter:"avoid"}}>{label}</div>;
   const Body = ({id,subId}) => {
     const raw = gc(id,subId);
@@ -2086,7 +2090,7 @@ export default function App() {
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
-                {form.optPostAwardScope&&(
+                {form.optPostAwardScope&&fees.postAward>0&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
                     <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.postAward)}</div>
@@ -2143,7 +2147,7 @@ export default function App() {
                     <div style={{fontSize:10,color:"#888",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
-                {form.inhOptPostAwardScope&&(
+                {form.inhOptPostAwardScope&&inhFees.postAward>0&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:10,color:"#888",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
                     <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.postAward)}</div>
@@ -2182,7 +2186,7 @@ export default function App() {
             <SH id="pre_other"/><Body id="pre_other"/>
             {form.optShortNotice&&(
               <>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:10}}>IX. Short-Notice Application Circumstances</div>
+                <ExtraSH roman={nextSectionNumeral(sections)} title="Short-Notice Application Circumstances" />
                 {renderLines(
 `1. CLIENT acknowledges that this engagement is being entered into with less than desirable notice.
 2. NPSA commits to make all commercially reasonable efforts to position CLIENT to submit a compliant and well-written application.
@@ -2225,7 +2229,7 @@ export default function App() {
             <SH id="inh_other"/><Body id="inh_other"/>
             {form.inhOptShortNotice&&(
               <>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:10}}>IX. Short-Notice Application Circumstances</div>
+                <ExtraSH roman={nextSectionNumeral(sections)} title="Short-Notice Application Circumstances" />
                 {renderLines(
 `1. CLIENT acknowledges that this engagement is being entered into with less than desirable notice.
 2. NPSA commits to make all commercially reasonable efforts to position CLIENT to submit a compliant and well-written application.
