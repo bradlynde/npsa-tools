@@ -35,6 +35,7 @@ export default function ToolFrame({
       // Only the frame we mounted may move the shell.
       if (!frame.current || e.source !== frame.current.contentWindow) return;
       const data = e.data as { type?: string } | null;
+      if (data && data.type === "npsa:auth-request") return postAuth();
       if (!data || data.type !== "npsa:navigate") return;
       router.push(back);
     };
@@ -44,6 +45,21 @@ export default function ToolFrame({
 
   const base = LOE_URL.replace(/\/+$/, "");
   const src = view ? `${base}/?view=${encodeURIComponent(view)}` : base;
+
+  /*
+   * The login has to be relayed too.
+   *
+   * The framed app calls its own backend straight from the browser, and that
+   * backend now requires a credential on every /api route. It asks for the
+   * person's login token as soon as it starts, and gets it again on load. The
+   * message is addressed to the backend's origin only, so no other page that
+   * ends up in this frame can read it.
+   */
+  function postAuth() {
+    let token = "";
+    try { token = localStorage.getItem("auth_token") || ""; } catch { /* private mode */ }
+    if (token) frame.current?.contentWindow?.postMessage({ type: "npsa:auth", token }, base);
+  }
 
   /*
    * The theme has to be relayed.
@@ -74,12 +90,13 @@ export default function ToolFrame({
     <iframe
       ref={frame}
       src={src}
-      onLoad={() =>
+      onLoad={() => {
         frame.current?.contentWindow?.postMessage(
           { type: "npsa:theme", mode: document.body.classList.contains("dark") ? "dark" : "light" },
           base,
-        )
-      }
+        );
+        postAuth();
+      }}
       style={{ width: "100%", height, border: "none", display: "block" }}
       title={title}
     />
