@@ -536,6 +536,77 @@ body.dark .seg-btn[aria-selected="true"] {
   color: var(--faint);
 }
 
+.field-sm {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  line-height: 18px;
+  border-radius: var(--r-sm);
+}
+textarea.field {
+  height: auto;
+  padding: 8px 10px;
+  line-height: 20px;
+  resize: vertical;
+}
+textarea.field-sm {
+  padding: 6px 10px;
+  line-height: 18px;
+}
+select.field {
+  cursor: pointer;
+}
+
+/* Dialogs */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--scrim);
+  animation: scrimIn 0.15s ease both;
+}
+.dialog {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--bd2);
+  border-radius: 16px;
+  box-shadow: var(--shadow-pop);
+  animation: dialogIn 0.18s ease both;
+}
+@media (max-width: 760px) {
+  .scrim {
+    padding: 12px;
+  }
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  z-index: 130;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--tip-bg);
+  color: var(--tip-fg);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  box-shadow: var(--shadow-pop);
+  animation: toastIn 0.2s ease both;
+}
+@media (max-width: 760px) {
+  .toast {
+    bottom: calc(var(--mobile-tabs-h) + 16px + env(safe-area-inset-bottom));
+  }
+}
+
 /* Plain data table */
 .data-table {
   width: 100%;
@@ -568,6 +639,88 @@ body.dark .seg-btn[aria-selected="true"] {
 .data-table th:last-child,
 .data-table td:last-child {
   padding-right: 24px;
+}
+
+/* A stat tile that is also a filter (Grant Writing's views). */
+.view-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 18px 20px;
+  border: 1px solid var(--bd2);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  animation: fadeUp 0.4s ease both;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.view-tile:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-card-hover);
+}
+.view-tile[aria-pressed="true"] {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 1px var(--navy), var(--shadow-card);
+}
+
+/* One client per card on phones. */
+.client-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--hair2);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.client-card:hover {
+  background: var(--hover);
+}
+
+/* The application a client is being written for: "CSNSGP 2026-27 · site 1". */
+.app-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--sand);
+  color: var(--sec);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.app-chip b {
+  color: var(--ink);
+  font-weight: 600;
+  margin-right: 3px;
+}
+.app-chip-md {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.app-chip[data-kind="later"] {
+  background: transparent;
+  border-style: dashed;
+}
+.app-chip[data-kind="closed"] {
+  opacity: 0.6;
+}
+.app-chip-status {
+  color: var(--mute);
+}
+.app-chip[data-kind="later"] .app-chip-status {
+  color: var(--warn-fg);
 }
 
 /* A list row that highlights under the pointer. */
@@ -970,6 +1123,37 @@ body.dark img.logo-dark {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 }
 
