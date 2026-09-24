@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import {
   Page,
   Card,
@@ -459,6 +460,11 @@ export default function DashboardPage() {
 
       {/* Raw bookings first — the source rows people check before the roll-ups */}
       <BookingsTable
+        action={
+          <Link href="/bookings" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 500, color: "var(--navy)", textDecoration: "none" }}>
+            Open the Bookings page <ArrowRight size={14} strokeWidth={1.75} aria-hidden />
+          </Link>
+        }
         rows={visibleRows}
         loading={mktLoading}
         search={search}

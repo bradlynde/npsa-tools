@@ -73,6 +73,23 @@ bookings → funnel + channels → campaign & source. Raw rows come before every
 roll-up that summarises them, following upstream `62b59dc`. The scraper strip was removed from this page —
 the Scraper tab owns that.
 
+## Bookings page
+
+The raw bookings table also has its own page, `/bookings`, in the sidebar, for the
+people who work through attribution every day. It is the same `BookingsTable`,
+with the same range (shared with the Dashboard) and the same server-side search,
+plus filters for the recurring work:
+
+| Filter | Shows |
+|---|---|
+| Needs attribution | No channel, the Direct / Other catch-all, or Instantly with no campaign. Set-aside and cancelled bookings are left out |
+| Held, no LOE yet | Meetings marked held where no LOE has gone out |
+| Upcoming | Meetings still to come |
+
+Where a campaign is expected and missing, the Campaign cell reads "Find the
+campaign" instead of a dash; clicking it opens the same Instantly picker. The
+Dashboard's table links to the page.
+
 ## Sales Toolbox
 
 | Live element | Where it is now |

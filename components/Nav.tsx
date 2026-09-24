@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BookOpenText,
   BriefcaseBusiness,
+  CalendarCheck,
   Check,
   ChevronsUpDown,
   LayoutDashboard,
@@ -33,6 +34,8 @@ type NavItem = {
 
 export const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", short: "Home", icon: LayoutDashboard, match: (p) => p === "/" },
+  // Booking attribution has its own page: Chad, Jeff and Michael work in it daily.
+  { href: "/bookings", label: "Bookings", short: "Bookings", icon: CalendarCheck, match: (p) => p.startsWith("/bookings") },
   {
     href: "/toolbox",
     label: "Sales Toolbox",
