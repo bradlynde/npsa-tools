@@ -526,7 +526,8 @@ which clears it. A client with no programs sees an empty state instead of blank 
 
 The client's Checklist tab no longer shows the task table. It shows **Your tasks** (the client's open
 tasks for the next three weeks, one bordered box per due date, nearest in amber, under a "Today" line;
-To do / Working on it / Done on each; Later, Done and "Don't apply" fold away) and **What NPSA is
+To do / Working on it / Done on each; Later and Done fold away; tasks set to Not applicable
+are hidden from the client entirely) and **What NPSA is
 working on** (read-only, same date order). The table stays in the page, hidden, as the data layer:
 its selects still autosave and feed the progress bar and the submission box.
 
@@ -536,5 +537,5 @@ its selects still autosave and feed the progress bar and the submission box.
 - The team edits every task from the Grant Writing dialog (**Edit checklist**): `PATCH
   /api/clients/:slug` with `checklist: { "chk_status_<stem>": "Completed", "chk_due_<stem>": "11/20/2026",
   "chk_note_<stem>": "…" }` (per-application tasks use `chk_<id>_…`). Status must be Not started, In
-  progress, Completed or Not applicable. A "Not applicable" task's note is the reason the client sees.
+  progress, Completed or Not applicable. Not applicable hides the task from the client.
 - Notes that are only the "Day N" guide never show to the client.

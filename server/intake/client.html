@@ -1091,9 +1091,9 @@
         var d=g.key==='overdue'?'<b>Overdue</b><span>catch up when you can</span>':'<b>'+md(g.due)+'</b><span>'+WD[g.due.getDay()]+' · '+rel(g.due)+'</span>';
         return '<div class="ckx-day'+(soon?' soon':'')+'"><div class="ckx-dd">'+d+'</div><div class="ckx-tasks">'+g.tasks.map(clientRow).join('')+'</div></div>';}).join('')+'</div>';
       h+=fold('Later',[range(M.later),M.later.length+' task'+(M.later.length===1?'':'s')].filter(Boolean).join(' · '),M.later.map(function(t){return flatRow(t,seg(t));}).join(''));
-      var done=mine.filter(function(t){return t.status==='Completed';}).sort(byDue),na=all.filter(function(t){return t.status==='Not applicable';});
+      var done=mine.filter(function(t){return t.status==='Completed';}).sort(byDue); /* tasks set to Doesn't apply are left out of the client's view entirely */
       h+='<div class="ckx-folds">'+fold(done.length+' done',done.map(function(t){return t.title;}).slice(0,3).join(', ')+(done.length>3?'…':''),done.map(function(t){return flatRow(t,seg(t));}).join(''))
-        +fold(na.length+" don't apply to you",'set by NPSA',na.map(function(t){return '<div class="ckx-row na"><div class="ckx-d"></div><span class="ckx-ti">'+title(t)+'</span><span class="ckx-st">'+escT(t.note||"Doesn't apply")+'</span></div>';}).join(''))+'</div></div>';
++'</div></div>';
       var nd=theirs.filter(function(t){return t.status==='Completed';}).sort(byDue);
       h+='<div class="ckx-sec ckx-npsa"><div class="ckx-h"><h3>What NPSA is working on</h3><span>'+(no.length?no.length+' open':'all done')+'</span></div>'
         +'<p class="ckx-sub">Nothing for you to do here. It is here so you can see where things stand.</p>'
