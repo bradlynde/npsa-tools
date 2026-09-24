@@ -1,5 +1,6 @@
-import { COLORS } from '../lib/constants';
+import { Bar } from "./ui";
 
+/** Counties done out of the state's total, as a bar with the count beside it. */
 export default function ProgressBar({ completed, total, label }: {
   completed: number;
   total: number;
@@ -8,39 +9,14 @@ export default function ProgressBar({ completed, total, label }: {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
     <div>
-      {label && (
-        <div style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 6 }}>{label}</div>
-      )}
-      <div style={{
-        background: '#e5e7eb',
-        borderRadius: 6,
-        height: 22,
-        position: 'relative',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          background: COLORS.accent,
-          height: '100%',
-          width: `${pct}%`,
-          borderRadius: 8,
-          transition: 'width 0.5s ease',
-        }} />
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 11,
-          fontWeight: 600,
-          color: pct > 50 ? '#fff' : COLORS.textPrimary,
-        }}>
-          {completed} / {total} counties ({pct}%)
+      {label && <div className="eyebrow" style={{ marginBottom: 6 }}>{label}</div>}
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ flex: 1 }}>
+          <Bar pct={pct} height={8} />
         </div>
+        <span className="num" style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap" }}>{pct}%</span>
       </div>
+      <div className="meta num" style={{ marginTop: 6 }}>{completed} of {total} counties</div>
     </div>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
-// @ts-nocheck
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { COLORS, SCRAPER_LABELS } from "../lib/constants";
+import { ArrowLeft, Archive, Download, Square } from "lucide-react";
+import { SCRAPER_LABELS } from "../lib/constants";
 import { fetchPipelineStatus, downloadCsv, archiveRun, stopRun } from "../lib/api";
+import { Page, Button, Skeleton, useConfirm, useToast } from "./ui";
 import StatCard from "./StatCard";
 import ProgressBar from "./ProgressBar";
 import CountyTable from "./CountyTable";
@@ -15,11 +16,23 @@ function formatState(state: string): string {
   return state.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+function BackLink() {
+  return (
+    <Link href="/scraper" className="btn btn-quiet btn-sm" style={{ marginLeft: -10, marginBottom: 16 }}>
+      <ArrowLeft size={15} strokeWidth={1.75} aria-hidden /> Back to Scraper
+    </Link>
+  );
+}
+
 export default function RunDetailPage({ runId, scraperType }: { runId: string; scraperType: ScraperType }) {
   const labels = SCRAPER_LABELS[scraperType];
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"download" | "archive" | "stop" | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
+  const [toast, notify] = useToast();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
@@ -35,62 +48,70 @@ export default function RunDetailPage({ runId, scraperType }: { runId: string; s
 
   useEffect(() => {
     load();
-  }, [runId, scraperType]);
+  }, [runId, scraperType]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll if running
+  // Poll while the run is going.
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     if (!status || (status.status !== "running" && status.status !== "finalizing")) return;
     pollRef.current = setInterval(load, 5000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [status?.status]);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [status?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDownload = async () => {
+  const act = async (kind: "download" | "archive" | "stop", fn: () => Promise<unknown>, done?: string) => {
+    setBusy(kind);
+    setActionError(null);
     try {
-      await downloadCsv(scraperType, runId);
+      await fn();
+      if (done) notify(done);
+      if (kind !== "download") load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Download failed");
+      setActionError(e instanceof Error ? e.message : `${kind.charAt(0).toUpperCase() + kind.slice(1)} failed`);
+    } finally {
+      setBusy(null);
     }
   };
 
+  const handleDownload = () => act("download", () => downloadCsv(scraperType, runId));
+
   const handleArchive = async () => {
-    if (!confirm("Archive this run?")) return;
-    try {
-      await archiveRun(scraperType, runId);
-      load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Archive failed");
-    }
+    const ok = await confirm({
+      title: "Archive this run?",
+      body: "It leaves the Scraper's run list. Nothing is deleted.",
+      confirmLabel: "Archive run",
+    });
+    if (ok) act("archive", () => archiveRun(scraperType, runId), "Run archived");
   };
 
   const handleStop = async () => {
-    if (!confirm("Stop this run? This cannot be undone.")) return;
-    try {
-      await stopRun(scraperType, runId);
-      load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Stop failed");
-    }
+    const ok = await confirm({
+      title: "Stop this run?",
+      body: "Counties not searched yet will be skipped, and the run can't be restarted from here.",
+      confirmLabel: "Stop run",
+      tone: "danger",
+    });
+    if (ok) act("stop", () => stopRun(scraperType, runId), "Run stopped");
   };
 
   if (loading) {
     return (
-      <div style={{ padding: "40px 48px" }}>
-        <div style={{ fontSize: 13, color: COLORS.textMuted }}>Loading run details...</div>
-      </div>
+      <Page>
+        <BackLink />
+        <Skeleton rows={5} />
+      </Page>
     );
   }
 
   if (error || !status) {
     return (
-      <div style={{ padding: "40px 48px" }}>
-        <Link href={`/${scraperType}`} style={{ fontSize: 13, color: COLORS.textMuted, textDecoration: "none", marginBottom: 20, display: "inline-block" }}>
-          &larr; Back to {labels.title}
-        </Link>
-        <div style={{ background: COLORS.errorBg, color: COLORS.error, padding: "16px 20px", borderRadius: 12, fontSize: 14 }}>
+      <Page>
+        <BackLink />
+        <div role="alert" style={{ background: "var(--err-bg)", color: "var(--err-fg)", border: "1px solid var(--err-line)", padding: "14px 18px", borderRadius: "var(--r-md)", fontSize: 14 }}>
           {error || "Run not found"}
         </div>
-      </div>
+      </Page>
     );
   }
 
@@ -99,80 +120,76 @@ export default function RunDetailPage({ runId, scraperType }: { runId: string; s
   const countiesDone = status.countiesProcessed ?? status.counties_processed ?? 0;
   const totalContacts = status.totalContacts ?? status.total_contacts ?? 0;
   const withEmail = status.totalContactsWithEmails ?? status.total_contacts_with_emails ?? 0;
-  const withoutEmail = totalContacts - withEmail;
   const counties: CountyTask[] = status.countyTasks || [];
   const stateName = status.state ? formatState(status.state) : "Unknown";
+  const emailPct = totalContacts > 0 ? Math.round((withEmail / totalContacts) * 100) : 0;
 
   return (
-    <div className="page-container" style={{ padding: "28px 36px", maxWidth: 1200, margin: "0 auto" }}>
-      {/* Back link */}
-      <Link className="animate-in mono" href={`/${scraperType}`} style={{ fontSize: 11.5, letterSpacing: ".06em", color: "var(--mute)", textDecoration: "none", marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 5 }}>
-        &larr; back to scraper
-      </Link>
+    <Page>
+      <BackLink />
 
       {/* Header */}
-      <div className="animate-in delay-1 header-responsive" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <h1 className="headline" style={{ fontSize: 30 }}>
-            {stateName} <em>{labels.plural}</em>
-          </h1>
-          <StatusBadge status={status.status} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+          <div className="eyebrow" style={{ color: "var(--olive-ink)" }}>
+            Scraper · {labels.singular.toLowerCase()} run · <span className="mono" style={{ fontSize: 12 }} title={runId}>{runId}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h1 className="headline">
+              {stateName} {labels.plural}
+            </h1>
+            <StatusBadge status={status.status} />
+          </div>
         </div>
-        <div className="btn-row-responsive" style={{ display: "flex", gap: 10 }}>
-          {isActive && (
-            <button onClick={handleStop} style={{
-              background: "none", border: "1.5px solid var(--err-fg)", borderRadius: 999,
-              padding: "9px 18px", fontSize: 13, color: "var(--err-fg)", cursor: "pointer", fontWeight: 700, font: "inherit",
-            }}>
-              Stop Run
-            </button>
-          )}
-          {!isActive && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {isActive ? (
+            <Button variant="danger" icon={Square} busy={busy === "stop"} disabled={!!busy} onClick={handleStop}>
+              Stop run
+            </Button>
+          ) : (
             <>
-              <button onClick={handleDownload} style={{
-                background: "var(--navy)", border: "none", borderRadius: 999,
-                padding: "10px 20px", fontSize: 13, color: "var(--on-accent)", cursor: "pointer", fontWeight: 700, font: "inherit",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(30,58,95,0.3)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                Download CSV
-              </button>
-              <button onClick={handleArchive} style={{
-                background: "none", border: "1px solid var(--bd2)", borderRadius: 999,
-                padding: "10px 20px", fontSize: 13, color: "var(--sec)", cursor: "pointer", fontWeight: 700, font: "inherit",
-              }}>
+              <Button variant="secondary" icon={Archive} busy={busy === "archive"} disabled={!!busy} onClick={handleArchive}>
                 Archive
-              </button>
+              </Button>
+              <Button icon={Download} busy={busy === "download"} disabled={!!busy} onClick={handleDownload}>
+                Download CSV
+              </Button>
             </>
           )}
         </div>
       </div>
 
-      {/* Progress bar (if active) */}
-      {isActive && (
-        <div style={{ marginBottom: 20 }}>
-          <ProgressBar completed={countiesDone} total={totalCounties} />
+      {actionError && (
+        <div role="alert" style={{ marginBottom: 16, padding: "12px 16px", borderRadius: "var(--r-md)", border: "1px solid var(--err-line)", background: "var(--err-bg)", color: "var(--err-fg)", fontSize: 14 }}>
+          {actionError}
         </div>
       )}
 
-      {/* Stats */}
-      <div className="animate-in delay-2 grid-responsive" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
-        <StatCard label="Total Contacts" value={totalContacts} />
-        <StatCard label="Counties" value={`${countiesDone} / ${totalCounties}`} />
-        <StatCard label="Run ID" value={runId.substring(0, 8)} subtitle={runId} />
+      {/* Progress, while it runs */}
+      {isActive && (
+        <div className="card-surface" style={{ marginBottom: 16, padding: "18px 20px", background: "var(--card)", border: "1px solid var(--bd2)", borderRadius: "var(--r-lg)" }}>
+          <ProgressBar completed={countiesDone} total={totalCounties} label="Progress" />
+        </div>
+      )}
+
+      {/* Figures */}
+      <div className="grid-responsive" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 28 }}>
+        <StatCard label="Contacts" value={totalContacts} subtitle={isActive ? "Found so far" : "Found in this run"} />
+        <StatCard label="With an email" value={withEmail} subtitle={totalContacts ? `${emailPct}% of contacts` : "None yet"} />
+        <StatCard label="Counties" value={`${countiesDone} of ${totalCounties}`} subtitle={isActive ? "Searched so far" : "Searched"} />
       </div>
 
-      {/* County Table */}
+      {/* Counties */}
       {counties.length > 0 && (
-        <div className="animate-in delay-3">
-          <h3 style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 700, color: COLORS.textPrimary }}>
-            County Breakdown
-          </h3>
+        <div>
+          <h2 className="section-title" style={{ marginBottom: 12 }}>
+            Counties
+          </h2>
           <CountyTable counties={counties} scraperType={scraperType} />
         </div>
       )}
-    </div>
+      {confirmDialog}
+      {toast}
+    </Page>
   );
 }
