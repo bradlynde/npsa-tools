@@ -79,8 +79,9 @@ const deadlines = [
   { id: 2, state: "TX", program: "federal", cycle_year: 2026, deadline: "2026-07-06",
     kind: "sub_applicant", note: "5:00pm CT, no extensions.", source: "egrants.gov.texas.gov",
     confidence: "confirmed", layer: "knowledge-base" },
-  // One window still open, so the editor renders a live row rather than only past
-  // ones. Dated far out so the harness does not rot in a month.
+  // One window still open, so a deadline summary — if one crept back onto the
+  // dashboard (section 5) — would have a live row to show rather than rendering
+  // empty and passing. Dated far out so the harness does not rot in a month.
   { id: 3, state: "PA", program: "PA-NSGFP", cycle_year: 2099, deadline: "2099-09-10",
     kind: "state_program", note: "OPEN NOW.", source: "pa.gov/agencies/pccd",
     confidence: "confirmed", layer: "verified" },
@@ -157,28 +158,34 @@ check("submitted phone survives to the request body",
   generateBody?.formData?.attendees?.[0]?.phone === "2147089835",
   JSON.stringify(generateBody?.formData?.attendees?.[0]));
 
-// ── 4. the deadline editor opens and lists curated rows ──────────────────
+// ── 4. "Deadlines" opens the Grant Knowledge tab on the rep's state ──────
 //
-// The editor is a state selector now: it opens on a jurisdiction grid and shows
-// one state's rows once a state is picked. These three checks still expected the
-// old all-states table, so they had been failing since that rewrite — invisibly,
-// because CI only runs `vite build` and nothing else runs this file.
-await page.locator('button:has-text("Deadlines")').first().click();
-await page.waitForTimeout(500);
-check("deadline editor opens on the jurisdiction grid",
-  await page.getByRole("button", { name: /^IN/ }).isVisible());
+// The in-app deadline editor is gone: it wrote to a table nothing read any more,
+// and 985ef48 turned the button into a link to the Grant Knowledge tab, where a
+// state's deadlines sit with everything else about it. This section still drove
+// the old editor, so from that commit on the run died here — and, since nothing
+// but a person runs this file, took the dashboard checks below down with it
+// unseen. What matters now is that the link goes where it says, on the state
+// the rep is preparing for.
+const guide = page.locator('a:has-text("Deadlines")').first();
+check("the Deadlines link is on the pre-call screen", (await guide.count()) > 0);
+const hrefNoState = await guide.getAttribute("href");
+check("with no state entered it opens the Grant Knowledge tab itself",
+  /\/grant-knowledge$/.test(hrefNoState || ""), hrefNoState);
+check("in a new tab, without handing that tab this window",
+  (await guide.getAttribute("target")) === "_blank" && /noopener/.test((await guide.getAttribute("rel")) || ""));
 
-await page.getByRole("button", { name: /^IN/ }).click();
-await page.waitForTimeout(300);
-const deadlineBody = await page.locator("body").innerText();
-check("the chosen state's curated row is listed", deadlineBody.includes("2025-10-21"));
-check("deadline source is shown so it can be re-checked", deadlineBody.includes("in.gov/dhs"));
-// Indiana's only row is illustrative, so within its view "verify" must be the
-// label and "confirmed" must not appear at all. The old assertion looked for
-// both strings anywhere on the page, which a single mislabelled row would pass.
-check("a date needing checking is labelled, not shown as confirmed",
-  /verify/.test(deadlineBody) && !/confirmed/.test(deadlineBody));
-check("another state's rows stay out of view", !deadlineBody.includes("egrants.gov.texas.gov"));
+await page.locator('input[placeholder="GA"]').first().fill("in");
+await page.waitForTimeout(200);
+const hrefState = await guide.getAttribute("href");
+check("once a state is entered it opens on that state, upper-cased",
+  /\/grant-knowledge\?state=IN$/.test(hrefState || ""), hrefState);
+
+await page.locator('input[placeholder="GA"]').first().fill("Indiana");
+await page.waitForTimeout(200);
+const hrefName = await guide.getAttribute("href");
+check("a state typed out in full is not passed as a code",
+  /\/grant-knowledge$/.test(hrefName || ""), hrefName);
 
 // ── 5. the dashboard does NOT carry a second copy of the deadlines ──────
 // This screen is only ever reached inside the toolbox's /loe iframe, which always

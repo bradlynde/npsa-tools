@@ -25,6 +25,12 @@ process.env.CALENDLY_API_TOKEN = 'cal-test';
 // The OpenAI SDK binds fetch inside its own module, so a globalThis stub never
 // sees its requests. Point it at a local stand-in instead.
 process.env.OPENAI_BASE_URL = 'http://127.0.0.1:3212/v1';
+// Every /api route has needed a credential since #266 (server/api-gate.js), and
+// this file kept calling without one — so from then on every check below was
+// reading a 401 body and failing on it, which says nothing about the notes. A
+// team key is the credential the toolbox's own proxies present.
+process.env.MCP_API_KEYS = 'precall-facts-key';
+const AUTH = { Authorization: 'Bearer precall-facts-key' };
 
 const EVENT = 'https://api.calendly.com/scheduled_events/d14f0255';
 
@@ -148,7 +154,7 @@ await import(new URL('../server/index.js', import.meta.url).href);
 await new Promise((r) => setTimeout(r, 1500));
 
 const r = await realFetch('http://localhost:3211/api/precall', {
-  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH },
   body: JSON.stringify({ eventUri: EVENT, formData: { orgType: 'church', orgState: '', attendees: [] } }),
 });
 const d = await r.json();
@@ -206,7 +212,7 @@ const checks = {
 // Now the degraded run: no reader answers at all.
 globalThis.__READERS_DOWN = true;
 const r2 = await realFetch('http://localhost:3211/api/precall', {
-  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH },
   body: JSON.stringify({ eventUri: EVENT, formData: { orgType: 'church', orgState: '', attendees: [] } }),
 });
 const d2 = await r2.json();
