@@ -142,6 +142,21 @@ body {
   color: #1a1a1a;
 
   /*
+   * The letter's own typeface.
+   *
+   * The print window wraps everything in Georgia, but on screen only the
+   * elements that set fontFamily themselves got it — the section headings, the
+   * parties box and the fee boxes set none, so they previewed in the app's
+   * sans and printed in Georgia. A rep proofreading the preview was not
+   * looking at the document the client receives.
+   *
+   * Set once here, so anything added to the letter later is Georgia in both
+   * without its author having to remember, and runPrint hands this same
+   * computed value to the print document.
+   */
+  font-family: Georgia, "Times New Roman", serif;
+
+  /*
    * The brand hues, pinned to their light-mode values.
    *
    * --navy and --olive lighten in dark mode so they stay legible on a dark
