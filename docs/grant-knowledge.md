@@ -20,7 +20,7 @@ first loaded from, answers only while it cannot be read.
 | B1 | Identity: `MCP_KEY_NAMES`, `ACTOR_PROXY_KEYS` (see [mcp.md](mcp.md)) |
 | B2 | This module: tables, stores, routes, `scripts/gk-smoke.mjs` |
 | B3 | Import from the Drive YAML, with a conflict report to rule on; `/import`, `/export` |
-| B4 | MCP tools (`gk_*`), and `nsgp_state_reference` read from here |
+| B4 | MCP tools (`gk_*`), and `nsgp_state_reference` read from here (that tool since retired; `gk_*` covers it) |
 | F1, F2 | The Grant Knowledge tab on `frontend`: map, state page, then editing, history, the queue |
 | B5 / F3 | File attachments (NOFOs, state guidance) |
 | B6 | `nsgp_deadlines` served from here behind its existing shape |
@@ -206,7 +206,7 @@ The snapshot loads at boot, refreshes every minute, and refreshes after every su
 write to `/api/grant-knowledge`, so an edit reaches client pages and briefings at once.
 Until it has loaded, or if the knowledge base is empty or unreadable, the seed bundle
 answers (projected the same way, verified records only). The same seed stands in for
-`nsgp_state_reference` and the deadline feed's reference when the database is down.
+`GET /reference` and the deadline feed's reference when the database is down.
 
 `node scripts/intake-knowledge-smoke.mjs` covers the projection, the create, the seed
 fallback and the briefing block.
@@ -220,7 +220,7 @@ carries the field list for each kind, generated from the schemas, so it cannot d
 them. `gk_state_brief` is the jurisdiction as markdown (`GET /jurisdictions/:code?format=markdown`),
 with what ends an application first and every unverified fact marked inline.
 
-`GET /reference` serves the shape `nsgp_state_reference` has always returned, from the
+`GET /reference` serves the shape the retired `nsgp_state_reference` tool returned, from the
 knowledge base, so skills that parse it keep working; territories are now covered.
 
 `gk_files_list` says what is attached to a jurisdiction. Files are put there from the
