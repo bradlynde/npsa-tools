@@ -9,6 +9,12 @@ body {
   max-width: 100vw;
   overflow-x: hidden;
 }
+/* On <body>, `hidden` makes a scroll container, and that quietly switches off
+   position: sticky for everything inside it: the sidebar and the phone header
+   scrolled away with the page. `clip` crops the same way without doing that. */
+body {
+  overflow-x: clip;
+}
 
 /* ── Design tokens ──────────────────────────────────────────────
    The palette is the NPSA website's: cream, sand, navy, olive and
@@ -1076,8 +1082,7 @@ body.dark img.logo-dark {
     background: var(--bg);
     border-bottom: 1px solid var(--hair);
   }
-  /* Fixed, not sticky: `overflow-x: hidden` on <body> makes it a scroll
-     container, which breaks sticky pinning at the bottom. */
+  /* Fixed rather than sticky, so it stays at the bottom however short the page. */
   .mobile-tabs {
     position: fixed;
     left: 0;
