@@ -5,7 +5,7 @@ import { LOGO_SRC } from "./generator/logo.js";
 import {
   fmt, calcFees, buildCompBlock, applicationCount, totalMaxAward, locationInProgram,
   programsKeyFor, oneApplicationPerLetter, engagementModelFor, enumerateApplications, divideFee,
-  REIMBURSEMENT_CLAUSE, reimbursementChoice, nextSectionNumeral,
+  REIMBURSEMENT_CLAUSE, reimbursementChoice, nextSectionNumeral, letterParty,
   PROGRAMS, NPSA_SIGNATURES,
 } from "./generator/engine.js";
 import {
@@ -875,9 +875,19 @@ export default function App() {
   const isInh = docTab==="inh";
   const isProposal = docTab==="proposal";
   const isAddendum = docTab==="addendum";
-  // An engagement letter without an expiration date is not sendable, so the
-  // download stays disabled until one is set. Addenda inherit the original's.
-  const downloadBlocked = !isAddendum && !isProposal && !form.expirationDate;
+  /*
+   * An engagement letter without an expiration date is not sendable, so the
+   * download stays disabled until one is set. Addenda inherit the original's.
+   *
+   * A Grant Writer agreement is exempt because it has no expiration field to
+   * fill: the gw form never collected one, so the block could not be satisfied
+   * and every grant-writer agreement was undownloadable. Worse after the
+   * Review-step blocker landed, which offered "Go to Terms" — a step that, for
+   * this document, does not carry the field it is pointing at. Give grant-writer
+   * agreements an expiry only if they should actually expire; until then there
+   * is nothing here to enforce.
+   */
+  const downloadBlocked = !isAddendum && !isProposal && !isGw && !form.expirationDate;
   const sections = isPre?preSections:isInh?inhSections:postSections;
   const interp = isPre?interpolatePre:isInh?interpolateInh:interpolatePost;
   const gc = (id,subId) => getContent(sections,id,subId,interp);
@@ -1056,7 +1066,7 @@ export default function App() {
     const ids = [];
     for (let i = 0; i < forms.length; i++) {
       const payload = {
-        client_name: form.clientName || 'Untitled',
+        client_name: letterParty(docTab, form).name || 'Untitled',
         rep_name: selectedRep || 'Unknown',
         doc_tab: docTab,
         form_data: forms[i],
@@ -1102,7 +1112,7 @@ export default function App() {
       : docTab === 'proposal' ? (form.proposalFeeModel==='inh' ? (inhFees.total||0) : (fees.total||0))
       : (fees.total || 0); // proposal reuses pre-award fees (excluded from stats server-side)
     const payload = {
-      client_name: form.clientName || 'Untitled',
+      client_name: letterParty(docTab, form).name || 'Untitled',
       rep_name: selectedRep || 'Unknown',
       doc_tab: docTab,
       form_data: form,
@@ -1760,7 +1770,7 @@ export default function App() {
         splitNote={splitNote}
         onDismissSplitNote={()=>setSplitNote('')}
         saveLabel={currentLetterId ? "Update Letter" : "Save Letter"}
-        savedNote={currentLetterId ? `Saved as: ${form.clientName||"Untitled"}` : null}
+        savedNote={currentLetterId ? `Saved as: ${letterParty(docTab, form).name || "Untitled"}` : null}
       />
       {/* ── REVIEW & EDIT MODE ── */}
       {reviewMode && (
@@ -2592,7 +2602,7 @@ export default function App() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}}>
           <div style={{background:"var(--card)",borderRadius:10,padding:"32px 36px",maxWidth:420,width:"90%",boxShadow:"0 8px 40px rgba(0,0,0,0.22)"}}>
             <div style={{fontWeight:700,fontSize:16,color:"var(--ink)",marginBottom:4}}>{currentLetterId ? "Update Letter" : "Save Letter"}</div>
-            <div style={{fontSize:12,color:"var(--mute)",marginBottom:pendingPrintAfterSave?12:20}}>Client: <strong>{form.clientName||"Untitled"}</strong></div>
+            <div style={{fontSize:12,color:"var(--mute)",marginBottom:pendingPrintAfterSave?12:20}}>{letterParty(docTab, form).label}: <strong>{letterParty(docTab, form).name || "Untitled"}</strong></div>
             {pendingPrintAfterSave && (
               <div style={{background:"var(--hover)",border:"1px solid var(--bd2)",borderRadius:6,padding:"10px 12px",fontSize:12,color:"var(--navy)",marginBottom:20,lineHeight:1.5}}>
                 {currentLetterId

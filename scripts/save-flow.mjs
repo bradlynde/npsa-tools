@@ -103,9 +103,14 @@ const save = async () => {
     }
   }
   await page.waitForTimeout(150);
+  // The modal names the party it is about to file the document under. It said
+  // "Client:" for every document type, including one addressed to a recipient.
+  gwSaveModalLabel = await page.getByText(/^(Client|Recipient):/).first()
+    .innerText().catch(() => "");
   await page.locator('button:has-text("Save"), button:has-text("Update")').last().click();
   await page.waitForTimeout(800);
 };
+let gwSaveModalLabel = "";
 
 // ── run ──────────────────────────────────────────────────────────────────
 await page.goto(`${BASE}/?view=generator`, { waitUntil: "networkidle" });
@@ -134,6 +139,42 @@ await page.waitForTimeout(400);
 await advanceTo("Review");
 const labelAfterSwitch = (await saveButton().textContent()).trim();
 await save();
+const lettersAfterFork = db.size;
+
+/*
+ * An addendum and a grant writer agreement each keep their party under their
+ * own key, and every save path read form.clientName. So an addendum filed
+ * itself as "Untitled", and a grant-writer agreement filed itself under
+ * whichever pre-award client the rep had open before it — a name belonging to
+ * someone else. The Review step already knew better; now one helper answers for
+ * all of them.
+ */
+await backTo("Engagement Type");
+await page.locator('.wz-radio:has-text("Addendum") input').check();
+await page.waitForTimeout(500);
+// Advance off the type picker first — its step carries no inputs, so filling
+// "the first .wz-input" here waits forever for a field on the next screen.
+await advanceTo("Client");
+await page.locator(".wz-input").first().fill("Temple Emanuel");
+await advanceTo("Review");
+await save();
+const addendumRow = [...db.values()].find((l) => l.doc_tab === "addendum");
+
+await backTo("Engagement Type");
+await page.locator('.wz-radio:has-text("3rd Party Grant Writer") input').check();
+await page.waitForTimeout(500);
+await advanceTo("Grant Writer");
+await page.locator(".wz-input").first().fill("Cardinal Grants LLC");
+await advanceTo("Review");
+// The download is the other half of this PR: the gw form has no expiration
+// field, so the expiration guard could never be satisfied here and the button
+// stayed dead for the life of the document.
+const gwDownload = page.locator('.wz-btn-primary:has-text("Download"), .wz-btn-primary:has-text("Print")').first();
+const gwDownloadDisabled = await gwDownload.isDisabled();
+const gwBlockerShown = await page.locator("text=/things? to fix first/").count() > 0;
+await save();
+const gwRow = [...db.values()].find((l) => l.doc_tab === "gw");
+const gwModalLabel = gwSaveModalLabel;
 
 await browser.close();
 
@@ -143,14 +184,23 @@ const checks = [
   ["button reads Update once saved", labelAfterFirst === "Update Letter"],
   ["editing updates in place", updatedInPlace],
   ["button reverts to Save after switching type", labelAfterSwitch === "Save Letter"],
-  ["switching type creates a second letter", db.size === 2],
+  ["switching type creates a second letter", lettersAfterFork === 2, lettersAfterFork],
   ["both documents survive", tabs.includes("inh") && tabs.includes("post")],
+  ["an addendum saves under its own party, not Untitled",
+    addendumRow?.client_name === "Temple Emanuel", addendumRow?.client_name],
+  ["a grant writer agreement saves under its recipient",
+    gwRow?.client_name === "Cardinal Grants LLC", gwRow?.client_name],
+  ["and never under a pre-award client it is not addressed to",
+    !/Beth Shalom/.test(String(gwRow?.client_name || "")), gwRow?.client_name],
+  ["the save modal names the recipient, not a client", /Recipient/.test(gwModalLabel)],
+  ["a grant writer agreement can be downloaded", gwDownloadDisabled === false],
+  ["and shows no blocker pointing at a step it does not have", gwBlockerShown === false],
   ["no page errors", errors.length === 0],
 ];
 
 console.log("\n" + log.join("\n"));
 console.log("letters: " + [...db.values()].map((l) => `#${l.id} ${l.doc_tab}`).join(", ") + "\n");
-for (const [name, ok] of checks) console.log(`  ${ok ? "pass" : "FAIL"}  ${name}`);
+for (const [name, ok, detail] of checks) console.log(`  ${ok ? "pass" : "FAIL"}  ${name}${ok || detail === undefined ? "" : ` — got ${JSON.stringify(detail)}`}`);
 if (errors.length) console.log("\npage errors:\n  " + errors.join("\n  "));
 
 process.exit(checks.every(([, ok]) => ok) ? 0 : 1);

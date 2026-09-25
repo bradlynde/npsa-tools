@@ -396,6 +396,26 @@ function programsKeyFor(docTab) {
       : docTab === "addendum" ? "addendumPrograms" : "programs";
 }
 
+/*
+ * Who a document is addressed to, and what to call them.
+ *
+ * Each document type stores its party under its own key, so there is no single
+ * field to read. Both save paths, the "Saved as" note and the save modal all
+ * reached for form.clientName and fell back to "Untitled" — which is what an
+ * addendum saved as, since its party lives in addendumClientName. A grant
+ * writer agreement was worse than Untitled: clientName may still hold the
+ * pre-award client from the letter the rep built before it, so the agreement
+ * filed itself under a name belonging to someone else entirely.
+ *
+ * The Review step had this right already and was the only place that did.
+ * One definition now, so the letter list and the letter agree.
+ */
+function letterParty(docTab, form) {
+  if (docTab === "gw") return { label: "Recipient", name: form.gwRecipientName || "" };
+  if (docTab === "addendum") return { label: "Client", name: form.addendumClientName || "" };
+  return { label: "Client", name: form.clientName || "" };
+}
+
 /**
  * The engagement model a document actually prices on.
  *
@@ -496,5 +516,5 @@ export {
   PROGRAMS, NPSA_SIGNATURES,
   totalMaxAward, applicationCount, locationPrograms, locationInProgram, isoDatePlus,
   programsKeyFor, oneApplicationPerLetter, engagementModelFor, enumerateApplications, divideFee,
-  REIMBURSEMENT_CLAUSE, reimbursementChoice, nextSectionNumeral,
+  REIMBURSEMENT_CLAUSE, reimbursementChoice, nextSectionNumeral, letterParty,
 };
