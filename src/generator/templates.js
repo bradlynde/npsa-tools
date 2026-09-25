@@ -294,7 +294,18 @@ const DEFAULT_PROPOSAL = {
 };
 // Shared NPSA branding stylesheet injected into both the on-screen preview
 // and the Print/PDF window (same string used in both places).
+/*
+ * The notes are a document, so they read as one in either theme: dark ink on
+ * white paper, the way the letter preview does. The rules below were always
+ * written for a white page — #182230 headings, #26334d body — and were set
+ * onto var(--card), which turns dark navy in dark mode, leaving the rep dark
+ * text on a dark card at roughly 1:1. The surface is pinned in App.jsx; .pc
+ * carries its own ink so anything these rules don't name (a table, an h4, an
+ * <em> outside a paragraph) doesn't inherit the dark theme's light text onto
+ * the white page instead.
+ */
 const PC_NOTES_CSS = `
+  .pc{color:#26334d}
   .pc h1{font-size:22px;font-weight:800;color:#182230;margin:0 0 3px;letter-spacing:-0.2px;line-height:1.2}
   .pc h2{font-size:12.5px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.7px;margin:22px 0 9px;padding-bottom:6px;border-bottom:2px solid #dce8f4}
   .pc h3{font-size:13px;font-weight:700;color:#182230;margin:14px 0 5px}
