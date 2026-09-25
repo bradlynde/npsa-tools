@@ -75,7 +75,7 @@ type ClientRow = {
   filled_by: string;
 };
 
-type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string; application?: string | null; application_label?: string | null; side?: "client" | "npsa"; title?: string; prefix?: string };
+type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string; application?: string | null; application_label?: string | null; side?: "client" | "npsa"; title?: string; prefix?: string; auto?: string };
 type Upload = { id: number; key: string; label: string; filename: string; size_bytes: number; uploaded_at: string; drive_url: string | null };
 
 /** Fetches a client upload with the login token and hands it to the browser as a download. */
@@ -583,7 +583,7 @@ function ChecklistPane({ client, items, onClose, closeGuard }: { client: ClientR
       <div style={{ padding: "12px 26px", borderBottom: "1px solid var(--hair)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <button type="button" onClick={leave} style={{ ...xBtn, fontSize: 13, color: "var(--navy)", padding: 0 }}>← Back to client</button>
         <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginLeft: 6 }}>Checklist</span>
-        <span style={{ fontSize: 12, color: "var(--faint)" }}>The client marks their own tasks on the form; NPSA&rsquo;s are set here. A &ldquo;doesn&rsquo;t apply&rdquo; note is the reason the client sees.</span>
+        <span style={{ fontSize: 12, color: "var(--faint)" }}>The client marks their own tasks on the form; NPSA&rsquo;s are set here. Tasks set to &ldquo;doesn&rsquo;t apply&rdquo; are hidden from the client.</span>
         <span style={{ flex: 1 }} />
         {dirty && <span style={{ fontSize: 12, color: "var(--warn-fg)" }}>Unsaved changes</span>}
         <button type="button" disabled={busy || !dirty} onClick={save} style={{ ...smallBtn, background: "var(--navy)", color: "var(--on-accent)", borderColor: "var(--navy)", opacity: busy || !dirty ? 0.55 : 1 }}>{busy ? "Saving…" : "Save checklist"}</button>
@@ -601,14 +601,17 @@ function ChecklistPane({ client, items, onClose, closeGuard }: { client: ClientR
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.35 }}>{it.title || it.label}</div>
                     <div style={{ fontSize: 11.5, color: "var(--faint)" }}>{[it.application_label, it.title && it.title !== it.label ? it.label : ""].filter(Boolean).join(" · ")}</div>
+                    {it.auto && draft[sk] === base[sk] && (
+                      <div style={{ fontSize: 11.5, color: "var(--mute)", marginTop: 3, lineHeight: 1.4 }}>Doesn&rsquo;t apply automatically: {it.auto}. Pick a status to turn it on.</div>
+                    )}
                   </div>
                   <select value={draft[sk]} onChange={(e) => set(sk, e.target.value)} aria-label={`Status of ${it.label}`} style={{ ...inputStyle, fontSize: 12.5 }}>
                     {CK_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                   <input type="date" value={draft[dk]} onChange={(e) => set(dk, e.target.value)} aria-label={`Due date for ${it.label}`} style={{ ...inputStyle, fontSize: 12.5 }} />
                   <textarea value={draft[nk]} onChange={(e) => set(nk, e.target.value)} rows={na || draft[nk] ? 2 : 1}
-                    placeholder={na ? "Why it doesn't apply (the client sees this)" : "Note the client sees under the task"}
-                    aria-label={`Note on ${it.label}`} style={{ ...inputStyle, fontSize: 12.5, resize: "vertical", fontFamily: "inherit", lineHeight: 1.45, borderColor: na && !draft[nk] ? "var(--warn-fg)" : "var(--bd2)" }} />
+                    placeholder={na ? "Why it doesn't apply (for the team; the client doesn't see this task)" : "Note the client sees under the task"}
+                    aria-label={`Note on ${it.label}`} style={{ ...inputStyle, fontSize: 12.5, resize: "vertical", fontFamily: "inherit", lineHeight: 1.45 }} />
                 </div>
               );
             })}
