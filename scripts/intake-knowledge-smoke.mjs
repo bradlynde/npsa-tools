@@ -169,7 +169,8 @@ await check('checklist: tasks the state and applications don\'t call for read No
   assert.ok(autoNotApplicable({ state: 'KS' }, blank).has('state_reg'), 'Kansas: nothing beyond SAM.gov');
   assert.ok(autoNotApplicable({ state: 'CA', applications: [{ program: 'CSNSGP', status: 'active' }] }, blank).has('sam_gov_uei_registration'));
   assert.ok(!autoNotApplicable({ state: 'CA', applications: [{ program: 'NSGP-S', status: 'active' }] }, blank).has('sam_gov_uei_registration'));
-  const started = autoNotApplicable({ state: 'KS' }, stem => ({ state_reg: 'In progress', vendor_quotes_for_wish_list_items: 'Not started' })[stem] || '');
+  const started = autoNotApplicable({ state: 'KS' }, stem => ({ state_reg: 'In progress', vendor_quotes_for_wish_list_items: 'Not started' })[stem] || '', () => 'npsa:Stuart');
+  assert.ok(autoNotApplicable({ state: 'KS' }, stem => (stem === 'vendor_quotes_for_wish_list_items' ? 'Not started' : ''), () => 'seed:abcd1234').has('vendor_quotes_for_wish_list_items'), 'a kickoff seed does not switch quotes on');
   assert.ok(!started.has('state_reg'), 'work already started stands');
   assert.ok(!started.has('vendor_quotes_for_wish_list_items'), 'quotes stay on once the team sets any status');
   const bios = stem => (stem === 'leadership_bios_resumes_pii_scrubb' ? 'Not started' : '');

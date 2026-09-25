@@ -234,7 +234,7 @@ export const AUTO_STATUS_KEYS = [BIOS_STEM, STATE_REG_STEM, SAM_STEM, ...Object.
  * status the team or client set (To do included) stands. Bios follow the Documents
  * list, the state step follows the knowledge base's client-side registration steps, and SAM.gov
  * follows whether any application is federal. A task with a `default` in intake-checklist.json
- * (vendor quotes) starts at that status until someone sets one, so the team can switch it on.
+ * (vendor quotes) starts at that status the same way, so the team switches it on by setting one.
  */
 export function autoNotApplicable(client, statusOf, byOf = () => 'seed') {
   const cfg = stateConfig(client.state, liveCodes(client));
@@ -244,7 +244,7 @@ export function autoNotApplicable(client, statusOf, byOf = () => 'seed') {
   if (!clientStateSteps(cfg).length && untouched(STATE_REG_STEM)) out.set(STATE_REG_STEM, `${cfg.stateName} has nothing for the client to register beyond SAM.gov`);
   if (!cfg.registration.some(r => r.key === 'sam_uei') && untouched(SAM_STEM)) out.set(SAM_STEM, 'No federal application');
   for (const [stem, m] of Object.entries(CHECKLIST_META)) {
-    if (m.default === 'Not applicable' && !statusOf(stem) && !(m.unless === 'quotes_required' && cfg.quotes_required)) out.set(stem, m.default_reason || 'Off until the team switches it on');
+    if (m.default === 'Not applicable' && untouched(stem) && !(m.unless === 'quotes_required' && cfg.quotes_required)) out.set(stem, m.default_reason || 'Off until the team switches it on');
   }
   return out;
 }
