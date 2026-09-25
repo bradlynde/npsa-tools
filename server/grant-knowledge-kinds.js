@@ -145,6 +145,10 @@ export const SCHEMAS = {
     // What the client sees on their intake page, when it differs from `label`.
     client_label: short().optional(),
     client_hint: prose.optional(),
+    // A registration step's "How to do this" box on the client's checklist: what to have ready,
+    // then the steps in order. A step may open with a **bold lead**.
+    client_ready: z.array(short(300)).max(8).optional(),
+    client_steps: z.array(short(500)).max(12).optional(),
     upload_key: z.string().regex(/^up_[a-z0-9_]{2,40}$/).optional(),
     task_stem: short(80).optional(),
     ready_label: short().optional(),

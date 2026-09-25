@@ -34,6 +34,7 @@ import { mailConfigured, sendWelcome, senderFor } from './mail.js';
 import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
 import { UPLOAD_MAX_BYTES, sniffUploadType, safeFilename, rawUploadBody, uploadBodyError, readMultipart, contentDisposition } from './uploads.js';
 import { knowledgeFor as knowledgeOf, combinedStateProgram } from './knowledge.js';
+import { JURISDICTIONS } from './grant-knowledge-kinds.js';
 
 // A state's facts from the grant knowledge base (server/knowledge.js). A code it does
 // not hold gets nothing rather than a guess: the federal baseline and no state program.
@@ -139,7 +140,10 @@ export const SECTIONS = [...new Set(QUESTIONS.map(q => q.section))];
 const CORE_SECTIONS = new Set(SECTIONS.filter(s => /^[1-5]\. /.test(s) || s === 'Locations' || s === 'Uploads'));
 const PROGRAM_SLOTS = [...new Set(QUESTIONS.filter(q => /^prog\d+_/.test(q.key)).map(q => Number(q.key.match(/^prog(\d+)_/)[1])))];
 const CORE_KEYS = QUESTIONS.filter(q => CORE_SECTIONS.has(q.section) && q.kind !== 'meta' && !q.key.endsWith('_infra')).map(q => q.key); // *_infra is NPSA research, not a client answer
-const CHECKLIST_STEMS = QUESTIONS.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length));
+// A retired task (intake-checklist.json "retired") keeps its catalog keys, so old answers still load,
+// but no longer shows, counts or asks anything of anyone.
+const CHECKLIST_STEMS = QUESTIONS.filter(q => q.key.startsWith('chk_status_')).map(q => q.key.slice('chk_status_'.length)).filter(stem => !CHECKLIST_META[stem]?.retired);
+const RETIRED_STEMS = Object.keys(CHECKLIST_META).filter(stem => CHECKLIST_META[stem].retired);
 
 // The wish list is 3 facilities × 20 items × 6 fields, and a client only ever
 // fills the items they care about. So the measure is: which items carry a
@@ -193,13 +197,17 @@ export function stateConfig(state, codes = []) {
   const st = String(state || '').toUpperCase();
   const kb = knowledgeFor(st);
   const sp = stateProgram(st);
-  const keys = [...(kb.federal.programs.length ? kb.federal.programs.map(p => p.code) : ['baseline']), ...kb.programs.filter(p => codes.includes(p.code)).map(p => p.code)];
+  // Federal steps (SAM.gov and the state's portal for the federal program) apply unless every
+  // application named is a state program (a CSNSGP-only client never touches SAM.gov).
+  const fedCodes = kb.federal.programs.map(p => p.code);
+  const federal = !codes.length || codes.some(c => fedCodes.includes(c) || /^NSGP(-S|-UA)?$/.test(c));
+  const keys = [...(!federal ? [] : fedCodes.length ? fedCodes : ['baseline']), ...kb.programs.filter(p => codes.includes(p.code)).map(p => p.code)];
   const seen = new Set();
-  const registration = keys.flatMap(k => kb.registration[k] || []).filter(r => (seen.has(r.key) ? false : seen.add(r.key)))
-    .map(({ label, hard_gate, note }) => ({ label, hard_gate, ...(note ? { note } : {}) }));
+  const registration = keys.flatMap(k => kb.registration[k] || []).filter(r => (seen.has(r.key) ? false : seen.add(r.key)));
   const perSite = kb.federal.perSite || BUDGET.siteCap;
   return {
     saa: kb.saaShort || kb.saa || st,
+    stateName: JURISDICTIONS[st] || st,
     programs: [...kb.federal.programs.map(p => `Federal ${p.code}`), ...kb.programs.map(p => p.name)],
     registration,
     perSiteCap: `${usd(perSite)} per site${kb.federal.locationsMax ? ` · up to ${kb.federal.locationsMax} sites` : ''}`,
@@ -209,6 +217,36 @@ export function stateConfig(state, codes = []) {
     quotes_required: kb.programs.some(p => p.quotes_required && codes.includes(p.code)),
     stateProgram: sp,
   };
+}
+
+const BIOS_STEM = 'leadership_bios_resumes_pii_scrubb', STATE_REG_STEM = 'state_reg', SAM_STEM = 'sam_gov_uei_registration';
+/** The programs of a client's stored, live applications (none stored: []). */
+const liveCodes = client => (Array.isArray(client.applications) ? client.applications : []).filter(a => a.status !== 'withdrawn').map(a => a.program);
+/** The state's registration steps the client does themselves: not SAM.gov, not NPSA's. */
+export const clientStateSteps = cfg => (cfg.registration || []).filter(r => r.key !== 'sam_uei' && !/SAM\.gov/i.test(r.label) && r.owner !== 'npsa');
+/** The stored checklist keys the rules below read, for a store that summarises in SQL. */
+export const AUTO_STATUS_KEYS = [BIOS_STEM, STATE_REG_STEM, SAM_STEM, ...Object.keys(CHECKLIST_META).filter(stem => CHECKLIST_META[stem].default)].map(stem => `chk_status_${stem}`);
+
+/**
+ * Checklist tasks this client's state and applications don't call for, and why. They read as
+ * Not applicable everywhere (hidden from the client, left out of the counts) for as long as
+ * nobody has chosen otherwise: blank, or the Not started a kickoff seed or import wrote. A
+ * status the team or client set (To do included) stands. Bios follow the Documents
+ * list, the state step follows the knowledge base's client-side registration steps, and SAM.gov
+ * follows whether any application is federal. A task with a `default` in intake-checklist.json
+ * (vendor quotes) starts at that status until someone sets one, so the team can switch it on.
+ */
+export function autoNotApplicable(client, statusOf, byOf = () => 'seed') {
+  const cfg = stateConfig(client.state, liveCodes(client));
+  const out = new Map();
+  const untouched = stem => { const v = statusOf(stem) || ''; return !v || (v === 'Not started' && /^(seed|import)/.test(byOf(stem) || '')); };
+  if (!documentsFor(client).some(d => d.task === BIOS_STEM || /bios|resume/.test(d.key)) && untouched(BIOS_STEM)) out.set(BIOS_STEM, "Bios are not on this client's Documents list");
+  if (!clientStateSteps(cfg).length && untouched(STATE_REG_STEM)) out.set(STATE_REG_STEM, `${cfg.stateName} has nothing for the client to register beyond SAM.gov`);
+  if (!cfg.registration.some(r => r.key === 'sam_uei') && untouched(SAM_STEM)) out.set(SAM_STEM, 'No federal application');
+  for (const [stem, m] of Object.entries(CHECKLIST_META)) {
+    if (m.default === 'Not applicable' && !statusOf(stem) && !(m.unless === 'quotes_required' && cfg.quotes_required)) out.set(stem, m.default_reason || 'Off until the team switches it on');
+  }
+  return out;
 }
 
 /**
@@ -480,7 +518,8 @@ const checklistLabel = stem => (QUESTION_BY_KEY.get(`chk_status_${stem}`)?.label
 export function summarise(answers, applications = 0) {
   const val = k => answers.get(k)?.value || '';
   const core = CORE_KEYS.filter(k => val(k) !== '').length;
-  const statuses = [...answers.keys()].filter(k => /^chk_(a\d{1,2}_)?status_/.test(k)).map(k => val(k));
+  const retired = new Set(RETIRED_STEMS.map(stem => `chk_status_${stem}`));
+  const statuses = [...answers.keys()].filter(k => /^chk_(a\d{1,2}_)?status_/.test(k) && !retired.has(k)).map(k => val(k));
   const checklist = statuses.filter(v => v === 'Completed').length;
   // "Not applicable" tasks leave the count rather than sit unfinished forever.
   const notApplicable = statuses.filter(v => v === 'Not applicable').length;
@@ -523,6 +562,25 @@ const answeredSet = answers => new Set([...answers].filter(([k, a]) => a?.value 
 export function checklistTotal(client) {
   const apps = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn').length : 0;
   return CHECKLIST_STEMS.length + Math.max(0, apps - 1) * PER_APPLICATION_STEMS.length;
+}
+
+/** A client's checklist counts: stored statuses, tasks their state and applications don't call for, and every application's copy. */
+function checklistCounts(client, answers) {
+  const raw = summarise(answers).checklist;
+  const na = raw.not_applicable + autoNotApplicable(client, stem => answers.get(`chk_status_${stem}`)?.value || '', stem => answers.get(`chk_status_${stem}`)?.updated_by).size;
+  return { completed: raw.completed, total: checklistTotal(client) - na, not_applicable: na };
+}
+
+/**
+ * The answers the client page starts from. Tasks the client's state and applications don't call
+ * for, and retired ones, arrive as Not applicable, so the page hides them the way it hides any
+ * task set to Doesn't apply. Nothing is written; the page saves only what the client changes.
+ */
+export function pageAnswers(client, answers) {
+  const out = Object.fromEntries([...answers.values()].filter(a => a.value !== '').map(a => [a.key, a.value]));
+  for (const stem of autoNotApplicable(client, st => out[`chk_status_${st}`] || '', st => answers.get(`chk_status_${st}`)?.updated_by).keys()) out[`chk_status_${stem}`] = 'Not applicable';
+  for (const stem of RETIRED_STEMS) out[`chk_status_${stem}`] = 'Not applicable';
+  return out;
 }
 
 function uploadView(u, slug, docs = []) {
@@ -598,9 +656,12 @@ function statusView(client, answers, base, uploads = []) {
     budget = { requested, cap, room: cap - requested, sites: active.length, applications: counted.length };
   }
   const perApp = new Set(PER_APPLICATION_STEMS);
+  const auto = autoNotApplicable(client, stem => val(`chk_status_${stem}`), stem => answers.get(`chk_status_${stem}`)?.updated_by);
   const task = (stem, prefix, application, label) => ({
     stem, label: checklistLabel(stem), application, application_label: label,
-    status: val(`${prefix}status_${stem}`) || 'Not started',
+    status: (prefix === 'chk_' && auto.has(stem) ? 'Not applicable' : val(`${prefix}status_${stem}`)) || 'Not started',
+    // auto: why the task reads Not applicable without anyone setting it (see autoNotApplicable).
+    ...(prefix === 'chk_' && auto.has(stem) ? { auto: auto.get(stem) } : {}),
     due: val(`${prefix}due_${stem}`), owner: val(`${prefix}who_${stem}`), note: val(`${prefix}note_${stem}`),
     // side: who does it (client tasks are the client's to mark on the form; npsa tasks are the team's).
     // prefix: where its keys live (chk_ or chk_<application>_), for the team's checklist editor.
@@ -719,6 +780,11 @@ export async function ensureIntakeSchema(pool) {
       uploaded_at   TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  // 2026-09-25: every client needs a vulnerability assessment (NPSA helps them get one), so the
+  // Documents tab no longer says "(if you have one)". Lists a client kept from before carry the
+  // old wording; this rewrites it once, and does nothing after.
+  await pool.query(`UPDATE clients SET documents = REPLACE(documents::text, 'Vulnerability assessment (if you have one)', 'Vulnerability assessment')::jsonb
+                     WHERE documents::text LIKE '%Vulnerability assessment (if you have one)%'`);
 }
 
 const UPLOAD_COLS = 'id, client_id, key, filename, mime, size_bytes, drive_file_id, drive_url, uploaded_by, uploaded_at';
@@ -831,10 +897,11 @@ export function createIntakeStore(pool, db = pool) {
       const { rows } = await db.query(
         `SELECT client_id,
                 ARRAY_AGG(key) FILTER (WHERE value <> '' AND key ~ $2) AS answered_keys,
-                COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Completed')::int AS checklist_completed,
-                COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Not applicable')::int AS checklist_na,
+                COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Completed' AND NOT key = ANY($4))::int AS checklist_completed,
+                COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Not applicable' AND NOT key = ANY($4))::int AS checklist_na,
+                JSONB_OBJECT_AGG(key, JSONB_BUILD_ARRAY(value, updated_by)) FILTER (WHERE key = ANY($3)) AS auto_statuses,
                 MAX(value) FILTER (WHERE key = '_filled_by') AS filled_by
-           FROM intake_answers WHERE client_id = ANY($1) GROUP BY client_id`, [clientIds, PROGRESS_KEY_RE.source]);
+           FROM intake_answers WHERE client_id = ANY($1) GROUP BY client_id`, [clientIds, PROGRESS_KEY_RE.source, AUTO_STATUS_KEYS, RETIRED_STEMS.map(stem => `chk_status_${stem}`)]);
       const up = await db.query('SELECT client_id, ARRAY_AGG(DISTINCT key) AS keys FROM intake_uploads WHERE client_id = ANY($1) GROUP BY client_id', [clientIds]);
       const uploaded = Object.fromEntries(up.rows.map(r => [r.client_id, r.keys]));
       return Object.fromEntries(rows.map(r => [r.client_id, { ...r, answered_keys: r.answered_keys || [], uploaded_keys: uploaded[r.client_id] || [] }]));
@@ -956,7 +1023,8 @@ export function createMemoryStore() {
     async answerStats(ids) {
       return Object.fromEntries(ids.map(id => {
         const s = summarise(bucket(id), (clients.find(c => c.id === id)?.applications || []).filter(a => a.status !== 'withdrawn').length);
-        return [id, { answered_keys: [...answeredSet(bucket(id))], uploaded_keys: [...new Set(uploads.filter(u => u.client_id === id).map(u => u.key))], checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, filled_by: bucket(id).get('_filled_by')?.value || null }];
+        const auto_statuses = Object.fromEntries(AUTO_STATUS_KEYS.filter(k => bucket(id).has(k)).map(k => [k, [bucket(id).get(k).value, bucket(id).get(k).updated_by]]));
+        return [id, { answered_keys: [...answeredSet(bucket(id))], uploaded_keys: [...new Set(uploads.filter(u => u.client_id === id).map(u => u.key))], checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, auto_statuses, filled_by: bucket(id).get('_filled_by')?.value || null }];
       }));
     },
     async upsertAnswers(clientId, rows, by, { clientActivity = false } = {}) {
@@ -1127,10 +1195,12 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const stats = await store.answerStats(rows.map(r => r.id));
     res.json(rows.map(r => {
       const s = stats[r.id] || {};
+      const st = stem => (s.auto_statuses || {})[`chk_status_${stem}`] || ['', ''];
+      const na = (s.checklist_na || 0) + autoNotApplicable(r, stem => st(stem)[0], stem => st(stem)[1]).size;
       return {
         ...clientView(r, base(req)),
         core: progressFor(r, new Set(s.answered_keys || []), new Set(s.uploaded_keys || [])).core,
-        checklist: { completed: s.checklist_completed || 0, total: checklistTotal(r) - (s.checklist_na || 0), not_applicable: s.checklist_na || 0 },
+        checklist: { completed: s.checklist_completed || 0, total: checklistTotal(r) - na, not_applicable: na },
         filled_by: s.filled_by || '',
       };
     }));
@@ -1194,7 +1264,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const c = await loadClient(req, res); if (!c) return;
     const answers = await store.getAnswers(c.id);
     const uploaded = new Set((await store.listUploads(c.id)).map(u => u.key));
-    res.json({ ...clientView(c, base(req)), ...summarise(answers), core: progressFor(c, answeredSet(answers), uploaded).core, filled_by: answers.get('_filled_by')?.value || '', status_line: answers.get('_status')?.value || '' });
+    res.json({ ...clientView(c, base(req)), ...summarise(answers), checklist: checklistCounts(c, answers), core: progressFor(c, answeredSet(answers), uploaded).core, filled_by: answers.get('_filled_by')?.value || '', status_line: answers.get('_status')?.value || '' });
   }));
 
   app.patch('/api/clients/:slug', team, guard(async (req, res) => {
@@ -1408,7 +1478,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const html = renderPage && renderPage({
       client: c, stateConfig: stateConfig(c.state, (Array.isArray(c.applications) ? c.applications : []).filter(a => a.status !== 'withdrawn').map(a => a.program)), apiBase, uploadBase, contacts: contactsView(c.contacts || []),
       documents: documentsFor(c), uploaded: [...new Set(uploads.map(u => u.key))],
-      existing: Object.fromEntries([...answers.values()].filter(a => a.value !== '').map(a => [a.key, a.value])),
+      existing: pageAnswers(c, answers),
     });
     if (!html) return res.status(503).type('html').send(errorPage('The intake form has not been deployed here yet.'));
     res.set('Cache-Control', 'no-store').type('html').send(html);

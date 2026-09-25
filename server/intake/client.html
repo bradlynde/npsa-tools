@@ -526,6 +526,39 @@
   .ckx-extra,.ckx-hint{grid-column:1 / -1;font-size:13px;color:var(--muted);}
   .ckx-extra{white-space:pre-line;background:#f4f7fa;border-radius:6px;padding:6px 10px;}
   .ckx-hint{color:var(--faint);}
+  .ckx-how{font:600 12.5px var(--sans);color:var(--navy);background:#f4f7fa;border:1px solid #b3c6d4;border-radius:999px;padding:1px 10px 1px 6px;margin-left:8px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;vertical-align:1px;}
+  .ckx-how::before{content:"?";display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--navy);color:#fff;font:700 10px var(--head);}
+  .ckx-how:hover{background:#e9f0f5;} .ckx-how:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
+  dialog.ckg{border:0;padding:0;border-radius:14px;width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 64px);box-shadow:0 18px 50px rgba(0,30,50,.28);color:var(--ink);font:15px/1.5 var(--sans);}
+  dialog.ckg[open]{display:flex;flex-direction:column;}
+  dialog.ckg::backdrop{background:rgba(10,30,45,.42);}
+  .ckg-h{padding:18px 56px 14px 22px;border-bottom:1px solid var(--line);position:relative;}
+  .ckg-eye{font:700 11px var(--head);letter-spacing:.1em;text-transform:uppercase;color:var(--sage-d,#6c7732);}
+  .ckg-h h2{font:700 20px var(--head);color:var(--navy);margin:4px 0 6px;text-wrap:balance;}
+  .ckg-h p{margin:0;color:var(--muted);font-size:14.5px;}
+  .ckg-x{position:absolute;top:14px;right:16px;width:32px;height:32px;border-radius:8px;border:1px solid var(--line-strong);background:#fff;color:var(--muted);font:600 16px var(--sans);cursor:pointer;}
+  .ckg-facts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .ckg-fact{font-size:12.5px;background:#f4f7fa;border-radius:6px;padding:3px 9px;} .ckg-fact b{color:var(--navy);}
+  .ckg-fact.warn{background:#fdf6e6;color:var(--amber);} .ckg-fact.warn b{color:var(--amber);}
+  .ckg-b{padding:16px 22px 18px;overflow:auto;}
+  .ckg-part+.ckg-part{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);}
+  .ckg-part h3{font:700 15px var(--head);margin:0 0 4px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;} .ckg-part h3 small{font:400 13px var(--sans);color:var(--faint);}
+  .ckg-part>p{margin:0 0 8px;color:var(--muted);font-size:14px;}
+  .ckg-need{background:#eef1dc;border-radius:8px;padding:10px 14px;margin:8px 0 12px;font-size:14px;}
+  .ckg-need b.lbl{font:700 12px var(--head);letter-spacing:.06em;text-transform:uppercase;color:#6c7732;display:block;margin-bottom:4px;}
+  .ckg-need ul{margin:0;padding-left:18px;display:grid;gap:2px;}
+  ol.ckg-steps{margin:8px 0 0;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px;}
+  ol.ckg-steps li{counter-increment:s;display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;font-size:14.5px;}
+  ol.ckg-steps li::before{content:counter(s);display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid #b3c6d4;font:700 12px var(--head);color:var(--navy);}
+  ol.ckg-steps li b{font-weight:600;}
+  .ckg-go{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font:600 14px var(--sans);color:#fff;background:var(--navy);border-radius:8px;padding:8px 14px;text-decoration:none;}
+  .ckg-go::after{content:"\2197";font-size:13px;}
+  .ckg-tip{margin:14px 0 0;font-size:13.5px;color:var(--amber);background:#fdf6e6;border:1px solid #ecd29a;border-radius:8px;padding:8px 12px;}
+  .ckg-f{padding:12px 22px;border-top:1px solid var(--line);background:#fafbfc;font-size:13.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+  .ckg-f a{color:var(--navy);font-weight:600;}
+  .ckg-close{font:600 13.5px var(--sans);color:var(--navy);background:#fff;border:1px solid var(--line-strong);border-radius:8px;padding:6px 14px;cursor:pointer;}
+  @media (max-width:640px){dialog.ckg{width:100vw;max-width:100vw;height:100%;max-height:100%;border-radius:0;margin:0;}}
+  @media (prefers-reduced-motion:no-preference){dialog.ckg[open]{animation:ckgIn .16s ease-out;}@keyframes ckgIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}}
   .ckx-seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden;flex:none;justify-self:end;}
   .ckx-seg button{font:600 12.5px var(--sans);padding:6px 11px;color:var(--muted);background:#fff;border:0;cursor:pointer;white-space:nowrap;}
   .ckx-seg button + button{border-left:1px solid var(--line-strong);}
@@ -842,8 +875,13 @@
       while(n&&!n.classList.contains('stage-row')&&!n.classList.contains('app-split-row')){if(n.classList.contains('task-row')){has=true;break;}n=n.nextElementSibling;}
       if(!has)sr.hidden=true;});})();
   /* a registration step is a string ("… — hard gate") or {label, note, hard_gate}; the note pre-fills the row's Notes box */
-  var REGS=(CFG.registration||[]).map(function(r){return typeof r==='string'?{label:r.replace(/\s*[—-]+\s*hard gate\s*$/i,''),hard_gate:/hard gate/i.test(r),note:''}:{label:String(r.label||''),hard_gate:!!r.hard_gate,note:String(r.note||'')};});
-  try{var stateRegs=REGS.filter(function(r){return !/SAM\.gov/i.test(r.label);}),sp2=stateRegs.map(function(r){return r.label;});
+  var REGS=(CFG.registration||[]).map(function(r){return typeof r==='string'?{key:'',owner:'',label:r.replace(/\s*[—-]+\s*hard gate\s*$/i,''),hard_gate:/hard gate/i.test(r),note:'',url:'',lead:0,ready:[],steps:[]}:
+    {key:String(r.key||''),owner:String(r.owner||''),label:String(r.label||''),hard_gate:!!r.hard_gate,note:String(r.note||''),url:/^https?:\/\//.test(r.url||'')?r.url:'',lead:+r.lead_time_days||0,
+     ready:Array.isArray(r.ready)?r.ready.map(String):[],steps:Array.isArray(r.steps)?r.steps.map(String):[]};});
+  /* SAM.gov is its own task; the state task is what the client registers with the state themselves (NPSA's steps are ours) */
+  function isSam(r){return r.key==='sam_uei'||/SAM\.gov/i.test(r.label);}
+  var SAM_REG=REGS.filter(isSam)[0]||null,STATE_REGS=REGS.filter(function(r){return !isSam(r)&&r.owner!=='npsa';});
+  try{var stateRegs=STATE_REGS,sp2=stateRegs.map(function(r){return r.label;});
     var s2=document.getElementById('s2tasks'); if(s2&&sp2.length)s2.innerHTML=sp2.join(' · ');
     var s2n=document.querySelector('textarea[data-key="chk_note_state_reg"]'),notes=stateRegs.map(function(r){return r.note;}).filter(Boolean).join('\n\n');
     if(s2n&&notes&&!EXISTING.hasOwnProperty('chk_note_state_reg'))s2n.value=notes;
@@ -995,7 +1033,7 @@
   /* progress + submission readiness (2026-08-21) */
   try{
     /* the box is built from this client's Documents list, between the registration and the application steps (2026-09-17) */
-    var extraReg=REGS.filter(function(r){return !/SAM\.gov/i.test(r.label);}).map(function(r){return r.label;});
+    var extraReg=STATE_REGS.map(function(r){return r.label;});
     /* one box per application: the shared documents, plus that application's own quotes, IJ and submission.
        SAM.gov is a federal requirement, so a state-program application does not show it. */
     function srItemsFor(a){var out=[],p=a?checklistPrefix(a.id):'chk_';
@@ -1059,16 +1097,47 @@
       var sel=tr.querySelector('.ckselect');if(!sel)return null;var m=/^(chk_(?:a\d+_)?)status_(.+)$/.exec(sel.getAttribute('data-key'));if(!m)return null;
       var stem=m[2],meta=META[stem]||{},noteEl=tr.querySelector('.note-field'),nk=noteEl&&noteEl.getAttribute('data-key');
       var note=nk&&EXISTING.hasOwnProperty(nk)&&!/^Day \d+/.test(noteEl.value)?noteEl.value.trim():'';
-      var hint=meta.hint||'';if(stem==='state_reg'){var sr=(REGS||[]).filter(function(r){return !/SAM\.gov/i.test(r.label);}).map(function(r){return r.label;});hint=sr.join(' · ');}
-      return {sel:sel,stem:stem,prefix:m[1],side:meta.owner||(tr.querySelector('.pill.npsa')?'npsa':'client'),
-        title:meta.title||tr.querySelector('.c-task').textContent.replace(/Hard gate/i,'').trim(),hint:hint,note:note,
+      var hint=meta.hint||'',ttl=meta.title,guide=null;
+      if(stem==='state_reg'){hint=STATE_REGS.map(function(r){return r.label;}).join(' · ');if(STATE_REGS.length&&CFG.stateName)ttl='Register with '+CFG.stateName;
+        if(STATE_REGS.some(function(r){return r.steps.length;}))guide={kind:'state',regs:STATE_REGS};}
+      if(stem==='sam_gov_uei_registration'&&SAM_REG&&SAM_REG.steps.length)guide={kind:'sam',regs:[SAM_REG]};
+      return {sel:sel,stem:stem,prefix:m[1],side:meta.owner||(tr.querySelector('.pill.npsa')?'npsa':'client'),guide:guide,
+        title:ttl||tr.querySelector('.c-task').textContent.replace(/Hard gate/i,'').trim(),hint:hint,note:note,
         gate:!!tr.querySelector('.gate-tag'),app:appLabel(m[1],stem),status:sel.value||'Not started',due:parseDue((tr.querySelector('.ckbox')||{}).value)};
     }).filter(Boolean);}
+    /* "How to do this" (2026-09-25): the steps for SAM.gov and the state's own registration, from the
+       grant knowledge base. Shown only where a guide has been written and verified. */
+    function mdb(v){return escT(v).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');}
+    function wk(d){if(!d)return '';var w=Math.round(d/7);return w<=1?'about a week':'about '+w+' weeks';}
+    function hostOf(u){try{return new URL(u).hostname.replace(/^www\./,'');}catch(e){return 'the site';}}
+    function openGuide(t){
+      var regs=t.guide.regs,sam=t.guide.kind==='sam',many=regs.length>1,lead=0;regs.forEach(function(r){lead=Math.max(lead,r.lead);});
+      var place=CFG.stateName||STATE,gw=(CONTACTS.npsa||[]).filter(function(c){return /grant writer/i.test(c.role||'');})[0]||(CONTACTS.npsa||[])[0];
+      var intro=many?'You need '+(regs.length===2?'both':'all '+regs.length)+' of these before '+escT(CFG.saa||place)+' will take your application.':mdb(regs[0].note||'');
+      var facts=(lead?'<span class="ckg-fact warn"><b>Allow</b> '+wk(lead)+'</span>':'')+(sam?'<span class="ckg-fact"><b>Cost</b> Free</span><span class="ckg-fact"><b>Renew</b> every year</span>':'');
+      var body=regs.map(function(r,i){
+        return '<div class="ckg-part">'+(many?'<h3>'+(i+1)+'. '+escT(r.label)+(r.lead?' <small>'+wk(r.lead)+'</small>':'')+'</h3>'+(r.note?'<p>'+mdb(r.note)+'</p>':''):'')
+          +(r.ready.length?'<div class="ckg-need"><b class="lbl">Have these ready</b><ul>'+r.ready.map(function(x){return '<li>'+mdb(x)+'</li>';}).join('')+'</ul></div>':'')
+          +(r.steps.length?'<ol class="ckg-steps">'+r.steps.map(function(x){return '<li><span>'+mdb(x)+'</span></li>';}).join('')+'</ol>':'')
+          +(r.url?'<a class="ckg-go" href="'+escT(r.url)+'" target="_blank" rel="noopener noreferrer">Open '+escT(hostOf(r.url))+'</a>':'')+'</div>';}).join('');
+      var d=document.getElementById('ckGuide');
+      if(!d){d=document.createElement('dialog');d.id='ckGuide';d.className='ckg';d.setAttribute('aria-labelledby','ckGuideTitle');document.body.appendChild(d);
+        d.addEventListener('click',function(e){if(e.target===d||e.target.closest('[data-close]'))closeG();});}
+      function closeG(){if(d.close)d.close();else d.removeAttribute('open');}
+      d.innerHTML='<div class="ckg-h"><div class="ckg-eye">How to do this'+(sam?'':' · '+escT(place))+'</div>'
+        +'<h2 id="ckGuideTitle">'+(sam?'Register on SAM.gov and get your UEI':'Register with '+escT(place))+'</h2>'+(intro?'<p>'+intro+'</p>':'')
+        +(facts?'<div class="ckg-facts">'+facts+'</div>':'')+'<button type="button" class="ckg-x" data-close aria-label="Close">&#x2715;</button></div>'
+        +'<div class="ckg-b">'+body+'<p class="ckg-tip">Mark this <b>Working on it</b> once you start, and <b>Done</b> when it\'s finished.</p></div>'
+        +'<div class="ckg-f"><span>'+(gw&&gw.email?'Stuck? Email '+escT(gw.name||'your grant writer')+' at <a href="mailto:'+escT(gw.email)+'">'+escT(gw.email)+'</a>':'Stuck? Ask your grant writer.')+'</span><button type="button" class="ckg-close" data-close>Close</button></div>';
+      if(d.showModal){if(!d.open)d.showModal();}else d.setAttribute('open','');
+      var x=d.querySelector('.ckg-x');if(x)x.focus();
+    }
     function byDue(a,b){return (a.due?a.due.getTime():Infinity)-(b.due?b.due.getTime():Infinity);}
     function title(t){return escT(t.title)+(t.app?' <span class="ckx-app">'+escT(t.app)+'</span>':'')+(t.gate&&t.status!=='Not applicable'&&t.status!=='Completed'?'<span class="ckx-gate">Needed to submit</span>':'');}
     function seg(t){return '<span class="ckx-seg" role="group" aria-label="Status of '+escT(t.title)+'">'+CLIENT_ST.map(function(s){var on=t.status===s[0];
       return '<button type="button" data-ck="'+escT(t.sel.getAttribute('data-key'))+'" data-val="'+s[0]+'" aria-pressed="'+on+'" class="'+(on?'on'+(s[0]==='Completed'?' dn':''):'')+'">'+s[1]+'</button>';}).join('')+'</span>';}
-    function extra(t){return (t.note?'<div class="ckx-extra">'+escT(t.note)+'</div>':'')+(t.hint?'<div class="ckx-hint">'+escT(t.hint)+'</div>':'');}
+    function extra(t){var how=t.guide&&t.side==='client'?' <button type="button" class="ckx-how" data-guide="'+escT(t.stem)+'">How to do this</button>':'';
+      return (t.note?'<div class="ckx-extra">'+escT(t.note)+'</div>':'')+(t.hint||how?'<div class="ckx-hint">'+escT(t.hint)+how+'</div>':'');}
     function clientRow(t){return '<div class="ckx-t"><span class="ckx-ti">'+title(t)+'</span>'+seg(t)+extra(t)+'</div>';}
     function flatRow(t,ctl){var d=t.due?'<b>'+md(t.due)+'</b>':'<b class="nd">No date</b>';
       return '<div class="ckx-row'+(t.side==='npsa'?' npsa':'')+'"><div class="ckx-d">'+d+'</div><span class="ckx-ti">'+title(t)+'</span>'+(ctl||'<span class="ckx-st'+(t.status==='Completed'?' dn':'')+'">'+NPSA_ST[t.status]+'</span>')+extra(t)+'</div>';}
@@ -1103,7 +1172,8 @@
       var openFolds=[].slice.call(host.querySelectorAll('details[open]')).map(function(d){return d.querySelector('summary b').textContent;});
       host.innerHTML=h;
       host.querySelectorAll('details').forEach(function(d){var b=d.querySelector('summary b').textContent;if(openFolds.some(function(x){return x.replace(/^\d+ /,'')===b.replace(/^\d+ /,'');}))d.open=true;});}
-    host.addEventListener('click',function(e){var b=e.target.closest('button[data-ck]');if(!b)return;
+    host.addEventListener('click',function(e){var g=e.target.closest('button[data-guide]');if(g){var t=tasks().filter(function(x){return x.stem===g.getAttribute('data-guide')&&x.guide;})[0];if(t)openGuide(t);return;}
+      var b=e.target.closest('button[data-ck]');if(!b)return;
       var sel=table.querySelector('.ckselect[data-key="'+b.getAttribute('data-ck')+'"]');if(!sel||sel.value===b.getAttribute('data-val'))return;
       sel.value=b.getAttribute('data-val');sel.dispatchEvent(new Event('change',{bubbles:true}));render();
       var again=host.querySelector('button[data-ck="'+b.getAttribute('data-ck')+'"][data-val="'+b.getAttribute('data-val')+'"]');if(again)again.focus();});
