@@ -158,7 +158,7 @@ export function Eyebrow({
 
 /**
  * Page title. Tool pages use a plain title with an optional description under
- * it; the Dashboard passes `hero` for its one line of voice. `em` inside the
+ * it; the Company Report passes `hero` for its one line of voice. `em` inside the
  * title renders as the accent phrase.
  */
 export function PageHeading({
