@@ -91,7 +91,7 @@ type ClientRow = {
   filled_by: string;
 };
 
-type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string; application?: string | null; application_label?: string | null; side?: "client" | "npsa"; title?: string; prefix?: string };
+type ChecklistItem = { stem: string; label: string; status: string; due: string; owner: string; note: string; application?: string | null; application_label?: string | null; side?: "client" | "npsa"; title?: string; prefix?: string; auto?: string };
 type Upload = { id: number; key: string; label: string; filename: string; size_bytes: number; uploaded_at: string; drive_url: string | null };
 
 /** Fetches a client upload with the login token and hands it to the browser as a download. Returns an error to show, or null. */
@@ -602,7 +602,8 @@ const discardPrompt = (what: string, verb: "Close" | "Leave"): ConfirmOptions =>
 /**
  * The checklist editor: every task with its status, due date and note, the client's tasks first, then
  * NPSA's. The client form lets the client mark only their own tasks; NPSA's are updated here. A task set
- * to "Doesn't apply" shows its note to the client as the reason. Takes over the dialog like the notes pane.
+ * to "Doesn't apply" is hidden from the client, so its note is for the team. Takes over the dialog like the
+ * notes pane.
  */
 function ChecklistPane({ client, items, onClose, closeGuard, confirm }: { client: ClientRow; items: ChecklistItem[]; onClose: (saved: boolean) => void; closeGuard: React.MutableRefObject<(() => Promise<boolean>) | null>; confirm: (o: ConfirmOptions) => Promise<boolean> }) {
   const stacked = useMedia("(max-width: 900px)");
@@ -641,7 +642,7 @@ function ChecklistPane({ client, items, onClose, closeGuard, confirm }: { client
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
       <PaneHeader
         title="Checklist"
-        help={<>The client marks their own tasks on the form; NPSA&rsquo;s are set here. A &ldquo;Doesn&rsquo;t apply&rdquo; note is the reason the client sees.</>}
+        help={<>The client marks their own tasks on the form; NPSA&rsquo;s are set here. Tasks set to &ldquo;Doesn&rsquo;t apply&rdquo; are hidden from the client.</>}
         onBack={leave} dirty={dirty} busy={busy} onSave={save} saveLabel="Save checklist"
       />
       <div style={{ overflowY: "auto", padding: "8px 26px 30px" }}>
@@ -652,13 +653,17 @@ function ChecklistPane({ client, items, onClose, closeGuard, confirm }: { client
             {list.map((it) => {
               const sk = key(it, "status"), dk = key(it, "due"), nk = key(it, "note");
               const na = draft[sk] === "Not applicable";
-              const showNote = na || !!draft[nk] || noteOpen.has(nk);
+              // A task that doesn't apply automatically already says why, so it doesn't open an empty box.
+              const showNote = (na && !it.auto) || !!draft[nk] || noteOpen.has(nk);
               const subline = [it.application_label, it.title && it.title !== it.label ? it.label : ""].filter(Boolean).join(" · ");
               return (
                 <div key={sk} style={{ display: "grid", gridTemplateColumns: stacked ? "1fr" : "minmax(0, 1.4fr) 164px 164px minmax(0, 1.3fr)", gap: stacked ? 8 : 12, alignItems: "start", padding: "12px 0", borderTop: "1px solid var(--hair)" }}>
                   <div style={{ minWidth: 0, paddingTop: stacked ? 0 : 6 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)", lineHeight: "20px" }}>{it.title || it.label}</div>
                     {subline && <div className="meta">{subline}</div>}
+                    {it.auto && draft[sk] === base[sk] && (
+                      <div className="meta" style={{ marginTop: 3 }}>Doesn&rsquo;t apply automatically: {it.auto}. Pick a status to turn it on.</div>
+                    )}
                   </div>
                   <select value={draft[sk]} onChange={(e) => set(sk, e.target.value)} aria-label={`Status of ${it.label}`} className="field field-sm">
                     {CK_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -666,10 +671,9 @@ function ChecklistPane({ client, items, onClose, closeGuard, confirm }: { client
                   <input type="date" value={draft[dk]} onChange={(e) => set(dk, e.target.value)} aria-label={`Due date for ${it.label}`} className="field field-sm" />
                   {showNote ? (
                     <textarea value={draft[nk]} onChange={(e) => set(nk, e.target.value)} rows={na || draft[nk] ? 2 : 1}
-                      autoFocus={noteOpen.has(nk) && !draft[nk] && !na}
-                      placeholder={na ? "Why it doesn't apply (the client sees this)" : "Note the client sees under the task"}
-                      aria-label={`Note on ${it.label}`} className="field field-sm"
-                      style={na && !draft[nk] ? { borderColor: "var(--warn-fg)" } : undefined} />
+                      autoFocus={noteOpen.has(nk) && !draft[nk]}
+                      placeholder={na ? "Why it doesn't apply (for the team; the client doesn't see this task)" : "Note the client sees under the task"}
+                      aria-label={`Note on ${it.label}`} className="field field-sm" />
                   ) : (
                     <button type="button" onClick={() => setNoteOpen((o) => new Set(o).add(nk))} style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 4, justifySelf: "start", paddingTop: stacked ? 0 : 7 }}>
                       <Plus size={14} strokeWidth={2} aria-hidden /> Add a note

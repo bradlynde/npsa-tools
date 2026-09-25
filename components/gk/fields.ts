@@ -66,7 +66,9 @@ export const FIELDS: Record<string, Field[]> = {
     { name: "url", label: "Where to do it", type: "url" },
     { name: "notes", label: "Notes", type: "long" },
     { name: "client_label", label: "Wording on the client's page", type: "text", wide: true },
-    { name: "client_hint", label: "Hint on the client's page", type: "long" },
+    { name: "client_hint", label: "Hint on the client's page", type: "long", hint: "For a registration step, the opening line of its How to do this box" },
+    { name: "client_ready", label: "How to do this: have these ready", type: "list", hint: "One per line", wide: true },
+    { name: "client_steps", label: "How to do this: steps", type: "list", hint: "One step per line, in order. **Bold** the opening words.", wide: true },
   ],
   cycle: [
     { name: "fiscal_year", label: "Fiscal year", type: "number", required: true },
