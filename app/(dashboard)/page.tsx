@@ -287,7 +287,7 @@ export default function DashboardPage() {
           flexWrap: "wrap",
         }}
       >
-        <PageHeading hero eyebrow={`Dashboard · ${todayLine()}`}>
+        <PageHeading hero eyebrow={`Company Report · ${todayLine()}`}>
           The business, <em>up front.</em>
         </PageHeading>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
