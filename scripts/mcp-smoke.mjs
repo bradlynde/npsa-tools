@@ -12,15 +12,24 @@
  *   2. The protocol. A real MCP client (the SDK's own) connects over Streamable
  *      HTTP, lists the tools, and calls them.
  *   3. The plumbing. Tools that go through the loopback /api routes return what
- *      those routes returned; the ones that filter or trim (deadline filtering,
- *      the saved_html omission on letter_get) do so.
- *   4. Writes. Every write tool carries the WRITE annotation and a "confirm"
- *      instruction, forwards the right method and body to the right route, is
- *      logged with the caller's key fingerprint, and disappears entirely for a
- *      key that MCP_WRITE_KEYS leaves out.
- *   5. Grant clients. The nine client/intake tools reach the keyed /api/clients
- *      routes with the internal key and the caller's fingerprint, forward the
- *      right shapes, and surface an unknown-key seed refusal as a tool error.
+ *      those routes returned; the ones that filter or trim (the saved_html
+ *      omission on letter_get, the clients_list slim view, the gk_revisions
+ *      limit) do so, and marketing_breakdown picks the route by its argument.
+ *      A failed route's extra JSON fields (unknown_keys, a 409's record) reach
+ *      the caller in the error text, capped.
+ *   4. Writes. The 26 reads and 15 writes are exactly the expected set. Every
+ *      write tool carries the WRITE annotation and a "confirm" instruction, the
+ *      right destructive and idempotent hints, forwards the right method and body
+ *      to the right route, is logged with the caller's name or key fingerprint,
+ *      the argument names and the outcome (never the values), and disappears
+ *      entirely for a key that MCP_WRITE_KEYS leaves out.
+ *   5. Grant clients. The twelve client/intake tools reach the keyed
+ *      /api/clients routes with the internal key and the caller's fingerprint,
+ *      forward the right shapes (client_invite as the PATCH with
+ *      invite_contact_email), and surface an unknown-key seed refusal as a tool
+ *      error.
+ *   6. Grant knowledge. The gk tools run against the real routes on the
+ *      in-memory store.
  *
  *   node scripts/mcp-smoke.mjs
  */
@@ -28,35 +37,31 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { registerMcp, MCP_PATH, fingerprint } from '../server/mcp.js';
+import { registerMcp, MCP_PATH, fingerprint, redact } from '../server/mcp.js';
 import { registerGrantKnowledge, createMemoryKnowledgeStore } from '../server/grant-knowledge.js';
 
 const READ_TOOLS = [
   'letters_stats', 'letters_search', 'letter_get', 'reps_list', 'letter_template_get',
-  'nsgp_deadlines_list', 'nsgp_state_reference',
   'precall_bookings_list', 'precall_booking_get',
-  'marketing_overview', 'marketing_by_campaign', 'marketing_by_channel', 'marketing_timeseries',
-  'marketing_bookings', 'marketing_untracked_wins', 'marketing_revenue_quality',
+  'marketing_overview', 'marketing_breakdown', 'marketing_timeseries',
+  'marketing_bookings', 'marketing_untracked_wins',
   'clients_list', 'client_get', 'intake_questions', 'intake_answers', 'intake_status', 'intake_uploads_list',
   'gk_overview', 'gk_state_get', 'gk_state_brief', 'gk_requirements', 'gk_search', 'gk_needs_attention', 'gk_files_list', 'gk_revisions',
 ];
 const WRITE_TOOLS = [
   'letter_update', 'rep_add', 'rep_remove',
   'marketing_booking_update', 'marketing_refresh',
-  'client_create', 'client_update', 'intake_seed', 'client_token_rotate', 'client_delete',
+  'client_create', 'client_update', 'client_invite', 'intake_seed', 'client_token_rotate', 'client_delete',
   'gk_record_upsert', 'gk_mark_verified', 'gk_record_archive', 'gk_revert',
 ];
+const DESTRUCTIVE_TOOLS = ['client_delete', 'client_token_rotate', 'rep_remove'];
+// Writes where a second identical call does something again: a new row, a new
+// revision, another sweep, another email.
+const NON_IDEMPOTENT_TOOLS = ['client_create', 'client_invite', 'gk_record_upsert', 'marketing_refresh', 'rep_add'];
+const RETIRED_TOOLS = ['nsgp_deadlines_list', 'nsgp_state_reference', 'nsgp_deadline_upsert', 'nsgp_deadline_delete',
+  'marketing_by_campaign', 'marketing_by_channel', 'marketing_revenue_quality'];
 
 const FAKE_STATS = { total: 7, total_fees: 12345, by_rep: [{ rep_name: 'Chad', count: 4 }] };
-const FAKE_DEADLINES = {
-  deadlines: [
-    { id: 1, state: 'IL', program: 'NSGP-S', cycle_year: 2026, deadline: '2026-01-15', kind: 'final' },
-    { id: 2, state: 'IL', program: 'NSGP-S', cycle_year: 2027, deadline: '2099-01-15', kind: 'final' },
-    { id: 3, state: 'US', program: 'NSGP', cycle_year: 2027, deadline: '2099-02-01', kind: 'federal' },
-    { id: 4, state: 'TX', program: 'NSGP-S', cycle_year: 2027, deadline: '2099-03-01', kind: 'final' },
-  ],
-  reference: { checkedOn: '2026-08-01', notCovered: [], states: { IL: { saa: 'IEMA', saaShort: 'IEMA', lastVerified: '2026-08-01', programs: [] } } },
-};
 const FAKE_LETTER = { id: 42, client_name: 'Trinity', rep_name: 'Stuart', doc_tab: 'in-house', form_data: { fee: 1 }, saved_html: '<p>big</p>', total_fee: 4500 };
 
 // Every write the fake routes receive, so the checks can see exactly what was sent.
@@ -70,9 +75,8 @@ app.get('/api/letters/:id', (req, res) => req.params.id === '42' ? res.json(FAKE
 app.patch('/api/letters/:id', (req, res) => { Object.assign(FAKE_LETTER, req.body); record(req, res); });
 app.post('/api/reps', (req, res) => record(req, res, { id: 5, name: req.body.name }));
 app.delete('/api/reps/:id', (req, res) => record(req, res));
-app.get('/api/precall/deadlines', (_req, res) => res.json(FAKE_DEADLINES));
-app.put('/api/precall/deadlines', (req, res) => record(req, res, { ok: true, id: 9 }));
-app.delete('/api/precall/deadlines/:id', (req, res) => record(req, res));
+app.get('/api/marketing/by-campaign', (_req, res) => res.json({ rows: [{ campaign: 'Churches Q3', bookings: 4 }] }));
+app.get('/api/marketing/by-channel', (_req, res) => res.json({ rows: [{ channel: 'cold_email', bookings: 9 }] }));
 app.patch('/api/marketing/bookings/:id', (req, res) => record(req, res));
 app.post('/api/marketing/enrich', (req, res) => record(req, res, { ok: true, refreshed: 3, all: req.query.all === '1' }));
 app.get('/api/marketing/stats', (_req, res) => res.status(503).json({ error: 'Storage not configured' }));
@@ -80,11 +84,23 @@ app.get('/api/marketing/stats', (_req, res) => res.status(503).json({ error: 'St
 // Grant-client routes are keyed; the fakes insist on the internal key the same way.
 const INTERNAL = 'boot-secret';
 const keyed = (req, res, next) => req.get('x-internal-key') === INTERNAL ? next() : res.status(401).json({ error: 'Unauthorized' });
-const FAKE_CLIENT = { id: 1, slug: 'trinity-wellsprings-church', name: 'Trinity Wellsprings Church', state: 'FL', phase: 2, status: 'active', intake_url: 'https://npsa-tools.vercel.app/client/trinity-wellsprings-church?t=abc', contacts: [] };
-app.get('/api/clients', keyed, (req, res) => res.json(req.query.status === 'cancelled' ? [] : [{ ...FAKE_CLIENT, actor: req.get('x-actor'), q: req.query }]));
+const FAKE_CLIENT = {
+  id: 1, slug: 'trinity-wellsprings-church', name: 'Trinity Wellsprings Church', state: 'FL', phase: 2, status: 'active',
+  program_track: '2026 federal NSGP', kickoff_date: '2026-09-08', submitted_at: null, last_client_activity_at: '2026-09-20T15:00:00Z',
+  intake_url: 'https://npsa-tools.vercel.app/client/trinity-wellsprings-church?t=abc', saa: 'FDEM', notes: 'long internal notes',
+  contacts: [{ id: 7, name: 'Pat Lee', email: 'pat@trinity.org', role: 'Executive Pastor', phone: '(555) 555-1212', side: 'client', is_primary: true, added_by: 'npsa:x' }],
+  documents: [{ key: 'up_501c3', label: '501(c)(3) letter' }], documents_customised: false, documents_received: {},
+  applications: [{ id: 'a1', program: 'NSGP-S' }], applications_set: true, programs: [{ key: 'NSGP-S' }],
+};
+// The list route adds the progress fields the real one does.
+app.get('/api/clients', keyed, (req, res) => res.json(req.query.status === 'cancelled' ? [] : [{ ...FAKE_CLIENT, core: { answered: 3, total: 130 }, checklist: { completed: 1, total: 24, not_applicable: 0 }, filled_by: 'Pat', actor: req.get('x-actor'), q: req.query }]));
+// A conflict with a very large body, to prove the error details are capped.
+app.get('/api/clients/conflicted', keyed, (_req, res) => res.status(409).json({ error: 'Conflict for the test', existing: { blob: 'x'.repeat(5000) } }));
 app.post('/api/clients', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, slug: req.body.slug || 'derived', state: req.body.state }));
 app.get('/api/clients/:slug', keyed, (req, res) => req.params.slug === FAKE_CLIENT.slug ? res.json(FAKE_CLIENT) : res.status(404).json({ error: 'No such client' }));
-app.patch('/api/clients/:slug', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, ...req.body }));
+app.patch('/api/clients/:slug', keyed, (req, res) => record(req, res, req.body.invite_contact_email
+  ? { ...FAKE_CLIENT, invite: { sent: true, id: 'msg-1' } }
+  : { ...FAKE_CLIENT, ...req.body }));
 app.post('/api/clients/:slug/token', keyed, (req, res) => record(req, res, { ...FAKE_CLIENT, intake_url: 'https://npsa-tools.vercel.app/client/trinity-wellsprings-church?t=new' }));
 // Delete answers the way the real route does: nothing happens without confirm=<slug>.
 app.delete('/api/clients/:slug', keyed, (req, res) => {
@@ -177,17 +193,33 @@ await check('read tools are annotated read-only, write tools are not', async () 
       assert.match(t.description, /Confirm with the user/, `${t.name} must ask for confirmation`);
     }
   }
-  const destructive = (await client.listTools()).tools.filter(t => t.annotations?.destructiveHint).map(t => t.name).sort();
-  assert.deepEqual(destructive, ['client_delete', 'client_token_rotate', 'rep_remove']);
+  const tools = (await client.listTools()).tools;
+  const destructive = tools.filter(t => t.annotations?.destructiveHint).map(t => t.name).sort();
+  assert.deepEqual(destructive, DESTRUCTIVE_TOOLS);
+  const once = tools.filter(t => WRITE_TOOLS.includes(t.name) && t.annotations?.idempotentHint === false).map(t => t.name).sort();
+  assert.deepEqual(once, NON_IDEMPOTENT_TOOLS);
+  for (const t of tools.filter(x => WRITE_TOOLS.includes(x.name) && !NON_IDEMPOTENT_TOOLS.includes(x.name))) {
+    assert.equal(t.annotations?.idempotentHint, true, `${t.name} idempotentHint`);
+  }
+  const invite = tools.find(t => t.name === 'client_invite');
+  assert.deepEqual(invite.annotations, { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true });
+  assert.match(invite.description, /^WRITE\. Confirm with the user before calling/);
+  assert.match(invite.description, /intake link, as their grant writer/);
 });
 
-await check('nsgp_state_reference answers without a database', async () => {
-  const r = await client.callTool({ name: 'nsgp_state_reference', arguments: { state: 'il' } });
-  assert.ok(!r.isError, r.content?.[0]?.text);
-  const d = text(r);
-  assert.equal(d.state, 'IL');
-  assert.equal(d.covered, true);
-  assert.ok(d.saa, 'SAA name present');
+await check('retired tools are gone, and nothing still points callers at them', async () => {
+  const tools = (await client.listTools()).tools;
+  for (const n of RETIRED_TOOLS) assert.ok(!tools.some(t => t.name === n), `${n} is retired`);
+  assert.ok(!JSON.stringify(tools).includes('nsgp_'), 'no description or schema mentions an nsgp_* tool');
+  const update = tools.find(t => t.name === 'client_update');
+  assert.equal(update.inputSchema.properties.invite_contact_email, undefined, 'invites moved to client_invite');
+  for (const k of ['add_contacts', 'add_npsa_contacts', 'add_reference_contacts', 'remove_contact_emails', 'applications', 'documents', 'add_documents', 'remove_document_keys', 'mark_documents_received', 'unmark_documents_received']) {
+    assert.ok(update.inputSchema.properties[k], `client_update keeps ${k}`);
+  }
+  const create = tools.find(t => t.name === 'client_create');
+  for (const k of ['contacts', 'npsa_contacts', 'reference_contacts', 'include_team', 'applications', 'upload_folder_id']) {
+    assert.ok(create.inputSchema.properties[k], `client_create keeps ${k}`);
+  }
 });
 
 await check('letters_stats reads through the loopback route', async () => {
@@ -196,12 +228,14 @@ await check('letters_stats reads through the loopback route', async () => {
   assert.deepEqual(text(r), FAKE_STATS);
 });
 
-await check('nsgp_deadlines_list filters to the state plus US, upcoming only', async () => {
-  const r = await client.callTool({ name: 'nsgp_deadlines_list', arguments: { state: 'IL', upcoming_only: true } });
-  assert.ok(!r.isError);
-  const d = text(r);
-  assert.deepEqual(d.deadlines.map(x => x.id), [2, 3]);
-  assert.equal(d.reference.saa, 'IEMA');
+await check('marketing_breakdown reads the campaign or the channel route', async () => {
+  const c = await client.callTool({ name: 'marketing_breakdown', arguments: { by: 'campaign' } });
+  assert.ok(!c.isError, c.content?.[0]?.text);
+  assert.equal(text(c).rows[0].campaign, 'Churches Q3');
+  const ch = await client.callTool({ name: 'marketing_breakdown', arguments: { by: 'channel' } });
+  assert.equal(text(ch).rows[0].channel, 'cold_email');
+  const bad = await client.callTool({ name: 'marketing_breakdown', arguments: { by: 'week' } });
+  assert.equal(bad.isError, true);
 });
 
 await check('letter_get omits saved_html unless asked', async () => {
@@ -222,17 +256,27 @@ await check('a 503 route reports itself as a tool error', async () => {
   const r = await client.callTool({ name: 'marketing_overview', arguments: {} });
   assert.equal(r.isError, true);
   assert.match(r.content[0].text, /Storage not configured/);
+  assert.ok(!r.content[0].text.includes('Details:'), 'no details line when the route sent only an error');
+});
+
+await check('the rest of a failed route\'s JSON comes back with the message, capped', async () => {
+  const r = await client.callTool({ name: 'client_get', arguments: { slug: 'conflicted' } });
+  assert.equal(r.isError, true);
+  const t = r.content[0].text;
+  assert.match(t, /^Conflict for the test\nDetails: \{"existing":\{"blob":"xxx/);
+  assert.match(t, /… \(truncated\)$/);
+  assert.ok(t.length < 'Conflict for the test\nDetails: '.length + 2000 + 20, `capped at 2000 (${t.length})`);
+});
+
+await check('redact masks emails and long digit runs and cuts the message short', async () => {
+  const out = redact(`pat@trinity.org and (555) 555-1212 and EIN 12-3456789 ${'y'.repeat(400)}`);
+  assert.ok(!out.includes('pat@trinity.org') && !out.includes('555-1212') && !out.includes('3456789'), out);
+  assert.match(out, /^<email> and <number> and EIN <number>/);
+  assert.ok(out.length <= 200);
 });
 
 // ── 4. Writes ─────────────────────────────────────────────────────────────────
 const lastWrite = () => received[received.length - 1];
-
-await check('the old deadline writes are gone: a deadline is a gk record now', async () => {
-  const all = await names(client);
-  assert.ok(!all.includes('nsgp_deadline_upsert') && !all.includes('nsgp_deadline_delete'));
-  const list = (await client.listTools()).tools.find(t => t.name === 'nsgp_deadlines_list');
-  assert.match(list.description, /gk_record_upsert/);
-});
 
 await check('letter_update PATCHes only the given fields, never the whole letter', async () => {
   const r = await client.callTool({ name: 'letter_update', arguments: { id: 42, total_fee: 5000 } });
@@ -290,8 +334,26 @@ await check('every write is logged with the caller\'s key fingerprint', async ()
   finally { console.log = orig; }
   const line = lines.find(l => l.startsWith('[mcp] write rep_add by '));
   assert.ok(line, 'audit line present');
-  assert.match(line, /by [0-9a-f]{8} /, 'fingerprint, not the key');
+  assert.match(line, /^\[mcp\] write rep_add by [0-9a-f]{8} args=\[name\] ok$/, line);
   assert.ok(!line.includes('first-key'), 'the key itself never appears');
+  assert.ok(!line.includes('Audit'), 'the value never appears');
+});
+
+await check('the audit line names the arguments and the outcome, never the values', async () => {
+  const lines = [];
+  const orig = console.log;
+  console.log = (...a) => lines.push(a.join(' '));
+  try {
+    await client.callTool({ name: 'client_update', arguments: { slug: 'trinity-wellsprings-church', notes: 'EIN 12-3456789', add_contacts: [{ name: 'Sam Doe', email: 'sam@trinity.org', phone: '(555) 555-0000' }] } });
+    await client.callTool({ name: 'intake_seed', arguments: { slug: 'trinity-wellsprings-church', answers: { q_1_1_1: 'Secret Answer', bad_key: 'y' } } });
+  } finally { console.log = orig; }
+  const ok = lines.find(l => l.startsWith('[mcp] write client_update '));
+  assert.match(ok, /^\[mcp\] write client_update by [0-9a-f]{8} args=\[add_contacts,notes,slug\] ok$/, ok);
+  const failed = lines.find(l => l.startsWith('[mcp] write intake_seed '));
+  assert.match(failed, /^\[mcp\] write intake_seed by [0-9a-f]{8} args=\[answers,slug\] error: Unknown intake keys: bad_key/, failed);
+  for (const l of [ok, failed]) {
+    for (const secret of ['sam@trinity.org', '555', '3456789', 'Sam Doe', 'Secret Answer', 'trinity-wellsprings-church']) assert.ok(!l.includes(secret), `${secret} leaked: ${l}`);
+  }
 });
 
 await check('MCP_KEY_NAMES puts a name on the audit line and on X-Actor', async () => {
@@ -304,7 +366,7 @@ await check('MCP_KEY_NAMES puts a name on the audit line and on X-Actor', async 
     const d = text(await client.callTool({ name: 'clients_list', arguments: { status: 'all' } }));
     assert.equal(d.clients[0].actor, 'Stuart');
   } finally { console.log = orig; delete process.env.MCP_KEY_NAMES; }
-  assert.ok(lines.some(l => l.startsWith('[mcp] write rep_add by Stuart ')), 'audit line names the person');
+  assert.ok(lines.includes('[mcp] write rep_add by Stuart args=[name] ok'), 'audit line names the person');
 });
 
 // ── 5. Grant clients ──────────────────────────────────────────────────────────
@@ -318,6 +380,19 @@ await check('clients_list reaches the keyed route with the internal key and the 
   assert.deepEqual(d.clients[0].q, { status: 'all', search: 'trin' });
   const none = text(await client.callTool({ name: 'clients_list', arguments: { status: 'cancelled' } }));
   assert.equal(none.count, 0);
+});
+
+await check('clients_list is the slim view: contact emails and progress kept, bulky fields left to client_get', async () => {
+  const c = text(await client.callTool({ name: 'clients_list', arguments: {} })).clients[0];
+  for (const k of ['slug', 'name', 'state', 'phase', 'status', 'program_track', 'kickoff_date', 'submitted_at', 'last_client_activity_at', 'intake_url', 'core', 'checklist', 'filled_by']) {
+    assert.ok(k in c, `list keeps ${k}`);
+  }
+  assert.deepEqual(c.contacts, [{ name: 'Pat Lee', email: 'pat@trinity.org', side: 'client' }], 'contacts keep name, email and side only');
+  for (const k of ['documents', 'documents_customised', 'documents_received', 'applications', 'applications_set', 'programs', 'notes']) {
+    assert.equal(c[k], undefined, `list drops ${k}`);
+  }
+  const full = text(await client.callTool({ name: 'client_get', arguments: { slug: 'trinity-wellsprings-church' } }));
+  assert.ok(full.documents && full.applications && full.contacts[0].phone, 'client_get still has the lot');
 });
 
 await check('client_get, intake_status, intake_answers and intake_questions forward their filters', async () => {
@@ -340,6 +415,7 @@ await check('client_create POSTs with the state normalised', async () => {
     name: 'Trinity Wellsprings Church', state: 'fl', kickoff_date: '2026-09-08', upload_folder_id: 'PHASE2',
     contacts: [{ name: 'Pat Lee', email: 'pat@trinity.org', role: 'Executive Pastor', phone: '(555) 555-1212' }],
     npsa_contacts: [{ name: 'Jeff Markley', email: 'jeff@nonprofitsecurityadvisors.com', role: 'Sales rep' }],
+    include_team: false, reference_contacts: false,
   } });
   assert.ok(!r.isError, r.content?.[0]?.text);
   const w = lastWrite();
@@ -349,6 +425,8 @@ await check('client_create POSTs with the state normalised', async () => {
   assert.equal(w.body.contacts[0].phone, '(555) 555-1212');
   assert.equal(w.body.npsa_contacts[0].role, 'Sales rep');
   assert.equal(w.body.upload_folder_id, 'PHASE2');
+  assert.equal(w.body.include_team, false, 'include_team reaches the route');
+  assert.equal(w.body.reference_contacts, false);
   assert.match(text(r).intake_url, /^https:\/\/npsa-tools\.vercel\.app\/client\//);
   const bad = await client.callTool({ name: 'client_create', arguments: { name: 'X', state: 'FL', kickoff_date: '9/8/2026' } });
   assert.equal(bad.isError, true);
@@ -367,6 +445,22 @@ await check('client_update PATCHes only the fields given and refuses an empty ch
   const typo = await client.callTool({ name: 'client_update', arguments: { slug: 'trinity-wellsprings-church', status: 'done' } });
   assert.equal(typo.isError, true);
   assert.equal(received.length, before, 'a bad status never reaches the route');
+  const invite = await client.callTool({ name: 'client_update', arguments: { slug: 'trinity-wellsprings-church', invite_contact_email: 'pat@trinity.org' } });
+  assert.equal(invite.isError, true, 'client_update no longer sends invites');
+  assert.equal(received.length, before, 'and nothing reached the route');
+});
+
+await check('client_invite PATCHes invite_contact_email and nothing else', async () => {
+  const r = await client.callTool({ name: 'client_invite', arguments: { slug: 'trinity-wellsprings-church', email: 'pat@trinity.org' } });
+  assert.ok(!r.isError, r.content?.[0]?.text);
+  const w = lastWrite();
+  assert.deepEqual([w.method, w.path], ['PATCH', '/api/clients/trinity-wellsprings-church']);
+  assert.deepEqual(w.body, { invite_contact_email: 'pat@trinity.org' });
+  assert.deepEqual(text(r), { slug: 'trinity-wellsprings-church', email: 'pat@trinity.org', invite: { sent: true, id: 'msg-1' } });
+  const before = received.length;
+  const bad = await client.callTool({ name: 'client_invite', arguments: { slug: 'trinity-wellsprings-church', email: 'not-an-email' } });
+  assert.equal(bad.isError, true);
+  assert.equal(received.length, before);
 });
 
 await check('intake_seed PUTs the answers and surfaces an unknown-key refusal by name', async () => {
@@ -380,6 +474,7 @@ await check('intake_seed PUTs the answers and surfaces an unknown-key refusal by
   const bad = await client.callTool({ name: 'intake_seed', arguments: { slug: 'trinity-wellsprings-church', answers: { q_1_1_1: 'x', bad_key: 'y' } } });
   assert.equal(bad.isError, true);
   assert.match(bad.content[0].text, /Unknown intake keys: bad_key/);
+  assert.match(bad.content[0].text, /\nDetails: \{"unknown_keys":\["bad_key"\]\}$/, 'the route\'s unknown_keys come through');
   const empty = await client.callTool({ name: 'intake_seed', arguments: { slug: 'trinity-wellsprings-church', answers: {} } });
   assert.equal(empty.isError, true);
 });
@@ -425,13 +520,14 @@ await check('gk_record_upsert refuses a write with no source or reason, a missin
   const noProgram = await gk('gk_record_upsert', { state: 'TX', kind: 'cycle', data: { fiscal_year: 2028 }, reason: 'user said so' });
   assert.match(noProgram.content[0].text, /pass program\. TX has: NSGP-S/);
   const again = await gk('gk_record_upsert', { state: 'TX', kind: 'program', key: 'nsgp-s', data: { ma_pct: 5 }, reason: 'user said so' });
-  assert.ok(again.isError); assert.match(again.content[0].text, /already exists at version 1\. Pass version: 1/);
+  assert.ok(again.isError); assert.match(again.content[0].text, /already exists at version 1\. Pass version: 1 to change it\.\nDetails: \{"current":\{"name":"NSGP State"/);
   const typo = await gk('gk_record_upsert', { state: 'TX', kind: 'program', key: 'NSGP-S', version: 1, data: { cap_per_site: 1 }, reason: 'user said so' });
-  assert.match(typo.content[0].text, /unknown field\(s\) cap_per_site/);
+  assert.match(typo.content[0].text, /unknown field\(s\) cap_per_site \(a program has: name, type, .*cap_per_location/, 'the refusal lists the fields a program has');
   const ok = text(await gk('gk_record_upsert', { state: 'TX', kind: 'program', key: 'NSGP-S', version: 1, data: { ma_pct: 5 }, reason: 'user said so from the FY26 engagement' }));
   assert.equal(ok.version, 2); assert.equal(ok.data.ma_pct, 5);
   const stale = await gk('gk_record_upsert', { state: 'TX', kind: 'program', key: 'NSGP-S', version: 1, data: { ma_pct: 4 }, reason: 'x' });
   assert.ok(stale.isError); assert.match(stale.content[0].text, /changed while you were editing/);
+  assert.match(stale.content[0].text, /\nDetails: \{"current":\{.*"version":2/, 'the 409 carries the current record');
 });
 await check('the gk reads: overview filters, state_get sections, the brief, the checklist, search, attention, history', async () => {
   const o = text(await gk('gk_overview', { cycle_state: 'soon' }));
@@ -466,17 +562,8 @@ await check('verify, archive, restore and revert go through, each as a revision'
   const back = text(await gk('gk_revert', { revision_id: rev.id, version: r.version }));
   assert.equal(back.data.ma_pct, undefined, 'the 5% edit is undone');
   assert.deepEqual(text(await gk('gk_revisions', { record_id: p.id })).revisions.map(x => x.action), ['revert', 'restore', 'archive', 'verify', 'update', 'create']);
+  assert.deepEqual(text(await gk('gk_revisions', { record_id: p.id, limit: 2 })).revisions.map(x => x.action), ['revert', 'restore'], 'limit holds for one record too');
 });
-await check('nsgp_state_reference reads the knowledge base once it has states, and says so', async () => {
-  await gk('gk_record_upsert', { state: 'NJ', kind: 'jurisdiction', data: { saa: 'NJ Office of Homeland Security & Preparedness', saa_short: 'NJOHSP' }, reason: 'user said so' });
-  await gk('gk_record_upsert', { state: 'NJ', kind: 'program', key: 'NJ-NSGP-THE', data: { name: 'NJ NSGP Target Hardening', type: 'state', cap_per_applicant: 100000, stackable: true, exclusive_with: ['NJ-NSGP-SP'] }, reason: 'user said so' });
-  const nj = text(await gk('nsgp_state_reference', { state: 'nj' }));
-  assert.equal(nj.source, 'knowledge-base'); assert.equal(nj.saaShort, 'NJOHSP');
-  assert.deepEqual(nj.programs[0], { acronym: 'NJ-NSGP-THE', name: 'NJ NSGP Target Hardening', perSite: null, perApplicant: 100000, stackable: true, note: '', exclusiveWith: ['NJ-NSGP-THE', 'NJ-NSGP-SP'] });
-  const all = text(await gk('nsgp_state_reference', {}));
-  assert.deepEqual(Object.keys(all.states).sort(), ['NJ', 'TX']); assert.ok(all.not_covered.includes('GU'));
-});
-
 await client.close();
 
 // ── MCP_WRITE_KEYS narrows who can write ──────────────────────────────────────

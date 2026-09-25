@@ -217,14 +217,21 @@ export const SCHEMAS = {
   }),
 };
 
-/** Validates one kind's data. Returns the parsed object or throws an Error naming every bad field. */
+/** The data fields a kind takes, less the two every kind has (extra, field_notes). */
+export function fieldsFor(kindName) {
+  const schema = SCHEMAS[kindName];
+  if (!schema) return [];
+  return Object.keys((schema._def.schema || schema).shape).filter(f => f !== 'extra' && f !== 'field_notes');
+}
+
+/** Validates one kind's data. Returns the parsed object or throws an Error naming every bad field (and, for an unknown one, the fields the kind does have). */
 export function parseData(kindName, data) {
   const schema = SCHEMAS[kindName];
   if (!schema) throw new Error(`kind must be one of ${KINDS.join(', ')}`);
   const r = schema.safeParse(data);
   if (r.success) return r.data;
   const problems = r.error.issues.map(i => {
-    if (i.code === 'unrecognized_keys') return `unknown field(s) ${i.keys.join(', ')} (use "extra" for facts with no field)`;
+    if (i.code === 'unrecognized_keys') return `unknown field(s) ${i.keys.join(', ')} (a ${kindName} has: ${fieldsFor(kindName).join(', ')}; use "extra" for facts with no field)`;
     return `${i.path.join('.') || 'data'}: ${i.message}`;
   });
   throw new Error(`${kindName}: ${problems.join('; ')}`);

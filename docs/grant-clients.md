@@ -169,22 +169,25 @@ Reads, annotated read-only:
 
 | Tool | Inputs | Route |
 | :-- | :-- | :-- |
-| `clients_list` | `status?` (active/submitted/cancelled/closed/all), `phase?`, `search?`, `limit?` | `GET /api/clients` |
-| `client_get` | `slug` | `GET /api/clients/:slug` |
+| `clients_list` | `status?` (active/submitted/cancelled/closed/all), `phase?`, `search?`, `limit?` | `GET /api/clients`, slimmed: each contact is `{ name, email, side }`, and `documents`, `documents_customised`, `documents_received`, `applications`, `applications_set`, `programs` and `notes` are left out (they are in `client_get`). Progress (`core`, `checklist`, `filled_by`) and `intake_url` stay. |
+| `client_get` | `slug` | `GET /api/clients/:slug`, in full |
 | `intake_questions` | `section?`, `prefix?` | `GET /api/intake/questions`. The description tells Claude to look keys up here before seeding. |
 | `intake_answers` | `slug`, `section?`, `include_empty?` | `GET /api/clients/:slug/answers` |
 | `intake_status` | `slug` | `GET /api/clients/:slug/status` |
 | `intake_uploads_list` | `slug` | `GET /api/clients/:slug/uploads` (metadata and download path; bytes stay on the backend) |
 
 Writes, description opening `WRITE. Confirm with the user before calling.`, each logged
-with the caller's key fingerprint:
+with the caller's name or key fingerprint, the argument names (never the values) and the
+outcome:
 
 | Tool | Inputs | Route |
 | :-- | :-- | :-- |
-| `client_create` | `name`, `state`, `slug?`, `contacts?`, `upload_folder_id?`, `drive_folder_id?`, `asana_project_gid?`, `kickoff_date?`, `program_track?`, `notes?` | `POST /api/clients`. Returns the row with `intake_url`, the link for the kickoff email. |
-| `client_update` | `slug` + any of the fields above except slug, plus `phase`, `status`, `add_contacts[]`, `remove_contact_emails[]` | `PATCH /api/clients/:slug` |
-| `intake_seed` | `slug`, `answers` (key → string), `by?` | `PUT /api/clients/:slug/answers`. Unknown keys come back as a tool error naming them. |
+| `client_create` | `name`, `state`, `slug?`, `contacts?`, `npsa_contacts?`, `include_team?`, `reference_contacts?` (list or `false`), `applications?`, `upload_folder_id?`, `drive_folder_id?`, `asana_project_gid?`, `kickoff_date?`, `program_track?`, `notes?` | `POST /api/clients`. Returns the row with `intake_url`, the link for the kickoff email. Not idempotent. |
+| `client_update` | `slug` + any of `name`, `state`, `phase`, `status`, `program_track`, `drive_folder_id`, `upload_folder_id`, `asana_project_gid`, `kickoff_date`, `notes`, `add_contacts[]`, `add_npsa_contacts[]`, `add_reference_contacts[]`, `remove_contact_emails[]`, `applications[]`, `documents[]`, `add_documents[]`, `remove_document_keys[]`, `mark_documents_received[]`, `unmark_documents_received[]` | `PATCH /api/clients/:slug`. Invites are no longer sent from here; use `client_invite`. |
+| `client_invite` | `slug`, `email` | `PATCH /api/clients/:slug` with `{ invite_contact_email }`. Emails one of the client's own contacts their intake link, even if welcomed before. Returns `{ slug, email, invite }`. Not idempotent; open-world. |
+| `intake_seed` | `slug`, `answers` (key → string), `by?` | `PUT /api/clients/:slug/answers`. Unknown keys come back as a tool error naming them, with `unknown_keys` on the details line. |
 | `client_token_rotate` | `slug` | `POST /api/clients/:slug/token`. Destructive: the old link dies. |
+| `client_delete` | `slug`, `confirm?` | `DELETE /api/clients/:slug`. Destructive and permanent; the first call without `confirm` only reports what would go. |
 
 ## The intake page
 
@@ -441,8 +444,9 @@ real inbox.
 
 - **Automatic** when the client adds a colleague on their own form; the page then says "We have
   emailed them the link to this form."
-- **On request** for the team: `client_update invite_contact_email` (or the Email link button in the
-  Grant Writing dialog). This sends even to someone welcomed before, so it doubles as a re-send.
+- **On request** for the team: the `client_invite` MCP tool (underneath, the same `PATCH` with
+  `invite_contact_email`) or the Email link button in the Grant Writing dialog. This sends even
+  to someone welcomed before, so it doubles as a re-send.
 - NPSA and reference contacts are never mailed, an address is welcomed once automatically
   (`client_contacts.welcomed_at`), and a send that fails is logged while the contact stays added.
 - `server/mail.js` holds the wording; change it there.
