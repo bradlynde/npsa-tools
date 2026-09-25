@@ -76,7 +76,7 @@ function federalUploads(program, baseline) {
   return rows;
 }
 
-function registrationSteps(program, baseline) {
+function registrationSteps(program, baseline, guides = baseline) {
   const mine = stateSide(program);
   const own = new Set(mine.map(r => r.key));
   const all = [...baseline.filter(b => !own.has(b.key)), ...mine].filter(r => r.data.req_type === 'registration');
@@ -84,7 +84,16 @@ function registrationSteps(program, baseline) {
   return all
     .filter(r => (seen.has(r.key) ? false : seen.add(r.key)))
     .sort((a, b) => Number(Boolean(b.data.hard_gate)) - Number(Boolean(a.data.hard_gate)) || (b.data.lead_time_days || 0) - (a.data.lead_time_days || 0))
-    .map(r => clean({ key: r.key, label: r.data.client_label || r.data.label, hard_gate: Boolean(r.data.hard_gate), note: r.data.client_hint }));
+    .map(r => {
+      // A state's own copy of a baseline step (its SAM.gov line, a state program's too) keeps the federal guide unless it writes its own.
+      const d = r.data, b = guides.find(x => x.key === r.key && x !== r)?.data || {};
+      return clean({
+        key: r.key, label: d.client_label || b.client_label || d.label, hard_gate: Boolean(d.hard_gate), note: d.client_hint ?? b.client_hint,
+        owner: d.owner, url: d.url || b.url, lead_time_days: d.lead_time_days ?? b.lead_time_days,
+        // The "How to do this" box on the client's checklist: what to have ready, then the steps.
+        ready: d.client_ready ?? b.client_ready, steps: d.client_steps ?? b.client_steps,
+      });
+    });
 }
 
 function contactRow(c, program, saa) {
@@ -109,7 +118,7 @@ export function projectState(doc, baseline, usProgram) {
   const registration = { baseline: registrationSteps(bare, baseline) };
   const documents = { baseline: federalUploads(bare, baseline) };
   for (const p of [...federal, ...state]) {
-    registration[p.key] = p.data.type === 'federal' ? registrationSteps(p, baseline) : registrationSteps(p, []);
+    registration[p.key] = p.data.type === 'federal' ? registrationSteps(p, baseline) : registrationSteps(p, [], baseline);
     const rows = p.data.type === 'federal' ? federalUploads(p, baseline) : p.requirements.map(r => uploadRow(r)).filter(Boolean).map(r => ({ ...r, source: 'program' }));
     if (rows.length) documents[p.key] = rows;
   }

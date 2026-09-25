@@ -543,3 +543,24 @@ its selects still autosave and feed the progress bar and the submission box.
   "chk_note_<stem>": "…" }` (per-application tasks use `chk_<id>_…`). Status must be Not started, In
   progress, Completed or Not applicable. Not applicable hides the task from the client.
 - Notes that are only the "Day N" guide never show to the client.
+
+## Task guides and tasks that don't apply (2026-09-25)
+
+**How to do this.** The SAM.gov task and the state registration task carry a "How to do this" button on the client's checklist. It opens a box with an intro, a "Have these ready" list, numbered steps (a step may open with `**bold**`), how long to allow (from `lead_time_days`) and a link to the site. The text lives in the grant knowledge base, on each registration requirement: `client_hint` (the intro), `client_ready`, `client_steps` and `url`. Edit them in the Grant Knowledge tab; a new or changed field stays hidden from clients until someone verifies it. A state's own copy of SAM.gov (and a state program's) inherits the federal guide from the US record unless it writes its own. The button shows only where steps exist.
+
+The state task takes the state's name ("Register with Illinois") and lists only the steps the client does: not SAM.gov, and not a step whose owner is `npsa`.
+
+**Tasks the client isn't asked for.** `autoNotApplicable` (server/intake.js) reads these as Not applicable everywhere: hidden from the client, left out of the counts on the list, the dialog and the status tool, and marked with `auto` (the reason) on `intake_status` items and the Edit checklist pane.
+
+| Task | Doesn't apply when |
+| :-- | :-- |
+| Leadership bios | The client's Documents list has no bios row. Add the row and the task comes back. |
+| State registration | The state has no client-side registration step beyond SAM.gov (MI, ID, IN; California's CSNSGP). |
+| SAM.gov | Every stored application is a state program that doesn't list SAM.gov (CSNSGP). NSGP-IL lists it, because GATA checks it. |
+| Vendor quotes | Always, by default (`default` in intake-checklist.json). Quotes are asked for only when an item has no clear price (cabling, electrical), or where a state program requires them. |
+
+Each applies while the status is blank or is a Not started that a seed or import wrote (any `by` label). A status set in Edit checklist (`npsa:<who>`) or by the client on the form stands, so picking To do in Edit checklist turns a task back on.
+
+**Retired.** Preparedness efforts (law-enforcement relationships) duplicated Information Collection 3.9 to 3.13 and is retired (`retired` in intake-checklist.json): it no longer shows or counts anywhere; its keys stay in the catalog so old answers load.
+
+**Other changes.** The vulnerability assessment row no longer says "(if you have one)": every client needs one, and NPSA helps them get it (a one-time update rewrites lists clients kept). The 501(c)(3) task tells a church with no IRS letter that its state nonprofit registration from the Secretary of State works instead.

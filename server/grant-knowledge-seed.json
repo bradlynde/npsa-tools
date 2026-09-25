@@ -24206,7 +24206,7 @@
     "format": "PDF",
     "notes": "<=3 years old AND reflecting current posture; one per site. CISA HoW self-assessment widely accepted (check state file). Charts of proposed purchases are NOT a VA (IL rejects them).",
     "phase": "before_nofo",
-    "client_label": "Vulnerability assessment (if you have one)",
+    "client_label": "Vulnerability assessment",
     "client_hint": "PDF",
     "upload_key": "up_va",
     "task_stem": "vulnerability_assessment_received",

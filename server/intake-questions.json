@@ -6297,7 +6297,7 @@
     {
       "key": "up_va",
       "section": "Uploads",
-      "label": "Vulnerability assessment (if you have one) (file)",
+      "label": "Vulnerability assessment (file)",
       "ordinal": 878,
       "kind": "upload"
     },

@@ -10,8 +10,10 @@
  *   2. Uploads. The US baseline in the state's own wording, then what the state
  *      adds; a state program with its own list (California's CSNSGP) replaces it;
  *      a program_track that names the program counts before applications are set.
- *   3. Registration. Federal steps for every client, a state program's steps only
- *      for a client applying to it.
+ *   3. Registration. Federal steps for every client applying federally, a state
+ *      program's steps only for a client applying to it, and each step's "How to do
+ *      this" guide, which a state's own copy of SAM.gov inherits from the baseline.
+ *      The checklist tasks a client's state and applications don't call for.
  *   4. Caps. The state's own federal per-site cap (Kansas), a "State Program" site
  *      drawing on the larger of two programs the state awards only one of (New
  *      Jersey), dormant programs left out.
@@ -29,7 +31,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { buildKnowledge, setKnowledgeSnapshot, knowledgeLive, startKnowledgeSync, trustedRecords, briefingFor } from '../server/knowledge.js';
 import { stateFundingBlock } from '../server/precall-state.js';
-import { documentsFor, stateConfig, stateProgram, capsFor, programsFor, federalSiteCap, referenceContactsFor, registerIntake, createMemoryStore } from '../server/intake.js';
+import { documentsFor, stateConfig, autoNotApplicable, stateProgram, capsFor, programsFor, federalSiteCap, referenceContactsFor, registerIntake, createMemoryStore } from '../server/intake.js';
 
 process.env.MCP_API_KEYS = 'team-key';
 let failures = 0;
@@ -52,7 +54,7 @@ const add = r => { records.push(r); return r; };
 // US baseline
 add(rec('US', 'jurisdiction', 'US', { name: 'United States', saa: 'FEMA' }));
 const us = add(rec('US', 'program', 'NSGP', { name: 'NSGP', type: 'federal', status: 'active', cap_per_location: 200000, locations_max: 3 }));
-add(req(us, 'sam_uei', { req_type: 'registration', label: 'SAM.gov registration + active UEI', hard_gate: true, lead_time_days: 28 }));
+add(req(us, 'sam_uei', { req_type: 'registration', label: 'SAM.gov registration + active UEI', hard_gate: true, lead_time_days: 28, url: 'https://sam.gov/', client_ready: ['Your EIN'], client_steps: ['**Check first.** Search your name on sam.gov.', '**Register** as an entity.'] }));
 add(req(us, 'mission_letterhead', { req_type: 'document', label: 'Mission statement', upload_key: 'up_mission', client_label: 'Mission statement on letterhead', client_hint: 'PDF / DOCX', task_stem: 'mission_statement_on_letterhead' }));
 add(req(us, 'vuln_assessment', { req_type: 'document', label: 'VA', upload_key: 'up_va', client_label: 'Vulnerability assessment (if you have one)', client_hint: 'PDF', ready_label: 'VA received' }));
 add(req(us, 'bios_resumes', { req_type: 'document', label: 'Bios', upload_key: 'up_bios', client_label: 'Leadership bios' }, { status: 'unverified' }));
@@ -72,7 +74,8 @@ add(rec('TX', 'contact', 'maybe', { name: 'Unconfirmed', email: 'maybe@gov.texas
 
 // Kansas: its own lower federal cap
 add(rec('KS', 'jurisdiction', 'KS', { name: 'Kansas', saa: 'Kansas Highway Patrol', saa_short: 'KHP' }));
-add(rec('KS', 'program', 'NSGP-S', { name: 'NSGP-S', type: 'federal', status: 'active', cap_per_location: 150000, locations_max: 3 }));
+const ksS = add(rec('KS', 'program', 'NSGP-S', { name: 'NSGP-S', type: 'federal', status: 'active', cap_per_location: 150000, locations_max: 3 }));
+add(req(ksS, 'sam_uei', { req_type: 'registration', label: 'SAM.gov registration + active UEI', hard_gate: true, notes: 'Kansas checks it at award' }));
 
 // New Jersey: two state programs, one award between them; one field changed and not confirmed
 add(rec('NJ', 'jurisdiction', 'NJ', { name: 'New Jersey', saa: 'NJ Office of Homeland Security & Preparedness', saa_short: 'NJOHSP' }));
@@ -80,6 +83,7 @@ add(rec('NJ', 'program', 'NSGP-S', { name: 'NSGP-S', type: 'federal', status: 'a
 const the = add(rec('NJ', 'program', 'NJ-NSGP-THE', { name: 'NJ THE', type: 'state', status: 'active', cap_per_applicant: 100000, exclusive_with: ['NJ-NSGP-SP'] }));
 add(rec('NJ', 'program', 'NJ-NSGP-SP', { name: 'NJ SP', type: 'state', status: 'active', cap_per_applicant: 20000, exclusive_with: ['NJ-NSGP-THE'], administered_by: 'Department of Community Affairs' }));
 add(req(the, 'portal', { req_type: 'registration', label: 'NJOHSP portal account', hard_gate: true }));
+add(req(the, 'sam_uei', { req_type: 'registration', label: 'SAM.gov registration + active UEI', hard_gate: true }));
 
 // California: CSNSGP carries its own upload list; FL: a dormant program; MD: a cap changed and not confirmed; OR: an unverified program
 add(rec('CA', 'jurisdiction', 'CA', { name: 'California', saa: 'Cal OES' }));
@@ -136,14 +140,45 @@ await check('a state program with its own list replaces the federal one, by appl
 await check('registration: federal steps for everyone, a state program\'s only for its applicants', () => {
   const tx = stateConfig('TX');
   assert.deepEqual(tx.registration, [
-    { label: 'Texas eGrants account', hard_gate: true, note: 'Stage 1 in January' },
-    { label: 'SAM.gov registration + active UEI', hard_gate: true },
+    { key: 'egrants', label: 'Texas eGrants account', hard_gate: true, note: 'Stage 1 in January', owner: 'client', lead_time_days: 60 },
+    { key: 'sam_uei', label: 'SAM.gov registration + active UEI', hard_gate: true, owner: 'client', url: 'https://sam.gov/', lead_time_days: 28,
+      ready: ['Your EIN'], steps: ['**Check first.** Search your name on sam.gov.', '**Register** as an entity.'] },
   ], 'hard gates first, longest lead first');
+  assert.equal(tx.stateName, 'Texas');
   assert.equal(tx.saa, 'OOG PSO');
   assert.equal(tx.perSiteCap, '$200,000 per site · up to 3 sites');
   assert.equal(tx.stateCap, '—');
   assert.ok(!stateConfig('NJ').registration.some(r => /NJOHSP portal/.test(r.label)));
   assert.ok(stateConfig('NJ', ['NJ-NSGP-THE']).registration.some(r => r.label === 'NJOHSP portal account' && r.hard_gate));
+});
+
+await check('How to do this: a state\'s own SAM.gov line keeps the federal guide; only a federal application brings SAM.gov', () => {
+  const ks = stateConfig('KS').registration.find(r => r.key === 'sam_uei');
+  assert.deepEqual([ks.steps.length, ks.ready, ks.url, ks.lead_time_days], [2, ['Your EIN'], 'https://sam.gov/', 28]);
+  assert.ok(!stateConfig('CA', ['CSNSGP']).registration.some(r => r.key === 'sam_uei'), 'a CSNSGP-only client never touches SAM.gov');
+  assert.ok(stateConfig('CA', ['CSNSGP', 'NSGP-S']).registration.some(r => r.key === 'sam_uei'));
+  assert.ok(stateConfig('CA').registration.some(r => r.key === 'sam_uei'), 'no applications yet: federal assumed');
+  const nj = stateConfig('NJ', ['NJ-NSGP-THE']).registration.find(r => r.key === 'sam_uei');
+  assert.deepEqual([nj && nj.steps.length, nj && nj.url], [2, 'https://sam.gov/'], 'a state program that lists SAM.gov itself keeps it, with the federal guide');
+});
+
+await check('checklist: tasks the state and applications don\'t call for read Not applicable until someone starts them', () => {
+  const blank = () => '';
+  const tx = autoNotApplicable({ state: 'TX' }, blank);
+  assert.deepEqual([...tx.keys()].sort(), ['leadership_bios_resumes_pii_scrubb', 'vendor_quotes_for_wish_list_items'], 'Texas: eGrants is a real state step; bios are not on its list');
+  assert.ok(autoNotApplicable({ state: 'KS' }, blank).has('state_reg'), 'Kansas: nothing beyond SAM.gov');
+  assert.ok(autoNotApplicable({ state: 'CA', applications: [{ program: 'CSNSGP', status: 'active' }] }, blank).has('sam_gov_uei_registration'));
+  assert.ok(!autoNotApplicable({ state: 'CA', applications: [{ program: 'NSGP-S', status: 'active' }] }, blank).has('sam_gov_uei_registration'));
+  const started = autoNotApplicable({ state: 'KS' }, stem => ({ state_reg: 'In progress', vendor_quotes_for_wish_list_items: 'Not started' })[stem] || '', () => 'npsa:Stuart');
+  assert.ok(autoNotApplicable({ state: 'KS' }, stem => (stem === 'vendor_quotes_for_wish_list_items' ? 'Not started' : ''), () => 'seed:abcd1234').has('vendor_quotes_for_wish_list_items'), 'a kickoff seed does not switch quotes on');
+  assert.ok(!started.has('state_reg'), 'work already started stands');
+  assert.ok(!started.has('vendor_quotes_for_wish_list_items'), 'quotes stay on once the team sets any status');
+  const bios = stem => (stem === 'leadership_bios_resumes_pii_scrubb' ? 'Not started' : '');
+  assert.ok(autoNotApplicable({ state: 'KS' }, bios, () => 'seed:abcd1234').has('leadership_bios_resumes_pii_scrubb'), 'a kickoff seed\'s Not started does not keep bios on');
+  assert.ok(autoNotApplicable({ state: 'KS' }, bios, () => 'NPSA kickoff').has('leadership_bios_resumes_pii_scrubb'), 'nor does a seed with its own label');
+  assert.ok(!autoNotApplicable({ state: 'KS' }, bios, () => 'npsa:Stuart').has('leadership_bios_resumes_pii_scrubb'), 'the team choosing To do does');
+  const withBios = autoNotApplicable({ state: 'TX', documents: [{ key: 'up_bios', label: 'Bios' }] }, blank);
+  assert.ok(!withBios.has('leadership_bios_resumes_pii_scrubb'), 'bios follow the Documents list');
 });
 
 await check('caps: a state\'s own federal cap, one award between exclusive programs, dormant ones out', () => {

@@ -224,7 +224,8 @@ await check('a good seed lands as seed:<actor> and does not bump client activity
   assert.equal(first.updated_by, 'seed:abcd1234');
   const c = await call('GET', `/api/clients/${created.slug}`, { headers: TEAM });
   assert.equal(c.data.last_client_activity_at, null);
-  assert.deepEqual(c.data.checklist, { completed: 1, total: 24, not_applicable: 0 });
+  // 23 tasks (preparedness efforts is retired); vendor quotes start at Not applicable until the team asks for them.
+  assert.deepEqual(c.data.checklist, { completed: 1, total: 22, not_applicable: 1 });
   assert.equal(c.data.core.answered, 3);
 });
 await check('a section filter and include_empty work', async () => {
@@ -269,7 +270,8 @@ await check('status reports sections, checklist items and the headline counts', 
   const d = r.data;
   assert.equal(d.core.answered, 5);
   assert.equal(d.checklist.completed, 1);
-  assert.equal(d.checklist.items.length, 24);
+  assert.equal(d.checklist.items.length, 23);
+  assert.ok(!d.checklist.items.some(i => i.stem === 'preparedness_efforts_law_enforceme'), 'a retired task is gone');
   const reg = d.checklist.items.find(i => i.stem === 'state_reg');
   assert.deepEqual([reg.label, reg.status, reg.due, reg.owner], ['State registration', 'In progress', '9/15/2026', 'Pat (DEMES account)']);
   const s1 = d.sections.find(s => s.section === '1. Applicant Information');
@@ -332,7 +334,7 @@ await check('site research: loc<n>_infra is accepted and stays out of the core c
 await check('checklist: Not applicable leaves the total and is reported', async () => {
   await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { chk_status_confirm_obtain_ein: 'Not applicable' } } });
   const r = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
-  assert.deepEqual([r.data.checklist.completed, r.data.checklist.total, r.data.checklist.not_applicable], [1, 23, 1]);
+  assert.deepEqual([r.data.checklist.completed, r.data.checklist.total, r.data.checklist.not_applicable], [1, 21, 2]);
   assert.equal(r.data.checklist.items.find(i => i.stem === 'confirm_obtain_ein').status, 'Not applicable');
 });
 await check('programs: 40 slots accepted, status counts the named rows, 3.2.1 is retired but still readable', async () => {
@@ -509,6 +511,12 @@ await check('the page route serves the real template by default', async () => {
   assert.ok(html.includes('var CLIENT="page-test-church"'));
   assert.ok(html.includes('"saa":"FDEM"'));
   assert.ok(html.includes('UPLOAD_BASE=""'));
+  // Tasks the client isn't asked for arrive as Not applicable, which the page hides; nothing is written.
+  const existing = JSON.parse(html.match(/EXISTING=(\{.*?\}), CONTACTS=/)[1]);
+  assert.equal(existing.chk_status_preparedness_efforts_law_enforceme, 'Not applicable', 'retired');
+  assert.equal(existing.chk_status_vendor_quotes_for_wish_list_items, 'Not applicable', 'off until the team asks');
+  assert.ok(html.includes('"stateName":"Florida"'));
+  assert.ok(/function openGuide\(t\)/.test(html) && html.includes('data-guide='), 'the How to do this box is on the page');
   assert.equal((await fetch(`${o3}/api/intake/page-test-church/upload`, { method: 'POST' })).status, 401);
   s3.close();
 });
@@ -737,17 +745,20 @@ await check('checklist: prep shared, wish list and submission repeated per appli
   assert.equal((await call('PUT', '/api/clients/split-list-church/answers', { headers: TEAM, body: { answers: { chk_a2_status_nope: 'Completed' } } })).status, 400);
   const st = await call('GET', '/api/clients/split-list-church/status', { headers: TEAM });
   const items = st.data.checklist.items;
-  assert.equal(items.length, 31, 'seventeen shared tasks plus seven per application');
-  assert.equal(items.filter((i) => i.application === null).length, 17);
+  assert.equal(items.length, 30, 'sixteen shared tasks plus seven per application');
+  assert.equal(items.filter((i) => i.application === null).length, 16);
   assert.ok(items.some((i) => i.stem === 'vendor_quotes_for_wish_list_items' && i.application === null), 'quotes are shared: we work from estimates');
   assert.ok(items.some((i) => i.stem === 'application_drafting' && i.application === null));
   assert.deepEqual([...new Set(items.filter((i) => i.application).map((i) => i.application_label))], ['CSNSGP 2026-27', 'NSGP-S FY2027']);
   assert.equal(items.find((i) => i.application === 'a1' && i.stem === 'submit_application').due, '11/7/2026');
   assert.equal(items.find((i) => i.application === 'a2' && i.stem === 'submit_application').due, '5/1/2027');
-  assert.deepEqual([st.data.checklist.completed, st.data.checklist.not_applicable, st.data.checklist.total], [2, 1, 30]);
+  // One set by hand, three by rule: CSNSGP's own Documents list has no bios, California has nothing to
+  // register beyond SAM.gov, and vendor quotes are off until asked for.
+  assert.deepEqual(items.filter((i) => i.auto).map((i) => i.stem).sort(), ['leadership_bios_resumes_pii_scrubb', 'state_reg', 'vendor_quotes_for_wish_list_items']);
+  assert.deepEqual([st.data.checklist.completed, st.data.checklist.not_applicable, st.data.checklist.total], [2, 4, 26]);
   assert.equal(st.data.checklist.per_application, 7);
   const list = (await call('GET', '/api/clients?status=active', { headers: TEAM })).data.find((c) => c.slug === 'split-list-church');
-  assert.deepEqual([list.checklist.completed, list.checklist.total, list.checklist.not_applicable], [2, 30, 1]);
+  assert.deepEqual([list.checklist.completed, list.checklist.total, list.checklist.not_applicable], [2, 26, 4], 'the list agrees with the dialog');
   const ans = await call('GET', '/api/clients/split-list-church/answers', { headers: TEAM });
   assert.equal(ans.data.answers.find((a) => a.key === 'chk_a2_due_submit_application').section, 'Checklist (NSGP-S FY2027)');
   await call('PATCH', '/api/clients/split-list-church', { headers: TEAM, body: { status: 'cancelled' } });
