@@ -555,7 +555,7 @@ The state task takes the state's name ("Register with Illinois") and lists only 
 | SAM.gov | Every stored application is a state program that doesn't list SAM.gov (CSNSGP). NSGP-IL lists it, because GATA checks it. |
 | Vendor quotes | Always, by default (`default` in intake-checklist.json). Quotes are asked for only when an item has no clear price (cabling, electrical), or where a state program requires them. |
 
-Each applies while the status is blank or the Not started a seed or import wrote. Any status the team or the client sets stands, so picking To do in Edit checklist turns a task back on.
+Each applies while the status is blank or is a Not started that a seed or import wrote (any `by` label). A status set in Edit checklist (`npsa:<who>`) or by the client on the form stands, so picking To do in Edit checklist turns a task back on.
 
 **Retired.** Preparedness efforts (law-enforcement relationships) duplicated Information Collection 3.9 to 3.13 and is retired (`retired` in intake-checklist.json): it no longer shows or counts anywhere; its keys stay in the catalog so old answers load.
 

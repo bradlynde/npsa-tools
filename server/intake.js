@@ -230,8 +230,8 @@ export const AUTO_STATUS_KEYS = [BIOS_STEM, STATE_REG_STEM, SAM_STEM, ...Object.
 /**
  * Checklist tasks this client's state and applications don't call for, and why. They read as
  * Not applicable everywhere (hidden from the client, left out of the counts) for as long as
- * nobody has chosen otherwise: blank, or the Not started a kickoff seed or import wrote. A
- * status the team or client set (To do included) stands. Bios follow the Documents
+ * nobody has chosen otherwise: blank, or a Not started that a seed or import wrote. A status
+ * the team set on the Grant Writing page or the client set on the form (To do included) stands. Bios follow the Documents
  * list, the state step follows the knowledge base's client-side registration steps, and SAM.gov
  * follows whether any application is federal. A task with a `default` in intake-checklist.json
  * (vendor quotes) starts at that status the same way, so the team switches it on by setting one.
@@ -239,7 +239,8 @@ export const AUTO_STATUS_KEYS = [BIOS_STEM, STATE_REG_STEM, SAM_STEM, ...Object.
 export function autoNotApplicable(client, statusOf, byOf = () => 'seed') {
   const cfg = stateConfig(client.state, liveCodes(client));
   const out = new Map();
-  const untouched = stem => { const v = statusOf(stem) || ''; return !v || (v === 'Not started' && /^(seed|import)/.test(byOf(stem) || '')); };
+  // Chosen = written from the Grant Writing page (npsa:<who>) or the form (client…); a seed or an import, whatever its label, is not a choice.
+  const untouched = stem => { const v = statusOf(stem) || ''; return !v || (v === 'Not started' && !/^(npsa:|client)/.test(byOf(stem) || '')); };
   if (!documentsFor(client).some(d => d.task === BIOS_STEM || /bios|resume/.test(d.key)) && untouched(BIOS_STEM)) out.set(BIOS_STEM, "Bios are not on this client's Documents list");
   if (!clientStateSteps(cfg).length && untouched(STATE_REG_STEM)) out.set(STATE_REG_STEM, `${cfg.stateName} has nothing for the client to register beyond SAM.gov`);
   if (!cfg.registration.some(r => r.key === 'sam_uei') && untouched(SAM_STEM)) out.set(SAM_STEM, 'No federal application');

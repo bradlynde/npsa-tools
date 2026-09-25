@@ -175,6 +175,7 @@ await check('checklist: tasks the state and applications don\'t call for read No
   assert.ok(!started.has('vendor_quotes_for_wish_list_items'), 'quotes stay on once the team sets any status');
   const bios = stem => (stem === 'leadership_bios_resumes_pii_scrubb' ? 'Not started' : '');
   assert.ok(autoNotApplicable({ state: 'KS' }, bios, () => 'seed:abcd1234').has('leadership_bios_resumes_pii_scrubb'), 'a kickoff seed\'s Not started does not keep bios on');
+  assert.ok(autoNotApplicable({ state: 'KS' }, bios, () => 'NPSA kickoff').has('leadership_bios_resumes_pii_scrubb'), 'nor does a seed with its own label');
   assert.ok(!autoNotApplicable({ state: 'KS' }, bios, () => 'npsa:Stuart').has('leadership_bios_resumes_pii_scrubb'), 'the team choosing To do does');
   const withBios = autoNotApplicable({ state: 'TX', documents: [{ key: 'up_bios', label: 'Bios' }] }, blank);
   assert.ok(!withBios.has('leadership_bios_resumes_pii_scrubb'), 'bios follow the Documents list');
