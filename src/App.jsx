@@ -1640,7 +1640,8 @@ export default function App() {
 
           {/* Notes preview / edit */}
           {preCallViewMode==='preview' ? (
-            <div style={{background:'var(--card)',border:'1px solid var(--hair2)',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)'}}
+            // White paper in both themes, like the letter — see PC_NOTES_CSS.
+            <div style={{background:'#ffffff',border:'1px solid var(--hair2)',borderRadius:14,padding:'30px 34px',minHeight:700,boxShadow:'0 4px 16px rgba(2,6,23,0.06)'}}
               dangerouslySetInnerHTML={{__html: renderPreCallHtml(preCallOutput)}}/>
           ) : (
             <>
