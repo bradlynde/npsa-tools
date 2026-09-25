@@ -6,11 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   BookOpenText,
   BriefcaseBusiness,
-  CalendarCheck,
   Check,
   ChevronsUpDown,
   FileChartColumn,
   LogOut,
+  Megaphone,
   Monitor,
   Moon,
   PanelLeftClose,
@@ -26,16 +26,17 @@ import { useSidebar, useTheme, type ThemePref } from "../lib/theme";
 type NavItem = {
   href: string;
   label: string;
-  /** One-word name for the phone tab bar, where five tabs share the width. */
+  /** One-word name for the phone tab bar, where six tabs share the width. */
   short: string;
   icon: LucideIcon;
   match: (p: string) => boolean;
 };
 
 export const NAV: NavItem[] = [
-  { href: "/", label: "Company Report", short: "Report", icon: FileChartColumn, match: (p) => p === "/" },
-  // Booking attribution has its own page: Chad, Jeff and Michael work in it daily.
-  { href: "/bookings", label: "Bookings", short: "Bookings", icon: CalendarCheck, match: (p) => p.startsWith("/bookings") },
+  // "/" itself opens on the section each person used last (lib/landing.ts).
+  { href: "/report", label: "Company Report", short: "Report", icon: FileChartColumn, match: (p) => p.startsWith("/report") },
+  // Marketing figures and booking attribution: Chad, Jeff and Michael work in it daily.
+  { href: "/marketing", label: "Marketing", short: "Marketing", icon: Megaphone, match: (p) => p.startsWith("/marketing") },
   {
     href: "/toolbox",
     label: "Sales Toolbox",
@@ -184,7 +185,7 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar" aria-label="Main">
-      <Link href="/" className="sidebar-brand" aria-label="NPSA Tools home">
+      <Link href="/report" className="sidebar-brand" aria-label="NPSA Tools home">
         <Logo height={40} />
         <Mark height={32} />
       </Link>
@@ -250,7 +251,7 @@ export function MobileHeader() {
 
   return (
     <header className="mobile-header">
-      <Link href="/" aria-label="NPSA Tools home" style={{ display: "flex", alignItems: "center" }}>
+      <Link href="/report" aria-label="NPSA Tools home" style={{ display: "flex", alignItems: "center" }}>
         <Logo height={30} />
       </Link>
       <div style={{ position: "relative" }}>

@@ -71,7 +71,6 @@ export default function BookingsTable({
   onChanged,
   onSaved,
   title = "Bookings",
-  action,
   toolbar,
   emptyText,
   maxHeight = 460,
@@ -88,9 +87,7 @@ export default function BookingsTable({
   /** A change landed upstream, so the figures above are now out of date. */
   onSaved?: () => void;
   title?: string;
-  /** Beside the title: on the Dashboard, a link to the Bookings page. */
-  action?: React.ReactNode;
-  /** Under the header: the Bookings page puts its filters here. */
+  /** Under the header: the Marketing page puts its filters here. */
   toolbar?: React.ReactNode;
   /** Said when a filter leaves nothing to show. */
   emptyText?: string;
@@ -154,7 +151,6 @@ export default function BookingsTable({
         <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
           <h3 className="section-title">{title}</h3>
           <span className="meta">{search ? "All time" : rangeTag.charAt(0).toUpperCase() + rangeTag.slice(1)}</span>
-          {action}
         </div>
         <label style={{ position: "relative", display: "block", width: 280, maxWidth: "100%" }}>
           <Search
