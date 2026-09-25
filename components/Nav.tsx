@@ -8,15 +8,15 @@ import {
   BriefcaseBusiness,
   Check,
   ChevronsUpDown,
-  LayoutDashboard,
+  FileChartColumn,
   LogOut,
   Monitor,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  PenLine,
   ScanSearch,
   Sun,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,7 +32,7 @@ type NavItem = {
 };
 
 export const NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", short: "Home", icon: LayoutDashboard, match: (p) => p === "/" },
+  { href: "/", label: "Company Report", short: "Report", icon: FileChartColumn, match: (p) => p === "/" },
   {
     href: "/toolbox",
     label: "Sales Toolbox",
@@ -43,9 +43,9 @@ export const NAV: NavItem[] = [
   },
   {
     href: "/grant-writing",
-    label: "Grant Writing",
-    short: "Writing",
-    icon: PenLine,
+    label: "Grant Clients",
+    short: "Clients",
+    icon: UsersRound,
     match: (p) => p.startsWith("/grant-writing"),
   },
   {

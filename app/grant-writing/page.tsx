@@ -1096,7 +1096,7 @@ export default function GrantWritingPage() {
     <Page>
       <div style={{ marginBottom: 28 }}>
         <PageHeading description="In-house clients: what each one has answered, who is filling it in, and how long since they last touched it. Registering and seeding happen through Claude; this page reads.">
-          Grant Writing
+          Grant Clients
         </PageHeading>
       </div>
 
