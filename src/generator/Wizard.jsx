@@ -12,7 +12,7 @@
 
 import { useEffect } from "react";
 import {
-  fmt, calcFees, totalMaxAward, applicationCount, engagementModelFor, reimbursementChoice,
+  fmt, calcFees, totalMaxAward, applicationCount, engagementModelFor, reimbursementChoice, letterParty,
   isoDatePlus, PROGRAMS,
   TIER_LABELS,
 } from "./engine.js";
@@ -89,12 +89,10 @@ function ReviewStep({ form, docTab, fees, numLocs, signByKey, tierKey }) {
 
   // Each document stores its party under its own key. Falling back across them
   // would show the pre-award client on a grant-writer agreement addressed to
-  // someone else entirely.
-  const party = docTab === "gw"
-    ? ["Recipient", form.gwRecipientName]
-    : docTab === "addendum"
-      ? ["Client", form.addendumClientName]
-      : ["Client", form.clientName];
+  // someone else entirely — which is exactly what the save paths were doing
+  // until they were pointed at this same helper.
+  const { label: partyLabel, name: partyName } = letterParty(docTab, form);
+  const party = [partyLabel, partyName];
 
   const programsKey = docTab === "post" ? "postPrograms"
     : docTab === "gw" ? "gwPrograms"
