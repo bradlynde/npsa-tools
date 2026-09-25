@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, Eyebrow, SegPill, Note, fmtMoney, useElementWidth } from "../ui";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Card, SegPill, Note, fmtMoney, useElementWidth } from "../ui";
 import {
   AXIS_LABEL_PITCH,
   axisLabelShift,
@@ -15,10 +16,10 @@ import {
 export type Metric = "booked" | "held" | "loes" | "won";
 
 const METRICS: { key: Metric; label: string; title: string; money: boolean }[] = [
-  { key: "booked", label: "Bookings", title: "bookings", money: false },
-  { key: "held", label: "Held", title: "held meetings", money: false },
-  { key: "loes", label: "LOEs", title: "loes sent", money: false },
-  { key: "won", label: "Won $", title: "won revenue", money: true },
+  { key: "booked", label: "Bookings", title: "Bookings", money: false },
+  { key: "held", label: "Held", title: "Held meetings", money: false },
+  { key: "loes", label: "LOEs", title: "LOEs sent", money: false },
+  { key: "won", label: "Won $", title: "Won revenue", money: true },
 ];
 
 const GRANS: { key: Granularity; label: string }[] = [
@@ -115,9 +116,10 @@ export default function TimeSeriesChart({
           gap: 12,
         }}
       >
-        <Eyebrow>
-          {cfg.title} over time — by {gran}
-        </Eyebrow>
+        <div>
+          <h3 className="section-title">{cfg.title} over time</h3>
+          <div className="meta">By {gran}</div>
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <SegPill
             options={GRANS}
@@ -127,8 +129,9 @@ export default function TimeSeriesChart({
               setOffset(0);
             }}
             size="sm"
+            label="Period"
           />
-          <SegPill options={METRICS} value={metric} onChange={setMetric} size="sm" />
+          <SegPill options={METRICS} value={metric} onChange={setMetric} size="sm" label="Measure" />
         </div>
       </div>
 
@@ -141,7 +144,6 @@ export default function TimeSeriesChart({
           <div style={{ position: "relative" }}>
             {tip >= 0 && shown[tip] && (
               <div
-                className="mono"
                 style={{
                   position: "absolute",
                   top: -6,
@@ -151,18 +153,20 @@ export default function TimeSeriesChart({
                   transform: "translate(-50%,-100%)",
                   background: "var(--tip-bg)",
                   color: "var(--tip-fg)",
-                  fontWeight: 600,
+                  fontWeight: 500,
                   fontSize: 12,
-                  padding: "6px 11px",
-                  borderRadius: 8,
+                  lineHeight: "16px",
+                  padding: "6px 10px",
+                  borderRadius: 6,
                   whiteSpace: "nowrap",
+                  boxShadow: "var(--shadow-pop)",
                 }}
               >
-                {periodLabel(shown[tip].period, gran)} — {fmt(valueOf(shown[tip], metric))}
+                {periodLabel(shown[tip].period, gran)} · {fmt(valueOf(shown[tip], metric))}
                 {compare && sorted[start + tip - 1] && (
                   <>
                     {" "}
-                    <span style={{ opacity: 0.65 }}>
+                    <span style={{ opacity: 0.75 }}>
                       ({valueOf(shown[tip], metric) - ghostOf(tip) >= 0 ? "+" : ""}
                       {fmt(valueOf(shown[tip], metric) - ghostOf(tip))} vs prev)
                     </span>
@@ -212,7 +216,7 @@ export default function TimeSeriesChart({
                           right: gran === "week" ? "7%" : "11%",
                           height: `${(ghost / maxVal) * 100}%`,
                           background: "var(--ghost)",
-                          borderRadius: 5,
+                          borderRadius: "4px 4px 0 0",
                         }}
                         title="previous period"
                       />
@@ -231,11 +235,11 @@ export default function TimeSeriesChart({
                         right: gran === "week" ? "20%" : "23%",
                         height: `${Math.max(cur > 0 ? 2 : 0, (cur / maxVal) * 100)}%`,
                         background: barColor,
-                        borderRadius: 5,
+                        borderRadius: "4px 4px 0 0",
                         transformOrigin: "bottom",
-                        animation: "growY .7s cubic-bezier(.34,1.4,.4,1) both",
-                        transition: "height .55s cubic-bezier(.34,1.3,.4,1), filter .2s",
-                        filter: tip === i ? "brightness(1.2)" : "none",
+                        animation: "growY .6s cubic-bezier(.2,.8,.2,1) both",
+                        transition: "height .45s cubic-bezier(.2,.8,.2,1), opacity .15s",
+                        opacity: tip >= 0 && tip !== i ? 0.55 : 1,
                       }}
                     />
                   </div>
@@ -251,7 +255,7 @@ export default function TimeSeriesChart({
                 inside the plot. */}
             <div
               ref={axisRef}
-              style={{ display: "flex", gap: axisGap, marginTop: 8, height: 13 }}
+              style={{ display: "flex", gap: axisGap, marginTop: 8, height: 16 }}
             >
               {shown.map((s, i) => {
                 const label = labelIdx.has(i) ? periodLabel(s.period, gran) : "";
@@ -264,15 +268,14 @@ export default function TimeSeriesChart({
                   <div key={s.period} style={{ flex: 1, minWidth: 0, position: "relative" }}>
                     {label && (
                       <span
-                        className="mono"
                         style={{
                           position: "absolute",
                           top: 0,
                           left: "50%",
                           transform: `translateX(calc(-50% + ${shift}px))`,
-                          fontSize: 10,
-                          lineHeight: "13px",
-                          color: "var(--faint)",
+                          fontSize: 12,
+                          lineHeight: "16px",
+                          color: "var(--mute)",
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -302,22 +305,12 @@ export default function TimeSeriesChart({
                 onClick={() => canOlder && setOffset((o) => Math.min(maxOffset, o + step))}
                 disabled={!canOlder}
                 aria-label="Show earlier periods"
-                style={{
-                  border: "1px solid var(--bd2)",
-                  background: "transparent",
-                  color: canOlder ? "var(--navy)" : "var(--faint)",
-                  borderRadius: 999,
-                  padding: "3px 11px",
-                  fontSize: 14,
-                  cursor: canOlder ? "pointer" : "default",
-                  lineHeight: 1.4,
-                }}
+                className="btn btn-secondary btn-sm btn-icon"
               >
-                ‹
+                <ChevronLeft size={16} strokeWidth={1.75} aria-hidden />
               </button>
               <span
-                className="mono"
-                style={{ fontSize: 11.5, color: "var(--mute)", minWidth: 120, textAlign: "center" }}
+                style={{ fontSize: 13, lineHeight: "18px", color: "var(--sec)", minWidth: 132, textAlign: "center", fontVariantNumeric: "tabular-nums" }}
               >
                 {rangeLabel}
               </span>
@@ -326,18 +319,9 @@ export default function TimeSeriesChart({
                 onClick={() => canNewer && setOffset((o) => Math.max(0, o - step))}
                 disabled={!canNewer}
                 aria-label="Show later periods"
-                style={{
-                  border: "1px solid var(--bd2)",
-                  background: "transparent",
-                  color: canNewer ? "var(--navy)" : "var(--faint)",
-                  borderRadius: 999,
-                  padding: "3px 11px",
-                  fontSize: 14,
-                  cursor: canNewer ? "pointer" : "default",
-                  lineHeight: 1.4,
-                }}
+                className="btn btn-secondary btn-sm btn-icon"
               >
-                ›
+                <ChevronRight size={16} strokeWidth={1.75} aria-hidden />
               </button>
             </div>
 
@@ -346,7 +330,7 @@ export default function TimeSeriesChart({
                 display: "flex",
                 alignItems: "center",
                 gap: 7,
-                fontSize: 12.5,
+                fontSize: 13,
                 color: "var(--sec)",
                 cursor: "pointer",
                 userSelect: "none",

@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Eyebrow, Note, fmtMoney } from "../ui";
+import { Card, Note, fmtMoney } from "../ui";
 
 export type CampaignAgg = {
   campaign: string;
@@ -37,19 +37,22 @@ export default function CampaignTable({
           alignItems: "baseline",
           justifyContent: "space-between",
           gap: 10,
-          marginBottom: 6,
+          marginBottom: 8,
           flexWrap: "wrap",
         }}
       >
-        <Eyebrow>by campaign &amp; source — {rangeWord}</Eyebrow>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <h3 className="section-title">By campaign and source</h3>
+          <span className="meta">{rangeWord.charAt(0).toUpperCase() + rangeWord.slice(1)}</span>
+        </div>
         {/* Count the campaigns, not the rows. Source rows sit in this table too, and
             calling all of them campaigns overstated how many were running -- it read
             "15 campaigns" when one of those was the catch-all for everything that
             was not a campaign at all. */}
-        <Eyebrow color="var(--faint)">
+        <span className="meta">
           {campaignCount} {campaignCount === 1 ? "campaign" : "campaigns"}
           {sourceCount > 0 ? ` · ${sourceCount} ${sourceCount === 1 ? "source" : "sources"}` : ""}
-        </Eyebrow>
+        </span>
       </div>
 
       {loading ? (
@@ -68,15 +71,14 @@ export default function CampaignTable({
                 borderBottom: "1px solid var(--hair)",
               }}
             >
-              {["CAMPAIGN", "BOOKED", "HELD", "LOES", "LOE $"].map((h, i) => (
+              {["Campaign", "Booked", "Held", "LOEs", "LOE value"].map((h, i) => (
                 <span
                   key={h}
-                  className="mono"
                   style={{
                     fontWeight: 600,
-                    fontSize: 10.5,
-                    letterSpacing: ".07em",
-                    color: "var(--faint)",
+                    fontSize: 12,
+                    lineHeight: "16px",
+                    color: "var(--sec)",
                     textAlign: i === 0 ? "left" : "right",
                   }}
                 >
@@ -102,9 +104,9 @@ export default function CampaignTable({
                 <div>
                   <div
                     style={{
-                      fontWeight: c.isCampaign ? 600 : 500,
+                      fontWeight: c.isCampaign ? 500 : 400,
                       color: c.isCampaign ? "var(--ink)" : "var(--sec)",
-                      fontSize: 13.5,
+                      fontSize: 14,
                     }}
                   >
                     {c.campaign}
@@ -125,7 +127,7 @@ export default function CampaignTable({
                         height: "100%",
                         background: c.isCampaign ? "var(--olive)" : "var(--bd2)",
                         transformOrigin: "left",
-                        animation: "growX .9s cubic-bezier(.34,1.3,.4,1) both",
+                        animation: "growX .7s cubic-bezier(.2,.8,.2,1) both",
                       }}
                     />
                   </div>
@@ -133,9 +135,9 @@ export default function CampaignTable({
                 <span
                   style={{
                     textAlign: "right",
-                    fontWeight: 700,
+                    fontWeight: 600,
                     color: "var(--ink)",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
@@ -145,7 +147,7 @@ export default function CampaignTable({
                   style={{
                     textAlign: "right",
                     color: "var(--sec)",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
@@ -155,7 +157,7 @@ export default function CampaignTable({
                   style={{
                     textAlign: "right",
                     color: "var(--sec)",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
@@ -164,9 +166,9 @@ export default function CampaignTable({
                 <span
                   style={{
                     textAlign: "right",
-                    fontWeight: 700,
-                    color: "var(--olive)",
-                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--olive-ink)",
+                    fontSize: 14,
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >

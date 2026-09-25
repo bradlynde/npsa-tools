@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { useAuth } from "../contexts/AuthContext";
 
 /**
@@ -78,62 +77,27 @@ export default function LoginForm() {
 
   const labelStyle: React.CSSProperties = {
     display: "block",
+    fontSize: 13,
+    lineHeight: "18px",
     fontWeight: 500,
-    fontSize: 11,
-    letterSpacing: ".07em",
-    color: "var(--mute)",
-    marginBottom: 7,
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    font: "inherit",
-    fontSize: 15,
-    padding: "13px 15px",
-    background: "var(--card)",
-    border: "1px solid var(--bd2)",
-    borderRadius: 14,
-    color: "var(--ink)",
-    outline: "none",
-    boxSizing: "border-box",
-    transition: "border-color .2s, box-shadow .2s",
-  };
-
-  const focus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = "var(--navy)";
-    e.target.style.boxShadow = "0 0 0 3px rgba(30,58,95,0.12)";
-  };
-  const blur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = "var(--bd2)";
-    e.target.style.boxShadow = "none";
-  };
-
-  const primaryButton: React.CSSProperties = {
-    width: "100%",
-    font: "inherit",
-    fontSize: 14,
-    fontWeight: 700,
-    padding: "14px 24px",
-    borderRadius: 999,
-    color: "var(--on-accent)",
-    background: loading ? "var(--mute)" : "var(--navy)",
-    border: "none",
-    cursor: loading ? "not-allowed" : "pointer",
-    transition: "transform .2s, box-shadow .2s, background .2s",
-  };
-
-  const quietButton: React.CSSProperties = {
-    font: "inherit",
-    fontSize: 12.5,
-    fontWeight: 600,
     color: "var(--sec)",
+    marginBottom: 6,
+  };
+
+  const fieldStyle: React.CSSProperties = { height: 44, fontSize: 15 };
+
+  const linkButton: React.CSSProperties = {
+    fontSize: 13,
+    lineHeight: "18px",
+    fontWeight: 500,
+    color: "var(--navy)",
     background: "none",
     border: "none",
-    padding: 0,
+    padding: "4px 0",
     cursor: "pointer",
-    textDecoration: "underline",
-    textUnderlineOffset: 3,
   };
+
+  const codeReady = code.length === 6;
 
   return (
     <div
@@ -141,184 +105,165 @@ export default function LoginForm() {
         minHeight: "100dvh",
         display: "flex",
         flexDirection: "column",
+        alignItems: "center",
         background: "var(--bg)",
+        padding: "0 16px",
       }}
     >
-      <div style={{ padding: "22px 32px" }}>
-        <Image
-          src="/npsa-logo-t.png"
-          alt="Nonprofit Security Advisors"
-          width={170}
-          height={40}
-          priority
-          style={{ height: 40, width: "auto", objectFit: "contain", filter: "var(--logo-filter)" }}
-        />
-      </div>
-
       <div
+        className="fade-up"
         style={{
           flex: 1,
+          width: "100%",
+          maxWidth: 400,
           display: "flex",
-          alignItems: "center",
+          flexDirection: "column",
           justifyContent: "center",
-          padding: "0 18px 60px",
+          padding: "48px 0 32px",
         }}
       >
-        <div className="fade-up" style={{ width: "100%", maxWidth: 420 }}>
-          <div style={{ marginBottom: 26 }}>
-            <div
-              className="mono"
-              style={{
-                fontWeight: 500,
-                fontSize: 12,
-                letterSpacing: ".08em",
-                color: "var(--olive)",
-                marginBottom: 9,
-              }}
-            >
-              npsa tools
-            </div>
-            <h1 className="headline" style={{ fontSize: 34 }}>
-              {step === "email" ? (
-                <>
-                  Welcome <em>back.</em>
-                </>
-              ) : (
-                <>
-                  Check your <em>email.</em>
-                </>
-              )}
-            </h1>
-          </div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
+          <img className="logo-light" src="/npsa-logo-t.png" alt="Nonprofit Security Advisors" width={153} height={48} style={{ height: 48, width: "auto" }} />
+          <img className="logo-dark" src="/npsa-logo-dark.png" alt="Nonprofit Security Advisors" width={153} height={48} style={{ height: 48, width: "auto" }} />
+        </div>
 
-          <div
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--bd)",
-              borderRadius: 16,
-              boxShadow: "var(--shadow-card)",
-              padding: "28px 26px",
-            }}
-          >
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <h1 className="headline" style={{ fontSize: 28, lineHeight: "36px" }}>
+            {step === "email" ? "Sign in to NPSA Tools" : "Check your email"}
+          </h1>
+          <p style={{ fontSize: 14, lineHeight: "20px", color: "var(--sec)", marginTop: 6 }}>
             {step === "email" ? (
-              <form onSubmit={submitEmail}>
-                <div style={{ marginBottom: 18 }}>
-                  <label className="mono" htmlFor="login-email" style={labelStyle}>
-                    email
-                  </label>
-                  <input
-                    id="login-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoFocus
-                    autoComplete="email"
-                    placeholder="you@nonprofitsecurityadvisors.com"
-                    style={inputStyle}
-                    onFocus={focus}
-                    onBlur={blur}
-                  />
-                  <p style={{ fontSize: 12.5, color: "var(--mute)", margin: "9px 2px 0", lineHeight: 1.5 }}>
-                    We’ll email you a six-digit code. No password needed.
-                  </p>
-                </div>
-
-                {error && <ErrorNote>{error}</ErrorNote>}
-
-                <button type="submit" disabled={loading} style={primaryButton}>
-                  {loading ? "Sending…" : "Send Code"}
-                </button>
-              </form>
+              "We’ll email you a six-digit code. No password needed."
             ) : (
-              <form onSubmit={submitCode}>
-                <p style={{ fontSize: 13.5, color: "var(--sec)", margin: "0 0 18px", lineHeight: 1.6 }}>
-                  If <strong style={{ color: "var(--ink)" }}>{email}</strong> is set up for the
-                  toolbox, a six-digit code is on its way. It expires in 10 minutes.
-                </p>
+              <>
+                If <strong style={{ color: "var(--ink)", fontWeight: 600 }}>{email}</strong> is set up for the
+                tools, a code is on its way. It expires in 10 minutes.
+              </>
+            )}
+          </p>
+        </div>
 
-                <div style={{ marginBottom: 18 }}>
-                  <label className="mono" htmlFor="login-code" style={labelStyle}>
-                    code
-                  </label>
-                  <input
-                    ref={codeRef}
-                    id="login-code"
-                    // "text" with a numeric mode: type="number" gives spinners
-                    // and drops leading zeros, which every code can start with.
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                    required
-                    autoComplete="one-time-code"
-                    placeholder="000000"
-                    style={{
-                      ...inputStyle,
-                      fontSize: 24,
-                      letterSpacing: ".38em",
-                      textAlign: "center",
-                      fontFamily: "var(--font-mono, monospace)",
-                    }}
-                    onFocus={focus}
-                    onBlur={blur}
-                  />
-                </div>
+        <div
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--bd2)",
+            borderRadius: "var(--r-lg)",
+            boxShadow: "var(--shadow-card)",
+            padding: 24,
+          }}
+        >
+          {step === "email" ? (
+            <form onSubmit={submitEmail}>
+              <div style={{ marginBottom: 16 }}>
+                <label htmlFor="login-email" style={labelStyle}>
+                  Work email
+                </label>
+                <input
+                  id="login-email"
+                  type="email"
+                  className="field"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  autoComplete="email"
+                  placeholder="you@nonprofitsecurityadvisors.com"
+                  style={fieldStyle}
+                />
+              </div>
 
-                {error && <ErrorNote>{error}</ErrorNote>}
-                {note && (
-                  <p style={{ fontSize: 12.5, color: "var(--ok-fg)", margin: "0 0 14px" }}>{note}</p>
-                )}
+              {error && <ErrorNote>{error}</ErrorNote>}
 
-                <button type="submit" disabled={loading || code.length < 6} style={{
-                  ...primaryButton,
-                  background: loading || code.length < 6 ? "var(--mute)" : "var(--navy)",
-                  cursor: loading || code.length < 6 ? "not-allowed" : "pointer",
-                }}>
-                  {loading ? "Signing in…" : "Sign In"}
-                </button>
-
-                <div
+              <button type="submit" disabled={loading} aria-busy={loading || undefined} className="btn btn-primary btn-lg btn-block">
+                {loading ? "Sending…" : "Send code"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={submitCode}>
+              <div style={{ marginBottom: 16 }}>
+                <label htmlFor="login-code" style={labelStyle}>
+                  Six-digit code
+                </label>
+                <input
+                  ref={codeRef}
+                  id="login-code"
+                  // "text" with a numeric mode: type="number" gives spinners
+                  // and drops leading zeros, which every code can start with.
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  className="field mono"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                  autoComplete="one-time-code"
+                  placeholder="000000"
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    marginTop: 16,
+                    height: 52,
+                    fontSize: 24,
+                    letterSpacing: ".38em",
+                    textAlign: "center",
+                    paddingLeft: "calc(12px + .38em)",
+                  }}
+                />
+              </div>
+
+              {error && <ErrorNote>{error}</ErrorNote>}
+              {note && (
+                <p role="status" style={{ fontSize: 13, lineHeight: "18px", color: "var(--ok-fg)", margin: "0 0 14px" }}>{note}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !codeReady}
+                aria-busy={loading || undefined}
+                className="btn btn-primary btn-lg btn-block"
+              >
+                {loading ? "Signing in…" : "Sign in"}
+              </button>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginTop: 14,
+                }}
+              >
+                <button
+                  type="button"
+                  style={linkButton}
+                  onClick={() => {
+                    setStep("email");
+                    setCode("");
+                    setError(null);
+                    setNote(null);
                   }}
                 >
-                  <button
-                    type="button"
-                    style={quietButton}
-                    onClick={() => {
-                      setStep("email");
-                      setCode("");
-                      setError(null);
-                      setNote(null);
-                    }}
-                  >
-                    Use a different email
-                  </button>
-                  <button
-                    type="button"
-                    disabled={cooldown > 0 || loading}
-                    style={{
-                      ...quietButton,
-                      color: cooldown > 0 ? "var(--faint)" : "var(--sec)",
-                      cursor: cooldown > 0 ? "default" : "pointer",
-                      textDecoration: cooldown > 0 ? "none" : "underline",
-                    }}
-                    onClick={() => void send(true)}
-                  >
-                    {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
+                  Use a different email
+                </button>
+                <button
+                  type="button"
+                  disabled={cooldown > 0 || loading}
+                  style={{
+                    ...linkButton,
+                    color: cooldown > 0 ? "var(--mute)" : "var(--navy)",
+                    cursor: cooldown > 0 ? "default" : "pointer",
+                  }}
+                  onClick={() => void send(true)}
+                >
+                  {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
+
+      <p style={{ fontSize: 12, lineHeight: "16px", color: "var(--mute)", padding: "0 0 24px", textAlign: "center" }}>
+        Nonprofit Security Advisors · internal tools
+      </p>
     </div>
   );
 }
@@ -328,11 +273,11 @@ function ErrorNote({ children }: { children: React.ReactNode }) {
     <div
       role="alert"
       style={{
-        padding: "12px 14px",
+        padding: "10px 12px",
         background: "var(--err-bg)",
-        border: "1px solid var(--err-fg)",
-        borderRadius: 12,
-        marginBottom: 18,
+        border: "1px solid var(--err-line)",
+        borderRadius: "var(--r-md)",
+        marginBottom: 16,
       }}
     >
       <p
