@@ -1224,7 +1224,7 @@ export default function GrantWritingPage() {
     <Page>
       <div style={{ marginBottom: 28 }}>
         <PageHeading description="In-house NSGP clients: what each one has answered, who is filling it in, and how long since they last saved.">
-          Grant Writing
+          Grant Clients
         </PageHeading>
       </div>
 

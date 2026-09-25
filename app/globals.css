@@ -641,7 +641,7 @@ select.field {
   padding-right: 24px;
 }
 
-/* A stat tile that is also a filter (Grant Writing's views). */
+/* A stat tile that is also a filter (Grant Clients' views). */
 .view-tile {
   display: flex;
   flex-direction: column;
