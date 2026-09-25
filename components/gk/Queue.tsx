@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Card, Eyebrow, Note, SegPill, Tag, PageHeading, Skeleton } from "../ui";
+import { Card, Eyebrow, Note, SegPill, Tag, PageHeading, Skeleton, useConfirm } from "../ui";
 import { jurisdiction } from "../../lib/states";
 import { gkGet, gkSend, fmtDay, fmtTime, countdown, type AttentionFull, type AttentionItem } from "./api";
 
@@ -17,6 +17,7 @@ const ORIGIN: Record<string, string> = { research: "found by Claude", mcp: "via 
 const btn: React.CSSProperties = { background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit", fontSize: 12 };
 
 export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recordId?: number) => void; onBack: () => void }) {
+  const [confirm, confirmDialog] = useConfirm();
   const [data, setData] = useState<AttentionFull | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("unverified");
@@ -37,7 +38,11 @@ export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recor
   }, [data, tab]);
 
   async function verify(code: string, items: AttentionItem[]) {
-    if (items.length > 1 && !window.confirm(`Mark ${items.length} records in ${jurisdiction(code)?.name} as verified by you? Do this only for what you have checked yourself.`)) return;
+    if (items.length > 1 && !(await confirm({
+      title: `Verify ${items.length} records in ${jurisdiction(code)?.name}?`,
+      body: "They'll be marked as verified by you. Do this only for what you have checked yourself.",
+      confirmLabel: `Verify ${items.length}`,
+    }))) return;
     setBusy(code); setErr(null);
     try {
       const r = await gkSend<{ failed: number }>("POST", `jurisdictions/${code}/verify-bulk`, { ids: items.map((x) => ({ id: x.record_id, version: x.version })) });
@@ -52,6 +57,7 @@ export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recor
 
   return (
     <div>
+      {confirmDialog}
       <button onClick={onBack} className="btn btn-quiet btn-sm" style={{ marginBottom: 16, marginLeft: -10 }}><ArrowLeft size={15} strokeWidth={1.75} aria-hidden /> All states</button>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
         <PageHeading eyebrow="Grant Knowledge" description="Facts nobody has checked yet, checks that have gone stale, coming deadlines, open questions and gaps.">Review queue</PageHeading>

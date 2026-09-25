@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { Card, Eyebrow, SegPill, ChipRow, Tag, Note, PillButton } from "../ui";
+import { AlertTriangle, ArrowLeft, ChevronRight } from "lucide-react";
+import { Card, Eyebrow, SegPill, ChipRow, Tag, Note, Button, Skeleton, useConfirm } from "../ui";
 import RecordEditor, { EditContext, RecActions, AddButton, useEdit, type EditTarget } from "./RecordEditor";
 import { useMedia } from "../../lib/useMedia";
 import Markdown from "./Markdown";
@@ -18,13 +18,13 @@ export function Trust({ rec, quiet = false }: { rec: Pick<Rec, "effective_status
   const flagged = rec.unverified_fields.length;
   if (rec.effective_status === "verified" && !flagged) {
     if (quiet) return null;
-    return <span title={`Verified by ${rec.verified_by}, ${fmtDay(rec.verified_at)}`} style={{ color: "var(--ok-fg)", fontSize: 11.5, whiteSpace: "nowrap" }} className="mono">✓ verified</span>;
+    return <span title={`Verified by ${rec.verified_by}, ${fmtDay(rec.verified_at)}`} className="badge badge-dot badge-ok">Verified</span>;
   }
   const stale = rec.effective_status === "stale";
-  const text = stale ? "stale" : flagged && rec.effective_status === "verified" ? `${flagged} field${flagged === 1 ? "" : "s"} to confirm` : "unverified";
+  const text = stale ? "Stale" : flagged && rec.effective_status === "verified" ? `${flagged} field${flagged === 1 ? "" : "s"} to confirm` : "Unverified";
   const why = stale ? `Verified by ${rec.verified_by} on ${fmtDay(rec.verified_at)}: over a year ago` : flagged && rec.effective_status === "verified" ? `Changed since it was verified: ${rec.unverified_fields.join(", ")}` : `Nobody has confirmed this yet (${rec.origin === "research" ? "found by Claude" : rec.origin === "import" ? "imported" : `added by ${rec.updated_by}`})`;
   return (
-    <span title={why} className="mono" style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", color: "var(--warn-fg)", background: "var(--warn-bg)" }}>
+    <span title={why} className="badge badge-dot badge-warn">
       {text}
     </span>
   );
@@ -41,10 +41,10 @@ function Fold({ id, title, meta, open = false, right, tight = false, children }:
   return (
     <details open={initial} id={id} className="gk-fold" style={{ scrollMarginTop: 90, marginTop: tight ? 20 : 0, paddingTop: tight ? 14 : 0, borderTop: tight ? "1px solid var(--hair2)" : undefined }}>
       <summary style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: "pointer", listStyle: "none", padding: "4px 0", userSelect: "none" }}>
-        <span style={{ display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
-          <span aria-hidden="true" className="gk-chev" style={{ color: "var(--faint)", fontSize: 10, display: "inline-block", transition: "transform .15s", width: 10 }}>▶</span>
-          <span style={{ fontSize: 14, fontWeight: 650, color: "var(--ink)" }}>{title}</span>
-          {meta && <span className="mono" style={{ fontSize: 11.5, color: "var(--mute)" }}>{meta}</span>}
+        <span style={{ display: "flex", gap: 8, alignItems: "baseline", minWidth: 0 }}>
+          <ChevronRight aria-hidden className="gk-chev" size={15} strokeWidth={2} style={{ color: "var(--mute)", transition: "transform .15s", flexShrink: 0, alignSelf: "center" }} />
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{title}</span>
+          {meta && <span className="meta">{meta}</span>}
         </span>
         {right && <span onClick={(e) => e.preventDefault()} style={{ display: "flex", gap: 10, alignItems: "center" }}>{right}</span>}
       </summary>
@@ -62,15 +62,15 @@ function Section({ id, title, meta, open = false, children }: { id?: string; tit
   );
 }
 
-const Faint = ({ children }: { children: React.ReactNode }) => <span style={{ color: "var(--faint)" }}>{children}</span>;
+const Faint = ({ children }: { children: React.ReactNode }) => <span style={{ color: "var(--mute)" }}>{children}</span>;
 
 function Fact({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "148px minmax(0, 1fr)", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--hair2)", alignItems: "baseline", breakInside: "avoid" }}>
-      <div className="mono" style={{ fontSize: 11, letterSpacing: ".07em", color: "var(--mute)", paddingTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 13, color: "var(--mute)" }}>{label}</div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14.5, color: "var(--ink)", fontWeight: 550 }}>{value}</div>
-        {note && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3, lineHeight: 1.45 }}>{note}</div>}
+        <div style={{ fontSize: 14, color: "var(--ink)", fontWeight: 500 }}>{value}</div>
+        {note && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 3, lineHeight: 1.45 }}>{note}</div>}
       </div>
     </div>
   );
@@ -80,9 +80,9 @@ function Fact({ label, value, note }: { label: string; value: React.ReactNode; n
 function Stat({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
   return (
     <div>
-      <div className="mono" style={{ fontSize: 11, letterSpacing: ".07em", color: "var(--mute)", marginBottom: 5 }}>{label}</div>
-      <div style={{ fontSize: 15, color: "var(--ink)", fontWeight: 550, lineHeight: 1.35 }}>{value}</div>
-      {note && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 5, lineHeight: 1.45 }}>{note}</div>}
+      <div className="eyebrow" style={{ marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 15, color: "var(--ink)", fontWeight: 500, lineHeight: 1.35 }}>{value}</div>
+      {note && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 5, lineHeight: 1.45 }}>{note}</div>}
     </div>
   );
 }
@@ -97,10 +97,10 @@ function Panel({ title, count, children }: { title?: string; count?: number; chi
   );
 }
 
-const SEVERITY: Record<string, { label: string; fg: string; bg: string }> = {
-  auto_disqualifier: { label: "ends the application", fg: "var(--err-fg)", bg: "var(--err-bg)" },
-  critical: { label: "critical", fg: "var(--err-fg)", bg: "var(--err-bg)" },
-  caution: { label: "caution", fg: "var(--warn-fg)", bg: "var(--warn-bg)" },
+const SEVERITY: Record<string, { label: string; fg: string; tone: string }> = {
+  auto_disqualifier: { label: "Ends the application", fg: "var(--err-fg)", tone: "badge-err" },
+  critical: { label: "Critical", fg: "var(--err-fg)", tone: "badge-err" },
+  caution: { label: "Caution", fg: "var(--warn-fg)", tone: "badge-warn" },
 };
 const CATEGORY: Record<string, string> = {
   gotcha: "Gotchas", eligibility: "Eligibility", prohibited_cost: "Prohibited costs", scoring: "Scoring", process: "Process",
@@ -117,20 +117,20 @@ function NoteCard({ n, program }: { n: Rec; program?: string }) {
     <div id={`rec-${n.id}`} style={{ padding: "12px 14px", border: "1px solid var(--bd2)", borderLeft: `3px solid ${sev ? sev.fg : "var(--bd2)"}`, borderRadius: 10, background: "var(--card)", scrollMarginTop: 90 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginBottom: n.data.body_md ? 6 : 0 }}>
         <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: 14, lineHeight: 1.35 }}>{n.data.title}</span>
-        {sev && <span className="mono" style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999, color: sev.fg, background: sev.bg }}>{sev.label}</span>}
+        {sev && <span className={`badge badge-dot ${sev.tone}`}>{sev.label}</span>}
         {program && <Tag>{program}</Tag>}
-        {n.data.client_slug && <a href="/grant-writing" title="From the field: learned on this engagement" className="mono" style={{ fontSize: 11, color: "var(--navy)" }}>from {n.data.client_slug}</a>}
+        {n.data.client_slug && <a href="/grant-writing" title="From the field: learned on this engagement" style={{ fontSize: 13, color: "var(--navy)" }}>From <span className="mono" style={{ fontSize: 12 }}>{n.data.client_slug}</span></a>}
         <Trust rec={n} quiet />
         <RecActions rec={n} />
       </div>
       {n.data.body_md && (open
         ? <Markdown>{n.data.body_md}</Markdown>
-        : <div style={{ fontSize: 13.5, color: "var(--sec)", lineHeight: 1.55 }}>{String(n.data.body_md).replace(/\n\s*[-*•]\s+/g, " · ").replace(/^\s*[-*•]\s+/, "").replace(/[*_`>#|]/g, "").replace(/\s+/g, " ").slice(0, 300)}… <button onClick={() => setOpen(true)} style={linkBtn}>read on</button></div>)}
-      {n.source_url && <a href={n.source_url} target="_blank" rel="noopener noreferrer" className="mono" style={{ fontSize: 11, color: "var(--mute)" }}>source</a>}
+        : <div style={{ fontSize: 14, color: "var(--sec)", lineHeight: 1.55 }}>{String(n.data.body_md).replace(/\n\s*[-*•]\s+/g, " · ").replace(/^\s*[-*•]\s+/, "").replace(/[*_`>#|]/g, "").replace(/\s+/g, " ").slice(0, 300)}… <button onClick={() => setOpen(true)} style={linkBtn}>read on</button></div>)}
+      {n.source_url && <a href={n.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 500, color: "var(--navy)" }}>Source</a>}
     </div>
   );
 }
-const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: 0, color: "var(--navy)", cursor: "pointer", font: "inherit", fontSize: 13 };
+const linkBtn: React.CSSProperties = { background: "none", border: "none", padding: 0, color: "var(--navy)", cursor: "pointer", fontSize: 13, fontWeight: 500 };
 
 function RequirementRow({ r }: { r: Requirement }) {
   const d = r.data;
@@ -139,10 +139,10 @@ function RequirementRow({ r }: { r: Requirement }) {
       <span aria-hidden="true" style={{ width: 8, height: 8, marginTop: 6, borderRadius: 2, flexShrink: 0, background: d.hard_gate ? "var(--err-fg)" : d.owner === "npsa" ? "var(--navy)" : "var(--olive)" }} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "baseline" }}>
-          <span style={{ color: "var(--ink)", fontSize: 14, fontWeight: 550 }}>{d.label}</span>
-          {d.hard_gate && <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", color: "var(--err-fg)" }}>HARD GATE</span>}
-          <span className="mono" style={{ fontSize: 11, color: "var(--mute)" }}>
-            {d.owner === "npsa" ? "NPSA" : "client"}{d.lead_time_days ? ` · allow ${d.lead_time_days} days` : ""}{d.format ? ` · ${d.format}` : ""}{r.baseline === "federal" ? " · federal baseline" : ""}{r.inherited_from ? ` · same as ${r.inherited_from}` : ""}
+          <span style={{ color: "var(--ink)", fontSize: 14, fontWeight: 500 }}>{d.label}</span>
+          {d.hard_gate && <span className="badge badge-dot badge-err" title="Nothing else can happen until this is done">Hard gate</span>}
+          <span style={{ fontSize: 13, color: "var(--mute)" }}>
+            {d.owner === "npsa" ? "NPSA" : "Client"}{d.lead_time_days ? ` · allow ${d.lead_time_days} days` : ""}{d.format ? ` · ${d.format}` : ""}{r.baseline === "federal" ? " · federal baseline" : ""}{r.inherited_from ? ` · same as ${r.inherited_from}` : ""}
           </span>
           <Trust rec={r} quiet />
           {!r.inherited_from && <RecActions rec={r} />}
@@ -189,8 +189,8 @@ function FundingChart({ cycles }: { cycles: Cycle[] }) {
         return (
           <g key={p.fy}>
             <rect x={i * W + 8} y={H - h + 12} width={W - 16} height={h} rx={3} fill={p.verified ? "var(--olive)" : "var(--track)"} />
-            <text x={i * W + W / 2} y={H - h + 8} textAnchor="middle" fontSize="8.5" fill="var(--sec)" className="mono">{p.v! >= 1e6 ? `$${(p.v! / 1e6).toFixed(p.v! >= 1e7 ? 0 : 1)}M` : `$${Math.round(p.v! / 1e3)}k`}</text>
-            <text x={i * W + W / 2} y={H + 26} textAnchor="middle" fontSize="9" fill="var(--mute)" className="mono">FY{String(p.fy).slice(2)}</text>
+            <text x={i * W + W / 2} y={H - h + 8} textAnchor="middle" fontSize="9" fill="var(--sec)" className="num">{p.v! >= 1e6 ? `$${(p.v! / 1e6).toFixed(p.v! >= 1e7 ? 0 : 1)}M` : `$${Math.round(p.v! / 1e3)}k`}</text>
+            <text x={i * W + W / 2} y={H + 26} textAnchor="middle" fontSize="9" fill="var(--mute)" className="num">FY{String(p.fy).slice(2)}</text>
           </g>
         );
       })}
@@ -213,19 +213,19 @@ function Cycles({ p }: { p: Program }) {
           <div key={c.id} id={`rec-${c.id}`} style={{ border: "1px solid var(--bd2)", borderRadius: 10, padding: "12px 16px", marginBottom: 10, scrollMarginTop: 90 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 650, color: "var(--ink)", fontSize: 15 }}>{c.title}</span>
-                <span className="mono" style={{ fontSize: 11, color: "var(--mute)" }}>{String(c.data.status || "").replace(/_/g, " ")}</span>
+                <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: 15 }}>{c.title}</span>
+                {c.data.status && <span className="meta">{String(c.data.status).replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase())}</span>}
                 <Trust rec={c} quiet /><RecActions rec={c} />
               </div>
-              {m && <div style={{ fontSize: 13.5, color: "var(--sec)" }}>{m[0]} <b style={{ color: "var(--ink)" }}>{m[1]}</b></div>}
+              {m && <div style={{ fontSize: 14, color: "var(--sec)" }}>{m[0]} <b style={{ color: "var(--ink)", fontWeight: 600 }}>{m[1]}</b></div>}
             </div>
             <div style={{ marginTop: 8 }}>
               {c.deadlines.map((d) => (
-                <div key={d.id} id={`rec-${d.id}`} style={{ padding: "7px 0", borderTop: "1px solid var(--hair2)", opacity: d.data.due_date < today ? 0.82 : 1, fontSize: 13.5 }}>
+                <div key={d.id} id={`rec-${d.id}`} style={{ padding: "7px 0", borderTop: "1px solid var(--hair2)", opacity: d.data.due_date < today ? 0.82 : 1, fontSize: 14 }}>
                   <span style={{ color: "var(--ink)", fontWeight: 600 }}>{fmtDay(d.data.due_date)}</span>
                   {d.data.due_time && <span style={{ color: "var(--sec)" }}> · {fmtTime(d.data.due_time, d.data.tz)}</span>}
                   <span style={{ color: "var(--sec)" }}> · {d.data.label}</span>{" "}
-                  {d.data.confidence && d.data.confidence !== "confirmed" && <span className="mono" style={{ fontSize: 11, color: "var(--warn-fg)" }}>{d.data.confidence} </span>}
+                  {d.data.confidence && d.data.confidence !== "confirmed" && <span className="badge badge-warn" style={{ marginRight: 6 }}>{String(d.data.confidence).replace(/^./, (x) => x.toUpperCase())}</span>}
                   <Trust rec={d} quiet /><RecActions rec={d} />
                   {d.data.note && <div style={{ fontSize: 13, color: "var(--sec)", lineHeight: 1.5, marginTop: 3, maxWidth: 760 }}>{d.data.note}</div>}
                 </div>
@@ -233,7 +233,7 @@ function Cycles({ p }: { p: Program }) {
               {!c.deadlines.length && <div style={{ padding: "7px 0", borderTop: "1px solid var(--hair2)", fontSize: 13 }}><Faint>No deadline recorded.</Faint></div>}
               {(meta.length > 0 || c.data.notes || c.data.ua_allocations) && (
                 <div style={{ paddingTop: 8, borderTop: "1px solid var(--hair2)", fontSize: 13, color: "var(--sec)", lineHeight: 1.5 }}>
-                  {meta.length > 0 && <div className="mono" style={{ fontSize: 11.5, color: "var(--mute)", marginBottom: c.data.notes ? 3 : 0 }}>{meta.join(" · ")}</div>}
+                  {meta.length > 0 && <div className="meta" style={{ marginBottom: c.data.notes ? 3 : 0 }}>{meta.join(" · ")}</div>}
                   {c.data.ua_allocations && <div>{Object.entries(c.data.ua_allocations as Record<string, number>).map(([k, v]) => <span key={k} style={{ marginRight: 14 }}>{k.replace(/_/g, " ")} <b style={{ color: "var(--ink)" }}>{usd(v)}</b></span>)}</div>}
                   {c.data.notes && <div style={{ maxWidth: 760 }}>{c.data.notes}</div>}
                 </div>
@@ -253,8 +253,8 @@ function ContactLine({ c }: { c: Rec }) {
   return (
     <div id={`rec-${c.id}`} style={{ padding: "10px 0", borderBottom: "1px solid var(--hair2)", scrollMarginTop: 90 }}>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
-        <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: 13.5 }}>{d.name || d.org || d.role || d.email}</span>
-        {(d.name ? [d.role, d.org] : [d.name ? d.org : d.role]).filter(Boolean).map((x: string) => <span key={x} style={{ fontSize: 12.5, color: "var(--sec)" }}>{x}</span>)}
+        <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: 14 }}>{d.name || d.org || d.role || d.email}</span>
+        {(d.name ? [d.role, d.org] : [d.name ? d.org : d.role]).filter(Boolean).map((x: string) => <span key={x} style={{ fontSize: 13, color: "var(--sec)" }}>{x}</span>)}
         {d.area && <Tag>{d.area}</Tag>}
         {d.is_primary && <Tag>primary</Tag>}
         <Trust rec={c} quiet /><RecActions rec={c} />
@@ -263,8 +263,8 @@ function ContactLine({ c }: { c: Rec }) {
         {d.email && <a href={`mailto:${d.email}`} style={{ color: "var(--navy)" }}>{d.email}</a>}
         {d.phone && <a href={`tel:${String(d.phone).replace(/[^\d+]/g, "")}`} style={{ color: "var(--navy)" }}>{d.phone}</a>}
       </div>
-      {d.warning && <div style={{ fontSize: 12.5, color: "var(--warn-fg)", marginTop: 4, lineHeight: 1.45 }}>⚠ {d.warning}</div>}
-      {d.notes && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3, lineHeight: 1.45 }}>{d.notes}</div>}
+      {d.warning && <div style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, color: "var(--warn-fg)", marginTop: 4, lineHeight: 1.45 }}><AlertTriangle size={14} strokeWidth={2} aria-hidden style={{ marginTop: 2, flexShrink: 0 }} />{d.warning}</div>}
+      {d.notes && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 3, lineHeight: 1.45 }}>{d.notes}</div>}
     </div>
   );
 }
@@ -294,14 +294,14 @@ function ProgramCard({ p }: { p: Program }) {
       <details open={initial} id={`program-${p.key}`} className="gk-fold" style={{ scrollMarginTop: 90 }}>
       <summary style={{ cursor: "pointer", listStyle: "none", padding: "14px 0", userSelect: "none" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-          <span aria-hidden="true" className="gk-chev" style={{ color: "var(--faint)", fontSize: 10, display: "inline-block", transition: "transform .15s", width: 10 }}>▶</span>
-          <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: d.type === "state" ? "var(--olive)" : "var(--navy)" }}>{p.key}</span>
+          <ChevronRight aria-hidden className="gk-chev" size={15} strokeWidth={2} style={{ color: "var(--mute)", transition: "transform .15s", flexShrink: 0, alignSelf: "center" }} />
+          <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: d.type === "state" ? "var(--olive-ink)" : "var(--navy)" }}>{p.key}</span>
           <h3 className="serif" style={{ margin: 0, fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{d.name}</h3>
           <Tag>{d.type === "state" ? "state-funded" : "federal"}</Tag>
-          {off && <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, color: "var(--warn-fg)", background: "var(--warn-bg)" }}>{String(d.status).toUpperCase()}</span>}
+          {off && <span className="badge badge-dot badge-warn">{String(d.status).replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase())}</span>}
           <Trust rec={p} />
         </div>
-        {(digest || d.administered_by) && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 5, marginLeft: 20 }}>{digest}{digest && d.administered_by ? " · " : ""}{d.administered_by ? `run by ${d.administered_by}` : ""}</div>}
+        {(digest || d.administered_by) && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 5, marginLeft: 25 }}>{digest}{digest && d.administered_by ? " · " : ""}{d.administered_by ? `run by ${d.administered_by}` : ""}</div>}
         <style>{`.gk-fold[open] > summary .gk-chev { transform: rotate(90deg); } .gk-fold > summary::-webkit-details-marker { display: none; }`}</style>
       </summary>
       <div style={{ paddingBottom: 16 }}>
@@ -310,25 +310,25 @@ function ProgramCard({ p }: { p: Program }) {
 
       {/* Two balanced columns rather than a grid: a grid aligns rows, so one long note (Texas's period of performance) would open a hole beside every short fact. */}
       <div style={{ columnCount: narrow ? 1 : 2, columnGap: 40, margin: "12px 0 4px" }}>
-        {typeof d.cap_per_location === "number" && <Fact label="CAP PER SITE" value={usd(d.cap_per_location)} note={fn.cap_per_location} />}
-        {typeof d.cap_per_applicant === "number" && <Fact label="CAP PER APPLICANT" value={usd(d.cap_per_applicant)} note={fn.cap_per_applicant} />}
-        {typeof d.locations_max === "number" && <Fact label="SITES" value={`up to ${d.locations_max}`} note={fn.locations_max} />}
-        {typeof d.ma_pct === "number" && <Fact label="M&A" value={d.ma_pct ? `${d.ma_pct}%` : "not allowed"} note={fn.ma_pct} />}
-        {d.cost_match && <Fact label="COST MATCH" value={d.cost_match} note={fn.cost_match} />}
-        {typeof d.pop_months === "number" && <Fact label="PERIOD OF PERFORMANCE" value={`${d.pop_months} months`} note={fn.pop_months || d.pop_note} />}
-        {d.stackable !== undefined && <Fact label="STACKS WITH FEDERAL" value={d.stackable === true ? "yes" : d.stackable === false ? "no" : "unconfirmed"} note={fn.stackable} />}
-        {d.exclusive_with?.length > 0 && <Fact label="CANNOT ALSO WIN" value={d.exclusive_with.join(", ")} note="May apply to both; only one can be awarded." />}
-        {d.deadline_authority && <Fact label="WHOSE DEADLINE BINDS" value={d.deadline_authority} />}
+        {typeof d.cap_per_location === "number" && <Fact label="Cap per site" value={usd(d.cap_per_location)} note={fn.cap_per_location} />}
+        {typeof d.cap_per_applicant === "number" && <Fact label="Cap per applicant" value={usd(d.cap_per_applicant)} note={fn.cap_per_applicant} />}
+        {typeof d.locations_max === "number" && <Fact label="Sites" value={`Up to ${d.locations_max}`} note={fn.locations_max} />}
+        {typeof d.ma_pct === "number" && <Fact label="M&A" value={d.ma_pct ? `${d.ma_pct}%` : "Not allowed"} note={fn.ma_pct} />}
+        {d.cost_match && <Fact label="Cost match" value={d.cost_match} note={fn.cost_match} />}
+        {typeof d.pop_months === "number" && <Fact label="Period of performance" value={`${d.pop_months} months`} note={fn.pop_months || d.pop_note} />}
+        {d.stackable !== undefined && <Fact label="Stacks with federal" value={d.stackable === true ? "Yes" : d.stackable === false ? "No" : "Unconfirmed"} note={fn.stackable} />}
+        {d.exclusive_with?.length > 0 && <Fact label="Cannot also win" value={d.exclusive_with.join(", ")} note="May apply to both; only one can be awarded." />}
+        {d.deadline_authority && <Fact label="Whose deadline binds" value={d.deadline_authority} />}
       </div>
 
       {d.submission && (
-        <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--hover)", borderRadius: 10 }}>
+        <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--sand)", borderRadius: 10 }}>
           <div style={{ fontSize: 14, color: "var(--ink)" }}>
-            <b>How it is submitted:</b> {d.submission.method || "not recorded"}
+            <b style={{ fontWeight: 600 }}>How it is submitted:</b> {d.submission.method || "not recorded"}
             {d.submission.url ? <> via <a href={d.submission.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{d.submission.target || d.submission.url}</a></> : d.submission.target ? <> via {d.submission.target}</> : null}
           </div>
-          {d.submission.package_note && <Markdown style={{ marginTop: 6, fontSize: 13.5 }}>{d.submission.package_note}</Markdown>}
-          {d.file_naming && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 6 }}><b>File naming:</b> {d.file_naming}</div>}
+          {d.submission.package_note && <Markdown style={{ marginTop: 6, fontSize: 14 }}>{d.submission.package_note}</Markdown>}
+          {d.file_naming && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 6 }}><b style={{ fontWeight: 600 }}>File naming:</b> {d.file_naming}</div>}
         </div>
       )}
 
@@ -381,16 +381,16 @@ function Playbook({ doc }: { doc: StateDoc }) {
         return (
           <Card key={ph.key} style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", gap: 12, alignItems: "baseline", marginBottom: 4 }}>
-              <span className="mono" style={{ color: "var(--olive)", fontWeight: 600, fontSize: 13 }}>{String(i + 1).padStart(2, "0")}</span>
+              <span className="mono" style={{ color: "var(--olive-ink)", fontWeight: 600, fontSize: 13 }}>{String(i + 1).padStart(2, "0")}</span>
               <h3 className="serif" style={{ margin: 0, fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{ph.title}</h3>
             </div>
-            <div style={{ fontSize: 13, color: "var(--mute)", marginBottom: 10 }}>{ph.blurb}</div>
+            <div style={{ fontSize: 14, color: "var(--sec)", marginBottom: 10 }}>{ph.blurb}</div>
 
             {ph.key === "submission" && doc.programs.filter((p) => !["dormant", "dead"].includes(p.data.status)).map((p) => {
               const next = p.cycles.flatMap((c) => c.deadlines.map((d) => ({ d, c }))).sort((a, b) => b.d.data.due_date.localeCompare(a.d.data.due_date))[0];
               return (
-                <div key={p.id} style={{ fontSize: 13.5, padding: "8px 0", borderBottom: "1px solid var(--hair2)" }}>
-                  <span className="mono" style={{ fontSize: 11.5, color: "var(--navy)", marginRight: 8 }}>{p.key}</span>
+                <div key={p.id} style={{ fontSize: 14, padding: "8px 0", borderBottom: "1px solid var(--hair2)" }}>
+                  <span className="mono" style={{ fontSize: 12, color: "var(--navy)", marginRight: 8 }}>{p.key}</span>
                   {p.data.submission?.method || "method not recorded"}{p.data.submission?.target ? ` via ${p.data.submission.target}` : ""}
                   {next && <span style={{ color: "var(--sec)" }}> · last known deadline {fmtDay(next.d.data.due_date)}{next.d.data.due_time ? `, ${fmtTime(next.d.data.due_time, next.d.data.tz)}` : ""} ({next.c.title})</span>}
                 </div>
@@ -407,7 +407,7 @@ function Playbook({ doc }: { doc: StateDoc }) {
       {loose.length > 0 && (
         <Card>
           <h3 className="serif" style={{ margin: "0 0 4px", fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>Throughout</h3>
-          <div style={{ fontSize: 13, color: "var(--mute)", marginBottom: 10 }}>Notes nobody has pinned to a phase yet.</div>
+          <div style={{ fontSize: 14, color: "var(--sec)", marginBottom: 10 }}>Notes nobody has pinned to a phase yet.</div>
           <div style={{ display: "grid", gap: 8 }}>{loose.map(({ n, program }) => <NoteCard key={n.id} n={n} program={program} />)}</div>
         </Card>
       )}
@@ -427,9 +427,12 @@ const HOW: Record<string, string> = { user: "in the toolbox", mcp: "via Claude",
 function History({ code, onChanged }: { code: string; onChanged: () => void }) {
   const [tick, setTick] = useState(0);
   const [working, setWorking] = useState<number | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
   async function revert(r: Revision) {
-    const what = r.action === "create" ? `Undo adding "${r.title}"? It will be archived.` : `Put "${r.title}" back to how it was before ${r.actor} ${ACTION[r.action] || r.action} it?`;
-    if (!window.confirm(what)) return;
+    const ok = await confirm(r.action === "create"
+      ? { title: `Undo adding “${r.title}”?`, body: "It will be archived, and can be restored from History.", confirmLabel: "Undo" }
+      : { title: `Put “${r.title}” back?`, body: `It goes back to how it was before ${r.actor} ${ACTION[r.action] || r.action} it.`, confirmLabel: "Revert" });
+    if (!ok) return;
     setWorking(r.id); setErr(null);
     try {
       const cur = await gkGet<Rec>(`records/${r.record_id}`);
@@ -446,31 +449,31 @@ function History({ code, onChanged }: { code: string; onChanged: () => void }) {
     return () => { live = false; };
   }, [code, tick]);
   if (err && !revs) return <Note>{err}</Note>;
-  if (!revs) return <div style={{ color: "var(--mute)", fontSize: 13 }}>Loading the history…</div>;
+  if (!revs) return <Skeleton rows={5} />;
   const importCount = revs.filter((r) => r.action === "import").length;
   const rows = revs.filter((r) => imports || r.action !== "import");
   return (
     <Card>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
         <Eyebrow>Every change, newest first</Eyebrow>
-        {importCount > 0 && <button onClick={() => setImports(!imports)} style={linkBtn}>{imports ? "hide" : "show"} the {importCount} import rows</button>}
+        {importCount > 0 && <button onClick={() => setImports(!imports)} style={linkBtn}>{imports ? "Hide" : "Show"} the {importCount} import rows</button>}
       </div>
       {err && <div role="alert" style={{ color: "var(--err-fg)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
-      {!rows.length && <div style={{ fontSize: 13.5, color: "var(--sec)" }}>Nobody has edited this state since it was imported.</div>}
+      {!rows.length && <div style={{ fontSize: 14, color: "var(--sec)" }}>Nobody has edited this state since it was imported.</div>}
       {rows.map((r) => (
         <div key={r.id} style={{ padding: "11px 0", borderBottom: "1px solid var(--hair2)" }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline", fontSize: 13.5 }}>
-            <b style={{ color: "var(--ink)" }}>{r.actor.startsWith("import:") ? "The import" : r.actor}</b>
-            <span style={{ color: "var(--mute)", fontSize: 12 }}>{HOW[r.actor_kind] || r.actor_kind}</span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 14 }}>
+            <b style={{ color: "var(--ink)", fontWeight: 600 }}>{r.actor.startsWith("import:") ? "The import" : r.actor}</b>
+            <span style={{ color: "var(--mute)", fontSize: 13 }}>{HOW[r.actor_kind] || r.actor_kind}</span>
             <span style={{ color: "var(--sec)" }}>{ACTION[r.action] || r.action}</span>
             <a href={`#rec-${r.record_id}`} style={{ color: "var(--navy)" }}>{r.title}</a>
             <Tag>{r.kind}</Tag>
-            {r.action !== "import" && <button onClick={() => revert(r)} disabled={working === r.id} className="mono" style={{ ...linkBtn, fontSize: 11.5, marginLeft: "auto" }}>{working === r.id ? "reverting…" : "revert"}</button>}
-            <span className="mono" style={{ fontSize: 11, color: "var(--mute)", marginLeft: r.action === "import" ? "auto" : 0 }}>{new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+            {r.action !== "import" && <button onClick={() => revert(r)} disabled={working === r.id} className="btn btn-quiet btn-sm" style={{ marginLeft: "auto", height: 28 }}>{working === r.id ? "Reverting…" : "Revert"}</button>}
+            <span className="num" style={{ fontSize: 13, color: "var(--mute)", marginLeft: r.action === "import" ? "auto" : 0 }}>{new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
           </div>
-          {r.reason && <div style={{ fontSize: 12.5, color: "var(--sec)", marginTop: 3 }}>“{r.reason}”</div>}
+          {r.reason && <div style={{ fontSize: 13, color: "var(--sec)", marginTop: 3 }}>“{r.reason}”</div>}
           {r.action === "update" && r.changed_fields.filter((f) => !f.startsWith("@")).map((f) => (
-            <div key={f} className="mono" style={{ fontSize: 11.5, marginTop: 4, lineHeight: 1.5, wordBreak: "break-word" }}>
+            <div key={f} className="mono" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5, wordBreak: "break-word" }}>
               <span style={{ color: "var(--mute)" }}>{f}: </span>
               <span style={{ color: "var(--err-fg)", textDecoration: "line-through" }}>{show(r.before?.data[f]).slice(0, 220)}</span>{" → "}
               <span style={{ color: "var(--ok-fg)" }}>{show(r.after.data[f]).slice(0, 220)}</span>
@@ -478,6 +481,7 @@ function History({ code, onChanged }: { code: string; onChanged: () => void }) {
           ))}
         </div>
       ))}
+      {confirmDialog}
     </Card>
   );
 }
@@ -487,6 +491,7 @@ function History({ code, onChanged }: { code: string; onChanged: () => void }) {
 type View = "overview" | "playbook" | "history";
 
 export default function StatePage({ code, onBack }: { code: string; onBack: () => void }) {
+  const [confirm, confirmDialog] = useConfirm();
   const [doc, setDoc] = useState<StateDoc | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [view, setView] = useState<View>("overview");
@@ -513,7 +518,12 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
     reload();
   }
   async function verifyAll(records: Rec[]) {
-    if (!window.confirm(`Mark ${records.length} record${records.length === 1 ? "" : "s"} in ${code} as verified by you? Do this only for what you have checked yourself.`)) return;
+    const ok = await confirm({
+      title: `Verify ${records.length} record${records.length === 1 ? "" : "s"} in ${code}?`,
+      body: "They'll be marked as verified by you. Do this only for what you have checked yourself.",
+      confirmLabel: `Verify ${records.length}`,
+    });
+    if (!ok) return;
     setFlash(null);
     try {
       const r = await gkSend<{ verified: number; failed: number }>("POST", `jurisdictions/${code}/verify-bulk`, { ids: records.map((x) => ({ id: x.id, version: x.version })) });
@@ -542,7 +552,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
   const allNotes = useMemo(() => (doc ? [...doc.notes.map((n) => ({ n, program: undefined as string | undefined })), ...doc.programs.flatMap((p) => p.notes.map((n) => ({ n, program: p.key })))] : []), [doc]);
 
   if (err) return <div><BackLink onBack={onBack} /><Note>{err}</Note></div>;
-  if (!doc) return <div><BackLink onBack={onBack} /><div style={{ color: "var(--mute)", fontSize: 14, padding: "40px 0" }}>Loading {code}…</div></div>;
+  if (!doc) return <div><BackLink onBack={onBack} /><Skeleton rows={6} style={{ padding: "16px 0" }} /></div>;
 
   const j = doc.jurisdiction?.data || {};
   const stoppers = allNotes.filter(({ n }) => n.data.severity === "auto_disqualifier");
@@ -563,24 +573,24 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
         <div style={{ minWidth: 0 }}>
           <Eyebrow color="var(--olive)" style={{ marginBottom: 8 }}>{String(doc.jurisdiction_kind).charAt(0).toUpperCase() + String(doc.jurisdiction_kind).slice(1)} · {doc.code}{j.saa_short ? ` · ${String(j.saa_short)}` : ""}</Eyebrow>
           <h1 className="headline" style={{ margin: 0 }}>{doc.name}</h1>
-          {j.saa && <div style={{ fontSize: 15, color: "var(--sec)", marginTop: 8 }}>{j.saa}{doc.jurisdiction && <> <Trust rec={doc.jurisdiction} quiet /><RecActions rec={doc.jurisdiction} /></>}</div>}
+          {j.saa && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 15, color: "var(--sec)", marginTop: 8 }}>{j.saa}{doc.jurisdiction && <><Trust rec={doc.jurisdiction} quiet /><RecActions rec={doc.jurisdiction} /></>}</div>}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <SegPill<View> options={[{ key: "overview", label: "Overview" }, { key: "playbook", label: "Playbook" }, { key: "history", label: "History" }]} value={view} onChange={setView} />
-          <PillButton tone={editing ? "olive" : "outline"} onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit"}</PillButton>
+          <SegPill<View> label="View" options={[{ key: "overview", label: "Overview" }, { key: "playbook", label: "Playbook" }, { key: "history", label: "History" }]} value={view} onChange={setView} />
+          <Button variant={editing ? "primary" : "secondary"} onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit"}</Button>
         </div>
       </div>
 
-      {flash && <div role="alert" style={{ border: "1px solid var(--warn-fg)", background: "var(--warn-bg)", color: "var(--ink)", borderRadius: 12, padding: "10px 14px", fontSize: 13.5, marginBottom: 14 }}>{flash}</div>}
+      {flash && <div role="alert" style={{ border: "1px solid var(--warn-fg)", background: "var(--warn-bg)", color: "var(--ink)", borderRadius: "var(--r-md)", padding: "10px 14px", fontSize: 14, marginBottom: 14 }}>{flash}</div>}
       {editing && (
-        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", border: "1px dashed var(--bd2)", borderRadius: 12, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--sec)" }}>
+        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", border: "1px dashed var(--line-strong)", borderRadius: "var(--r-md)", padding: "10px 14px", marginBottom: 16, fontSize: 14, color: "var(--sec)" }}>
           <span>Add to {doc.name}:</span>
           {!doc.jurisdiction && <AddButton spec={{ jurisdiction: doc.code, kind: "jurisdiction", heading: `Start ${doc.name}'s record` }}>the state record</AddButton>}
           <AddButton spec={{ jurisdiction: doc.code, kind: "program", preset: { type: "state", status: "active" } }}>program</AddButton>
           <AddButton spec={{ jurisdiction: doc.code, kind: "contact", preset: { contact_kind: "saa" } }}>contact</AddButton>
           <AddButton spec={{ jurisdiction: doc.code, kind: "note", preset: { category: "gotcha" } }}>note or gotcha</AddButton>
           <AddButton spec={{ jurisdiction: doc.code, kind: "source" }}>source</AddButton>
-          {toVerify.length > 0 && <button onClick={() => verifyAll(toVerify)} className="mono" style={{ ...linkBtn, fontSize: 12, color: "var(--ok-fg)", marginLeft: "auto" }}>verify all {toVerify.length} unconfirmed…</button>}
+          {toVerify.length > 0 && <Button variant="secondary" size="sm" onClick={() => verifyAll(toVerify)} style={{ marginLeft: "auto" }}>Verify all {toVerify.length} unconfirmed</Button>}
         </div>
       )}
 
@@ -591,16 +601,16 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
           {/* One strip, three cells, sized to what is in it: separate cards stretched to the tallest one and read as three half-empty boxes. */}
           <Card style={{ padding: 0, marginBottom: 16, display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.2fr)" }}>
             <div style={{ padding: "14px 18px" }}>
-              <Stat label={nd ? "NEXT DEADLINE" : "WHERE THE CYCLE STANDS"} value={nd
-                ? <>{fmtDay(nd.due_date)}{nd.due_time ? ` · ${fmtTime(nd.due_time, nd.tz)}` : ""} <span style={{ color: nd.days_away <= 14 ? "var(--err-fg)" : "var(--olive)", fontWeight: 650 }}>· {countdown(nd.days_away)}</span></>
+              <Stat label={nd ? "Next deadline" : "Where the cycle stands"} value={nd
+                ? <>{fmtDay(nd.due_date)}{nd.due_time ? ` · ${fmtTime(nd.due_time, nd.tz)}` : ""} <span style={{ color: nd.days_away <= 14 ? "var(--err-fg)" : "var(--olive-ink)", fontWeight: 600 }}>· {countdown(nd.days_away)}</span></>
                 : CYCLE_LABEL[doc.cycle_state]}
                 note={nd ? `${nd.program} · ${nd.label}${nd.status !== "verified" ? " · unverified" : ""}` : doc.cycle_state === "closed" ? "The last recorded deadline has passed; no date for the next cycle yet." : j.cycle_status} />
             </div>
             <div style={{ padding: "14px 18px", borderLeft: narrow ? undefined : "1px solid var(--hair2)", borderTop: narrow ? "1px solid var(--hair2)" : undefined }}>
-              <Stat label="HOW MUCH IS CONFIRMED" value={`${f.verified} of ${f.records}`} note={[f.unverified ? `${f.unverified} unverified` : "", f.stale ? `${f.stale} stale` : "", doc.open_questions ? `${doc.open_questions} open question${doc.open_questions === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ") || "everything has a verifier"} />
+              <Stat label="How much is confirmed" value={`${f.verified} of ${f.records}`} note={[f.unverified ? `${f.unverified} unverified` : "", f.stale ? `${f.stale} stale` : "", doc.open_questions ? `${doc.open_questions} open question${doc.open_questions === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ") || "Everything has a verifier"} />
             </div>
             <div style={{ padding: "14px 18px", borderLeft: narrow ? undefined : "1px solid var(--hair2)", borderTop: narrow ? "1px solid var(--hair2)" : undefined }}>
-              <Stat label="PORTAL" value={portal ? <a href={portal} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word", fontSize: 13.5 }}>{portal.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</a> : <Faint>none recorded</Faint>} note={j.urban_areas?.length ? `Urban areas: ${j.urban_areas.join("; ")}` : undefined} />
+              <Stat label="Portal" value={portal ? <a href={portal} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word", fontSize: 14 }}>{portal.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</a> : <Faint>None recorded</Faint>} note={j.urban_areas?.length ? `Urban areas: ${j.urban_areas.join("; ")}` : undefined} />
             </div>
           </Card>
 
@@ -623,11 +633,11 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
           )}
 
           {stoppers.length > 0 && view !== "history" && (
-            <div role="note" style={{ border: "1px solid var(--err-fg)", background: "var(--err-bg)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
-              <div className="mono" style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", color: "var(--err-fg)", marginBottom: 8 }}>READ FIRST: THESE END AN APPLICATION</div>
+            <div role="note" style={{ border: "1px solid var(--err-line)", background: "var(--err-bg)", borderRadius: "var(--r-lg)", padding: "14px 18px", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--err-fg)", marginBottom: 8 }}><AlertTriangle size={16} strokeWidth={2} aria-hidden />Read first: these end an application</div>
               {stoppers.map(({ n, program }) => (
                 <div key={n.id} style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.5, marginBottom: 6 }}>
-                  <a href={`#rec-${n.id}`} style={{ color: "var(--ink)", fontWeight: 650 }}>{n.data.title}</a>{program ? ` (${program})` : ""}{n.effective_status !== "verified" ? " · unverified" : ""}
+                  <a href={`#rec-${n.id}`} style={{ color: "var(--ink)", fontWeight: 600 }}>{n.data.title}</a>{program ? ` (${program})` : ""}{n.effective_status !== "verified" ? " · unverified" : ""}
                 </div>
               ))}
             </div>
@@ -640,7 +650,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
                   <Eyebrow style={{ marginBottom: 8 }}>In short</Eyebrow>
                   {j.summary_md && <Markdown>{j.summary_md}</Markdown>}
                   {j.cycle_timing_note && <Markdown>{j.cycle_timing_note}</Markdown>}
-                  {j.partner && <div style={{ fontSize: 13, color: "var(--sec)" }}><b>Partner:</b> {j.partner}</div>}
+                  {j.partner && <div style={{ fontSize: 14, color: "var(--sec)" }}><b style={{ fontWeight: 600 }}>Partner:</b> {j.partner}</div>}
                 </Card>
               )}
               {doc.programs.map((p) => <ProgramCard key={p.id} p={p} />)}
@@ -657,8 +667,8 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
 
               {sources.length > 0 && (
                 <Section id="sources" title="Sources" meta={`${sources.length}`}>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>
-                    {sources.map((s) => <li key={s.id} id={`rec-${s.id}`}><a href={s.data.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{s.data.title || String(s.data.url).replace(/^https?:\/\/(www\.)?/, "")}</a>{s.data.accessed && <span style={{ color: "var(--mute)", fontSize: 11.5 }}> · read {fmtDay(s.data.accessed)}</span>} <RecActions rec={s} /></li>)}
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.7 }}>
+                    {sources.map((s) => <li key={s.id} id={`rec-${s.id}`}><a href={s.data.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--navy)", wordBreak: "break-word" }}>{s.data.title || String(s.data.url).replace(/^https?:\/\/(www\.)?/, "")}</a>{s.data.accessed && <span style={{ color: "var(--mute)", fontSize: 13 }}> · read {fmtDay(s.data.accessed)}</span>} <RecActions rec={s} /></li>)}
                   </ul>
                 </Section>
               )}
@@ -668,6 +678,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
           {view === "history" && <History code={doc.code} onChanged={reload} />}
         </>
       )}
+      {confirmDialog}
     </div>
     </EditContext.Provider>
   );
