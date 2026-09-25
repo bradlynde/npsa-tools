@@ -156,6 +156,54 @@ function buildInstallmentText(installments, upfront) {
   });
   return `\n\n   By agreement of the parties, this fee shall be paid in ${count === 2 ? "two (2)" : "three (3)"} installments as follows:\n${lines.join("\n")}`;
 }
+/*
+ * The numeral for a section appended after the template's own.
+ *
+ * Short-Notice Application Circumstances was hard-coded "IX.", which is the
+ * numeral the template's last section already carries — a letter with short
+ * notice on printed two section IXs. The count is read from the template so it
+ * stays right if a section is added or removed, and the Introduction, whose
+ * roman is deliberately blank, is not counted.
+ */
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
+  "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX"];
+
+function nextSectionNumeral(sections) {
+  const numbered = (sections || []).filter((s) => s && String(s.roman || "").trim()).length;
+  // Past the table the numeral is worth less than the heading, so fall back to
+  // no numeral rather than printing a broken one.
+  return ROMAN[numbered + 1] ? `${ROMAN[numbered + 1]}.` : "";
+}
+
+/*
+ * Clause 6 of an Award Implementation letter's Compensation section.
+ *
+ * Keyed by every value that has ever been written to postReimbursementOption.
+ * The wizard's Terms step writes "reimbursable" / "not-reimbursable"; the
+ * letter used to test for "optionA" / "optionB" and nothing else, so every
+ * letter built in the current wizard silently dropped the clause — no error,
+ * no blank, just a Compensation section that stopped at 5.
+ *
+ * The old keys stay because letters saved before the wizard hold them, and a
+ * saved letter has to re-render as the document that was signed.
+ */
+const REIMBURSABLE_CLAUSE = "\n6. CLIENT acknowledges that M&A consulting fees may be eligible for reimbursement through NSGP grant proceeds, subject to approval by the administering State agency. CLIENT further acknowledges that the timing of grant reimbursements may not align with NPSA's payment schedule, and that CLIENT is solely responsible for making all payments to NPSA in accordance with the schedule above, regardless of whether or when CLIENT receives grant reimbursement.";
+const NOT_REIMBURSABLE_CLAUSE = "\n6. CLIENT acknowledges that NPSA's M&A consulting fees are not reimbursable through NSGP grant proceeds and that CLIENT is solely responsible for all payments to NPSA from CLIENT's own funds.";
+
+const REIMBURSEMENT_CLAUSE = {
+  "reimbursable": REIMBURSABLE_CLAUSE,
+  "optionA": REIMBURSABLE_CLAUSE,
+  "not-reimbursable": NOT_REIMBURSABLE_CLAUSE,
+  "optionB": NOT_REIMBURSABLE_CLAUSE,
+};
+
+/** Which reimbursement wording a stored value prints, for the Review step. */
+function reimbursementChoice(value) {
+  if (REIMBURSEMENT_CLAUSE[value] === REIMBURSABLE_CLAUSE) return "reimbursable";
+  if (REIMBURSEMENT_CLAUSE[value] === NOT_REIMBURSABLE_CLAUSE) return "not-reimbursable";
+  return null;
+}
+
 function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope, postAwardFee, installmentCount, i1Pct, i1Label, i2Pct, i2Label, i3Pct, i3Label, earlySigningDiscount, earlySigningDate, earlySigningAmount, programs) {
   const isInh = model.startsWith("inh-");
   const baseModel = isInh ? model.replace("inh-","") : model;
@@ -231,11 +279,32 @@ function buildCompBlock(model, fees, installments, grantYear, optPostAwardScope,
   // Post-Award Consulting and Administrative Support Fee block — shown when toggle is on
   if (optPostAwardScope) {
     const postAwardLabel = isInh ? "B" : "C";
+    const nonReimbursable = `All fees payable to NPSA under this Engagement Letter are non-reimbursable from grant funds and shall not be charged to, paid from, or otherwise included in any grant-funded budget or reimbursement request. CLIENT acknowledges that such fees are the sole financial responsibility of CLIENT.`;
     text += `\n\n${postAwardLabel}. Compliance Period Fee\n\n`;
-    text += `1. In the event CLIENT is awarded funding under the ${grantYear} NSGP, CLIENT agrees to pay NPSA a fixed fee of ${fmt(fees.postAward)} for the Compliance Period services described in this Engagement Letter.\n`;
-    text += `2. This fee is not contingent upon the amount of funding awarded and is not calculated as a percentage of any grant award. Rather, this fee reflects the additional administrative workload required of NPSA upon award and covers services provided from award notification to receipt of formal written clearance from the State authorizing CLIENT to begin committing grant funds.\n`;
-    text += `3. The Compliance Period fee shall be due within thirty (30) days of CLIENT'S receipt of award notification.\n`;
-    text += `4. All fees payable to NPSA under this Engagement Letter are non-reimbursable from grant funds and shall not be charged to, paid from, or otherwise included in any grant-funded budget or reimbursement request. CLIENT acknowledges that such fees are the sole financial responsibility of CLIENT.`;
+    /*
+     * A Compliance Period priced at nothing still has to say so.
+     *
+     * The block used to print "a fixed fee of $0", and since inhPostAwardFee
+     * defaults to "0" that was the default in-house letter, not an edge case.
+     * Deleting the block instead would have been worse: Scope of Work promises
+     * Compliance Period Consulting on every pre-award and in-house letter
+     * whether or not a fee is set, so silence would leave a promised service
+     * with no price stated anywhere. Stuart's call was to say it plainly.
+     *
+     * The three clauses that follow the figure — not contingent on the award
+     * amount, due within thirty days, reflects the administrative workload —
+     * all describe paying a fee, so they go with it. What survives is the
+     * statement that covers every fee in the letter, not just this one.
+     */
+    if (!(fees.postAward > 0)) {
+      text += `1. The Compliance Period services described in this Engagement Letter are included at no additional fee.\n`;
+      text += `2. ${nonReimbursable}`;
+    } else {
+      text += `1. In the event CLIENT is awarded funding under the ${grantYear} NSGP, CLIENT agrees to pay NPSA a fixed fee of ${fmt(fees.postAward)} for the Compliance Period services described in this Engagement Letter.\n`;
+      text += `2. This fee is not contingent upon the amount of funding awarded and is not calculated as a percentage of any grant award. Rather, this fee reflects the additional administrative workload required of NPSA upon award and covers services provided from award notification to receipt of formal written clearance from the State authorizing CLIENT to begin committing grant funds.\n`;
+      text += `3. The Compliance Period fee shall be due within thirty (30) days of CLIENT'S receipt of award notification.\n`;
+      text += `4. ${nonReimbursable}`;
+    }
   } else {
     text += `\n\nNote: None of the above costs are reimbursable from grant funds.`;
   }
@@ -427,4 +496,5 @@ export {
   PROGRAMS, NPSA_SIGNATURES,
   totalMaxAward, applicationCount, locationPrograms, locationInProgram, isoDatePlus,
   programsKeyFor, oneApplicationPerLetter, engagementModelFor, enumerateApplications, divideFee,
+  REIMBURSEMENT_CLAUSE, reimbursementChoice, nextSectionNumeral,
 };

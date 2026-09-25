@@ -75,6 +75,31 @@ function* cases() {
     }
   }
   /*
+   * A Compliance Period with no fee on it.
+   *
+   * Every case above hard-codes postAwardFee "2,500", so the $0 shape — which
+   * is the DEFAULT for an in-house letter, since inhPostAwardFee is "0" — was
+   * never in this baseline at all. The block printed "a fixed fee of $0" and
+   * 307/307 kept passing, because the harness had never once asked.
+   *
+   * Blank as well as "0": a rep who clears the field produces the same letter
+   * and the two reached the figure by different routes.
+   */
+  for (const model of MODELS) {
+    for (const fee of ["0", "", "0.00"]) {
+      yield {
+        name: `${model}|undiscounted|1loc|scope=true|compliance=${fee || "(blank)"}`,
+        model, tier: "undiscounted", locs: 1,
+        optPostAwardScope: true,
+        postAwardFee: fee,
+        customFee: "",
+        earlySigningAmount: "",
+        customContingencyFee: "",
+      };
+    }
+  }
+
+  /*
    * The negotiated contingent discount. Chad asked for a custom discount on a
    * contingency letter and there was none; a typed amount now holds the upfront
    * at full and comes off the contingent fee. No case above reaches it — the
