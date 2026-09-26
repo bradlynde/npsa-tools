@@ -175,6 +175,21 @@ body {
 }
 
 /*
+ * A placeholder the rep still has to fill — "[CLIENT NAME]", "[Address TBD]" —
+ * highlighted on the preview so it can't slip past a proofread. Screen only:
+ * the print window carries none of this file, and runPrint's own stylesheets
+ * strip the <mark> back to plain text, so an unfilled placeholder prints
+ * exactly as it always has.
+ */
+.npsa-paper mark.npsa-unresolved {
+  background: #fff0a6;
+  color: inherit;
+  box-shadow: inset 0 0 0 1px #d9a900;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/*
  * Form controls.
  *
  * These carry an inline border and nothing else, so they were taking the

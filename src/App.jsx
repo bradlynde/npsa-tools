@@ -546,12 +546,15 @@ export default function App() {
     const nofoClause = form.optNofo
       ? `If the federal government does not issue a Notice of Funding Opportunity for a ${pg0.year||form.grantYear} ${federalRef}, the CLIENT will have the sole right to choose either of the two options below.\n   (a) NPSA will refund the entire ${fmt(fees.upfront)} initial payment.\n   (b) NPSA will work with CLIENT to apply for the next available ${federalRef} Opportunity, and the scope of the project will apply to that opportunity.`
       : `If the federal government does not issue a Notice of Funding Opportunity for a ${pg0.year||form.grantYear} ${federalRef}, NPSA will work with CLIENT to apply for the next available ${federalRef} Opportunity, and the scope of the project will apply to that opportunity.`;
+    // One line per item, like every other Guarantee. These joined with a blank
+    // line, so with a state program the list gained a gap after its state
+    // item and nowhere else.
     const stateNofoClause = stateProgs.length > 0
       ? stateProgs.map((pg, i) => {
           const cfg = PROGRAMS[pg.key]||PROGRAMS.federal;
           const num = 4 + i;
           return `${num}. If the state government does not issue a Notice of Funding Opportunity for a ${pg.year||form.grantYear} ${cfg.acronym}, NPSA will work with CLIENT to apply for the next available ${cfg.acronym} Opportunity, and the scope of the project will apply to that opportunity.`;
-        }).join("\n\n") + "\n\n"
+        }).join("\n") + "\n"
       : "";
     return t
       .replace(/\[CLIENT_NAME\]/g, form.clientName||"[CLIENT NAME]")
@@ -641,12 +644,15 @@ export default function App() {
     const nofoClause = form.inhOptNofo
       ? `If the federal government does not issue a Notice of Funding Opportunity for a ${pg0inh.year||form.grantYear} ${federalRefInh}, the CLIENT will have the sole right to choose either of the two options below.\n   (a) NPSA will refund the entire ${fmt(inhFees.upfront)} initial payment.\n   (b) NPSA will work with CLIENT to apply for the next available ${federalRefInh} Opportunity, and the scope of the project will apply to that opportunity.`
       : `If the federal government does not issue a Notice of Funding Opportunity for a ${pg0inh.year||form.grantYear} ${federalRefInh}, NPSA will work with CLIENT to apply for the next available ${federalRefInh} Opportunity, and the scope of the project will apply to that opportunity.`;
+    // One line per item, like every other Guarantee. These joined with a blank
+    // line, so with a state program the list gained a gap after its state
+    // item and nowhere else.
     const stateNofoClauseInh = stateProgsInh.length > 0
       ? stateProgsInh.map((pg, i) => {
           const cfg = PROGRAMS[pg.key]||PROGRAMS.federal;
           const num = 4 + i;
           return `${num}. If the state government does not issue a Notice of Funding Opportunity for a ${pg.year||form.grantYear} ${cfg.acronym}, NPSA will work with CLIENT to apply for the next available ${cfg.acronym} Opportunity, and the scope of the project will apply to that opportunity.`;
-        }).join("\n\n") + "\n\n"
+        }).join("\n") + "\n"
       : "";
     const compBlock = buildCompBlock(form.inhEngagementModel, inhFees, installmentsObj, form.grantYear, form.inhOptPostAwardScope, form.inhPostAwardFee, form.inhInstallmentCount, form.inhInstallment1Pct, form.inhInstallment1Label, form.inhInstallment2Pct, form.inhInstallment2Label, form.inhInstallment3Pct, form.inhInstallment3Label, form.inhPricingTier === "discounted", form.inhEarlySigningDate, form.inhEarlySigningAmount, form.programs);
     return t
@@ -889,6 +895,7 @@ export default function App() {
         @media print{@page{margin:72pt;size:letter}body{margin:0}}
         .npsa-paper{${paperSurface()}}
         .npsa-paper pre,.npsa-paper div,.npsa-paper span{font-family:inherit}
+        mark.npsa-unresolved{background:none;color:inherit;box-shadow:none;padding:0}
       </style></head><body><div class="page npsa-paper">${bodyHtml}</div><script>
         document.fonts.ready.then(function(){ window.print(); });
       <\/script></body></html>`;
@@ -909,6 +916,7 @@ export default function App() {
         h1,h2,h3,h4{page-break-after:avoid;break-after:avoid}
         p,li{orphans:3;widows:3}
         .npsa-paper{${paperSurface()}}
+        mark.npsa-unresolved{background:none;color:inherit;box-shadow:none;padding:0}
       </style></head><body><div class="npsa-paper">${bodyHtml}</div><script>
         document.fonts.ready.then(function(){ window.print(); });
       <\/script></body></html>`;
@@ -943,6 +951,21 @@ export default function App() {
   const interp = isPre?interpolatePre:isInh?interpolateInh:interpolatePost;
   const gc = (id,subId) => getContent(sections,id,subId,interp);
   // Renders section text with proper hanging indents for numbered/lettered list items
+  /*
+   * Placeholders the rep still has to fill — "[CLIENT NAME]", "[Address TBD]",
+   * a template token that didn't interpolate — are marked on screen so they
+   * can't be missed while proofreading. Screen only: theme.css colours the
+   * class and both print stylesheets in runPrint take the colour off again, so
+   * a letter that goes out with one unfilled still prints plain text, exactly
+   * as before. Two or more characters inside the brackets, so the grant writer
+   * form's "[X]" checkbox is not one.
+   */
+  const UNRESOLVED = /(\[[A-Z][A-Za-z0-9 _.'\/-]+\])/;
+  const markUnresolved = (text) => {
+    if (typeof text !== "string" || !UNRESOLVED.test(text)) return text;
+    return text.split(UNRESOLVED).map((part, i) =>
+      i % 2 ? <mark key={i} className="npsa-unresolved">{part}</mark> : part);
+  };
   const renderLines = (text) => {
     if (!text) return null;
     return text.split("\n").map((line, i) => {
@@ -964,7 +987,7 @@ export default function App() {
       if (sectionHeaderMatch && sectionHeaderMatch[1].length === 1) {
         return (
           <div key={i} style={{fontFamily:"Georgia,serif",fontSize:12,lineHeight:1.75,color:"#1a1a1a",fontWeight:700,marginTop:6,marginBottom:2}}>
-            {trimmed}
+            {markUnresolved(trimmed)}
           </div>
         );
       }
@@ -975,13 +998,14 @@ export default function App() {
         const rest = trimmed.slice(prefix.length);
         // Base indent from leading spaces (each space ≈ 0.55em in Georgia 13px)
         const baseIndent = leadSpaces * 0.55;
-        // Fixed widths by prefix type so alignment is consistent regardless of digit count
+        // Fixed widths by prefix type so alignment is consistent regardless of
+        // digit count. It used to widen for two digits, which moved the text
+        // of item 10 onward 8px right of items 1-9 in the same list — the
+        // Compliance Period scope runs to 14. "14. " fits in 2.2em as it is.
         const isTopLevel = /^\d+\.\s/.test(trimmed);
         const isSubLetter = /^\([a-zA-Z]\)\s/.test(trimmed);
         const isRoman = /^[ivxIVX]+\.\s/.test(trimmed);
-        const numMatch = trimmed.match(/^(\d+)\./);
-        const digitCount = numMatch ? numMatch[1].length : 1;
-        const hangEm = isTopLevel ? (digitCount >= 2 ? 2.8 : 2.2) : isSubLetter ? 2.0 : isRoman ? 1.8 : prefix.length * 0.6;
+        const hangEm = isTopLevel ? 2.2 : isSubLetter ? 2.0 : isRoman ? 1.8 : prefix.length * 0.6;
         return (
           <div key={i} style={{
             fontFamily:"Georgia,serif", fontSize:12, lineHeight:1.75, color:"#222",
@@ -989,7 +1013,7 @@ export default function App() {
             marginLeft:`${baseIndent}em`, marginBottom:2,
           }}>
             <span style={{flexShrink:0, width:`${hangEm}em`, display:"inline-block"}}>{prefix.trimEnd()}&nbsp;</span>
-            <span style={{flex:1}}>{rest}</span>
+            <span style={{flex:1}}>{markUnresolved(rest)}</span>
           </div>
         );
       }
@@ -1000,7 +1024,7 @@ export default function App() {
         <div key={i} style={{
           fontFamily:"Georgia,serif", fontSize:12, lineHeight:1.75, color:"#222",
           marginLeft: isCostLine ? `3.5em` : `${leadSpaces * 0.55}em`, marginBottom:2,
-        }}>{trimmed}</div>
+        }}>{markUnresolved(trimmed)}</div>
       );
     });
   };
@@ -1922,7 +1946,7 @@ export default function App() {
               <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Client</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.clientName||"[CLIENT NAME]"}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(form.clientName||"[CLIENT NAME]")}</div>
                   {clientAddr&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{clientAddr}</div>}
                   {form.contactName&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{form.contactName}</div>}
                   {form.contactTitle&&<div style={{fontSize:11.5,color:"#555"}}>{form.contactTitle}</div>}
@@ -1955,7 +1979,7 @@ export default function App() {
                 {(form.locations||[]).filter(l=>l.address||l.city||l.name).length>0
                   ? (form.locations||[]).filter(l=>l.address||l.city||l.name).map((loc,i)=>{
                       const parts=[loc.address,loc.city,loc.state,loc.zip].filter(Boolean).join(", ");
-                      return <div key={i} style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:3}}>&#8226; {loc.name?`${loc.name} — `:""}{parts||"[Address TBD]"}</div>;
+                      return <div key={i} style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:3}}>&#8226; {loc.name?`${loc.name} — `:""}{markUnresolved(parts||"[Address TBD]")}</div>;
                     })
                   : <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#555",fontStyle:"italic"}}>Add locations on the Scope step to list project campuses here.</div>}
               </div>
@@ -2003,7 +2027,7 @@ export default function App() {
               <p style={{fontSize:12.5,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20,fontStyle:"italic",color:"#333"}}>{proposalTpl.note}</p>
               {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
               <div style={{marginTop:30,paddingTop:10,borderTop:"1px solid #ddd",textAlign:"center",fontSize:11.5,color:"#555"}}>
-                Prepared for the leadership of {form.clientName||"[CLIENT NAME]"} &nbsp;&#8226;&nbsp; Nonprofit Security Advisors &nbsp;&#8226;&nbsp; Lynde Consulting LLC
+                Prepared for the leadership of {markUnresolved(form.clientName||"[CLIENT NAME]")} &nbsp;&#8226;&nbsp; Nonprofit Security Advisors &nbsp;&#8226;&nbsp; Lynde Consulting LLC
               </div>
             </>;
           })() : isAddendum ? (()=>{
@@ -2023,14 +2047,14 @@ export default function App() {
                   * apart — the original agreement's and this addendum's — so a
                   * reader had to guess which was which. Both say so now.
                   */}
-                <div style={{fontSize:13,fontStyle:"italic",color:"#444",marginTop:4}}>To the Engagement Letter dated {origDate}</div>
+                <div style={{fontSize:13,fontStyle:"italic",color:"#444",marginTop:4}}>To the Engagement Letter dated {markUnresolved(origDate)}</div>
                 <div style={{fontSize:11.5,color:"#555",marginTop:5}}>Addendum dated {today}</div>
               </div>
               {/* Parties */}
               <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Client</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{addClient}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(addClient)}</div>
                   {clientAddr&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{clientAddr}</div>}
                   {form.contactName&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{form.contactName}</div>}
                   {form.contactTitle&&<div style={{fontSize:11.5,color:"#555"}}>{form.contactTitle}</div>}
@@ -2115,7 +2139,7 @@ export default function App() {
           {!isGw&&<div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
             <div style={{flex:1}}>
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Client</div>
-              <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.clientName||"[CLIENT NAME]"}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(form.clientName||"[CLIENT NAME]")}</div>
               {clientAddr&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{clientAddr}</div>}
               {form.contactName&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{form.contactName}</div>}
               {form.contactTitle&&<div style={{fontSize:11.5,color:"#555"}}>{form.contactTitle}</div>}
@@ -2434,7 +2458,7 @@ export default function App() {
               <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>To: Grant Writer</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.gwRecipientName||"[Grant Writer Name]"}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(form.gwRecipientName||"[Grant Writer Name]")}</div>
                   {form.gwOrgName&&<div style={{fontSize:12,color:"#555"}}>{form.gwOrgName}</div>}
                 </div>
                 <div style={{width:1,background:"#8796aa"}}/>
@@ -2447,7 +2471,7 @@ export default function App() {
                 </div>
               </div>
               <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#555",fontStyle:"italic",marginBottom:20,marginTop:4}}>
-                {form.npsa1Name||"[Consultant Name]"} is acting solely in their capacity as an authorized consultant of Nonprofit Security Advisors (NPSA).
+                {markUnresolved(form.npsa1Name||"[Consultant Name]")} is acting solely in their capacity as an authorized consultant of Nonprofit Security Advisors (NPSA).
               </div>
               <SectionHead num="1" title="Client Information"/>
               <F label="Organization" value={form.clientName}/>
