@@ -57,7 +57,7 @@ export default function Markdown({ children, style }: { children?: string | null
       }
       blocks.push(
         <div key={k++} style={{ overflowX: "auto", margin: "0 0 10px" }}>
-          <table style={{ borderCollapse: "collapse", fontSize: 12.5, width: "100%" }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 13, width: "100%" }}>
             <tbody>
               {rows.map((r, ri) => (
                 <tr key={ri}>{r.map((c, ci) => React.createElement(ri === 0 ? "th" : "td", { key: ci, style: { textAlign: "left", padding: "5px 10px 5px 0", borderBottom: "1px solid var(--hair2)", verticalAlign: "top", fontWeight: ri === 0 ? 600 : 400, color: ri === 0 ? "var(--mute)" : undefined } }, inline(c, `t${k}-${ri}-${ci}`)))}</tr>

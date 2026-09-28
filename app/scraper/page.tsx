@@ -659,6 +659,12 @@ export default function ScraperPage() {
               {k.l}
             </span>
           ))}
+          {activeRun && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, lineHeight: "18px", color: "var(--sec)" }}>
+              <Pulse color="var(--navy)" />
+              Pulsing: running now
+            </span>
+          )}
         </div>
 
         <USStateMap stateData={stateData} filter={filter} />
