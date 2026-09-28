@@ -343,6 +343,9 @@ async function ensureSchema(pool) {
       updated_at        TIMESTAMPTZ DEFAULT NOW()
     );
   `).catch(err => console.error('sf_applications schema error:', err.message));
+  // The bucket is derived on ingest, so rows stored before a bucketing rule changed
+  // keep the old answer until Salesforce next sends them. Re-derive on boot.
+  await rebucketApplications(pool).catch(err => console.error('sf_applications rebucket error:', err.message));
 
   // One row per sync attempt, whatever did the syncing. Declared here as well as in
   // the Salesforce connector because both write to it, and this module cannot import
@@ -1457,12 +1460,21 @@ async function rebuildBookingWins(pool) {
 //   denied    — decided and rejected
 //   pending   — submitted, awaiting the award notification (money still in play)
 //   preparing — being written; not yet submitted
+//   resubmitted — denied, and a new Application record was made for the second
+//               attempt. Not a loss: the attempt lives on in that new record, so it
+//               stays out of the acceptance rate.
+//   cancelled — the client cancelled; not an application NPSA is doing. Out of
+//               every total. Before this bucket existed, "Cancelled" fell through
+//               to preparing and inflated the preparing count.
 // ─────────────────────────────────────────────────────────────
 function applicationBucket(status) {
   const s = (status || '').toLowerCase();
   if (!s) return 'preparing';
+  if (s.includes('cancel') || s.includes('withdr')) return 'cancelled';
   if (s.includes('accept') || s.includes('award')) return 'awarded';
-  if (s.includes('den') || s.includes('reject')) return 'denied';
+  const denied = s.includes('den') || s.includes('reject');
+  if (denied && (s.includes('second attempt') || s.includes('new application'))) return 'resubmitted';
+  if (denied) return 'denied';
   if (s.includes('submit')) return 'pending';
   if (s.includes('prepar') || s.includes('draft')) return 'preparing';
   return 'preparing';
@@ -1484,6 +1496,20 @@ const cleanOrgName = (s) => {
   if (!v || looksLikeSfId(v)) return null;
   return v;
 };
+
+/** Re-derives status_bucket from the stored status, for rows bucketed under older rules. */
+async function rebucketApplications(pool) {
+  const { rows } = await pool.query('SELECT application_id, status, status_bucket FROM sf_applications');
+  let changed = 0;
+  for (const r of rows) {
+    const bucket = applicationBucket(r.status);
+    if (bucket === r.status_bucket) continue;
+    await pool.query('UPDATE sf_applications SET status_bucket = $2 WHERE application_id = $1', [r.application_id, bucket]);
+    changed++;
+  }
+  if (changed) console.log(`[marketing] re-bucketed ${changed} applications`);
+  return changed;
+}
 
 async function recordApplication(pool, a) {
   const id = (a.application_id || '').toString().trim();
@@ -1757,17 +1783,39 @@ export function registerMarketing(app, pool) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // Every application, for the Company Report's map. Small (a couple of hundred rows),
+  // so the page groups by state and year itself. Cancelled rows are included and
+  // marked by their bucket; the page hides them unless asked.
+  app.get('/api/marketing/applications', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const { rows } = await pool.query(`
+        SELECT application_id, name, organization, grant_program, UPPER(TRIM(state)) AS state,
+               status, status_bucket,
+               amount_requested::float AS amount_requested,
+               amount_awarded::float AS amount_awarded,
+               max_award::float AS max_award,
+               updated_at
+          FROM sf_applications
+         ORDER BY state NULLS LAST, grant_program DESC NULLS LAST, organization NULLS LAST`);
+      res.json({ applications: rows });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // Applications summary — counts per bucket, money awarded, and money still pending.
   app.get('/api/marketing/applications/stats', async (req, res) => {
     if (!pool) return guard(res);
     try {
+      // Cancelled applications are counted on their own and left out of everything else.
       const { rows } = await pool.query(`
         SELECT
-          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status_bucket IS DISTINCT FROM 'cancelled')::int AS total,
           COUNT(*) FILTER (WHERE status_bucket='awarded')::int   AS awarded_count,
           COUNT(*) FILTER (WHERE status_bucket='pending')::int   AS pending_count,
           COUNT(*) FILTER (WHERE status_bucket='preparing')::int AS preparing_count,
           COUNT(*) FILTER (WHERE status_bucket='denied')::int    AS denied_count,
+          COUNT(*) FILTER (WHERE status_bucket='resubmitted')::int AS resubmitted_count,
+          COUNT(*) FILTER (WHERE status_bucket='cancelled')::int AS cancelled_count,
           COALESCE(SUM(amount_awarded)   FILTER (WHERE status_bucket='awarded'),0)::numeric AS awarded_amount,
           COALESCE(SUM(amount_requested) FILTER (WHERE status_bucket='awarded'),0)::numeric AS awarded_requested,
           COALESCE(SUM(amount_requested) FILTER (WHERE status_bucket='pending'),0)::numeric AS pending_amount
@@ -1781,16 +1829,19 @@ export function registerMarketing(app, pool) {
                COUNT(*) FILTER (WHERE status_bucket='pending')::int AS pending_count,
                COALESCE(SUM(amount_awarded)   FILTER (WHERE status_bucket='awarded'),0)::numeric AS awarded_amount,
                COALESCE(SUM(amount_requested) FILTER (WHERE status_bucket='pending'),0)::numeric AS pending_amount
-          FROM sf_applications GROUP BY 1 ORDER BY 2 DESC`);
+          FROM sf_applications WHERE status_bucket IS DISTINCT FROM 'cancelled' GROUP BY 1 ORDER BY 2 DESC`);
       res.json({
         total: s.total,
         awarded_count: s.awarded_count,
         pending_count: s.pending_count,
         preparing_count: s.preparing_count,
         denied_count: s.denied_count,
+        resubmitted_count: s.resubmitted_count,
+        cancelled_count: s.cancelled_count,
         awarded_amount: Number(s.awarded_amount),
         pending_amount: Number(s.pending_amount),
         // Of decided applications, how many were accepted — the win rate that matters.
+        // A resubmitted denial is not decided: its second attempt is its own record.
         acceptance_rate: decided ? s.awarded_count / decided : 0,
         // Of what was asked for on accepted apps, how much actually came through.
         award_fill_rate: Number(s.awarded_requested) > 0 ? Number(s.awarded_amount) / Number(s.awarded_requested) : 0,
