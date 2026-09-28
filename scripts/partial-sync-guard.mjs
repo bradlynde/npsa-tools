@@ -31,7 +31,11 @@ globalThis.fetch = async (url, init = {}) => {
   return realFetch(url, init);
 };
 
-delete process.env.ZAPIER_WEBHOOK_SECRET;    // no shared secret => no auth gate
+// Since #266 an unset secret refuses every push rather than admitting every
+// push, so the old "delete it and the gate goes away" set-up turned each check
+// below into a 401 — and the run crashed before reporting one, because the gate
+// reads the header through req.get(), which the fake request had no answer for.
+process.env.ZAPIER_WEBHOOK_SECRET = 'psg-secret';
 delete process.env.CALENDLY_API_TOKEN;
 process.env.BOOKING_SWEEP_MINUTES = '100000';
 
@@ -60,27 +64,34 @@ await pool.query(`CREATE TABLE IF NOT EXISTS letters (
   id SERIAL PRIMARY KEY, client_name TEXT, doc_tab TEXT,
   total_fee NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())`);
 
-const push = (body) => new Promise((resolve, reject) => {
+const push = (body, secret = 'psg-secret') => new Promise((resolve, reject) => {
   const res = {
     statusCode: 200,
     status(c) { this.statusCode = c; return this; },
     json(b) { resolve({ status: this.statusCode, body: b }); return this; },
   };
   Promise.resolve(routes['POST /api/marketing/sync/push'](
-    { body, query: {}, params: {}, headers: {} }, res)).catch(reject);
+    { body, query: {}, params: {}, headers: secret ? { 'x-zap-secret': secret } : {},
+      get(h) { return this.headers[String(h).toLowerCase()]; } }, res)).catch(reject);
 });
 
+// Records in Salesforce's own field names: `salesforce_financials_raw` is the only
+// financials source the push accepts. The pre-mapped `salesforce_financials` it
+// used to post was retired in #137 (see SUPERSEDED_PUSH_SOURCES), after which
+// every delivery here was answered 400 before the guard under test was reached.
 const fin = (id, amount) => ({
-  financial_id: id, name: `financial ${id}`, purpose: 'New Contract Signed',
-  amount, upfront: 0, implementation: 0, created_date: '2026-01-15T00:00:00Z',
-  opportunity_id: `006${id}`, organization: `Org ${id}`, non_security: false,
+  Id: id, Name: `financial ${id}`, Purpose_for_Creating_Financial__c: 'New Contract Signed',
+  Security_Total_Potential_Value__c: amount, Security_Upfrton__c: 0,
+  Security_Potential_Implementatoin_Fees__c: 0, CreatedDate: '2026-01-15T00:00:00Z',
+  Opportunity__c: `006${id}`, Account__r: { Name: `Org ${id}` },
+  Opportunity__r: { Check_if_NOT_Security_Opportunity__c: false },
 });
 
 const stored = async () => (await pool.query(
   'SELECT financial_id FROM sf_financials ORDER BY financial_id')).rows.map(r => r.financial_id);
 
 const lastRun = async () => (await pool.query(
-  `SELECT ok, error FROM sync_runs WHERE source='salesforce_financials'
+  `SELECT ok, error FROM sync_runs WHERE source='salesforce_financials_raw'
     ORDER BY started_at DESC LIMIT 1`)).rows[0] || {};
 
 const results = [];
@@ -95,37 +106,42 @@ await pool.query('TRUNCATE sf_financials');
 await pool.query('TRUNCATE sync_runs');
 
 // A. a sender that states nothing is trusted exactly as before
-let r = await push({ source: 'salesforce_financials', records: [fin('A1', 100), fin('A2', 200), fin('A3', 300)] });
+let r = await push({ source: 'salesforce_financials_raw', records: [fin('A1', 100), fin('A2', 200), fin('A3', 300)] });
 check('A  a delivery with no stated total is accepted', r.status, 200);
 check('A2 and all three are stored', await stored(), ['A1', 'A2', 'A3']);
 
 // B. THE CASE: a short delivery must be refused, and must not prune the rest
-r = await push({ source: 'salesforce_financials', totalSize: 3, records: [fin('A1', 100), fin('A2', 200)] });
+r = await push({ source: 'salesforce_financials_raw', totalSize: 3, records: [fin('A1', 100), fin('A2', 200)] });
 check('B  a delivery short of its own totalSize is refused', r.status, 409);
 check('B2 the record it omitted is NOT deleted', await stored(), ['A1', 'A2', 'A3']);
 check('B3 and the refusal is recorded as a failed run', (await lastRun()).ok, false);
 console.log(`        recorded error: ${(await lastRun()).error}`);
 
 // C. a complete delivery still applies, prune included
-r = await push({ source: 'salesforce_financials', totalSize: 2, records: [fin('A1', 100), fin('A2', 200)] });
+r = await push({ source: 'salesforce_financials_raw', totalSize: 2, records: [fin('A1', 100), fin('A2', 200)] });
 check('C  a complete delivery is accepted', r.status, 200);
 check('C2 and prunes what it genuinely dropped', await stored(), ['A1', 'A2']);
 
 // D. done:false is Salesforce saying "there are more pages"
-r = await push({ source: 'salesforce_financials', done: false, records: [fin('A1', 100)] });
+r = await push({ source: 'salesforce_financials_raw', done: false, records: [fin('A1', 100)] });
 check('D  done:false is refused even without a total', r.status, 409);
 check('D2 and nothing is pruned', await stored(), ['A1', 'A2']);
 
 // E. the same facts inside Zapier's raw-request envelope
-r = await push({ source: 'salesforce_financials',
+r = await push({ source: 'salesforce_financials_raw',
                  results: [{ body: { totalSize: 2, done: false, records: [fin('A1', 100)] } }] });
 check('E  a short delivery inside a raw envelope is refused', r.status, 409);
 check('E2 and nothing is pruned', await stored(), ['A1', 'A2']);
 
 // F. done:true with a matching total is the healthy shape
-r = await push({ source: 'salesforce_financials', totalSize: 2, done: true,
+r = await push({ source: 'salesforce_financials_raw', totalSize: 2, done: true,
                  records: [fin('A1', 100), fin('A2', 200)] });
 check('F  done:true with a matching total is accepted', r.status, 200);
+
+// G. and none of it happens for a sender without the shared secret
+r = await push({ source: 'salesforce_financials_raw', totalSize: 1, records: [fin('A1', 100)] }, null);
+check('G  a push without the Zapier secret is refused', r.status, 401);
+check('G2 and nothing is pruned', await stored(), ['A1', 'A2']);
 
 await pool.end();
 const failed = results.filter(x => !x.ok);
