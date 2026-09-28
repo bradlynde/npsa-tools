@@ -6,13 +6,15 @@ Checked line-by-line against the live apps before the redesign ships:
 - Sales Toolbox dashboard — `origin/loe-generator:src/App.jsx` (`appView === 'dashboard'` and `'settings'`)
 
 Every element below exists in the live app today. "Where" is where it now lives
-in this Next.js app.
+in this Next.js app. The live marketing dashboard is now two pages: the
+**Company Report** (`/report`, the Salesforce sales figures) and **Marketing**
+(`/marketing`, everything booking-based), each with one time frame.
 
 > **Note:** the live Sales Toolbox app moves fast. This was re-audited against
 > `origin/loe-generator` at `b2fe15c`, which added the whole Sales /
 > applications section. Re-check before the next big change.
 
-## Sales — grant applications & contracts
+## Sales — grant applications & contracts (Company Report)
 
 | Live element | Where it is now |
 |---|---|
@@ -29,18 +31,18 @@ in this Next.js app.
 | — New orgs / Contract $ / Contracts | Sales trend chart |
 | — Show cumulative growth | Sales trend chart |
 
-## Marketing dashboard
+## Marketing dashboard (Marketing page)
 
 | Live element | Where it is now | Notes |
 |---|---|---|
-| "Refresh data" (POST `/api/marketing/enrich`) | "Refresh data" button in the page header | Re-fetches everything on success |
-| Title + subtitle | Eyebrow + "The business, up front." | |
-| "Funnel tracked since Feb 2026" badge | In the *Marketing* section's subtitle, not the page headline | Applies to the funnel, not the Salesforce figures above it |
+| "Refresh data" (POST `/api/marketing/enrich`) | "Refresh data" button in the Marketing header | Re-fetches everything on success. Not on the Company Report: it re-checks bookings, which nothing there reads |
+| Title + subtitle | Company Report: eyebrow + "The business, up front."; Marketing: a plain title | |
+| "Funnel tracked since Feb 2026" badge | In the Marketing page's description | The Salesforce figures are on the Company Report, so it no longer sits next to them |
 | KPI — bookings this week | Pulse strip | Fixed window; doesn't move with the range chips |
 | KPI — bookings this month (+ MoM) | Pulse strip | Shows `+N vs last month` |
 | KPI — LOE sent (`client_rate`, % of bookings) | Funnel row *LOE sent* (`% of booked`) | Same measure; the KPI tile shows the range-scoped count |
 | KPI — from Instantly (`instantly_pct`) | Pulse strip | |
-| KPI — LOE value (`total_fees_won`) | Pulse strip, figure in olive | |
+| KPI — LOE value (`total_fees_won`) | Pulse strip, figure in olive | "All time, from booked calls": the backend sums fees on bookings that became clients, not every signed letter |
 | Salesforce — total won revenue + win count | Sales band, *contract value* card | Was duplicated in a second band; the two showed the same figure |
 | Salesforce — untracked / pre-funnel + deal count + list | Disclosure inside *contract value* | "$X closed before the funnel · show N deals" |
 | ~~Attribution coverage meter~~ | Removed | Dropped at Stuart's request — a comparable funnel predates the round-robin, so the figure misleads |
@@ -61,17 +63,42 @@ in this Next.js app.
 | Bookings — who took the meeting | Bookings table, under the meeting date | Email local-part, title-cased |
 | Bookings — exclusion reason (unqualified / double booking / cancelled) | Bookings table, "Counts?" column | Quiet until hovered or set; excluded rows read as set aside |
 | Bookings — Calendly cancellation | Bookings table | Stated as a badge, not offered as a choice |
-| "Excluded from these figures: N cancelled · N double booking (N this week)" | Under the *marketing* heading, with the figures it qualifies | |
+| "Excluded from these figures: N cancelled · N double booking (N this week)" | Under the Marketing figures it qualifies | |
 
 Added, not in the live app: range chips (30d / 90d / YTD / All, remembered
 between visits), and an editable **channel** on each booking row — the backend's
 PATCH has accepted `channel` since #93, but the live table still renders it
 read-only.
 
-Section order: sales (Salesforce) → marketing KPIs → bookings chart → raw
-bookings → funnel + channels → campaign & source. Raw rows come before every
-roll-up that summarises them, following upstream `62b59dc`. The scraper strip was removed from this page —
-the Scraper tab owns that.
+Section order on Marketing: KPIs → pulse → bookings chart → raw bookings →
+funnel + channels → campaign & source. Raw rows come before every roll-up that
+summarises them, following upstream `62b59dc`. The range chips sit in the page
+header because they scope the whole page. The Company Report is the sales
+section alone. The scraper strip was removed — the Scraper tab owns that.
+
+## Bookings list filters (Marketing page)
+
+The raw bookings table on the Marketing page carries filters for the people who
+work through attribution every day, with a count on each:
+
+| Filter | Shows |
+|---|---|
+| Needs attribution | No channel, the Direct / Other catch-all, or Instantly with no campaign. Set-aside and cancelled bookings are left out |
+| Held, no LOE yet | Meetings marked held where no LOE has gone out |
+| Upcoming | Meetings still to come |
+
+Where a campaign is expected and missing, the Campaign cell reads "Find the
+campaign" instead of a dash; clicking it opens the same Instantly picker.
+
+Ticking Held or LOE re-reads the daily series as well as the weekly one, so the
+range figures and the funnel move with the tick. The live dashboard re-read only
+the chart and the pulse strip, leaving those two stale until a reload.
+
+## Where the app opens
+
+`/` redirects, on the server, to the section each person used last (a cookie the
+shell writes; see `lib/landing.ts`). A first visit opens the Company Report. The
+logo links to the Company Report.
 
 ## Sales Toolbox
 
@@ -96,14 +123,13 @@ iframe. Each one opens its tool directly:
 | `letters` | the saved-letters browser |
 | `precall` | the pre-call notes generator |
 | `settings` | Sales Reps |
-| `marketing` | the embedded marketing dashboard (used by `/marketing`) |
+| `marketing` | the embedded marketing dashboard (the shell no longer links to it; `/marketing` is its own page) |
 
 An unrecognised value lands on the Sales Toolbox's own dashboard, as before.
 
 Because a deep link skips that dashboard on the way in, the tool's
 "← Dashboard" shouldn't reveal it on the way out — it posts
-`{type:'npsa:navigate'}` to the shell, and `ToolFrame` routes to `/toolbox`
-(or `/` from `/marketing`). Opened directly on Railway, with no shell and no
+`{type:'npsa:navigate'}` to the shell, and `ToolFrame` routes to `/toolbox`. Opened directly on Railway, with no shell and no
 deep link, back still goes to the app's own dashboard, so it stays usable
 standalone.
 

@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import LoginForm from "./LoginForm";
 import { MobileHeader, MobileTabs, Sidebar } from "./Nav";
 import { useSystemThemeSync } from "../lib/theme";
+import { rememberSection, sectionOf } from "../lib/landing";
 
 /** Routes that hand the whole content area to the embedded Sales Toolbox app. */
 const FRAME_ROUTES = ["/loe"];
@@ -13,6 +15,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const pathname = usePathname() || "/";
   const framed = FRAME_ROUTES.some((r) => pathname.startsWith(r));
+
+  // Remember the section, so the next visit to "/" opens here (lib/landing.ts).
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const section = sectionOf(pathname);
+    if (section) document.cookie = rememberSection(section);
+  }, [pathname, isAuthenticated]);
 
   // The session check is a localStorage read, so this shows for a frame or two.
   // Draw the brand rather than a bare word.

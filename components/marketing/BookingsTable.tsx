@@ -70,6 +70,10 @@ export default function BookingsTable({
   onSearch,
   onChanged,
   onSaved,
+  title = "Bookings",
+  toolbar,
+  emptyText,
+  maxHeight = 460,
 }: {
   rows: BookingRow[];
   loading: boolean;
@@ -82,6 +86,12 @@ export default function BookingsTable({
   onChanged: (id: number, patch: Partial<BookingRow>) => void;
   /** A change landed upstream, so the figures above are now out of date. */
   onSaved?: () => void;
+  title?: string;
+  /** Under the header: the Marketing page puts its filters here. */
+  toolbar?: React.ReactNode;
+  /** Said when a filter leaves nothing to show. */
+  emptyText?: string;
+  maxHeight?: number | string;
 }) {
   const [saving, setSaving] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -139,7 +149,7 @@ export default function BookingsTable({
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-          <h3 className="section-title">Bookings</h3>
+          <h3 className="section-title">{title}</h3>
           <span className="meta">{search ? "All time" : rangeTag.charAt(0).toUpperCase() + rangeTag.slice(1)}</span>
         </div>
         <label style={{ position: "relative", display: "block", width: 280, maxWidth: "100%" }}>
@@ -161,6 +171,8 @@ export default function BookingsTable({
         </label>
       </div>
 
+      {toolbar && <div style={{ marginBottom: 12 }}>{toolbar}</div>}
+
       {error && (
         <div role="alert" style={{ fontSize: 13, lineHeight: "18px", color: "var(--err-fg)", marginBottom: 10 }}>
           {error}. The change was rolled back.
@@ -179,7 +191,7 @@ export default function BookingsTable({
       {loading ? (
         <Note>Loading…</Note>
       ) : rows.length === 0 ? (
-        <Note>{search ? "No bookings match that search." : `No bookings in the ${rangeTag}.`}</Note>
+        <Note>{search ? "No bookings match that search." : emptyText || `No bookings in the ${rangeTag}.`}</Note>
       ) : (
         <div style={{ overflowX: "auto" }} className="table-responsive">
           <div style={{ minWidth: 916 }}>
@@ -217,7 +229,7 @@ export default function BookingsTable({
               ))}
             </div>
 
-            <div style={{ maxHeight: 460, overflowY: "auto" }}>
+            <div style={{ maxHeight, overflowY: "auto" }}>
               {rows.map((r) => {
                 // Excluded rows stay listed, but read as set aside rather than active.
                 const excluded = Boolean(r.exclusion_reason);
@@ -410,7 +422,11 @@ export default function BookingsTable({
                           borderBottom: isHover ? "1px dotted var(--field)" : "1px dotted transparent",
                         }}
                       >
-                        {r.instantly_campaign || "—"}
+                        {r.instantly_campaign ||
+                          // Where a campaign is expected and missing, say what clicking does.
+                          (!excluded && (!r.attribution_channel || r.attribution_channel === "direct" || r.attribution_channel === "instantly")
+                            ? <span style={{ color: "var(--navy)", fontWeight: 500 }}>Find the campaign</span>
+                            : "—")}
                       </span>
                     )}
 
