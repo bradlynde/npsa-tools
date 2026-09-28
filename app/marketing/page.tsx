@@ -10,6 +10,7 @@ import {
   Eyebrow,
   StatTile,
   SegPill,
+  ChipRow,
   Bar,
   Button,
   Note,
@@ -19,14 +20,10 @@ import {
   fmtPct,
 } from "../../components/ui";
 import TimeSeriesChart from "../../components/marketing/TimeSeriesChart";
-import SalesBand from "../../components/marketing/SalesBand";
 import CampaignTable from "../../components/marketing/CampaignTable";
 import BookingsTable from "../../components/marketing/BookingsTable";
 import {
   fetchStats,
-  fetchApplicationStats,
-  fetchSalesTimeseries,
-  fetchSyncStatus,
   fetchFunnel,
   fetchTimeseries,
   fetchBookings,
@@ -49,10 +46,6 @@ import {
   type BookingRow,
   type Stats,
   type Funnel,
-  type ApplicationStats,
-  type SalesGranularity,
-  type SalesPoint,
-  type SyncStatus,
 } from "../../lib/marketing";
 
 const RANGES: { key: Range; label: string }[] = [
@@ -63,21 +56,64 @@ const RANGES: { key: Range; label: string }[] = [
   { key: "all", label: "All" },
 ];
 
-const todayLine = () =>
-  new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-
 /** "this quarter" → "This quarter" for section meta. */
 const sentenceWord = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
-export default function DashboardPage() {
+/* ── The bookings list's filters: the work that comes back every week ── */
 
-  // Marketing data
+type Show = "all" | "attribution" | "followup" | "upcoming";
+
+/** Set aside or cancelled: listed, but nothing to chase. */
+const setAside = (b: BookingRow) => Boolean(b.exclusion_reason) || Boolean(b.cancelled) || b.rescheduled_to != null;
+
+/**
+ * No channel, or the catch-all, or Instantly without a campaign: somebody has
+ * to say where this booking came from.
+ */
+const needsAttribution = (b: BookingRow) => {
+  if (setAside(b)) return false;
+  const ch = (b.attribution_channel || "").trim();
+  return !ch || ch === "direct" || (ch === "instantly" && !b.instantly_campaign);
+};
+
+/** The meeting happened and no LOE has gone out yet: the follow-up list. */
+const heldNoLoe = (b: BookingRow) => !setAside(b) && Boolean(b.held) && !b.became_client;
+
+const upcoming = (b: BookingRow) => !setAside(b) && Boolean(b.meeting_date) && new Date(b.meeting_date as string).getTime() > Date.now();
+
+const FILTER: Record<Show, (b: BookingRow) => boolean> = {
+  all: () => true,
+  attribution: needsAttribution,
+  followup: heldNoLoe,
+  upcoming,
+};
+
+const LIST_TITLE: Record<Show, string> = {
+  all: "Bookings",
+  attribution: "Needs attribution",
+  followup: "Held, no LOE yet",
+  upcoming: "Upcoming",
+};
+
+const EMPTY: Record<Show, string> = {
+  all: "",
+  attribution: "Every booking in this range has a source. Nothing to attribute.",
+  followup: "No held meetings are waiting on an LOE in this range.",
+  upcoming: "No meetings coming up in this range.",
+};
+
+/**
+ * Marketing: what feeds the pipeline. The figures, the chart, every booking with
+ * where it came from, then the funnel, channels and campaigns those bookings add
+ * up to. Attribution lives here because it moves these numbers: correct a
+ * booking's channel and the channel figures below change with it.
+ *
+ * One date range covers the whole page. The sales figures are all-time from
+ * Salesforce, which is why they have a page of their own (the Company Report).
+ */
+export default function MarketingPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [funnelAll, setFunnelAll] = useState<Funnel | null>(null);
-  const [apps, setApps] = useState<ApplicationStats | null>(null);
-  const [salesSeries, setSalesSeries] = useState<SalesPoint[]>([]);
-  const [salesGran, setSalesGran] = useState<SalesGranularity>("month");
-  const [sync, setSync] = useState<SyncStatus | null>(null);
   const [weekly, setWeekly] = useState<TimeseriesRow[]>([]);
   const [monthly, setMonthly] = useState<TimeseriesRow[]>([]);
   // Daily, for the range totals: only days can be cut to a calendar window exactly.
@@ -91,6 +127,7 @@ export default function DashboardPage() {
   const [range, setRange] = useState<Range>("quarter");
   const [gran, setGran] = useState<Granularity>("week");
   const [search, setSearch] = useState("");
+  const [show, setShow] = useState<Show>("all");
   const aggregateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setRange(loadRange("quarter")), []);
@@ -100,20 +137,15 @@ export default function DashboardPage() {
   };
 
   const loadMarketing = useCallback(async () => {
-    const [s, f, w, b, a, sy, d] = await Promise.allSettled([
+    const [s, f, w, b, d] = await Promise.allSettled([
       fetchStats(),
       fetchFunnel(),
       fetchTimeseries("week"),
       fetchBookings(),
-      fetchApplicationStats(),
-      fetchSyncStatus(),
       fetchTimeseries("day"),
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (f.status === "fulfilled") setFunnelAll(f.value);
-    // Applications live in a newer backend; absence just hides that band.
-    if (a.status === "fulfilled") setApps(a.value);
-    if (sy.status === "fulfilled") setSync(sy.value);
     if (w.status === "fulfilled") setWeekly(w.value);
     else setMktError((w.reason as Error)?.message || "Could not load marketing data");
     if (d.status === "fulfilled") setDaily(d.value);
@@ -129,12 +161,6 @@ export default function DashboardPage() {
     loadMarketing();
   }, [loadMarketing]);
 
-  useEffect(() => {
-    fetchSalesTimeseries(salesGran)
-      .then(setSalesSeries)
-      .catch(() => setSalesSeries([]));
-  }, [salesGran]);
-
   // Monthly series is only fetched when the chart is switched to months.
   useEffect(() => {
     if (gran !== "month" || monthly.length > 0) return;
@@ -143,7 +169,7 @@ export default function DashboardPage() {
       .catch(() => setMonthly([]));
   }, [gran, monthly.length]);
 
-  // Search re-queries the table only; the aggregates keep using the full set.
+  // Search re-queries the list only; the figures keep using the full set.
   useEffect(() => {
     const t = setTimeout(() => {
       if (!search) {
@@ -172,12 +198,22 @@ export default function DashboardPage() {
 
   /* ── Derived ────────────────────────────────────────────────── */
 
-  // The list is scoped to the same window as the tiles sitting above it. Search is
-  // the exception: it is a request for a specific booking, not for a slice of one.
-  const visibleRows = useMemo(
+  // The list is scoped to the same window as the figures above it. Search is the
+  // exception: it is a request for a specific booking, not for a slice of them.
+  const inRange = useMemo(
     () => (search ? tableRows : bookingsInRange(tableRows, range)),
     [tableRows, range, search]
   );
+  const counts = useMemo(
+    () => ({
+      all: inRange.length,
+      attribution: inRange.filter(needsAttribution).length,
+      followup: inRange.filter(heldNoLoe).length,
+      upcoming: inRange.filter(upcoming).length,
+    }),
+    [inRange]
+  );
+  const visibleRows = useMemo(() => inRange.filter(FILTER[show]), [inRange, show]);
 
   const totals = useMemo(() => totalsFor(daily, range), [daily, range]);
   const prior = useMemo(() => priorTotalsFor(daily, range), [daily, range]);
@@ -196,7 +232,7 @@ export default function DashboardPage() {
   // Re-run once the data lands, not just on mount — otherwise the counters
   // finish rolling against zeroes and the numbers appear with no animation.
   const roll = useRoll(mktLoading ? "loading" : `${range}-${daily.length}`);
-  const upcoming = Math.max(0, totals.booked - totals.resolved);
+  const upcomingCount = Math.max(0, totals.booked - totals.resolved);
   const loeRate = totals.held ? Math.round((totals.loes / totals.held) * 100) : 0;
   const bookingDelta = totals.booked - prior.booked;
   const rangeTag = RANGE_WORD[range];
@@ -240,7 +276,6 @@ export default function DashboardPage() {
     },
   ];
 
-
   const applyBookingChange = (id: number, patch: Partial<BookingRow>) => {
     const merge = (rows: BookingRow[]) =>
       rows.map((r) => (r.id === id ? { ...r, ...patch } : r));
@@ -249,17 +284,18 @@ export default function DashboardPage() {
   };
 
   /**
-   * Ticking Held or LOE on a row changes what the tiles above it say, but those
+   * Ticking Held or LOE on a row changes what the figures above it say, but those
    * come from the aggregate endpoints rather than from these rows — so without
    * re-reading them the two halves of the same view disagree until a full reload.
    *
    * Debounced because working down a column of checkboxes is the normal way to
-   * use this table, and each tick would otherwise fire its own round trip.
+   * use this list, and each tick would otherwise fire its own round trip.
    */
   const refreshAggregates = useCallback(() => {
     if (aggregateTimer.current) clearTimeout(aggregateTimer.current);
     aggregateTimer.current = setTimeout(() => {
       fetchTimeseries("week").then(setWeekly).catch(() => {});
+      fetchTimeseries("day").then(setDaily).catch(() => {});
       fetchStats().then(setStats).catch(() => {});
       fetchFunnel().then(setFunnelAll).catch(() => {});
       // Only refreshed if it has already been loaded — switching to months fetches it.
@@ -286,10 +322,12 @@ export default function DashboardPage() {
           flexWrap: "wrap",
         }}
       >
-        <PageHeading hero eyebrow={`Company Report · ${todayLine()}`}>
-          The business, <em>up front.</em>
+        <PageHeading description="Every consultation booked through Calendly, where it came from, and what it turned into. Tracked since February 2026.">
+          Marketing
         </PageHeading>
+        {/* One range for the whole page, so it sits with the title rather than a section. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <SegPill options={RANGES} value={range} onChange={changeRange} size="sm" label="Date range" />
           <Button variant="secondary" size="sm" icon={RefreshCw} onClick={handleRefresh} busy={refreshing} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh data"}
           </Button>
@@ -302,33 +340,12 @@ export default function DashboardPage() {
             Marketing data unavailable
           </Eyebrow>
           <div style={{ fontSize: 14, lineHeight: "20px", color: "var(--sec)" }}>
-            {mktError}. The Sales Toolbox backend may be unreachable — the rest of the toolbox is
-            unaffected.
+            {mktError}. The Sales Toolbox backend may be unreachable. The rest of the toolbox is unaffected.
           </div>
         </Card>
       )}
 
-      {/* Sales — organisations won, contract value, grant applications */}
-      {stats && (
-        <SalesBand
-          stats={stats}
-          apps={apps}
-          series={salesSeries}
-          gran={salesGran}
-          onGranChange={setSalesGran}
-          sync={sync}
-        />
-      )}
-
-      {/* The range selector scopes the marketing figures only — the Salesforce
-          band above is all-time — so it belongs to this section, not the page. */}
-      <SectionHeader
-        title="Marketing"
-        meta="What feeds the pipeline · tracked since February 2026"
-        actions={<SegPill options={RANGES} value={range} onChange={changeRange} size="sm" label="Marketing range" />}
-        style={{ margin: "32px 0 12px" }}
-      />
-      {/* Primary, range-scoped KPIs */}
+      {/* Primary, range-scoped figures */}
       <div
         style={{
           display: "grid",
@@ -384,7 +401,9 @@ export default function DashboardPage() {
               {
                 label: "LOE value won",
                 value: fmtMoney(stats.total_fees_won),
-                note: "All signed letters",
+                // The fees on booked calls that became clients, not every letter
+                // ever signed: the backend sums them from bookings.
+                note: "All time, from booked calls",
                 accent: true,
               },
             ].map((s) => (
@@ -459,14 +478,30 @@ export default function DashboardPage() {
 
       {/* Raw bookings first — the source rows people check before the roll-ups */}
       <BookingsTable
+        title={LIST_TITLE[show]}
         rows={visibleRows}
         loading={mktLoading}
         search={search}
-        rangeTag={RANGE_WORD[range]}
-        hidden={search ? 0 : tableRows.length - visibleRows.length}
+        rangeTag={rangeTag}
+        hidden={search ? 0 : tableRows.length - inRange.length}
         onSearch={setSearch}
         onChanged={applyBookingChange}
         onSaved={refreshAggregates}
+        emptyText={EMPTY[show] || undefined}
+        maxHeight="min(70vh, 760px)"
+        toolbar={
+          <ChipRow<Show>
+            label="Show"
+            value={show}
+            onChange={setShow}
+            options={[
+              { key: "all", label: `All · ${counts.all}` },
+              { key: "attribution", label: `Needs attribution · ${counts.attribution}` },
+              { key: "followup", label: `Held, no LOE yet · ${counts.followup}` },
+              { key: "upcoming", label: `Upcoming · ${counts.upcoming}` },
+            ]}
+          />
+        }
       />
 
       {/* Funnel + channels */}
@@ -479,7 +514,7 @@ export default function DashboardPage() {
         }}
       >
         <Card>
-          <SectionHeader title="Funnel" meta={sentenceWord(RANGE_WORD[range])} style={{ marginBottom: 20 }} />
+          <SectionHeader title="Funnel" meta={sentenceWord(rangeTag)} style={{ marginBottom: 20 }} />
           {totals.booked === 0 ? (
             <Note>{mktLoading ? "Loading…" : "No bookings in this range."}</Note>
           ) : (
@@ -494,7 +529,7 @@ export default function DashboardPage() {
                   // The funnel measures every stage against Booked, so this share
                   // counts meetings still to come as not-yet-held. Saying how many
                   // stops it reading as a drop-off it is not.
-                  foot: upcoming ? `${upcoming} still to come` : "",
+                  foot: upcomingCount ? `${upcomingCount} still to come` : "",
                 },
                 {
                   rn: "iii.",
@@ -574,7 +609,7 @@ export default function DashboardPage() {
         <Card>
           <SectionHeader
             title="Bookings by channel"
-            meta={sentenceWord(RANGE_WORD[range])}
+            meta={sentenceWord(rangeTag)}
             style={{ marginBottom: bookingsTruncated ? 6 : 20 }}
           />
           {bookingsTruncated && (
@@ -627,8 +662,7 @@ export default function DashboardPage() {
       </div>
 
       {/* By campaign & source */}
-      <CampaignTable rows={campaigns} rangeWord={RANGE_WORD[range]} loading={mktLoading} />
-
+      <CampaignTable rows={campaigns} rangeWord={rangeTag} loading={mktLoading} />
     </Page>
   );
 }
