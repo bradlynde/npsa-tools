@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Card, Eyebrow, Note, SegPill, Tag, PageHeading } from "../ui";
+import { ArrowLeft } from "lucide-react";
+import { Card, Eyebrow, Note, SegPill, Tag, PageHeading, Skeleton } from "../ui";
 import { jurisdiction } from "../../lib/states";
 import { gkGet, gkSend, fmtDay, fmtTime, countdown, type AttentionFull, type AttentionItem } from "./api";
 
@@ -46,15 +47,15 @@ export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recor
   }
 
   if (err && !data) return <Note>{err}</Note>;
-  if (!data) return <div style={{ color: "var(--mute)", fontSize: 14, padding: "60px 0" }}>Loading the queue…</div>;
+  if (!data) return <Skeleton rows={5} style={{ padding: "24px 0" }} />;
   const c = data.counts;
 
   return (
     <div>
-      <button onClick={onBack} className="mono" style={{ ...btn, letterSpacing: ".06em", color: "var(--mute)", marginBottom: 18 }}>← all states</button>
+      <button onClick={onBack} className="btn btn-quiet btn-sm" style={{ marginBottom: 16, marginLeft: -10 }}><ArrowLeft size={15} strokeWidth={1.75} aria-hidden /> All states</button>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-        <PageHeading eyebrow="grant knowledge · what needs a person">Nothing is true <em>until someone checks.</em></PageHeading>
-        <SegPill<Tab> size="sm" value={tab} onChange={setTab} options={[
+        <PageHeading eyebrow="Grant Knowledge" description="Facts nobody has checked yet, checks that have gone stale, coming deadlines, open questions and gaps.">Review queue</PageHeading>
+        <SegPill<Tab> size="sm" label="Show" value={tab} onChange={setTab} options={[
           { key: "unverified", label: `Unverified ${c.unverified}` }, { key: "stale", label: `Stale ${c.stale}` }, { key: "deadlines", label: `Deadlines ${c.deadlines_soon}` },
           { key: "questions", label: `Questions ${c.open_questions}` }, { key: "gaps", label: `Gaps ${c.missing}` },
         ]} />
@@ -68,18 +69,18 @@ export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recor
             <Card key={code} style={{ marginBottom: 14, padding: "16px 22px" }}>
               <div style={{ display: "flex", gap: 12, alignItems: "baseline", marginBottom: 6, flexWrap: "wrap" }}>
                 <button onClick={() => onOpen(code)} className="serif" style={{ ...btn, fontSize: 20, color: "var(--ink)" }}>{jurisdiction(code)?.name}</button>
-                <span className="mono" style={{ fontSize: 11.5, color: "var(--mute)" }}>{items.length} to confirm</span>
-                <button onClick={() => verify(code, items)} disabled={busy === code} className="mono" style={{ ...btn, color: "var(--ok-fg)", marginLeft: "auto" }}>{busy === code ? "verifying…" : `verify all ${items.length}…`}</button>
+                <span style={{ fontSize: 13, color: "var(--mute)" }}>{items.length} to confirm</span>
+                <button onClick={() => verify(code, items)} disabled={busy === code} className="btn btn-secondary btn-sm" style={{ marginLeft: "auto" }}>{busy === code ? "Verifying…" : `Verify all ${items.length}`}</button>
               </div>
               {items.map((r) => (
-                <div key={r.record_id} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "8px 0", borderTop: "1px solid var(--hair2)", fontSize: 13.5, flexWrap: "wrap" }}>
+                <div key={r.record_id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid var(--hair2)", fontSize: 14, flexWrap: "wrap" }}>
                   <Tag>{r.kind}</Tag>
-                  <button onClick={() => onOpen(code, r.record_id)} style={{ ...btn, fontSize: 13.5, color: "var(--ink)", textAlign: "left", flex: "1 1 260px" }}>{r.title}</button>
-                  <span style={{ fontSize: 12, color: "var(--mute)" }}>
+                  <button onClick={() => onOpen(code, r.record_id)} style={{ ...btn, fontSize: 14, color: "var(--ink)", textAlign: "left", flex: "1 1 260px" }}>{r.title}</button>
+                  <span style={{ fontSize: 13, color: "var(--mute)" }}>
                     {tab === "stale" ? `verified ${fmtDay(r.verified_at || null)}` : r.fields?.length ? `changed since verified: ${r.fields.join(", ")}` : `${ORIGIN[r.origin] || r.origin}${r.updated_by && !r.updated_by.startsWith("import:") ? ` · ${r.updated_by}` : ""}`}
                   </span>
-                  {r.source_url && <a href={r.source_url} target="_blank" rel="noopener noreferrer" className="mono" style={{ fontSize: 11.5, color: "var(--navy)" }}>source</a>}
-                  <button onClick={() => verify(code, [r])} className="mono" style={{ ...btn, color: "var(--ok-fg)" }}>verify</button>
+                  {r.source_url && <a href={r.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 500, color: "var(--navy)" }}>Source</a>}
+                  <button onClick={() => verify(code, [r])} className="btn btn-quiet btn-sm" style={{ color: "var(--ok-fg)" }}>Verify</button>
                 </div>
               ))}
             </Card>
@@ -89,11 +90,11 @@ export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recor
 
       {tab === "deadlines" && (
         <Card>
-          <Eyebrow style={{ marginBottom: 8 }}>deadlines in the next 60 days</Eyebrow>
+          <Eyebrow style={{ marginBottom: 8 }}>Deadlines in the next 60 days</Eyebrow>
           {!data.deadlines_soon.length && <div style={{ fontSize: 14, color: "var(--sec)" }}>None on record. Out of season, that is normal; in season, it means dates have not been entered.</div>}
           {data.deadlines_soon.map((d) => (
-            <button key={d.record_id} onClick={() => onOpen(d.jurisdiction, d.record_id)} style={{ ...btn, display: "flex", gap: 12, width: "100%", padding: "9px 0", borderTop: "1px solid var(--hair2)", fontSize: 13.5, textAlign: "left", alignItems: "baseline" }}>
-              <span className="mono" style={{ color: "var(--olive)", width: 26 }}>{d.jurisdiction}</span>
+            <button key={d.record_id} onClick={() => onOpen(d.jurisdiction, d.record_id)} style={{ ...btn, display: "flex", gap: 12, width: "100%", padding: "9px 0", borderTop: "1px solid var(--hair2)", fontSize: 14, textAlign: "left", alignItems: "baseline" }}>
+              <span className="mono" style={{ color: "var(--olive-ink)", width: 26, fontSize: 12 }}>{d.jurisdiction}</span>
               <span style={{ flex: 1, color: "var(--ink)" }}>{d.program} · {d.label}{d.status !== "verified" ? " · unverified" : ""}</span>
               <span style={{ color: d.days_away <= 14 ? "var(--err-fg)" : "var(--sec)" }}>{fmtDay(d.due_date)}{d.due_time ? `, ${fmtTime(d.due_time, d.tz)}` : ""} · {countdown(d.days_away)}</span>
             </button>
@@ -103,11 +104,11 @@ export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recor
 
       {tab === "questions" && (
         <Card>
-          <Eyebrow style={{ marginBottom: 8 }}>open questions</Eyebrow>
+          <Eyebrow style={{ marginBottom: 8 }}>Open questions</Eyebrow>
           {!data.open_questions.length && <div style={{ fontSize: 14, color: "var(--sec)" }}>No open questions.</div>}
           {data.open_questions.map((q) => (
-            <button key={q.record_id} onClick={() => onOpen(q.jurisdiction, q.record_id)} style={{ ...btn, display: "flex", gap: 12, width: "100%", padding: "9px 0", borderTop: "1px solid var(--hair2)", fontSize: 13.5, textAlign: "left" }}>
-              <span className="mono" style={{ color: "var(--warn-fg)", width: 26 }}>{q.jurisdiction}</span><span style={{ color: "var(--ink)" }}>{q.title}</span>
+            <button key={q.record_id} onClick={() => onOpen(q.jurisdiction, q.record_id)} style={{ ...btn, display: "flex", gap: 12, width: "100%", padding: "9px 0", borderTop: "1px solid var(--hair2)", fontSize: 14, textAlign: "left" }}>
+              <span className="mono" style={{ color: "var(--warn-fg)", width: 26, fontSize: 12 }}>{q.jurisdiction}</span><span style={{ color: "var(--ink)" }}>{q.title}</span>
             </button>
           ))}
         </Card>
@@ -115,11 +116,11 @@ export default function Queue({ onOpen, onBack }: { onOpen: (code: string, recor
 
       {tab === "gaps" && (
         <Card>
-          <Eyebrow style={{ marginBottom: 8 }}>holes worth filling</Eyebrow>
+          <Eyebrow style={{ marginBottom: 8 }}>Gaps worth filling</Eyebrow>
           {!data.missing.length && <div style={{ fontSize: 14, color: "var(--sec)" }}>No gaps found.</div>}
           {data.missing.map((m, i) => (
-            <button key={i} onClick={() => onOpen(m.jurisdiction, m.record_id)} style={{ ...btn, display: "flex", gap: 12, width: "100%", padding: "9px 0", borderTop: "1px solid var(--hair2)", fontSize: 13.5, textAlign: "left" }}>
-              <span className="mono" style={{ color: "var(--mute)", width: 26 }}>{m.jurisdiction}</span><span style={{ color: "var(--ink)" }}>{m.what}</span>
+            <button key={i} onClick={() => onOpen(m.jurisdiction, m.record_id)} style={{ ...btn, display: "flex", gap: 12, width: "100%", padding: "9px 0", borderTop: "1px solid var(--hair2)", fontSize: 14, textAlign: "left" }}>
+              <span className="mono" style={{ color: "var(--mute)", width: 26, fontSize: 12 }}>{m.jurisdiction}</span><span style={{ color: "var(--ink)" }}>{m.what}</span>
             </button>
           ))}
         </Card>

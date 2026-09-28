@@ -20,11 +20,12 @@ export default function ToolFrame({
   view,
   title,
   back = "/toolbox",
-  height = "calc(100dvh - 73px)",
+  height,
 }: {
   view?: string | null;
   title: string;
   back?: string;
+  /** Defaults to the rest of the viewport (see .tool-frame in globals.css). */
   height?: string;
 }) {
   const router = useRouter();
@@ -69,8 +70,9 @@ export default function ToolFrame({
    * a bright rectangle under a dark top bar.
    *
    * Sent on load and again whenever the class on <body> changes, which is what
-   * the toggle in TopBar actually does. A MutationObserver rather than a shared
-   * store because the toggle owns that class and nothing else needs to know.
+   * the theme menu (lib/theme.ts) actually does, including when "Match system"
+   * follows the computer into dark mode. A MutationObserver rather than a shared
+   * store because the theme code owns that class and nothing else needs to know.
    */
   useEffect(() => {
     const post = () => {
@@ -97,6 +99,7 @@ export default function ToolFrame({
         );
         postAuth();
       }}
+      className="tool-frame"
       style={{ width: "100%", height, border: "none", display: "block" }}
       title={title}
     />

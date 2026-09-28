@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Newsreader, IBM_Plex_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Newsreader, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import AppShell from "../components/AppShell";
 
@@ -14,6 +14,14 @@ const newsreader = Newsreader({
   adjustFontFallback: false,
 });
 
+const plexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
 const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
@@ -22,12 +30,26 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NPSA Tools",
-  description: "Nonprofit Security Advisors — Tools Dashboard",
+  title: { default: "NPSA Tools", template: "%s · NPSA Tools" },
+  description: "Nonprofit Security Advisors — internal tools",
+  applicationName: "NPSA Tools",
+  appleWebApp: { title: "NPSA Tools" },
 };
 
-// Applies the saved theme before first paint so dark mode never flashes white.
-const THEME_SCRIPT = `(function(){try{if(localStorage.getItem('npsa-theme')==='dark'){document.body.classList.add('dark')}}catch(e){}})()`;
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf8f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a1824" },
+  ],
+};
+
+// Applies the theme and the sidebar state before first paint, so dark mode never
+// flashes white and the sidebar never jumps. Mirrors lib/theme.ts: no saved
+// theme means "match the system", and no saved sidebar state means collapsed on
+// screens 1100px and narrower.
+const PRE_PAINT = `(function(){try{var t=localStorage.getItem('npsa-theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.body.classList.add('dark');}catch(e){}try{var s=localStorage.getItem('npsa-sidebar');if(s!=='collapsed'&&s!=='expanded')s=window.matchMedia('(max-width: 1100px)').matches?'collapsed':'expanded';document.documentElement.setAttribute('data-sidebar',s);}catch(e){}})()`;
 
 export default function RootLayout({
   children,
@@ -35,20 +57,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${newsreader.variable} ${plexMono.variable}`}>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body
-        style={
-          {
-            // --font-sans is the third type role; the other two come from next/font.
-            "--font-sans":
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif',
-          } as React.CSSProperties
-        }
-      >
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+    <html
+      lang="en"
+      className={`${newsreader.variable} ${plexSans.variable} ${plexMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: PRE_PAINT }} />
         <AppShell>{children}</AppShell>
       </body>
     </html>

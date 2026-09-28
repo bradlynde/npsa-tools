@@ -17,9 +17,9 @@ in this Next.js app.
 | Live element | Where it is now |
 |---|---|
 | Salesforce sync status line | Sales band, above the cards (hidden if the backend has no `sync/status`) |
-| Organizations won + contracts signed | Sales band, olive hero |
-| Contract value | Sales band, navy |
-| Grant applications (preparing / submitted) | Sales band, navy |
+| Organizations won + contracts signed | Sales band, key-figure card |
+| Contract value | Sales band, key-figure card (figure in olive) |
+| Grant applications (preparing / submitted) | Sales band, key-figure card |
 | Awarded to clients | Grant dollars row |
 | Pending award | Grant dollars row |
 | Acceptance rate + % of ask funded | Grant dollars row |
@@ -33,14 +33,14 @@ in this Next.js app.
 
 | Live element | Where it is now | Notes |
 |---|---|---|
-| "Refresh data" (POST `/api/marketing/enrich`) | `↻ refresh data` in the page header | Re-fetches everything on success |
+| "Refresh data" (POST `/api/marketing/enrich`) | "Refresh data" button in the page header | Re-fetches everything on success |
 | Title + subtitle | Eyebrow + "The business, up front." | |
-| "Funnel tracked since Feb 2026" badge | Under the *marketing* heading, not the page headline | Applies to the funnel, not the Salesforce figures above it |
+| "Funnel tracked since Feb 2026" badge | In the *Marketing* section's subtitle, not the page headline | Applies to the funnel, not the Salesforce figures above it |
 | KPI — bookings this week | Pulse strip | Fixed window; doesn't move with the range chips |
 | KPI — bookings this month (+ MoM) | Pulse strip | Shows `+N vs last month` |
 | KPI — LOE sent (`client_rate`, % of bookings) | Funnel row *LOE sent* (`% of booked`) | Same measure; the KPI tile shows the range-scoped count |
 | KPI — from Instantly (`instantly_pct`) | Pulse strip | |
-| KPI — LOE value (`total_fees_won`) | Pulse strip, olive | |
+| KPI — LOE value (`total_fees_won`) | Pulse strip, figure in olive | |
 | Salesforce — total won revenue + win count | Sales band, *contract value* card | Was duplicated in a second band; the two showed the same figure |
 | Salesforce — untracked / pre-funnel + deal count + list | Disclosure inside *contract value* | "$X closed before the funnel · show N deals" |
 | ~~Attribution coverage meter~~ | Removed | Dropped at Stuart's request — a comparable funnel predates the round-robin, so the figure misleads |
@@ -59,7 +59,7 @@ in this Next.js app.
 | Bookings — org/name, channel, campaign, meeting date | Bookings table | |
 | Bookings — Held and LOE checkboxes (PATCH) | Bookings table | Optimistic, rolls back on failure |
 | Bookings — who took the meeting | Bookings table, under the meeting date | Email local-part, title-cased |
-| Bookings — exclusion reason (unqualified / double booking / cancelled) | Bookings table, "COUNTS?" column | Quiet until hovered or set; excluded rows read as set aside |
+| Bookings — exclusion reason (unqualified / double booking / cancelled) | Bookings table, "Counts?" column | Quiet until hovered or set; excluded rows read as set aside |
 | Bookings — Calendly cancellation | Bookings table | Stated as a badge, not offered as a choice |
 | "Excluded from these figures: N cancelled · N double booking (N this week)" | Under the *marketing* heading, with the figures it qualifies | |
 
@@ -77,15 +77,15 @@ the Scraper tab owns that.
 
 | Live element | Where it is now |
 |---|---|
-| Generate New Letter | Card **i** |
-| Load Previous Letter | Card **ii** |
+| Generate New Letter | "Generate a new letter" (the navy card) |
+| Load Previous Letter | "Open a saved letter" |
 | Total Letters Generated | KPI tile |
-| Total Fees Generated | KPI tile (olive) |
+| Total Fees Generated | KPI tile, "Fees in saved letters" (figure in olive) |
 | Rep Leaderboard | Leaderboard card — every rep, no truncation |
-| New Proposal | Card **iii** |
-| New Addendum | Card **iv** |
-| Pre-Call Notes Generator (Beta) | Card **v** |
-| Settings → Sales Reps (gear icon) | Card **vi**, "Manage Sales Reps" |
+| New Proposal | "New proposal" |
+| New Addendum | "New addendum" |
+| Pre-Call Notes Generator (Beta) | "Pre-call notes" |
+| Settings → Sales Reps (gear icon) | "Sales reps", under Settings |
 
 The cards deep-link with `?view=…`, which `/loe` forwards to the Sales Toolbox
 iframe. Each one opens its tool directly:

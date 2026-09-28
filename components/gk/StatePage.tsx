@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Card, Eyebrow, SegPill, ChipRow, Tag, Note, PillButton } from "../ui";
 import RecordEditor, { EditContext, RecActions, AddButton, useEdit, type EditTarget } from "./RecordEditor";
 import { useMedia } from "../../lib/useMedia";
@@ -337,7 +338,7 @@ function ProgramCard({ p }: { p: Program }) {
       {(d.notes_md || d.eligible_costs) && (
         <Fold tight title="Program notes">
           {d.notes_md && <Markdown>{d.notes_md}</Markdown>}
-          {d.eligible_costs && <><Eyebrow style={{ margin: "10px 0 6px" }}>eligible costs</Eyebrow><Markdown>{d.eligible_costs}</Markdown></>}
+          {d.eligible_costs && <><Eyebrow style={{ margin: "10px 0 6px" }}>Eligible costs</Eyebrow><Markdown>{d.eligible_costs}</Markdown></>}
         </Fold>
       )}
       {p.contacts.length > 0 && <Fold tight title="Program contacts" meta={`${p.contacts.length}`}><Panel>{p.contacts.map((c) => <ContactLine key={c.id} c={c} />)}</Panel></Fold>}
@@ -451,7 +452,7 @@ function History({ code, onChanged }: { code: string; onChanged: () => void }) {
   return (
     <Card>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-        <Eyebrow>every change, newest first</Eyebrow>
+        <Eyebrow>Every change, newest first</Eyebrow>
         {importCount > 0 && <button onClick={() => setImports(!imports)} style={linkBtn}>{imports ? "hide" : "show"} the {importCount} import rows</button>}
       </div>
       {err && <div role="alert" style={{ color: "var(--err-fg)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
@@ -560,7 +561,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
       <BackLink onBack={onBack} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 18, flexWrap: "wrap", marginBottom: 20 }}>
         <div style={{ minWidth: 0 }}>
-          <Eyebrow color="var(--olive)" style={{ marginBottom: 8 }}>{doc.jurisdiction_kind} · {doc.code}{j.saa_short ? ` · ${String(j.saa_short).toLowerCase()}` : ""}</Eyebrow>
+          <Eyebrow color="var(--olive)" style={{ marginBottom: 8 }}>{String(doc.jurisdiction_kind).charAt(0).toUpperCase() + String(doc.jurisdiction_kind).slice(1)} · {doc.code}{j.saa_short ? ` · ${String(j.saa_short)}` : ""}</Eyebrow>
           <h1 className="headline" style={{ margin: 0 }}>{doc.name}</h1>
           {j.saa && <div style={{ fontSize: 15, color: "var(--sec)", marginTop: 8 }}>{j.saa}{doc.jurisdiction && <> <Trust rec={doc.jurisdiction} quiet /><RecActions rec={doc.jurisdiction} /></>}</div>}
         </div>
@@ -636,7 +637,7 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
             <>
               {(j.summary_md || j.partner || j.cycle_timing_note) && (
                 <Card style={{ marginBottom: 16 }}>
-                  <Eyebrow style={{ marginBottom: 8 }}>in short</Eyebrow>
+                  <Eyebrow style={{ marginBottom: 8 }}>In short</Eyebrow>
                   {j.summary_md && <Markdown>{j.summary_md}</Markdown>}
                   {j.cycle_timing_note && <Markdown>{j.cycle_timing_note}</Markdown>}
                   {j.partner && <div style={{ fontSize: 13, color: "var(--sec)" }}><b>Partner:</b> {j.partner}</div>}
@@ -673,5 +674,5 @@ export default function StatePage({ code, onBack }: { code: string; onBack: () =
 }
 
 function BackLink({ onBack }: { onBack: () => void }) {
-  return <button onClick={onBack} className="mono" style={{ ...linkBtn, fontSize: 12, letterSpacing: ".06em", color: "var(--mute)", marginBottom: 18 }}>← all states</button>;
+  return <button onClick={onBack} className="btn btn-quiet btn-sm" style={{ marginBottom: 16, marginLeft: -10 }}><ArrowLeft size={15} strokeWidth={1.75} aria-hidden /> All states</button>;
 }

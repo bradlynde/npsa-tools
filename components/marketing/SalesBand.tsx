@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   Card,
-  Eyebrow,
+  SectionHeader,
   SegPill,
   Note,
   useRoll,
@@ -32,9 +33,9 @@ const pct = (n: number) => `${Math.round((n || 0) * 100)}%`;
 type SalesMetric = "new_orgs" | "amount" | "contracts";
 
 const SALES_METRICS: { key: SalesMetric; label: string; title: string; money: boolean }[] = [
-  { key: "new_orgs", label: "New orgs", title: "new organizations won", money: false },
-  { key: "amount", label: "Contract $", title: "contract value", money: true },
-  { key: "contracts", label: "Contracts", title: "contracts signed", money: false },
+  { key: "new_orgs", label: "New orgs", title: "New organizations won", money: false },
+  { key: "amount", label: "Contract $", title: "Contract value", money: true },
+  { key: "contracts", label: "Contracts", title: "Contracts signed", money: false },
 ];
 
 const SALES_GRANS: { key: SalesGranularity; label: string }[] = [
@@ -133,12 +134,13 @@ function SyncLine({ status }: { status: SyncStatus | null }) {
         alignItems: "center",
         gap: 8,
         margin: "0 0 14px",
-        fontSize: 12.5,
-        color: tone,
+        fontSize: 13,
+        lineHeight: "18px",
+        color: tone === "var(--err-fg)" ? tone : "var(--sec)",
       }}
     >
       <span
-        style={{ width: 7, height: 7, borderRadius: "50%", background: tone, flexShrink: 0 }}
+        style={{ width: 8, height: 8, borderRadius: "50%", background: tone === "var(--ok-fg)" ? "var(--olive)" : tone, flexShrink: 0 }}
         aria-hidden="true"
       />
       <span>
@@ -181,15 +183,16 @@ function UncountedLine({ stats }: { stats: Stats }) {
         alignItems: "center",
         gap: 8,
         margin: "-6px 0 14px",
-        fontSize: 12.5,
+        fontSize: 13,
+        lineHeight: "18px",
         color: "var(--warn-fg)",
         cursor: "help",
       }}
     >
       <span
         style={{
-          width: 7,
-          height: 7,
+          width: 8,
+          height: 8,
           borderRadius: "50%",
           background: "var(--warn-fg)",
           flexShrink: 0,
@@ -202,6 +205,32 @@ function UncountedLine({ stats }: { stats: Stats }) {
         {n === 1 ? "record has" : "records have"} no Purpose set in Salesforce
       </span>
     </div>
+  );
+}
+
+/** One key figure: a label, the number, and a line of context. */
+function Figure({
+  label,
+  value,
+  note,
+  accent = false,
+  children,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  accent?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <Card style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
+      <div className="eyebrow">{label}</div>
+      <div className="kpi" style={{ fontSize: 34, lineHeight: "40px", color: accent ? "var(--olive)" : "var(--ink)" }}>
+        {value}
+      </div>
+      {note && <div style={{ fontSize: 13, lineHeight: "18px", color: "var(--sec)" }}>{note}</div>}
+      {children}
+    </Card>
   );
 }
 
@@ -273,7 +302,7 @@ export default function SalesBand({
 
   return (
     <>
-      <Eyebrow style={{ margin: "6px 0 10px" }}>sales · from salesforce</Eyebrow>
+      <SectionHeader title="Sales" meta="All time · from Salesforce" style={{ margin: "0 0 6px" }} />
       <SyncLine status={sync} />
       <UncountedLine stats={stats} />
 
@@ -281,128 +310,74 @@ export default function SalesBand({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+          gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
           gap: 14,
           marginBottom: 14,
         }}
       >
-        <div
-          className="lift-accent"
-          style={{ background: "var(--navycard)", borderRadius: 16, padding: "22px 24px" }}
-        >
-          <div className="kpi" style={{ color: "#fff", fontSize: 36 }}>
-            {/* Older backends don't return the distinct-org count. Falling back to
-                the contract count beats showing a confident zero. */}
-            {fmtInt((stats.won_org_count ?? stats.won_count_total ?? 0) * roll)}
-          </div>
-          <div
-            className="mono"
-            style={{
-              color: "rgba(255,255,255,.85)",
-              fontSize: 11.5,
-              marginTop: 10,
-              letterSpacing: ".07em",
-              fontWeight: 500,
-            }}
-          >
-            organizations won
-          </div>
-          <div style={{ color: "rgba(255,255,255,.75)", fontSize: 12.5, marginTop: 5 }}>
-            {stats.won_count_total} {stats.won_count_total === 1 ? "contract" : "contracts"} signed
-          </div>
-        </div>
+        <Figure
+          label="Organizations won"
+          // Older backends don't return the distinct-org count. Falling back to
+          // the contract count beats showing a confident zero.
+          value={fmtInt((stats.won_org_count ?? stats.won_count_total ?? 0) * roll)}
+          note={`${stats.won_count_total} ${stats.won_count_total === 1 ? "contract" : "contracts"} signed`}
+        />
 
         {/* Contract value carries the olive: it is the number people look for. */}
-        <div
-          className="lift-accent"
-          style={{ background: "var(--olive)", borderRadius: 16, padding: "22px 24px" }}
-        >
-          <div className="kpi" style={{ color: "#fff", fontSize: 36 }}>
-            {fmtMoney(stats.won_revenue_total * roll)}
-          </div>
-          <div
-            className="mono"
-            style={{
-              color: "rgba(255,255,255,.8)",
-              fontSize: 11.5,
-              marginTop: 10,
-              letterSpacing: ".07em",
-              fontWeight: 500,
-            }}
-          >
-            contract value
-          </div>
-          <div style={{ color: "rgba(255,255,255,.72)", fontSize: 12.5, marginTop: 5 }}>
-            NPSA revenue won
-          </div>
+        <Figure label="Contract value" value={fmtMoney(stats.won_revenue_total * roll)} note="NPSA revenue won" accent>
           {stats.untracked_count > 0 && (
             <button
               type="button"
               onClick={() => setShowUntracked((v) => !v)}
               aria-expanded={showUntracked}
               style={{
-                marginTop: 9,
+                marginTop: 2,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                alignSelf: "flex-start",
                 background: "none",
                 border: "none",
                 padding: 0,
-                font: "inherit",
-                fontSize: 12,
-                fontWeight: 700,
-                color: "rgba(255,255,255,.85)",
+                fontSize: 13,
+                lineHeight: "18px",
+                fontWeight: 500,
+                color: "var(--navy)",
                 cursor: "pointer",
                 textAlign: "left",
               }}
             >
-              {fmtMoney(stats.untracked_revenue)} closed before the funnel ·{" "}
-              {showUntracked ? "hide" : "show"} {stats.untracked_count}{" "}
-              {stats.untracked_count === 1 ? "deal" : "deals"} {showUntracked ? "▾" : "▸"}
+              {fmtMoney(stats.untracked_revenue)} closed before the funnel · {showUntracked ? "hide" : "show"}{" "}
+              {stats.untracked_count} {stats.untracked_count === 1 ? "deal" : "deals"}
+              {showUntracked ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
             </button>
           )}
-        </div>
+        </Figure>
 
         {apps && (
-          <div
-            className="lift-accent"
-            style={{ background: "var(--navycard)", borderRadius: 16, padding: "22px 24px" }}
-          >
-            <div className="kpi" style={{ color: "#fff", fontSize: 36 }}>
-              {fmtInt(apps.total * roll)}
-            </div>
-            <div
-              className="mono"
-              style={{
-                color: "rgba(255,255,255,.8)",
-                fontSize: 11.5,
-                marginTop: 10,
-                letterSpacing: ".07em",
-                fontWeight: 500,
-              }}
-            >
-              grant applications
-            </div>
-            <div style={{ color: "rgba(255,255,255,.72)", fontSize: 12.5, marginTop: 5 }}>
-              {apps.preparing_count} preparing · {apps.pending_count} submitted
-            </div>
-          </div>
+          <Figure
+            label="Grant applications"
+            value={fmtInt(apps.total * roll)}
+            note={`${apps.preparing_count} preparing · ${apps.pending_count} submitted`}
+          />
         )}
       </div>
 
       {showUntracked && (
-        <Card style={{ padding: "8px 6px", marginBottom: 14 }} className="fade-up">
+        <Card style={{ padding: "6px 8px", marginBottom: 14 }} className="fade-up">
           <div
-            className="mono"
             style={{
               display: "flex",
-              fontSize: 10.5,
+              fontSize: 12,
+              lineHeight: "16px",
               fontWeight: 600,
-              color: "var(--faint)",
-              letterSpacing: ".07em",
+              color: "var(--sec)",
               padding: "10px 16px",
             }}
           >
-            <div style={{ flex: 1 }}>CLOSED BEFORE THE FUNNEL</div>
-            <div style={{ width: 120, textAlign: "right" }}>CLOSED</div>
-            <div style={{ width: 110, textAlign: "right" }}>AMOUNT</div>
+            <div style={{ flex: 1 }}>Closed before the funnel</div>
+            <div style={{ width: 120, textAlign: "right" }}>Closed</div>
+            <div style={{ width: 110, textAlign: "right" }}>Amount</div>
           </div>
           <div style={{ maxHeight: 320, overflowY: "auto" }}>
             {loadingUntracked && <Note>Loading…</Note>}
@@ -415,10 +390,10 @@ export default function SalesBand({
                   alignItems: "center",
                   padding: "11px 16px",
                   borderTop: "1px solid var(--hair2)",
-                  fontSize: 13.5,
+                  fontSize: 14,
                 }}
               >
-                <div style={{ flex: 1, color: "var(--ink)", fontWeight: 600 }}>
+                <div style={{ flex: 1, color: "var(--ink)", fontWeight: 500 }}>
                   {u.organization || "—"}
                 </div>
                 <div
@@ -441,7 +416,7 @@ export default function SalesBand({
                   style={{
                     width: 110,
                     textAlign: "right",
-                    fontWeight: 700,
+                    fontWeight: 600,
                     color: "var(--ink)",
                     fontVariantNumeric: "tabular-nums",
                   }}
@@ -459,57 +434,29 @@ export default function SalesBand({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))",
+            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
             gap: 14,
             marginBottom: 14,
           }}
         >
-          <Card hover style={{ padding: "20px 22px" }}>
-            <div
-              className="mono"
-              style={{ fontWeight: 500, fontSize: 11.5, letterSpacing: ".07em", color: "var(--mute)" }}
-            >
-              awarded to clients
-            </div>
-            <div className="kpi" style={{ fontSize: 30, marginTop: 8, color: "var(--olive)" }}>
-              {fmtMoney(apps.awarded_amount * roll)}
-            </div>
-            <div style={{ fontSize: 12.5, color: "var(--mute)", marginTop: 6 }}>
-              {apps.awarded_count} accepted{" "}
-              {apps.awarded_count === 1 ? "application" : "applications"}
-            </div>
-          </Card>
-
-          <Card hover style={{ padding: "20px 22px" }}>
-            <div
-              className="mono"
-              style={{ fontWeight: 500, fontSize: 11.5, letterSpacing: ".07em", color: "var(--mute)" }}
-            >
-              pending award
-            </div>
-            <div className="kpi" style={{ fontSize: 30, marginTop: 8, color: "var(--ink)" }}>
-              {fmtMoney(apps.pending_amount * roll)}
-            </div>
-            <div style={{ fontSize: 12.5, color: "var(--mute)", marginTop: 6 }}>
-              {apps.pending_count} submitted, awaiting notification
-            </div>
-          </Card>
-
-          <Card hover style={{ padding: "20px 22px" }}>
-            <div
-              className="mono"
-              style={{ fontWeight: 500, fontSize: 11.5, letterSpacing: ".07em", color: "var(--mute)" }}
-            >
-              acceptance rate
-            </div>
-            <div className="kpi" style={{ fontSize: 30, marginTop: 8, color: "var(--ink)" }}>
-              {pct(apps.acceptance_rate * roll)}
-            </div>
-            <div style={{ fontSize: 12.5, color: "var(--mute)", marginTop: 6 }}>
-              {apps.awarded_count} of {apps.awarded_count + apps.denied_count} decided
-              {apps.award_fill_rate > 0 ? ` · ${pct(apps.award_fill_rate)} of ask funded` : ""}
-            </div>
-          </Card>
+          <Figure
+            label="Awarded to clients"
+            value={fmtMoney(apps.awarded_amount * roll)}
+            note={`${apps.awarded_count} accepted ${apps.awarded_count === 1 ? "application" : "applications"}`}
+            accent
+          />
+          <Figure
+            label="Pending award"
+            value={fmtMoney(apps.pending_amount * roll)}
+            note={`${apps.pending_count} submitted, awaiting notification`}
+          />
+          <Figure
+            label="Acceptance rate"
+            value={pct(apps.acceptance_rate * roll)}
+            note={`${apps.awarded_count} of ${apps.awarded_count + apps.denied_count} decided${
+              apps.award_fill_rate > 0 ? ` · ${pct(apps.award_fill_rate)} of ask funded` : ""
+            }`}
+          />
         </div>
       )}
 
@@ -521,37 +468,39 @@ export default function SalesBand({
             onClick={() => setShowPrograms((v) => !v)}
             aria-expanded={showPrograms}
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
               background: "none",
               border: "none",
-              padding: 0,
+              padding: "4px 0",
               color: "var(--navy)",
-              fontSize: 12.5,
-              fontWeight: 700,
+              fontSize: 13,
+              lineHeight: "18px",
+              fontWeight: 500,
               cursor: "pointer",
-              font: "inherit",
-              marginBottom: showPrograms ? 10 : 0,
+              marginBottom: showPrograms ? 8 : 0,
             }}
           >
-            {showPrograms ? "Hide" : "Show"} breakdown by grant program{" "}
-            {showPrograms ? "▾" : "▸"}
+            {showPrograms ? "Hide" : "Show"} breakdown by grant program
+            {showPrograms ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
           </button>
           {showPrograms && (
-            <Card style={{ padding: "8px 6px" }} className="fade-up">
+            <Card style={{ padding: "6px 8px" }} className="fade-up">
               <div
-                className="mono"
                 style={{
                   display: "flex",
-                  fontSize: 10.5,
+                  fontSize: 12,
+                  lineHeight: "16px",
                   fontWeight: 600,
-                  color: "var(--faint)",
-                  letterSpacing: ".07em",
+                  color: "var(--sec)",
                   padding: "10px 16px",
                 }}
               >
-                <div style={{ flex: 2 }}>PROGRAM</div>
-                <div style={{ flex: 1, textAlign: "right" }}>APPS</div>
-                <div style={{ flex: 1, textAlign: "right" }}>AWARDED</div>
-                <div style={{ flex: 1, textAlign: "right" }}>PENDING</div>
+                <div style={{ flex: 2 }}>Program</div>
+                <div style={{ flex: 1, textAlign: "right" }}>Applications</div>
+                <div style={{ flex: 1, textAlign: "right" }}>Awarded</div>
+                <div style={{ flex: 1, textAlign: "right" }}>Pending</div>
               </div>
               <div style={{ maxHeight: 320, overflowY: "auto" }}>
                 {apps.by_program.map((p) => (
@@ -562,10 +511,10 @@ export default function SalesBand({
                       alignItems: "center",
                       padding: "11px 16px",
                       borderTop: "1px solid var(--hair2)",
-                      fontSize: 13.5,
+                      fontSize: 14,
                     }}
                   >
-                    <div style={{ flex: 2, color: "var(--ink)", fontWeight: 600 }}>
+                    <div style={{ flex: 2, color: "var(--ink)", fontWeight: 500 }}>
                       {p.grant_program}
                     </div>
                     <div
@@ -582,8 +531,8 @@ export default function SalesBand({
                       style={{
                         flex: 1,
                         textAlign: "right",
-                        fontWeight: 700,
-                        color: p.awarded_amount ? "var(--olive)" : "var(--faint)",
+                        fontWeight: 600,
+                        color: p.awarded_amount ? "var(--olive-ink)" : "var(--mute)",
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >
@@ -621,17 +570,17 @@ export default function SalesBand({
             }}
           >
             <div>
-              <Eyebrow>
+              <h3 className="section-title">
                 {cfg.title} over time{cumulative ? " (cumulative)" : ""}
-              </Eyebrow>
-              <div style={{ fontSize: 12.5, color: "var(--mute)", marginTop: 5 }}>
+              </h3>
+              <div style={{ fontSize: 13, lineHeight: "18px", color: "var(--mute)", marginTop: 2 }}>
                 {cumulative ? "Running total · now at " : "Total shown · "}
-                <strong style={{ color: "var(--olive)" }}>{fmtVal(total)}</strong>
+                <strong style={{ color: "var(--olive-ink)", fontWeight: 600 }}>{fmtVal(total)}</strong>
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <SegPill options={SALES_GRANS} value={gran} onChange={onGranChange} size="sm" />
-              <SegPill options={SALES_METRICS} value={metric} onChange={setMetric} size="sm" />
+              <SegPill options={SALES_GRANS} value={gran} onChange={onGranChange} size="sm" label="Period" />
+              <SegPill options={SALES_METRICS} value={metric} onChange={setMetric} size="sm" label="Measure" />
             </div>
           </div>
 
@@ -642,7 +591,6 @@ export default function SalesBand({
               <div style={{ position: "relative" }}>
                 {tip >= 0 && points[tip] && (
                   <div
-                    className="mono"
                     style={{
                       position: "absolute",
                       top: -6,
@@ -652,14 +600,16 @@ export default function SalesBand({
                       transform: "translate(-50%,-100%)",
                       background: "var(--tip-bg)",
                       color: "var(--tip-fg)",
-                      fontWeight: 600,
+                      fontWeight: 500,
                       fontSize: 12,
-                      padding: "6px 11px",
-                      borderRadius: 8,
+                      lineHeight: "16px",
+                      padding: "6px 10px",
+                      borderRadius: 6,
                       whiteSpace: "nowrap",
+                      boxShadow: "var(--shadow-pop)",
                     }}
                   >
-                    {salesPeriodLabel(points[tip].period, gran)} — {fmtVal(points[tip].value)}
+                    {salesPeriodLabel(points[tip].period, gran)} · {fmtVal(points[tip].value)}
                   </div>
                 )}
                 <div
@@ -725,11 +675,11 @@ export default function SalesBand({
                           right: "22%",
                           height: `${Math.max(p.value > 0 ? 2 : 0, (p.value / maxVal) * 100)}%`,
                           background: "var(--olive)",
-                          borderRadius: 5,
+                          borderRadius: "4px 4px 0 0",
                           transformOrigin: "bottom",
-                          animation: "growY .7s cubic-bezier(.34,1.4,.4,1) both",
-                          transition: "height .55s cubic-bezier(.34,1.3,.4,1), filter .2s",
-                          filter: tip === i ? "brightness(1.15)" : "none",
+                          animation: "growY .6s cubic-bezier(.2,.8,.2,1) both",
+                          transition: "height .45s cubic-bezier(.2,.8,.2,1), opacity .15s",
+                          opacity: tip >= 0 && tip !== i ? 0.55 : 1,
                         }}
                       />
                     </div>
@@ -740,7 +690,7 @@ export default function SalesBand({
                     does not centre text that overflows its box. */}
                 <div
                   ref={axisRef}
-                  style={{ display: "flex", gap: 6, marginTop: 8, height: 13 }}
+                  style={{ display: "flex", gap: 6, marginTop: 8, height: 16 }}
                 >
                   {points.map((p, i) => {
                     const label = labelIdx.has(i) ? salesPeriodLabel(p.period, gran) : "";
@@ -753,15 +703,14 @@ export default function SalesBand({
                       <div key={p.period} style={{ flex: 1, minWidth: 0, position: "relative" }}>
                         {label && (
                           <span
-                            className="mono"
                             style={{
                               position: "absolute",
                               top: 0,
                               left: "50%",
                               transform: `translateX(calc(-50% + ${shift}px))`,
-                              fontSize: 10,
-                              lineHeight: "13px",
-                              color: "var(--faint)",
+                              fontSize: 12,
+                              lineHeight: "16px",
+                              color: "var(--mute)",
                               whiteSpace: "nowrap",
                             }}
                           >
@@ -780,7 +729,7 @@ export default function SalesBand({
                   alignItems: "center",
                   gap: 7,
                   marginTop: 14,
-                  fontSize: 12.5,
+                  fontSize: 13,
                   color: "var(--sec)",
                   cursor: "pointer",
                   userSelect: "none",

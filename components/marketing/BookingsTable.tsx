@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Eyebrow, Note } from "../ui";
+import { RefreshCw, Search } from "lucide-react";
+import { Card, Note } from "../ui";
 import {
   CHANNEL_CHOICES,
   EXCLUSION_LABELS,
@@ -44,14 +45,14 @@ const leadTime = (booked: string, meeting: string | null) => {
 };
 
 const HEAD: { label: string; align: "left" | "center" | "right"; inset?: number }[] = [
-  { label: "ORG / NAME", align: "left" },
-  { label: "CHANNEL", align: "left", inset: 7 },
-  { label: "CAMPAIGN", align: "left" },
-  { label: "BOOKED", align: "left" },
-  { label: "MEETING", align: "left" },
-  { label: "HELD", align: "center" },
+  { label: "Organization", align: "left" },
+  { label: "Channel", align: "left", inset: 7 },
+  { label: "Campaign", align: "left" },
+  { label: "Booked", align: "left" },
+  { label: "Meeting", align: "left" },
+  { label: "Held", align: "center" },
   { label: "LOE", align: "center" },
-  { label: "COUNTS?", align: "right", inset: 7 },
+  { label: "Counts?", align: "right", inset: 7 },
 ];
 
 /**
@@ -137,38 +138,41 @@ export default function BookingsTable({
           flexWrap: "wrap",
         }}
       >
-        <Eyebrow>{search ? "bookings · all time" : `bookings · ${rangeTag}`}</Eyebrow>
-        <input
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder="Search name, org or email"
-          aria-label="Search bookings"
-          style={{
-            font: "inherit",
-            fontSize: 13,
-            padding: "8px 14px",
-            borderRadius: 999,
-            border: "1px solid var(--bd2)",
-            background: "var(--card)",
-            color: "var(--ink)",
-            width: 240,
-            maxWidth: "100%",
-          }}
-        />
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <h3 className="section-title">Bookings</h3>
+          <span className="meta">{search ? "All time" : rangeTag.charAt(0).toUpperCase() + rangeTag.slice(1)}</span>
+        </div>
+        <label style={{ position: "relative", display: "block", width: 280, maxWidth: "100%" }}>
+          <Search
+            size={16}
+            strokeWidth={1.75}
+            aria-hidden
+            style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--mute)", pointerEvents: "none" }}
+          />
+          <input
+            type="search"
+            className="field"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder="Search name, organization or email"
+            aria-label="Search bookings"
+            style={{ paddingLeft: 34 }}
+          />
+        </label>
       </div>
 
       {error && (
-        <div style={{ fontSize: 12.5, color: "var(--err-fg)", marginBottom: 10 }}>
-          {error} — the change was rolled back.
+        <div role="alert" style={{ fontSize: 13, lineHeight: "18px", color: "var(--err-fg)", marginBottom: 10 }}>
+          {error}. The change was rolled back.
         </div>
       )}
 
       {/* Searching deliberately leaves the window — looking a booking up by name is
           asking for that booking, not for whatever part of it falls inside 30 days. */}
       {!loading && !search && hidden > 0 && (
-        <div style={{ fontSize: 12.5, color: "var(--mute)", marginBottom: 10 }}>
-          {hidden} older {hidden === 1 ? "booking is" : "bookings are"} outside this window —
-          switch to All to see every booking.
+        <div style={{ fontSize: 13, lineHeight: "18px", color: "var(--mute)", marginBottom: 10 }}>
+          {hidden} older {hidden === 1 ? "booking is" : "bookings are"} outside this window.
+          Switch to All to see every booking.
         </div>
       )}
 
@@ -195,12 +199,11 @@ export default function BookingsTable({
               {HEAD.map((h) => (
                 <span
                   key={h.label}
-                  className="mono"
                   style={{
                     fontWeight: 600,
-                    fontSize: 10.5,
-                    letterSpacing: ".07em",
-                    color: "var(--faint)",
+                    fontSize: 12,
+                    lineHeight: "16px",
+                    color: "var(--sec)",
                     textAlign: h.align,
                     paddingLeft: h.align === "left" ? h.inset : undefined,
                     paddingRight: h.align === "right" ? h.inset : undefined,
@@ -221,7 +224,7 @@ export default function BookingsTable({
                 // Set aside because it moved, not because it fell through.
                 const moved = r.exclusion_reason === "rescheduled" || r.rescheduled_to != null;
                 const isHover = hover === r.id;
-                const muted = excluded ? "var(--faint)" : "var(--sec)";
+                const muted = excluded ? "var(--mute)" : "var(--sec)";
                 return (
                   <div
                     key={r.id}
@@ -250,9 +253,9 @@ export default function BookingsTable({
                       <div
                         title={r.organization || ""}
                         style={{
-                          fontWeight: 600,
-                          color: excluded ? "var(--faint)" : "var(--ink)",
-                          fontSize: 13.5,
+                          fontWeight: 500,
+                          color: excluded ? "var(--mute)" : "var(--ink)",
+                          fontSize: 14,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -266,8 +269,8 @@ export default function BookingsTable({
                       </div>
                       <div
                         style={{
-                          color: "var(--faint)",
-                          fontSize: 12,
+                          color: "var(--mute)",
+                          fontSize: 13,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -291,12 +294,11 @@ export default function BookingsTable({
                       }
                       title="Attribution channel — change it if the detected one is wrong"
                       style={{
-                        font: "inherit",
-                        fontSize: 12.5,
+                        fontSize: 13,
                         color: muted,
                         background: "transparent",
-                        border: `1px solid ${isHover ? "var(--bd2)" : "transparent"}`,
-                        borderRadius: 999,
+                        border: `1px solid ${isHover ? "var(--line-strong)" : "transparent"}`,
+                        borderRadius: 6,
                         padding: "3px 6px",
                         cursor: "pointer",
                         maxWidth: "100%",
@@ -343,20 +345,19 @@ export default function BookingsTable({
                             : "Pick the campaign this booking came from"
                         }
                         style={{
-                          font: "inherit",
-                          fontSize: 12.5,
+                          fontSize: 13,
                           color: muted,
-                          background: "transparent",
-                          border: "1px solid var(--bd2)",
-                          borderRadius: 999,
+                          background: "var(--card)",
+                          border: "1px solid var(--field)",
+                          borderRadius: 6,
                           padding: "3px 6px",
                           cursor: "pointer",
                           maxWidth: "100%",
                         }}
                       >
-                        <option value="">— leave it to detection —</option>
-                        {!options && !optionsError && <option disabled>searching Instantly…</option>}
-                        {optionsError && <option disabled>could not reach Instantly</option>}
+                        <option value="">Leave it to detection</option>
+                        {!options && !optionsError && <option disabled>Searching Instantly…</option>}
+                        {optionsError && <option disabled>Could not reach Instantly</option>}
                         {options && options.suggestions.length > 0 && (
                           <optgroup label="Suggested">
                             {options.suggestions.map((s) => (
@@ -400,13 +401,13 @@ export default function BookingsTable({
                         }
                         style={{
                           color: muted,
-                          fontSize: 13,
+                          fontSize: 14,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                           textDecoration: excluded ? "line-through" : "none",
                           cursor: "pointer",
-                          borderBottom: isHover ? "1px dotted var(--bd2)" : "1px dotted transparent",
+                          borderBottom: isHover ? "1px dotted var(--field)" : "1px dotted transparent",
                         }}
                       >
                         {r.instantly_campaign || "—"}
@@ -420,8 +421,8 @@ export default function BookingsTable({
                     <div
                       style={{
                         minWidth: 0,
-                        fontSize: 12.5,
-                        color: "var(--faint)",
+                        fontSize: 13,
+                        color: "var(--mute)",
                         fontVariantNumeric: "tabular-nums",
                         textDecoration: excluded ? "line-through" : "none",
                         cursor: r.booked_on ? "help" : undefined,
@@ -451,10 +452,10 @@ export default function BookingsTable({
                     <div style={{ minWidth: 0, color: muted }}>
                       <div
                         style={{
-                          fontSize: 13,
+                          fontSize: 14,
                           fontVariantNumeric: "tabular-nums",
                           display: "flex",
-                          alignItems: "baseline",
+                          alignItems: "center",
                           gap: 4,
                         }}
                       >
@@ -467,17 +468,17 @@ export default function BookingsTable({
                               r.rescheduled_from_date ? ` from ${shortDate(r.rescheduled_from_date)}` : ""
                             } — the same meeting moved, not a new booking`}
                             aria-label="Rescheduled"
-                            style={{ color: "var(--warn-fg)", fontSize: 12, cursor: "help" }}
+                            style={{ color: "var(--warn-fg)", cursor: "help", display: "inline-flex" }}
                           >
-                            ↻
+                            <RefreshCw size={13} strokeWidth={2} aria-hidden />
                           </span>
                         ) : null}
                       </div>
                       <div
                         title={r.host || ""}
                         style={{
-                          fontSize: 11.5,
-                          color: "var(--faint)",
+                          fontSize: 13,
+                          color: "var(--mute)",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -510,7 +511,7 @@ export default function BookingsTable({
                           )
                         }
                         aria-label={`Mark LOE sent for ${r.organization || "booking"}`}
-                        style={{ cursor: "pointer", accentColor: "var(--olive)" }}
+                        style={{ cursor: "pointer", accentColor: "var(--navy)" }}
                       />
                     </span>
 
@@ -523,42 +524,17 @@ export default function BookingsTable({
                           be asked first — otherwise every reschedule reads as a loss. */}
                       {moved ? (
                         <span
-                          className="mono"
+                          className="badge badge-dot badge-warn"
                           title={`Rescheduled${
                             r.rescheduled_to_date ? ` to ${shortDate(r.rescheduled_to_date)}` : ""
-                          } — counted on the replacement booking, not here`}
-                          style={{
-                            fontSize: 10.5,
-                            fontWeight: 600,
-                            letterSpacing: ".05em",
-                            color: "var(--warn-fg)",
-                            background: "var(--warn-bg)",
-                            border: "1px solid var(--warn-fg)",
-                            borderRadius: 999,
-                            padding: "3px 9px",
-                            whiteSpace: "nowrap",
-                            cursor: "help",
-                          }}
+                          }: counted on the replacement booking, not here`}
+                          style={{ cursor: "help" }}
                         >
-                          MOVED
+                          Moved
                         </span>
                       ) : r.cancelled ? (
-                        <span
-                          className="mono"
-                          title="Cancelled in Calendly"
-                          style={{
-                            fontSize: 10.5,
-                            fontWeight: 600,
-                            letterSpacing: ".05em",
-                            color: "var(--err-fg)",
-                            background: "var(--err-bg)",
-                            border: "1px solid var(--err-fg)",
-                            borderRadius: 999,
-                            padding: "3px 9px",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          CANCELLED
+                        <span className="badge badge-dot badge-err" title="Cancelled in Calendly">
+                          Cancelled
                         </span>
                       ) : (
                         <select
@@ -577,23 +553,22 @@ export default function BookingsTable({
                               : "Exclude this booking from all totals, keeping it on the list"
                           }
                           style={{
-                            font: "inherit",
-                            fontSize: 11.5,
-                            fontWeight: r.exclusion_reason ? 700 : 500,
+                            fontSize: 13,
+                            fontWeight: r.exclusion_reason ? 600 : 400,
                             color: r.exclusion_reason
                               ? "var(--warn-fg)"
                               : isHover
                               ? "var(--sec)"
-                              : "var(--faint)",
+                              : "var(--mute)",
                             background: r.exclusion_reason ? "var(--warn-bg)" : "transparent",
                             border: `1px solid ${
                               r.exclusion_reason
                                 ? "var(--warn-fg)"
                                 : isHover
-                                ? "var(--bd2)"
+                                ? "var(--line-strong)"
                                 : "transparent"
                             }`,
-                            borderRadius: 999,
+                            borderRadius: 6,
                             padding: "3px 6px",
                             cursor: "pointer",
                             maxWidth: "100%",

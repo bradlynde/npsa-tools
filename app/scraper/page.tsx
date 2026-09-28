@@ -3,17 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { Download, Plus, X } from "lucide-react";
 import {
   Page,
   Card,
   PageHeading,
-  Eyebrow,
+  SectionHeader,
   StatTile,
   ChipRow,
-  PillButton,
+  SegPill,
+  Button,
   StatusPill,
   Tag,
   Pulse,
+  Bar,
   Note,
   useRoll,
   fmtInt,
@@ -172,7 +175,7 @@ export default function ScraperPage() {
       started: "Queued",
       contacts: "—",
       tone: "queued",
-      label: "QUEUED",
+      label: "Queued",
       queueJobId: j.id,
       canDownload: false,
     }));
@@ -188,11 +191,11 @@ export default function ScraperPage() {
         tone: isActive(r.status) ? "running" : failed ? "error" : "done",
         label: isActive(r.status)
           ? r.status === "finalizing"
-            ? "FINALIZING"
-            : "RUNNING"
+            ? "Finalizing"
+            : "Running"
           : failed
-          ? r.status.toUpperCase()
-          : "FINISHED",
+          ? r.status.charAt(0).toUpperCase() + r.status.slice(1)
+          : "Finished",
         runId: r.run_id,
         canDownload: isDone(r.status),
       };
@@ -210,7 +213,7 @@ export default function ScraperPage() {
         tone: "ok",
         text:
           res.status === "queued"
-            ? `Queued — job #${res.jobId}${res.position ? ` (position ${res.position})` : ""}.`
+            ? `Queued as job #${res.jobId}${res.position ? `, position ${res.position}` : ""}.`
             : "Scrape started.",
       });
       setNewOpen(false);
@@ -261,46 +264,41 @@ export default function ScraperPage() {
 
   return (
     <Page>
-      <PageHeading eyebrow="contact scraper · schools & churches" style={{ marginBottom: 26 }}>
-        One pipeline, <em>every county.</em>
-      </PageHeading>
-
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
+          alignItems: "flex-end",
+          gap: 16,
           flexWrap: "wrap",
-          marginBottom: 16,
+          marginBottom: 24,
         }}
       >
-        <ChipRow options={FILTERS} value={filter} onChange={setFilter} />
-        <PillButton onClick={() => setNewOpen((v) => !v)}>
-          {newOpen ? "Close" : "+ New Scrape"}
-        </PillButton>
+        <PageHeading description="Find contacts at schools and churches, one state at a time, county by county.">
+          Scraper
+        </PageHeading>
+        <Button icon={newOpen ? X : Plus} variant={newOpen ? "secondary" : "primary"} onClick={() => setNewOpen((v) => !v)} aria-expanded={newOpen}>
+          {newOpen ? "Close" : "New scrape"}
+        </Button>
       </div>
 
       {msg && (
         <Card
           style={{
             marginBottom: 16,
-            padding: "14px 18px",
-            borderColor: msg.tone === "err" ? "var(--err-fg)" : "var(--ok-fg)",
+            padding: "12px 16px",
+            borderColor: msg.tone === "err" ? "var(--err-line)" : "var(--bd2)",
+            background: msg.tone === "err" ? "var(--err-bg)" : "var(--ok-bg)",
           }}
         >
-          <span style={{ fontSize: 13.5, color: "var(--sec)" }}>{msg.text}</span>
+          <span role="status" style={{ fontSize: 14, lineHeight: "20px", color: msg.tone === "err" ? "var(--err-fg)" : "var(--ok-fg)" }}>{msg.text}</span>
         </Card>
       )}
 
       {newOpen && (
-        <div
+        <Card
           className="fade-up"
           style={{
-            background: "var(--card)",
-            border: "1px dashed var(--bd2)",
-            borderRadius: 16,
-            padding: "20px 22px",
             marginBottom: 16,
             display: "flex",
             gap: 20,
@@ -309,34 +307,15 @@ export default function ScraperPage() {
           }}
         >
           <div>
-            <label
-              htmlFor="np-state"
-              className="mono"
-              style={{
-                display: "block",
-                fontWeight: 500,
-                fontSize: 10.5,
-                letterSpacing: ".07em",
-                color: "var(--mute)",
-                marginBottom: 6,
-              }}
-            >
-              state
+            <label htmlFor="np-state" className="eyebrow" style={{ display: "block", color: "var(--sec)", marginBottom: 6 }}>
+              State
             </label>
             <select
               id="np-state"
+              className="field"
               value={npState}
               onChange={(e) => setNpState(e.target.value)}
-              style={{
-                font: "inherit",
-                fontSize: 14,
-                padding: "10px 14px",
-                borderRadius: 12,
-                border: "1px solid var(--bd2)",
-                background: "var(--card)",
-                color: "var(--ink)",
-                minWidth: 180,
-              }}
+              style={{ minWidth: 200 }}
             >
               <option value="">Select a state…</option>
               {US_STATES.map((s) => (
@@ -348,72 +327,41 @@ export default function ScraperPage() {
           </div>
 
           <div>
-            <span
-              className="mono"
-              style={{
-                display: "block",
-                fontWeight: 500,
-                fontSize: 10.5,
-                letterSpacing: ".07em",
-                color: "var(--mute)",
-                marginBottom: 6,
-              }}
-            >
-              type
+            <span className="eyebrow" style={{ display: "block", color: "var(--sec)", marginBottom: 6 }}>
+              Type
             </span>
-            <div
-              style={{
-                display: "inline-flex",
-                border: "1px solid var(--bd2)",
-                borderRadius: 12,
-                overflow: "hidden",
-              }}
-            >
-              {(["school", "church"] as ScraperType[]).map((t) => {
-                const on = npType === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setNpType(t)}
-                    aria-pressed={on}
-                    style={{
-                      font: "inherit",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      padding: "10px 18px",
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "all .2s",
-                      background: on ? "var(--navy)" : "transparent",
-                      color: on ? "var(--on-accent)" : "var(--sec)",
-                    }}
-                  >
-                    {t === "school" ? "Schools" : "Churches"}
-                  </button>
-                );
-              })}
-            </div>
+            <SegPill<ScraperType>
+              options={[
+                { key: "school", label: "Schools" },
+                { key: "church", label: "Churches" },
+              ]}
+              value={npType}
+              onChange={setNpType}
+              label="Type"
+            />
           </div>
 
           <div
-            className="mono"
             style={{
-              fontWeight: 500,
               fontSize: 13,
+              lineHeight: "18px",
               color: "var(--mute)",
               fontVariantNumeric: "tabular-nums",
-              paddingBottom: 11,
+              paddingBottom: 9,
             }}
           >
-            {npState ? estimateRunTime(npState, npType) : "select a state"}
+            {npState ? estimateRunTime(npState, npType) : "Pick a state to see how long it takes"}
           </div>
 
-          <PillButton tone="olive" onClick={startScan} disabled={!npState || starting}>
-            {starting ? "Starting…" : "Start Scan"}
-          </PillButton>
-        </div>
+          <Button onClick={startScan} disabled={!npState || starting} busy={starting} style={{ marginLeft: "auto" }}>
+            {starting ? "Starting…" : "Start scrape"}
+          </Button>
+        </Card>
       )}
+
+      <div style={{ marginBottom: 16 }}>
+        <ChipRow options={FILTERS} value={filter} onChange={setFilter} label="Show" />
+      </div>
 
       <div
         style={{
@@ -424,17 +372,17 @@ export default function ScraperPage() {
         }}
       >
         <StatTile
-          label="total contacts"
+          label="Total contacts"
           value={fmtInt(totalContacts * roll)}
-          note="across all completed runs"
+          note="Across all completed runs"
         />
         <StatTile
-          label="completed runs"
+          label="Completed runs"
           value={fmtInt(completedCount * roll)}
-          note="school + church"
+          note="Schools and churches"
         />
         <StatTile
-          label="active now"
+          label="Active now"
           value={fmtInt(activeCount * roll)}
           note={`${queue.length} queued behind it`}
         />
@@ -457,9 +405,9 @@ export default function ScraperPage() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 11,
-                fontSize: 15,
-                fontWeight: 700,
+                gap: 10,
+                fontSize: 16,
+                fontWeight: 600,
                 color: "var(--ink)",
                 textDecoration: "none",
               }}
@@ -468,25 +416,15 @@ export default function ScraperPage() {
               {runTitle(activeRun, (activeRun.scraper_type || "school") as ScraperType)}
             </Link>
             <StatusPill tone="running">
-              {activeRun.status === "finalizing" ? "FINALIZING" : "RUNNING"}
+              {activeRun.status === "finalizing" ? "Finalizing" : "Running"}
             </StatusPill>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-            <div style={{ flex: 1, height: 8, background: "var(--track)", borderRadius: 999 }}>
-              <div
-                style={{
-                  width: `${activePct}%`,
-                  height: "100%",
-                  background: "var(--navy)",
-                  borderRadius: 999,
-                  transformOrigin: "left",
-                  animation: "growX 1s cubic-bezier(.34,1.3,.4,1) both",
-                  transition: "width .6s cubic-bezier(.34,1.3,.4,1)",
-                }}
-              />
+            <div style={{ flex: 1 }}>
+              <Bar pct={activePct} height={8} />
             </div>
-            <strong style={{ fontVariantNumeric: "tabular-nums", fontSize: 14 }}>{activePct}%</strong>
+            <strong style={{ fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 600 }}>{activePct}%</strong>
           </div>
 
           <div
@@ -500,23 +438,23 @@ export default function ScraperPage() {
             }}
           >
             <span>
-              <strong style={{ color: "var(--ink)" }}>
-                {activeDone} / {activeTotal || "—"}
+              <strong style={{ color: "var(--ink)", fontWeight: 600 }}>
+                {activeDone} of {activeTotal || "—"}
               </strong>{" "}
               counties
             </span>
             {activeStatus?.currentCounty && (
               <span>
-                Now: <strong style={{ color: "var(--ink)" }}>{activeStatus.currentCounty}</strong>
+                Now in <strong style={{ color: "var(--ink)", fontWeight: 600 }}>{activeStatus.currentCounty}</strong>
               </span>
             )}
             <span>
-              Elapsed:{" "}
-              <strong style={{ color: "var(--ink)" }}>{fmtElapsed(activeRun.created_at)}</strong>
+              Running for{" "}
+              <strong style={{ color: "var(--ink)", fontWeight: 600 }}>{fmtElapsed(activeRun.created_at)}</strong>
             </span>
             <span>
-              Contacts so far:{" "}
-              <strong style={{ color: "var(--olive)" }}>{fmtInt(activeContacts)}</strong>
+              <strong style={{ color: "var(--olive-ink)", fontWeight: 600 }}>{fmtInt(activeContacts)}</strong>{" "}
+              contacts so far
             </span>
           </div>
         </Card>
@@ -531,14 +469,14 @@ export default function ScraperPage() {
             marginBottom: 6,
           }}
         >
-          <Eyebrow>runs</Eyebrow>
-          <Eyebrow color="var(--faint)">{rows.length} runs</Eyebrow>
+          <h2 className="section-title">Runs</h2>
+          <span className="meta">{rows.length} {rows.length === 1 ? "run" : "runs"}</span>
         </div>
 
         {loading ? (
           <Note>Loading runs…</Note>
         ) : rows.length === 0 ? (
-          <Note>No runs yet. Start one with “+ New Scrape”.</Note>
+          <Note>No runs yet. Start one with New scrape.</Note>
         ) : (
           <div style={{ overflowX: "auto" }} className="table-responsive">
             <div style={{ minWidth: 640 }}>
@@ -551,15 +489,14 @@ export default function ScraperPage() {
                   borderBottom: "1px solid var(--hair)",
                 }}
               >
-                {["RUN", "TYPE", "STARTED", "CONTACTS", "STATUS", ""].map((h, i) => (
+                {["Run", "Type", "Started", "Contacts", "Status", ""].map((h, i) => (
                   <span
                     key={h || i}
-                    className="mono"
                     style={{
                       fontWeight: 600,
-                      fontSize: 10.5,
-                      letterSpacing: ".07em",
-                      color: "var(--faint)",
+                      fontSize: 12,
+                      lineHeight: "16px",
+                      color: "var(--sec)",
                       textAlign: i === 3 ? "right" : "left",
                     }}
                   >
@@ -579,22 +516,20 @@ export default function ScraperPage() {
                       display: "grid",
                       gridTemplateColumns: "2fr 1fr 1.2fr 1fr 1fr .7fr",
                       gap: 12,
-                      padding: "13px 12px",
+                      padding: "10px 12px",
                       borderBottom: "1px solid var(--hair2)",
                       alignItems: "center",
-                      transition: "background .15s",
-                      animation: "fadeUp .4s ease both",
-                      animationDelay: `${Math.min(i, 12) * 45}ms`,
+                      animation: "fadeUp .35s ease both",
+                      animationDelay: `${Math.min(i, 12) * 30}ms`,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    className="row-hover"
                   >
                     {r.runId ? (
                       <Link
                         href={`/${r.type}/${r.runId}`}
                         style={{
-                          fontSize: 13.5,
-                          fontWeight: 700,
+                          fontSize: 14,
+                          fontWeight: 500,
                           color: "var(--ink)",
                           textDecoration: "none",
                         }}
@@ -602,21 +537,21 @@ export default function ScraperPage() {
                         {r.name}
                       </Link>
                     ) : (
-                      <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>
                         {r.name}
                       </span>
                     )}
                     <span>
-                      <Tag>{r.type === "school" ? "SCHOOL" : "CHURCH"}</Tag>
+                      <Tag>{r.type === "school" ? "School" : "Church"}</Tag>
                     </span>
                     <span
-                      style={{ fontSize: 13, color: "var(--sec)", fontVariantNumeric: "tabular-nums" }}
+                      style={{ fontSize: 14, color: "var(--sec)", fontVariantNumeric: "tabular-nums" }}
                     >
                       {r.started}
                     </span>
                     <span
                       style={{
-                        fontSize: 13,
+                        fontSize: 14,
                         color: "var(--sec)",
                         fontVariantNumeric: "tabular-nums",
                         textAlign: "right",
@@ -629,43 +564,27 @@ export default function ScraperPage() {
                     </span>
                     <span style={{ textAlign: "right" }}>
                       {r.canDownload && r.runId && (
-                        <button
-                          type="button"
+                        <Button
+                          variant="quiet"
+                          size="sm"
+                          icon={Download}
                           onClick={() => downloadCsv(r.type, r.runId!)}
-                          className="mono"
-                          style={{
-                            fontWeight: 700,
-                            fontSize: 11,
-                            color: "var(--navy)",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: 0,
-                          }}
+                          title="Download contacts as CSV"
                         >
-                          CSV ↓
-                        </button>
+                          CSV
+                        </Button>
                       )}
                       {r.queueJobId != null && (
-                        <button
-                          type="button"
+                        <Button
+                          variant="quiet"
+                          size="sm"
                           onClick={async () => {
                             await cancelQueueJob(r.type, r.queueJobId!);
                             load();
                           }}
-                          className="mono"
-                          style={{
-                            fontWeight: 700,
-                            fontSize: 11,
-                            color: "var(--mute)",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: 0,
-                          }}
                         >
-                          CANCEL
-                        </button>
+                          Cancel
+                        </Button>
                       )}
                     </span>
                   </div>
@@ -688,17 +607,13 @@ export default function ScraperPage() {
             flexWrap: "wrap",
           }}
         >
-          <Eyebrow>
-            coverage —{" "}
-            {filter === "all"
-              ? "schools & churches"
-              : filter === "school"
-              ? "schools"
-              : "churches"}
-          </Eyebrow>
-          <Eyebrow color="var(--faint)">
-            {clearedCount} of 50 cleared
-          </Eyebrow>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <h2 className="section-title">Coverage</h2>
+            <span className="meta">
+              {filter === "all" ? "Schools and churches" : filter === "school" ? "Schools" : "Churches"}
+            </span>
+          </div>
+          <span className="meta">{clearedCount} of 50 states cleared</span>
         </div>
 
         <div
@@ -712,34 +627,33 @@ export default function ScraperPage() {
         >
           {(filter === "all"
             ? [
-                { c: "var(--olive)", l: "cleared — both" },
-                { c: "var(--navy)", l: "one type only" },
-                { c: "var(--track)", l: "not yet run" },
+                { c: "var(--olive)", l: "Cleared, both types" },
+                { c: "var(--navy)", l: "One type only" },
+                { c: "var(--track)", l: "Not yet run" },
               ]
             : [
-                { c: "var(--olive)", l: "cleared" },
-                { c: "var(--track)", l: "not yet run" },
+                { c: "var(--olive)", l: "Cleared" },
+                { c: "var(--track)", l: "Not yet run" },
               ]
           ).map((k) => (
             <span
               key={k.l}
-              className="mono"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                fontSize: 10.5,
-                letterSpacing: ".05em",
-                color: "var(--mute)",
+                fontSize: 13,
+                lineHeight: "18px",
+                color: "var(--sec)",
               }}
             >
               <span
                 style={{
-                  width: 9,
-                  height: 9,
+                  width: 10,
+                  height: 10,
                   borderRadius: 3,
                   background: k.c,
-                  border: "1px solid var(--hair)",
+                  border: "1px solid var(--line-strong)",
                 }}
               />
               {k.l}
