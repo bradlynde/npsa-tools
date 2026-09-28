@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Page, Card, PageHeading, Eyebrow, Skeleton } from "../../components/ui";
 import SalesBand from "../../components/marketing/SalesBand";
+import ApplicationsMap from "../../components/marketing/ApplicationsMap";
 import {
   fetchStats,
   fetchApplicationStats,
@@ -87,6 +88,9 @@ export default function CompanyReportPage() {
           sync={sync}
         />
       )}
+
+      {/* Every grant application, by state */}
+      {stats && <ApplicationsMap />}
     </Page>
   );
 }

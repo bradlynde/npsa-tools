@@ -153,6 +153,10 @@ export type ApplicationStats = {
   pending_count: number;
   preparing_count: number;
   denied_count: number;
+  /** Denied, with a new application made for the second attempt. Not in the acceptance rate. Newer backends only. */
+  resubmitted_count?: number;
+  /** Cancelled by the client; left out of every other figure. Newer backends only. */
+  cancelled_count?: number;
   awarded_amount: number;
   pending_amount: number;
   acceptance_rate: number;
@@ -165,6 +169,24 @@ export type ApplicationStats = {
     awarded_amount: number;
     pending_amount: number;
   }[];
+};
+
+export type ApplicationBucket = 'preparing' | 'pending' | 'awarded' | 'denied' | 'resubmitted' | 'cancelled';
+
+/** One Salesforce grant application, for the Company Report's map. */
+export type Application = {
+  application_id: string;
+  name: string | null;
+  organization: string | null;
+  grant_program: string | null;
+  /** Two-letter USPS code, upper-cased by the backend; null when Salesforce has none. */
+  state: string | null;
+  status: string | null;
+  status_bucket: ApplicationBucket;
+  amount_requested: number;
+  amount_awarded: number;
+  max_award: number;
+  updated_at: string | null;
 };
 
 /** One period of won business, for the sales trend. */
@@ -214,6 +236,8 @@ async function get<T>(path: string): Promise<T> {
 
 export const fetchStats = () => get<Stats>('stats');
 export const fetchApplicationStats = () => get<ApplicationStats>('applications/stats');
+export const fetchApplications = () =>
+  get<{ applications: Application[] }>('applications').then((d) => d.applications);
 export const fetchSalesTimeseries = (gran: SalesGranularity = 'month') =>
   get<SalesPoint[]>(`sales-timeseries?granularity=${gran}`);
 
