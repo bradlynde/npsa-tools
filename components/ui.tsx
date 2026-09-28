@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 
 /* ── Motion ─────────────────────────────────────────────────────── */
@@ -526,4 +527,121 @@ export function Note({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+/* ── Confirm and toast ──────────────────────────────────────────── */
+
+export type ConfirmOptions = {
+  title: string;
+  body?: React.ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: "primary" | "danger";
+};
+
+/**
+ * An in-app confirm, in place of the browser's gray pop-up.
+ *
+ *   const [confirm, confirmDialog] = useConfirm();
+ *   if (await confirm({ title: "Email the intake link?" })) send();
+ *   ...render {confirmDialog} somewhere in the component.
+ *
+ * Escape and the backdrop cancel; Enter confirms. Focus starts on the confirm
+ * button and returns to whatever had it when the dialog closes.
+ */
+export function useConfirm(): [(o: ConfirmOptions) => Promise<boolean>, React.ReactNode] {
+  const [req, setReq] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null);
+  const confirm = useCallback(
+    (o: ConfirmOptions) => new Promise<boolean>((resolve) => setReq({ ...o, resolve })),
+    []
+  );
+  const done = (v: boolean) => {
+    req?.resolve(v);
+    setReq(null);
+  };
+  const node = req ? <ConfirmDialog {...req} onDone={done} /> : null;
+  return [confirm, node];
+}
+
+function ConfirmDialog({
+  title,
+  body,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  tone = "primary",
+  onDone,
+}: ConfirmOptions & { onDone: (v: boolean) => void }) {
+  const ok = useRef<HTMLButtonElement>(null);
+  // The parent re-creates onDone on every render; read it through a ref so the
+  // effect below runs once and focus doesn't jump while the dialog is open.
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    ok.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        doneRef.current(false);
+      }
+    };
+    // Capture, so a dialog underneath doesn't also take the Escape.
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      prev?.focus?.();
+    };
+  }, []);
+  return createPortal(
+    <div className="scrim" style={{ zIndex: 120 }} onClick={() => onDone(false)} role="presentation">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        className="dialog"
+        style={{ maxWidth: 440, padding: 24 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="confirm-title" className="section-title" style={{ fontSize: 18, lineHeight: "26px" }}>
+          {title}
+        </h2>
+        {body && <div style={{ marginTop: 8, fontSize: 14, lineHeight: "21px", color: "var(--sec)" }}>{body}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 22 }}>
+          <Button variant="secondary" onClick={() => onDone(false)}>
+            {cancelLabel}
+          </Button>
+          <button ref={ok} type="button" className={`btn ${tone === "danger" ? "btn-danger" : "btn-primary"}`} onClick={() => onDone(true)}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/**
+ * A short confirmation that something happened, bottom center, gone after a few
+ * seconds. `const [toast, showToast] = useToast()`, then render {toast}.
+ */
+export function useToast(): [React.ReactNode, (message: string) => void] {
+  const [msg, setMsg] = useState<{ text: string; id: number } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const show = useCallback((text: string) => {
+    if (timer.current) clearTimeout(timer.current);
+    setMsg({ text, id: Date.now() });
+    timer.current = setTimeout(() => setMsg(null), 3200);
+  }, []);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  const node = msg
+    ? createPortal(
+        <div key={msg.id} role="status" className="toast">
+          {msg.text}
+        </div>,
+        document.body
+      )
+    : null;
+  return [node, show];
 }
