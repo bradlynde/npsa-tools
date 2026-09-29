@@ -1271,7 +1271,13 @@ async function upsertBooking(pool, b) {
     'told_us','referred_by','utm_source','utm_medium','utm_campaign','has_gclid','host'];
   const vals = cols.map(c => b[c] ?? null);
   if (existing) {
-    const set = cols.map((c, i) => `${c}=COALESCE($${i + 1}, ${c})`).join(', ');
+    // An organization corrected by hand (manual_override.organization) is kept: the
+    // Calendly answer is what the invitee typed, typos included, and re-importing it
+    // would undo the correction and unlink the win the correction linked.
+    const set = cols.map((c, i) => c === 'organization'
+      ? `organization = CASE WHEN manual_override ? 'organization' THEN organization
+                             ELSE COALESCE($${i + 1}, organization) END`
+      : `${c}=COALESCE($${i + 1}, ${c})`).join(', ');
     await pool.query(`UPDATE bookings SET ${set}, updated_at=NOW() WHERE id=$${cols.length + 1}`, [...vals, existing.id]);
     return existing.id;
   }
@@ -1447,6 +1453,34 @@ async function recordFinancial(pool, f) {
      f.contract_id || null, f.contract_number || null, booking?.id ?? null]
   );
   return { stored: true, id, booking_id: booking?.id ?? null };
+}
+
+/**
+ * Matches the Salesforce records that no booking has claimed yet, now rather than
+ * at the next sync. Used after a booking's organization is corrected by hand, so
+ * the correction shows up straight away. It is the same matching the sync does
+ * (recordWin, matchBookingByOrg), so it links nothing the next sync would not.
+ */
+async function relinkUntracked(pool) {
+  let linked = 0;
+  const wins = await pool.query(
+    `SELECT opportunity_id, organization, domain, amount, close_date
+       FROM sf_wins WHERE booking_id IS NULL`);
+  for (const w of wins.rows) {
+    const r = await recordWin(pool, w);
+    if (r.matched) linked += 1;
+  }
+  const fins = await pool.query(
+    `SELECT financial_id, organization, domain FROM sf_financials WHERE booking_id IS NULL`);
+  for (const f of fins.rows) {
+    const b = await matchBookingByOrg(pool, bareDomain(f.domain), (f.organization || '').trim());
+    if (!b) continue;
+    await pool.query(
+      `UPDATE sf_financials SET booking_id=$1, updated_at=NOW()
+        WHERE financial_id=$2 AND booking_id IS NULL`, [b.id, f.financial_id]);
+    linked += 1;
+  }
+  return linked;
 }
 
 async function recordWin(pool, w) {
@@ -2704,7 +2738,7 @@ export function registerMarketing(app, pool) {
   app.patch('/api/marketing/bookings/:id', async (req, res) => {
     if (!pool) return guard(res);
     try {
-      const { held, became_client, exclusion, channel, campaign } = req.body || {};
+      const { held, became_client, exclusion, channel, campaign, organization } = req.body || {};
       // '' clears the reason and puts the booking back in the totals; anything not on
       // the list is ignored rather than stored, so a typo cannot invent a new reason.
       if (exclusion !== undefined && exclusion !== '' && !EXCLUSION_REASONS.includes(exclusion)) {
@@ -2728,10 +2762,22 @@ export function registerMarketing(app, pool) {
       if (exclusion !== undefined) {
         if (exclusion === '') delete ov.exclusion; else ov.exclusion = exclusion;
       }
-      await pool.query('UPDATE bookings SET manual_override=$1, updated_at=NOW() WHERE id=$2',
-        [JSON.stringify(ov), req.params.id]);
+      // A corrected organization name, for when the invitee's own answer keeps the
+      // booking from matching its Salesforce win ("Centerppoint Church"). Written to
+      // the column, where every matcher reads it, and recorded in the override so a
+      // Calendly re-import keeps it. '' drops the override; the next import then
+      // brings back whatever the invitee typed.
+      const org = typeof organization === 'string' ? organization.trim() : undefined;
+      if (org !== undefined) {
+        if (org === '') delete ov.organization; else ov.organization = org;
+      }
+      await pool.query(
+        `UPDATE bookings SET manual_override=$1,
+                organization = COALESCE($3, organization), updated_at=NOW() WHERE id=$2`,
+        [JSON.stringify(ov), req.params.id, org || null]);
       await enrichBooking(pool, req.params.id);
-      res.json({ ok: true });
+      const relinked = org ? await relinkUntracked(pool) : 0;
+      res.json({ ok: true, ...(org ? { relinked } : {}) });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 

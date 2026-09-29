@@ -37,7 +37,7 @@ globalThis.fetch = async (url, init = {}) => {
 process.env.ZAPIER_WEBHOOK_SECRET = 'wo-secret';
 delete process.env.CALENDLY_API_TOKEN;
 delete process.env.INSTANTLY_API_KEY;
-process.env.BOOKING_SWEEP_MINUTES = '100000';
+process.env.BOOKING_SWEEP_MINUTES = '30000';   // ~3 weeks: the most a Node timer holds (2^31 ms); above it, it fires every 1 ms
 
 const pool = new pg.Pool({
   host: process.env.PGHOST || '/tmp/pgc/sock',
