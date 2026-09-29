@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { RefreshCw, Search } from "lucide-react";
-import { Card, Note, fmtMoney } from "../ui";
+import { useEffect, useState, type CSSProperties } from "react";
+import { ChevronDown, RefreshCw, Search } from "lucide-react";
+import { Button, Card, Note, fmtMoney } from "../ui";
+import { useMedia } from "../../lib/useMedia";
 import {
   CHANNEL_CHOICES,
   EXCLUSION_LABELS,
@@ -36,13 +37,28 @@ const longDate = (d: string) =>
 
 /** A booked date on its own says little. The gap to the meeting is the part worth
  *  reading, and it is not something you want to work out by subtracting in your head. */
-const leadTime = (booked: string, meeting: string | null) => {
+const leadDays = (booked: string, meeting: string | null) => {
   if (!meeting) return null;
   const days = Math.round((new Date(meeting).getTime() - new Date(booked).getTime()) / 86400000);
-  if (days < 0) return null; // a backfilled row, not a meeting booked after it happened
+  return days < 0 ? null : days; // a backfilled row, not a meeting booked after it happened
+};
+
+const leadTime = (booked: string, meeting: string | null) => {
+  const days = leadDays(booked, meeting);
+  if (days === null) return null;
   if (days === 0) return "Booked and held the same day";
   return `Booked ${days} day${days === 1 ? "" : "s"} ahead`;
 };
+
+/** At this width and under, each booking is a card rather than a table row. */
+const PHONE = "(max-width: 760px)";
+/** Cards sit in the page rather than a scrolling box, so a long list is shown a
+ *  page at a time instead of pushing the funnel and channels out of reach. */
+const PAGE = 25;
+/** A card's controls: thumb-sized, and at the 16px the phone rule in globals.css
+ *  puts on every select so iOS does not zoom in. The campaign button, which that
+ *  rule does not reach, is set to match. */
+const CARD_CONTROL: CSSProperties = { height: 40, fontSize: 16, lineHeight: "22px" };
 
 const HEAD: { label: string; align: "left" | "center" | "right"; inset?: number }[] = [
   { label: "Organization", align: "left" },
@@ -102,6 +118,10 @@ export default function BookingsTable({
   const [pickerFor, setPickerFor] = useState<number | null>(null);
   const [options, setOptions] = useState<CampaignOptions | null>(null);
   const [optionsError, setOptionsError] = useState<string | null>(null);
+  const phone = useMedia(PHONE);
+  const [limit, setLimit] = useState(PAGE);
+  // A new filter, search or range is a new list, so it starts from the top again.
+  useEffect(() => setLimit(PAGE), [title, search, rangeTag]);
 
   const openPicker = async (id: number) => {
     setPickerFor(id);
@@ -152,7 +172,7 @@ export default function BookingsTable({
           <h3 className="section-title">{title}</h3>
           <span className="meta">{search ? "All time" : rangeTag.charAt(0).toUpperCase() + rangeTag.slice(1)}</span>
         </div>
-        <label style={{ position: "relative", display: "block", width: 280, maxWidth: "100%" }}>
+        <label style={{ position: "relative", display: "block", width: phone ? "100%" : 280, maxWidth: "100%" }}>
           <Search
             size={16}
             strokeWidth={1.75}
@@ -164,7 +184,9 @@ export default function BookingsTable({
             className="field"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Search name, organization or email"
+            // At a phone's 16px the full hint runs past the field; the magnifier
+            // already says what it is.
+            placeholder={phone ? "Name, organization or email" : "Search name, organization or email"}
             aria-label="Search bookings"
             style={{ paddingLeft: 34 }}
           />
@@ -192,6 +214,31 @@ export default function BookingsTable({
         <Note>Loading…</Note>
       ) : rows.length === 0 ? (
         <Note>{search ? "No bookings match that search." : emptyText || `No bookings in the ${rangeTag}.`}</Note>
+      ) : phone ? (
+        // Phones: one card per booking instead of a table that scrolls sideways.
+        <>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+            {rows.slice(0, limit).map((r) => (
+              <BookingCard
+                key={r.id}
+                r={r}
+                saving={saving === r.id}
+                picking={pickerFor === r.id}
+                options={options}
+                optionsError={optionsError}
+                onApply={(patch, optimistic) => apply(r, patch, optimistic)}
+                onOpenPicker={() => openPicker(r.id)}
+                onClosePicker={() => setPickerFor(null)}
+              />
+            ))}
+          </ul>
+          {rows.length > limit && (
+            <Button variant="secondary" block onClick={() => setLimit((n) => n + PAGE)} style={{ marginTop: 12 }}>
+              Show {Math.min(PAGE, rows.length - limit)} more
+              {rows.length - limit > PAGE ? ` of ${rows.length - limit}` : ""}
+            </Button>
+          )}
+        </>
       ) : (
         <div style={{ overflowX: "auto" }} className="table-responsive">
           <div style={{ minWidth: 916 }}>
@@ -367,36 +414,7 @@ export default function BookingsTable({
                           maxWidth: "100%",
                         }}
                       >
-                        <option value="">Leave it to detection</option>
-                        {!options && !optionsError && <option disabled>Searching Instantly…</option>}
-                        {optionsError && <option disabled>Could not reach Instantly</option>}
-                        {options && options.suggestions.length > 0 && (
-                          <optgroup label="Suggested">
-                            {options.suggestions.map((s) => (
-                              <option
-                                key={s.campaign_id}
-                                value={s.campaign}
-                                // The examples are what let somebody confirm a suggestion
-                                // rather than trust it.
-                                title={s.examples
-                                  .map((x) => [x.name, x.email, x.company].filter(Boolean).join(" · "))
-                                  .join("\n")}
-                              >
-                                {s.campaign} — {s.lead_count} lead{s.lead_count === 1 ? "" : "s"} ·{" "}
-                                {s.why.join(", ")}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {options && (
-                          <optgroup label="All campaigns">
-                            {options.all.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
+                        <CampaignChoices options={options} optionsError={optionsError} />
                       </select>
                     ) : (
                       <span
@@ -617,5 +635,354 @@ export default function BookingsTable({
         </div>
       )}
     </Card>
+  );
+}
+
+/** What the campaign picker offers. The table and the phone cards share it, so
+ *  both ask Instantly the same question and show the same evidence. */
+function CampaignChoices({
+  options,
+  optionsError,
+}: {
+  options: CampaignOptions | null;
+  optionsError: string | null;
+}) {
+  return (
+    <>
+      <option value="">Leave it to detection</option>
+      {!options && !optionsError && <option disabled>Searching Instantly…</option>}
+      {optionsError && <option disabled>Could not reach Instantly</option>}
+      {options && options.suggestions.length > 0 && (
+        <optgroup label="Suggested">
+          {options.suggestions.map((s) => (
+            <option
+              key={s.campaign_id}
+              value={s.campaign}
+              // The examples are what let somebody confirm a suggestion
+              // rather than trust it.
+              title={s.examples
+                .map((x) => [x.name, x.email, x.company].filter(Boolean).join(" · "))
+                .join("\n")}
+            >
+              {s.campaign} — {s.lead_count} lead{s.lead_count === 1 ? "" : "s"} · {s.why.join(", ")}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {options && (
+        <optgroup label="All campaigns">
+          {options.all.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+}
+
+/**
+ * One booking on a phone: the table's columns as labelled lines, with the same
+ * controls writing the same changes. What the table keeps in tooltips (the lead
+ * time, why a campaign was picked, where a moved meeting went) is written out,
+ * because a phone has no hover.
+ */
+function BookingCard({
+  r,
+  saving,
+  picking,
+  options,
+  optionsError,
+  onApply,
+  onOpenPicker,
+  onClosePicker,
+}: {
+  r: BookingRow;
+  saving: boolean;
+  picking: boolean;
+  options: CampaignOptions | null;
+  optionsError: string | null;
+  onApply: (patch: BookingPatch, optimistic: Partial<BookingRow>) => void;
+  onOpenPicker: () => void;
+  onClosePicker: () => void;
+}) {
+  const excluded = Boolean(r.exclusion_reason);
+  const moved = r.exclusion_reason === "rescheduled" || r.rescheduled_to != null;
+  const strike = excluded ? "line-through" : "none";
+  const org = r.organization || "booking";
+  const host = hostName(r.host);
+  const who = [r.name, host && `with ${host}`].filter(Boolean).join(" · ");
+  const days = r.booked_on ? leadDays(r.booked_on, r.meeting_date) : null;
+  const lead = days === null ? "" : days === 0 ? "same day" : `${days} day${days === 1 ? "" : "s"} ahead`;
+  const campaignExpected =
+    !excluded && (!r.attribution_channel || r.attribution_channel === "direct" || r.attribution_channel === "instantly");
+
+  return (
+    <li
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        padding: "12px 14px",
+        border: "1px solid var(--hair)",
+        borderLeft: excluded ? "3px solid var(--warn-fg)" : "1px solid var(--hair)",
+        borderRadius: 12,
+        background: excluded ? "var(--warn-bg)" : "var(--card)",
+        opacity: saving ? 0.55 : 1,
+        transition: "opacity .15s",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 15,
+              lineHeight: "21px",
+              fontWeight: 600,
+              color: excluded ? "var(--mute)" : "var(--ink)",
+              textDecoration: strike,
+              textDecorationThickness: excluded ? "1.5px" : undefined,
+              overflowWrap: "anywhere",
+            }}
+          >
+            {r.organization || "—"}
+          </div>
+          {who && (
+            <div className="meta" style={{ textDecoration: strike, overflowWrap: "anywhere" }}>
+              {who}
+            </div>
+          )}
+        </div>
+        {moved ? (
+          <span className="badge badge-dot badge-warn" style={{ flexShrink: 0 }}>
+            Moved
+          </span>
+        ) : r.cancelled ? (
+          <span className="badge badge-dot badge-err" style={{ flexShrink: 0 }}>
+            Cancelled
+          </span>
+        ) : null}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "64px minmax(0, 1fr)", gap: "8px 10px", alignItems: "baseline" }}>
+        <span className="meta">Meeting</span>
+        <div style={{ minWidth: 0, fontSize: 14, lineHeight: "20px", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+          {r.meeting_date ? shortDate(r.meeting_date) : "—"}
+          {/* Calendly issues a reschedule as a new booking, so without this the
+              card is indistinguishable from first contact. */}
+          {r.rescheduled_from ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, lineHeight: "18px", color: "var(--warn-fg)" }}>
+              <RefreshCw size={13} strokeWidth={2} aria-hidden />
+              Rescheduled{r.rescheduled_from_date ? ` from ${shortDate(r.rescheduled_from_date)}` : ""}
+            </div>
+          ) : null}
+          {moved ? (
+            <div className="meta">
+              Moved{r.rescheduled_to_date ? ` to ${shortDate(r.rescheduled_to_date)}` : ""}; it counts on the new booking
+            </div>
+          ) : null}
+        </div>
+
+        <span className="meta">Booked</span>
+        <div style={{ minWidth: 0, fontSize: 14, lineHeight: "20px", color: "var(--sec)", fontVariantNumeric: "tabular-nums" }}>
+          {r.booked_on ? (
+            <>
+              {shortDate(r.booked_on)}
+              {/* On a reschedule this is when the meeting was moved: the first
+                  booking date is not carried onto the replacement. */}
+              {r.rescheduled_from ? " · when it was moved" : lead ? ` · ${lead}` : ""}
+            </>
+          ) : (
+            <span className="meta">Calendly gave no date</span>
+          )}
+        </div>
+
+        <span className="meta">Channel</span>
+        {/* Channel is a guess, and sometimes wrong — let it be corrected. */}
+        <select
+          className="field field-sm"
+          value={r.attribution_channel || "direct"}
+          disabled={saving}
+          onChange={(e) => onApply({ channel: e.target.value }, { attribution_channel: e.target.value })}
+          aria-label={`Attribution channel for ${org}`}
+          style={CARD_CONTROL}
+        >
+          {CHANNEL_CHOICES.map((c) => (
+            <option key={c} value={c}>
+              {channelLabel(c)}
+            </option>
+          ))}
+        </select>
+
+        <span className="meta">Campaign</span>
+        {picking ? (
+          <select
+            className="field field-sm"
+            autoFocus
+            style={CARD_CONTROL}
+            value={r.instantly_campaign || ""}
+            disabled={saving}
+            onBlur={onClosePicker}
+            onChange={(e) => {
+              const chosen = e.target.value;
+              onClosePicker();
+              onApply(
+                { campaign: chosen },
+                {
+                  instantly_campaign: chosen || null,
+                  // The server settles the channel the same way; mirroring it
+                  // here stops the card flickering back for one render.
+                  attribution_channel: chosen ? "instantly" : r.attribution_channel,
+                  // The card shows why it carries its campaign, so a hand-picked one
+                  // should say so now rather than after the next reload.
+                  attribution_source: chosen ? "manual" : r.attribution_source,
+                }
+              );
+            }}
+            aria-label={`Campaign for ${org}`}
+          >
+            <CampaignChoices options={options} optionsError={optionsError} />
+          </select>
+        ) : (
+          <button
+            type="button"
+            className="field field-sm"
+            onClick={onOpenPicker}
+            disabled={saving}
+            aria-label={r.instantly_campaign ? `Campaign for ${org}: ${r.instantly_campaign}. Change it` : `Find the campaign for ${org}`}
+            style={{
+              ...CARD_CONTROL,
+              // A long name wraps rather than trails off: there is no hover title
+              // on a phone to read the rest from.
+              height: "auto",
+              minHeight: CARD_CONTROL.height,
+              padding: "9px 10px",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              textAlign: "left",
+              cursor: "pointer",
+              color: r.instantly_campaign ? "var(--ink)" : campaignExpected ? "var(--navy)" : "var(--mute)",
+              fontWeight: !r.instantly_campaign && campaignExpected ? 500 : 400,
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", textDecoration: r.instantly_campaign ? strike : "none" }}>
+              {r.instantly_campaign || (campaignExpected ? "Find the campaign" : "None")}
+            </span>
+            <ChevronDown size={16} strokeWidth={2} aria-hidden style={{ flexShrink: 0, color: "var(--ink)" }} />
+          </button>
+        )}
+        {/* Which rule supplied the campaign: one read off the booking link and one
+            inferred from a colleague at the same domain look identical otherwise. */}
+        {r.instantly_campaign && !picking ? (
+          <>
+            <span aria-hidden />
+            <span className="meta" style={{ marginTop: -4 }}>
+              {attributionNote(r.attribution_source)}
+            </span>
+          </>
+        ) : null}
+
+        {/* A moved or cancelled meeting says so in its badge; anything else can be
+            set aside from the totals here, and put back. */}
+        {!moved && !r.cancelled ? (
+          <>
+            <span className="meta">Counts?</span>
+            <select
+              className="field field-sm"
+              value={r.exclusion_reason || ""}
+              disabled={saving}
+              onChange={(e) => onApply({ exclusion: e.target.value }, { exclusion_reason: e.target.value || null })}
+              aria-label={`Whether ${org} counts toward the totals`}
+              style={
+                excluded
+                  ? { ...CARD_CONTROL, color: "var(--warn-fg)", background: "var(--warn-bg)", borderColor: "var(--warn-fg)", fontWeight: 600 }
+                  : CARD_CONTROL
+              }
+            >
+              {/* The table's column, in the table's words: they are short enough
+                  to sit in a phone-width select. */}
+              <option value="">{excluded ? "Counts again" : "Yes"}</option>
+              {Object.entries(EXCLUSION_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : null}
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <CardTick
+          label="Held"
+          checked={!!r.held}
+          disabled={saving}
+          onChange={(on) => onApply({ held: on }, { held: on })}
+          ariaLabel={`Mark ${org} as held`}
+        />
+        <CardTick
+          label="LOE sent"
+          checked={!!r.became_client}
+          disabled={saving}
+          onChange={(on) => onApply({ became_client: on }, { became_client: on })}
+          ariaLabel={`Mark LOE sent for ${org}`}
+        />
+      </div>
+      {/* A client won in Salesforce with no letter here is ticked by the win, and
+          its fee is the contract amount. */}
+      {r.became_client && r.fee_source === "salesforce" ? (
+        <div className="meta" style={{ marginTop: -4 }}>
+          Won in Salesforce, no letter in the tool{r.fee ? ` · ${fmtMoney(r.fee)} from Salesforce` : ""}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/** A tick sized for a thumb: the whole pill is the target, not just the box. */
+function CardTick({
+  label,
+  checked,
+  disabled,
+  onChange,
+  ariaLabel,
+}: {
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (on: boolean) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <label
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        height: 40,
+        borderRadius: 10,
+        border: `1px solid ${checked ? "var(--navy)" : "var(--line-strong)"}`,
+        background: checked ? "var(--navy-tint)" : "var(--card)",
+        color: checked ? "var(--navy-ink)" : "var(--sec)",
+        fontSize: 14,
+        fontWeight: 500,
+        cursor: disabled ? "default" : "pointer",
+        userSelect: "none",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={ariaLabel}
+        style={{ width: 18, height: 18, margin: 0, cursor: "inherit", accentColor: "var(--navy)" }}
+      />
+      {label}
+    </label>
   );
 }
