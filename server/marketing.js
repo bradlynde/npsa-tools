@@ -1566,8 +1566,8 @@ async function rebuildBookingWins(pool) {
 //   pending   — submitted, awaiting the award notification (money still in play)
 //   preparing — being written; not yet submitted
 //   resubmitted — denied, and a new Application record was made for the second
-//               attempt. Not a loss: the attempt lives on in that new record, so it
-//               stays out of the acceptance rate.
+//               attempt. Still a loss: the acceptance rate counts it with the
+//               denials. The bucket only keeps it apart on the map.
 //   cancelled — the client cancelled; not an application NPSA is doing. Out of
 //               every total. Before this bucket existed, "Cancelled" fell through
 //               to preparing and inflated the preparing count.
@@ -1957,7 +1957,9 @@ export function registerMarketing(app, pool) {
           COALESCE(SUM(amount_requested) FILTER (WHERE status_bucket='pending'),0)::numeric AS pending_amount
         FROM sf_applications`);
       const s = rows[0];
-      const decided = s.awarded_count + s.denied_count;
+      // A resubmitted denial is still a denial of that application. Leaving it out
+      // raised the rate every time a second attempt was opened (Stuart, 2026-09-29).
+      const decided = s.awarded_count + s.denied_count + s.resubmitted_count;
       const { rows: prog } = await pool.query(`
         SELECT COALESCE(grant_program,'—') AS grant_program,
                COUNT(*)::int AS total,
@@ -1977,7 +1979,6 @@ export function registerMarketing(app, pool) {
         awarded_amount: Number(s.awarded_amount),
         pending_amount: Number(s.pending_amount),
         // Of decided applications, how many were accepted — the win rate that matters.
-        // A resubmitted denial is not decided: its second attempt is its own record.
         acceptance_rate: decided ? s.awarded_count / decided : 0,
         // Of what was asked for on accepted apps, how much actually came through.
         award_fill_rate: Number(s.awarded_requested) > 0 ? Number(s.awarded_amount) / Number(s.awarded_requested) : 0,
