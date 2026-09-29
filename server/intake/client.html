@@ -812,6 +812,7 @@
      a header. Everything below the API helper is the form as it always was. */
   var CLIENT={{client}},TOKEN={{token}},CLIENT_NAME={{clientName}},STATE={{state}};
   var CHECKLIST_META={{checklistMeta}};
+  var SITE_MAX={{siteMax}}||3,SITES=[];for(var si=1;si<=SITE_MAX;si++)SITES.push(si);
   var CFG={{stateConfig}}, EXISTING={{existing}}, CONTACTS={{contacts}}, DOCUMENTS={{documents}}, APPLICATIONS={{applications}}, UPLOADED={{uploaded}}, RECEIVED={{received}}, API_BASE={{apiBase}}, UPLOAD_BASE={{uploadBase}};
   var API=API_BASE+'/api/intake/'+encodeURIComponent(CLIENT);
   var UPLOAD_API=(UPLOAD_BASE||API_BASE)+'/api/intake/'+encodeURIComponent(CLIENT);
@@ -832,6 +833,13 @@
     el.hidden=false;})();
   /* one wish list per application (2026-09-17): a1 keeps the original wl_f<n>_ keys; each other application
      gets a copy of the three facility blocks keyed wl_<id>_f<n>_. Built before prefill so answers land in place. */
+  /* Sites 4 and up (2026-09-29): the page ships three site cards and three wish lists; the rest are
+     copies of site 3, renumbered, made before anything reads or fills them. */
+  (function(){
+    function renumber(html,n){return html.replace(/data-(site|site-title|wl-summary|wl-budget)="3"/g,'data-$1="'+n+'"').replace(/\bloc3_/g,'loc'+n+'_').replace(/\bwl_f3_/g,'wl_f'+n+'_').replace(/>Site 3</g,'>Site '+n+'<').replace(/>Facility 3</g,'>Facility '+n+'<');}
+    ['.site-card[data-site="3"]','.wl-fac[data-site="3"]'].forEach(function(sel){var prev=document.querySelector(sel);if(!prev)return;var html=prev.outerHTML;
+      for(var n=4;n<=SITE_MAX;n++){prev.insertAdjacentHTML('afterend',renumber(html,n));prev=prev.nextElementSibling;}});
+  })();
   var WL_APPS=APPLICATIONS.filter(function(a){return a.status!=='withdrawn';}),WL_CUR='a1';
   function wlPrefix(id){return !id||id==='a1'?'wl_f':'wl_'+id+'_f';}
   function appById(id){for(var i=0;i<WL_APPS.length;i++)if(WL_APPS[i].id===id)return WL_APPS[i];return null;}
@@ -892,7 +900,7 @@
     var id=t.getAttribute('data-tab');
     tabs.forEach(function(x){x.classList.toggle('active',x===t);});
     sheets.forEach(function(s){s.classList.toggle('active',s.getAttribute('data-sheet')===id);});
-    growAll();if(id==='loc')[1,2,3].forEach(infraRender);
+    growAll();if(id==='loc')SITES.forEach(infraRender);
     window.scrollTo({top:0,behavior:'smooth'});});});
   /* text boxes grow with what is typed, so nothing has to be dragged open to read or write */
   function grow(el){el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
@@ -920,18 +928,18 @@
   function facsFor(n){return [].slice.call(document.querySelectorAll('.wl-fac[data-site="'+n+'"]'));}
   function appOf(el){var w=el.closest('.wl-app');return w?w.getAttribute('data-app'):'a1';}
   function siteOn(n){var c=siteEl(n);return n===1||APPLICATIONS.some(function(a){return a.sites.indexOf(n)>=0;})||c.classList.contains('site-added')||hasData(c)||facsFor(n).some(hasData);}
-  function siteTitles(){[1,2,3].forEach(function(n){var name=(document.querySelector('[data-key="loc'+n+'_name"]')||{}).value||'';
+  function siteTitles(){SITES.forEach(function(n){var name=(document.querySelector('[data-key="loc'+n+'_name"]')||{}).value||'';
     document.querySelectorAll('[data-site-title="'+n+'"]').forEach(function(t){t.textContent=name||(t.closest('.wl-fac')?'Security Wish List':'Location');});});}
-  function siteLayout(){var on=0;[1,2,3].forEach(function(n){var show=siteOn(n);if(show)on++;
+  function siteLayout(){var on=0;SITES.forEach(function(n){var show=siteOn(n);if(show)on++;
     siteEl(n).classList.toggle('site-hidden',!show);
     facsFor(n).forEach(function(f){var a=appById(appOf(f));f.classList.toggle('site-hidden',WL_APPS.length?!(a&&a.sites.indexOf(n)>=0):!show);});});
-    document.getElementById('siteCount').textContent=on===1?'':on+' sites';document.getElementById('siteAdd').style.display=on>=3?'none':'';siteTitles();}
-  document.getElementById('siteAdd').addEventListener('click',function(){var n=[1,2,3].filter(function(i){return !siteOn(i);})[0];if(!n)return;
+    document.getElementById('siteCount').textContent=on===1?'':on+' sites';document.getElementById('siteAdd').style.display=on>=SITE_MAX?'none':'';siteTitles();}
+  document.getElementById('siteAdd').addEventListener('click',function(){var n=SITES.filter(function(i){return !siteOn(i);})[0];if(!n)return;
     siteEl(n).classList.add('site-added');siteLayout();siteEl(n).querySelector('input').focus();});
   document.querySelectorAll('.site-rm').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.getAttribute('data-site')),c=siteEl(n),ws=facsFor(n);
     if((hasData(c)||ws.some(hasData))&&!confirm('Remove Site '+n+' and everything entered for it, including its wish list'+(ws.length>1?'s':'')+'?'))return;
     clearAndSave(c);ws.forEach(function(w){clearAndSave(w);w.querySelectorAll('.wl-item').forEach(function(it){wlSet(it,false);});});c.classList.remove('site-added');siteLayout();wlSummary();});});
-  if(APPLICATIONS.length)[1,2,3].forEach(function(n){var sel=document.querySelector('[data-key="loc'+n+'_programs"]');if(!sel)return;var f=sel.closest('.site-field');
+  if(APPLICATIONS.length)SITES.forEach(function(n){var sel=document.querySelector('[data-key="loc'+n+'_programs"]');if(!sel)return;var f=sel.closest('.site-field');
     var here=APPLICATIONS.filter(function(a){return a.sites.indexOf(n)>=0;});
     sel.style.display='none';f.querySelector('label').textContent='Applications for this site';
     var d=document.createElement('div');d.className='site-apps';
@@ -973,17 +981,17 @@
     el.innerHTML='<div class="wl-budget-head"><span><b>'+usd(b.total)+'</b> requested of '+usd(CAP)+' for this site'+capNote+'</span>'
       +(over?'<span class="over">'+usd(b.total-CAP)+' over the cap</span>':'<span class="room">'+usd(CAP-b.total)+' of room</span>')+'</div>'
       +'<div class="wl-bar'+(over?' is-over':'')+'">'+segs+'</div><div class="wl-legend">'+legend+(b.uncosted?'<span class="uncosted">'+b.uncosted+' item'+(b.uncosted===1?'':'s')+' without a cost yet; we will price those</span>':'')+'</div>';}
-  function listSites(id){var a=WL_APPS.length?appById(id):null;return a?a.sites.slice():[1,2,3].filter(function(n){return siteOn(n);});}
+  function listSites(id){var a=WL_APPS.length?appById(id):null;return a?a.sites.slice():SITES.filter(function(n){return siteOn(n);});}
   function renderAppBudget(id){var el=document.querySelector('[data-wl-app-budget="'+id+'"]');if(!el)return;var sites=listSites(id),tot=0,parts=[];
     sites.forEach(function(n){var b=siteBudget(id,n);if(b.total){tot+=b.total;parts.push('Facility '+n+' '+usd(b.total));}});
     var A=appCap(id,sites),mix=A.mix,forApp=WL_APPS.length&&appById(id)?' for '+escT(appById(id).label):'';
     if(!tot){el.innerHTML='<span>Costs you enter on each item add up here against what '+(forApp?'this application allows':'your applications allow')+': <b>'+usd(A.cap)+'</b> across '+sites.length+' site'+(sites.length===1?'':'s')+' ('+escT(mix)+').'+(WL_APPS.length?'':' Set each site\'s programs on the Locations tab.')+'</span>';return;}
     el.innerHTML='<span><b>'+usd(tot)+'</b> requested'+forApp+' across '+parts.length+' site'+(parts.length===1?'':'s')+' · '+parts.join(' · ')+'</span><span>'+(tot>A.cap?'<span class="over">'+usd(tot-A.cap)+' over the '+usd(A.cap)+' allowed</span>':usd(A.cap-tot)+' of room under '+usd(A.cap)+' allowed')+' <span class="uncosted">('+escT(mix)+')</span></span>';}
   function listIds(){return WL_APPS.length?WL_APPS.map(function(a){return a.id;}):['a1'];}
-  function renderBudgets(){listIds().forEach(function(id){[1,2,3].forEach(function(n){renderBudget(id,n);});renderAppBudget(id);});}
+  function renderBudgets(){listIds().forEach(function(id){SITES.forEach(function(n){renderBudget(id,n);});renderAppBudget(id);});}
   var wlItems=[].slice.call(document.querySelectorAll('.wl-item'));
   function wlSet(it,on){it.classList.toggle('wl-on',on);it.classList.toggle('wl-off',!on);it.querySelector('.wl-check').checked=on;}
-  function wlSummary(){renderBudgets();wlCopyBars();listIds().forEach(function(id){[1,2,3].forEach(function(n){var its=wlItems.filter(function(it){return appOf(it)===id&&it.getAttribute('data-site')===String(n)&&it.getAttribute('data-item')!=='ma'&&it.classList.contains('wl-on');});
+  function wlSummary(){renderBudgets();wlCopyBars();listIds().forEach(function(id){SITES.forEach(function(n){var its=wlItems.filter(function(it){return appOf(it)===id&&it.getAttribute('data-site')===String(n)&&it.getAttribute('data-item')!=='ma'&&it.classList.contains('wl-on');});
     var pri=its.filter(function(it){return it.querySelector('.wl-priority').value!=='';}).length,el=document.querySelector('[data-wl-summary="'+id+':'+n+'"]');if(!el)return;
     el.innerHTML=its.length?('<b>'+its.length+' item'+(its.length===1?'':'s')+' picked</b>'+(pri<its.length?' · set a priority on '+(its.length-pri)+' more':' · all ranked')):'Nothing picked yet. Tick the project types you want here.';});});}
   /* an empty list can start as a copy of another application's list, for the sites both cover */
@@ -1016,7 +1024,7 @@
     w.querySelector('.infra-toggle').textContent=w.classList.contains('infra-open')?'Done':'Show all & edit';}
   document.querySelectorAll('.infra-toggle').forEach(function(b){b.addEventListener('click',function(){var n=b.getAttribute('data-site'),w=document.querySelector('.site-infra[data-site="'+n+'"]');
     w.classList.toggle('infra-open');if(w.classList.contains('infra-open')){var ta=w.querySelector('.infra-edit');grow(ta);ta.focus();}infraRender(n);});});
-  [1,2,3].forEach(infraRender);
+  SITES.forEach(infraRender);
   /* autosave */
   var pill=document.getElementById('savepill');
   function setPill(s){pill.className='savepill '+s;pill.textContent=(s==='saving')?'Saving…':'All changes saved';}
@@ -1190,7 +1198,7 @@
   function pgSet(c,f,v){var el=pgKey(c,f);if(el.value===v)return;el.value=v;save(el);}
   function pgHas(c){return keysIn(c).some(function(el){return el.value!=='';});}
   function pgTags(c){return pgKey(c,'demo').value.split(',').map(function(t){return t.trim();}).filter(Boolean);}
-  function pgSitesOn(){return [1,2,3].filter(function(n){return siteOn(n);});}
+  function pgSitesOn(){return SITES.filter(function(n){return siteOn(n);});}
   function pgSiteName(n){var v=((document.querySelector('[data-key="loc'+n+'_name"]')||{}).value||'').trim();return v||'Site '+n;}
   function pgRender(c){
     var run=pgKey(c,'runby').value,sugg=pgKey(c,'suggested').value!=='',sites=pgSitesOn(),picked=pgKey(c,'site').value.split(',').filter(Boolean);

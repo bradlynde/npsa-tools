@@ -564,3 +564,7 @@ Each applies while the status is blank or is a Not started that a seed or import
 **Retired.** Preparedness efforts (law-enforcement relationships) duplicated Information Collection 3.9 to 3.13 and is retired (`retired` in intake-checklist.json): it no longer shows or counts anywhere; its keys stay in the catalog so old answers load.
 
 **Other changes.** The vulnerability assessment row no longer says "(if you have one)": every client needs one, and NPSA helps them get it (a one-time update rewrites lists clients kept). The 501(c)(3) task tells a church with no IRS letter that its state nonprofit registration from the Secretary of State works instead.
+
+## More than three sites (2026-09-29)
+
+A client can have up to eight locations (`SITE_MAX` in server/intake.js), for engagements like a CSNSGP application on two campuses plus a federal one on three more. The catalog carries `loc4_`–`loc8_` and `wl_f4_`–`wl_f8_` (copies of site 3; per-application copies are `wl_<id>_f<n>_` as before). The page ships three site cards and three wish lists and clones site 3's for sites 4 to 8 before anything fills them; "Add another site" stops at eight. An application's `sites` take 1 to 8, but a federal application covers at most the program's `locations_max` (three). `intake_status` lists sites 4 and up only once they are in play (named, addressed, on an application, or with wish-list items), so a three-site client reads as before.
