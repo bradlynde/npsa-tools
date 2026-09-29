@@ -2143,6 +2143,11 @@ export function registerMarketing(app, pool) {
         // How many past meetings anyone has marked as a no-show. While this is 0,
         // held_rate is 100% by construction and says nothing about attendance.
         no_show_count: s.no_show_count,
+        // The relabel, for anything reading held_rate as a show rate (the MCP tools
+        // do). Null once no-shows are being recorded and the rate means something.
+        held_rate_note: s.no_show_count === 0
+          ? 'No no-shows have been recorded in Calendly, so every past meeting counts as held. This is not an attendance rate.'
+          : null,
         instantly_pct: s.total_bookings ? s.instantly_count / s.total_bookings : 0,
         total_fees_won: Number(s.total_fees_won),
         // total_fees_won split by where each fee came from: an LOE saved in the

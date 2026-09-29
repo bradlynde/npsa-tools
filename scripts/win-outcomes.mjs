@@ -169,6 +169,10 @@ check('R3 the lettered booking is still a client on its letter',
 
 // ── item 3: the no-show count behind held_rate ───────────────────────────────
 check('3  no_show_count reports meetings marked not held', (await stats()).no_show_count, 1);
+check('3B and with one recorded, held_rate carries no warning', (await stats()).held_rate_note, null);
+await pool.query(`UPDATE bookings SET held = TRUE WHERE held IS FALSE`);
+check('3C with none recorded, held_rate says it is not an attendance rate',
+  /not an attendance rate/.test((await stats()).held_rate_note || ''), true);
 
 // ── item 4: returning clients split from real gaps ───────────────────────────
 await pushWins([
