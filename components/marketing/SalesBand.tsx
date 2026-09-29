@@ -8,6 +8,7 @@ import {
   SegPill,
   Note,
   Tag,
+  InfoTip,
   useRoll,
   useElementWidth,
   fmtInt,
@@ -215,17 +216,23 @@ function Figure({
   value,
   note,
   accent = false,
+  info,
   children,
 }: {
   label: string;
   value: string;
   note?: string;
   accent?: boolean;
+  /** Detail behind an "i" beside the label, shown on hover. */
+  info?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     <Card style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
-      <div className="eyebrow">{label}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div className="eyebrow">{label}</div>
+        {info && <InfoTip label={`About ${label.toLowerCase()}`}>{info}</InfoTip>}
+      </div>
       <div className="kpi" style={{ fontSize: 34, lineHeight: "40px", color: accent ? "var(--olive)" : "var(--ink)" }}>
         {value}
       </div>
@@ -325,43 +332,53 @@ export default function SalesBand({
         />
 
         {/* Contract value carries the olive: it is the number people look for. */}
-        <Figure label="Contract value" value={fmtMoney(stats.won_revenue_total * roll)} note="NPSA revenue won" accent>
-          {stats.untracked_count > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowUntracked((v) => !v)}
-              aria-expanded={showUntracked}
-              style={{
-                marginTop: 2,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                alignSelf: "flex-start",
-                background: "none",
-                border: "none",
-                padding: 0,
-                fontSize: 13,
-                lineHeight: "18px",
-                fontWeight: 500,
-                color: "var(--navy)",
-                cursor: "pointer",
-                textAlign: "left",
-              }}
-            >
-              {fmtMoney(stats.untracked_revenue)} closed before the funnel · {showUntracked ? "hide" : "show"}{" "}
-              {stats.untracked_count} {stats.untracked_count === 1 ? "deal" : "deals"}
-              {showUntracked ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
-            </button>
-          )}
-          {/* A returning client never books a first call again, so the funnel was
-              never going to see that deal. Only the new clients are a real gap. */}
-          {stats.untracked_count > 0 && (stats.untracked_repeat_count ?? 0) > 0 && (
-            <div style={{ fontSize: 13, lineHeight: "18px", color: "var(--mute)" }}>
-              {fmtMoney(stats.untracked_repeat_revenue ?? 0)} from returning clients ·{" "}
-              {fmtMoney(stats.untracked_new_revenue ?? 0)} from new clients
-            </div>
-          )}
-        </Figure>
+        {/* The funnel notes sit behind the "i": useful when asked, noise on every visit. */}
+        <Figure
+          label="Contract value"
+          value={fmtMoney(stats.won_revenue_total * roll)}
+          note="NPSA revenue won"
+          accent
+          info={
+            stats.untracked_count > 0 ? (
+              <>
+                {fmtMoney(stats.untracked_revenue)} of this closed before the funnel: {stats.untracked_count}{" "}
+                {stats.untracked_count === 1 ? "deal" : "deals"} with no booking behind them.
+                {/* A returning client never books a first call again, so the funnel was
+                    never going to see that deal. Only the new clients are a real gap. */}
+                {(stats.untracked_repeat_count ?? 0) > 0 && (
+                  <>
+                    {" "}
+                    {fmtMoney(stats.untracked_repeat_revenue ?? 0)} from returning clients,{" "}
+                    {fmtMoney(stats.untracked_new_revenue ?? 0)} from new clients.
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowUntracked((v) => !v)}
+                  aria-expanded={showUntracked}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    marginTop: 8,
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                    fontWeight: 600,
+                    color: "inherit",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                    cursor: "pointer",
+                  }}
+                >
+                  {showUntracked ? "Hide" : "Show"} the {stats.untracked_count} {stats.untracked_count === 1 ? "deal" : "deals"}
+                  {showUntracked ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+                </button>
+              </>
+            ) : undefined
+          }
+        />
 
         {apps && (
           <Figure
