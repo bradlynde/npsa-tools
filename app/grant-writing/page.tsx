@@ -1137,24 +1137,32 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
 
 const VIEWS: { key: Exclude<View, "all">; label: string; note: string; warn?: boolean }[] = [
   { key: "active", label: "Active clients", note: "In grant writing" },
-  { key: "kickoff", label: "Awaiting kickoff", note: "Registered, Day 0 not set" },
+  { key: "kickoff", label: "Awaiting kickoff", note: "Kickoff call not set or still ahead" },
   { key: "quiet", label: "Quiet 14+ days", note: "No client save since then", warn: true },
   { key: "submitted", label: "Submitted", note: "Marked complete by the client" },
 ];
 const VIEW_TITLE: Record<View, string> = { active: "Active clients", kickoff: "Awaiting kickoff", quiet: "Quiet for 14+ days", submitted: "Submitted", all: "All clients" };
 
 const SORTS: { key: Sort; label: string }[] = [
-  { key: "attention", label: "Needs attention" },
   { key: "name", label: "Name" },
+  { key: "attention", label: "Needs attention" },
   { key: "save", label: "Last save, oldest first" },
   { key: "intake", label: "Intake, least done first" },
 ];
+
+/** The kickoff call (Day 0) hasn't happened: no date set, or a date after today. */
+const kickoffPending = (r: ClientRow) => {
+  if (!r.kickoff_date) return true;
+  const t = new Date();
+  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  return r.kickoff_date.slice(0, 10) > today;
+};
 
 const inView = (r: ClientRow, v: View) => {
   if (v === "all") return true;
   if (v === "submitted") return r.status === "submitted";
   if (r.status !== "active") return false;
-  if (v === "kickoff") return !r.kickoff_date;
+  if (v === "kickoff") return kickoffPending(r);
   if (v === "quiet") { const d = daysSince(r.last_client_activity_at); return d !== null && d > 14; }
   return true;
 };
@@ -1167,7 +1175,7 @@ const inView = (r: ClientRow, v: View) => {
 function attentionRank(r: ClientRow): [number, number] {
   if (r.status !== "active") return [5, 0];
   const d = daysSince(r.last_client_activity_at);
-  if (d === null) return r.kickoff_date ? [2, 0] : [4, 0];
+  if (d === null) return kickoffPending(r) ? [4, 0] : [2, 0];
   if (d > 30) return [0, -d];
   if (d > 14) return [1, -d];
   return [3, -d];
@@ -1175,7 +1183,7 @@ function attentionRank(r: ClientRow): [number, number] {
 
 export default function GrantWritingPage() {
   const [view, setView] = useState<View>("active");
-  const [sort, setSort] = useState<Sort>("attention");
+  const [sort, setSort] = useState<Sort>("name");
   const [rows, setRows] = useState<ClientRow[] | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
