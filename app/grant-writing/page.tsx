@@ -332,6 +332,9 @@ function Stat({ label, value, sub, bar, tone }: { label: string; value: React.Re
   );
 }
 
+/** Locations-tab site numbers a client can have (the backend's SITE_MAX). */
+const SITE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8];
+
 /** What NPSA is writing for this client. Everything on the client form (header, caps, documents) reads from this list. */
 function ApplicationsSection({ client, derived, editing, onSaved }: { client: ClientRow; derived: Application[]; editing: boolean; onSaved: (c: ClientRow) => void }) {
   const stored = client.applications || [];
@@ -365,11 +368,11 @@ function ApplicationsSection({ client, derived, editing, onSaved }: { client: Cl
               </select>
               <input value={a.cycle} onChange={(e) => set(i, { cycle: e.target.value })} placeholder="FY2027 / 2026-27" aria-label="Cycle" className="field field-sm" />
               <RemoveButton label="Remove application" onClick={() => setDraft((d) => d.filter((_, j) => j !== i))} />
-              <span style={{ display: "inline-flex", gap: 10, alignItems: "center", fontSize: 13, whiteSpace: "nowrap", color: "var(--sec)" }}>
+              <span style={{ display: "inline-flex", gap: 10, alignItems: "center", flexWrap: "wrap", gridColumn: "1 / -1", fontSize: 13, color: "var(--sec)" }}>
                 Sites
-                {[1, 2, 3].map((n) => (
+                {SITE_NUMBERS.map((n) => (
                   <label key={n} style={{ display: "inline-flex", gap: 3, alignItems: "center", cursor: "pointer", color: "var(--ink)" }}>
-                    <input type="checkbox" checked={a.sites.includes(n)} onChange={(e) => set(i, { sites: e.target.checked ? [...a.sites, n].sort() : a.sites.filter((x) => x !== n) })} />
+                    <input type="checkbox" checked={a.sites.includes(n)} onChange={(e) => set(i, { sites: e.target.checked ? [...a.sites, n].sort((x, y) => x - y) : a.sites.filter((x) => x !== n) })} />
                     {n}
                   </label>
                 ))}
@@ -383,7 +386,7 @@ function ApplicationsSection({ client, derived, editing, onSaved }: { client: Cl
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <Button variant="secondary" size="sm" icon={Plus} disabled={draft.length >= 6} onClick={() => setDraft((d) => [...d, { id: "", program: programs[0]?.code || "NSGP-S", cycle: "", sites: [1], status: "active" }])}>Add application</Button>
             <Button size="sm" busy={busy} disabled={busy || !dirty || draft.some((a) => !a.program || !a.sites.length)} onClick={save}>{busy ? "Saving…" : "Save applications"}</Button>
-            <span className="meta">Sites are the Locations-tab site numbers. &ldquo;Later cycle&rdquo; shows on the form but stays out of today&rsquo;s caps.</span>
+            <span className="meta">Sites are the Locations-tab site numbers (up to 8; a federal application covers at most 3). &ldquo;Later cycle&rdquo; shows on the form but stays out of today&rsquo;s caps.</span>
           </div>
         </div>
       )}
