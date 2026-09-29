@@ -175,7 +175,7 @@ export type ApplicationStats = {
   pending_count: number;
   preparing_count: number;
   denied_count: number;
-  /** Denied, with a new application made for the second attempt. Not in the acceptance rate. Newer backends only. */
+  /** Denied, with a new application made for the second attempt. Counted as a loss in the acceptance rate. Newer backends only. */
   resubmitted_count?: number;
   /** Cancelled by the client; left out of every other figure. Newer backends only. */
   cancelled_count?: number;
