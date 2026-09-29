@@ -192,6 +192,10 @@ async function ensureSchema(pool) {
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_at            TIMESTAMPTZ;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_source        TEXT;
     ALTER TABLE bookings ADD COLUMN IF NOT EXISTS won_opportunities JSONB DEFAULT '{}';
+    -- Where fee came from: 'letter' (an LOE saved in the generator) or 'salesforce'
+    -- (a won contract with no letter behind it). NULL when there is no fee. See
+    -- settleOutcomes().
+    ALTER TABLE bookings ADD COLUMN IF NOT EXISTS fee_source        TEXT;
   `).catch(err => console.error('bookings wins-columns error:', err.message));
 
   // Two ways a booking stops representing real pipeline:
@@ -346,6 +350,14 @@ async function ensureSchema(pool) {
   // The bucket is derived on ingest, so rows stored before a bucketing rule changed
   // keep the old answer until Salesforce next sends them. Re-derive on boot.
   await rebucketApplications(pool).catch(err => console.error('sf_applications rebucket error:', err.message));
+
+  // Bookings that already carry a win were settled under the old rule (a win did
+  // not make a client). Re-settle them once on boot rather than waiting for each
+  // to be re-enriched or re-synced. Rows with no win are left untouched.
+  await pool.query(`SELECT id FROM bookings WHERE won IS TRUE OR fee_source IS NOT NULL`)
+    .then(({ rows }) => settleOutcomes(pool, rows.map(r => r.id)))
+    .then(n => { if (n) console.log(`[marketing] settled ${n} bookings with wins`); })
+    .catch(err => console.error('bookings settle error:', err.message));
 
   // One row per sync attempt, whatever did the syncing. Declared here as well as in
   // the Salesforce connector because both write to it, and this module cannot import
@@ -1233,6 +1245,9 @@ async function enrichBooking(pool, id) {
      exclusionReason, cancelled, cancelledAt, rescheduledFrom,
      eventUri, inviteeUri, lookupAt, id, campaignId, leadAt, st.host]
   );
+  // The letter match above knows nothing of Salesforce; a won booking is a client
+  // whether or not an LOE was saved here. See settleOutcomes().
+  await settleOutcomes(pool, [id]);
 
   // Only now is this row's rescheduled_from on disk, so only now can the chain it
   // just joined be dated from its first booking.
@@ -1279,6 +1294,57 @@ const bareDomain = (s) => (s || '').trim().toLowerCase()
 // double-count). All of an org's grants land on one booking (the most recent),
 // so an org that booked twice is still one win.
 // ─────────────────────────────────────────────────────────────
+/**
+ * What a win means for the funnel, applied wherever a win can arrive.
+ *
+ * A booking used to count as a client only when an LOE saved in the generator
+ * matched its organization (or someone ticked it by hand). A contract signed in
+ * Salesforce did not count: on 2026-09-28, 19 of the 34 bookings with a
+ * Salesforce win showed as not clients, $407,250 of won business, so a campaign
+ * could show wins and still read 0 clients and $0 (Christian Schools did). And a
+ * booking cancelled in Calendly stayed excluded even after the organization
+ * signed, so that win dropped out of every figure (United Church of Hyde Park,
+ * $15,000).
+ *
+ * The rules, decided by Stuart:
+ *   - a Salesforce win makes the booking a client;
+ *   - its fee is the letter's when there is one, otherwise the won amount, and
+ *     fee_source says which, so the page can say where the figure came from;
+ *   - a win clears a *cancellation*. It does not clear "rescheduled": that row was
+ *     replaced by another booking, and counting both would count the org twice.
+ *   - a choice a person made (the Held/LOE ticks, an exclusion) still stands.
+ *
+ * Deliberately a delta on what is stored, not a re-derivation: for a booking with
+ * no win it produces exactly what enrichment already wrote, so it can run after
+ * any writer without moving a figure that has nothing to do with wins.
+ */
+async function settleOutcomes(pool, ids) {
+  if (!ids || !ids.length) return 0;
+  const { rowCount } = await pool.query(
+    `UPDATE bookings b SET
+       became_client = CASE WHEN b.manual_override ? 'became_client'
+                            THEN (b.manual_override->>'became_client')::boolean
+                            ELSE (b.client_letter_id IS NOT NULL OR b.won IS TRUE) END,
+       fee = CASE WHEN b.client_letter_id IS NOT NULL THEN COALESCE(x.letter_fee, b.fee)
+                  WHEN b.won IS TRUE THEN COALESCE(b.won_amount, 0)
+                  ELSE 0 END,
+       fee_source = CASE WHEN b.client_letter_id IS NOT NULL THEN 'letter'
+                         WHEN b.won IS TRUE THEN 'salesforce' END,
+       exclusion_reason = CASE
+         WHEN (b.manual_override->>'exclusion') = ANY($2::text[]) THEN b.exclusion_reason
+         WHEN b.won IS TRUE AND b.exclusion_reason = 'cancelled' THEN NULL
+         WHEN b.won IS NOT TRUE AND b.exclusion_reason IS NULL
+              AND b.cancelled IS TRUE AND b.rescheduled_to IS NULL THEN 'cancelled'
+         ELSE b.exclusion_reason END,
+       updated_at = NOW()
+     FROM (SELECT bb.id, l.total_fee AS letter_fee
+             FROM bookings bb LEFT JOIN letters l ON l.id = bb.client_letter_id
+            WHERE bb.id = ANY($1::int[])) x
+    WHERE b.id = x.id`,
+    [ids, EXCLUSION_REASONS]);
+  return rowCount;
+}
+
 /**
  * Finds the booking an organization's Salesforce record belongs to.
  *
@@ -1426,6 +1492,7 @@ async function recordWin(pool, w) {
      WHERE id=$4`,
     [JSON.stringify(map), total, wonAt, target.id]
   );
+  await settleOutcomes(pool, [target.id]);
   return { matched: true, id: target.id, opportunities: Object.keys(map).length, won_amount: total };
 }
 
@@ -1434,7 +1501,7 @@ async function recordWin(pool, w) {
 // deleted gets reset rather than left showing a win that no longer exists.
 // Called after anything that removes wins (reconcile, or a scheduled sync).
 async function rebuildBookingWins(pool) {
-  await pool.query(`
+  const { rows: touched } = await pool.query(`
     UPDATE bookings b SET
       won_opportunities = COALESCE(w.map, '{}'::jsonb),
       won_amount        = COALESCE(w.total, 0),
@@ -1448,7 +1515,11 @@ async function rebuildBookingWins(pool) {
       FROM bookings bk
       WHERE bk.won = TRUE OR EXISTS (SELECT 1 FROM sf_wins s WHERE s.booking_id = bk.id)
     ) w
-    WHERE b.id = w.id`);
+    WHERE b.id = w.id
+    RETURNING b.id`);
+  // Includes rows that just LOST their win, so a client that existed only because
+  // of it stops being one and a cancellation it had cleared comes back.
+  await settleOutcomes(pool, touched.map(r => r.id));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1679,6 +1750,37 @@ const COUNTABLE_FINANCIAL = `
   AND opportunity_id IS NOT NULL
   AND created_date >= $2::timestamptz`;
 const FINANCIAL_ARGS = [FINANCIAL_PURPOSE, FINANCIALS_SINCE];
+
+/*
+ * A repeat client: the organization signed with NPSA before this contract.
+ *
+ * The untracked figures lumped two different things together. A contract with no
+ * booking behind it is an attribution gap when a new organization came in some way
+ * the funnel never saw. But a returning client never books a first consultation, so
+ * its renewal can never have one — and on 2026-09-28 about a third of the untracked
+ * wins since tracking began were exactly that (McLean Bible, Peoria Christian,
+ * Redeemer West Side...). Counted as gaps, they made attribution look worse than it
+ * is and hid the gaps that are real.
+ *
+ * Financials carry the Salesforce Account, so that is the key; the name is the
+ * fallback only when a record has no Account. Wins carry no Account, so they key on
+ * the domain and then the normalized name — the same keys matchBookingByOrg uses.
+ * Expects the outer row aliased f (financials) or w (wins).
+ */
+const NORM = (col) => `NULLIF(regexp_replace(lower(${col}), '[^a-z0-9]', '', 'g'), '')`;
+const REPEAT_FINANCIAL = `EXISTS (
+  SELECT 1 FROM sf_financials e
+   WHERE e.financial_id <> f.financial_id
+     AND e.purpose = $1 AND e.non_security IS NOT TRUE
+     AND e.created_date < f.created_date
+     AND ( (f.account_id IS NOT NULL AND e.account_id = f.account_id)
+        OR (f.account_id IS NULL AND ${NORM('e.organization')} = ${NORM('f.organization')}) ))`;
+const REPEAT_WIN = `EXISTS (
+  SELECT 1 FROM sf_wins e
+   WHERE e.opportunity_id <> w.opportunity_id
+     AND e.close_date < w.close_date
+     AND ( (w.domain IS NOT NULL AND e.domain = w.domain)
+        OR ${NORM('e.organization')} = ${NORM('w.organization')} ))`;
 
 export function registerMarketing(app, pool) {
   if (!pool) { console.warn('[marketing] no DB pool — marketing endpoints disabled'); return; }
@@ -1940,6 +2042,11 @@ export function registerMarketing(app, pool) {
           COUNT(*) FILTER (WHERE attribution_channel='instantly')::int AS instantly_count,
           COUNT(*) FILTER (WHERE held IS NOT NULL)::int AS resolved_meetings,
           COUNT(*) FILTER (WHERE held IS TRUE)::int AS held_count,
+          -- held defaults to TRUE for any past meeting unless someone marks the
+          -- no-show in Calendly, so held_rate is only as good as that habit. The
+          -- count lets the page say so instead of showing a bare 100%.
+          COUNT(*) FILTER (WHERE held IS FALSE)::int AS no_show_count,
+          COALESCE(SUM(fee) FILTER (WHERE became_client AND fee_source = 'salesforce'),0)::numeric AS fees_from_salesforce,
           COUNT(*) FILTER (WHERE won)::int AS won_count,
           COALESCE(SUM(won_amount) FILTER (WHERE won),0)::numeric AS won_revenue
         FROM bookings WHERE ${COUNTABLE}`);
@@ -1963,10 +2070,12 @@ export function registerMarketing(app, pool) {
           COALESCE(SUM(amount) FILTER (WHERE booking_id IS NOT NULL),0)::numeric AS sf_attr_revenue,
           COUNT(*) FILTER (WHERE booking_id IS NULL)::int AS sf_untracked_count,
           COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL),0)::numeric AS sf_untracked_revenue,
+          COUNT(*) FILTER (WHERE booking_id IS NULL AND ${REPEAT_WIN})::int AS sf_untracked_repeat_count,
+          COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL AND ${REPEAT_WIN}),0)::numeric AS sf_untracked_repeat_revenue,
           -- Organizations won (the sales-team number): an org with several grants is
           -- still one win. Falls back to the opportunity row when org name is blank.
           COUNT(DISTINCT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'),''), opportunity_id))::int AS sf_org_count
-        FROM sf_wins`);
+        FROM sf_wins w`);
       const sw = wrows[0];
 
       // The revenue layer proper. See COUNTABLE_FINANCIAL above for why this is
@@ -1978,9 +2087,11 @@ export function registerMarketing(app, pool) {
                COALESCE(SUM(amount) FILTER (WHERE booking_id IS NOT NULL),0)::numeric AS attr_revenue,
                COUNT(*) FILTER (WHERE booking_id IS NULL)::int AS untracked_count,
                COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL),0)::numeric AS untracked_revenue,
+               COUNT(*) FILTER (WHERE booking_id IS NULL AND ${REPEAT_FINANCIAL})::int AS untracked_repeat_count,
+               COALESCE(SUM(amount) FILTER (WHERE booking_id IS NULL AND ${REPEAT_FINANCIAL}),0)::numeric AS untracked_repeat_revenue,
                COUNT(DISTINCT COALESCE(NULLIF(regexp_replace(lower(organization), '[^a-z0-9]', '', 'g'),''),
                                        financial_id))::int AS org_count
-          FROM sf_financials WHERE ${COUNTABLE_FINANCIAL}`, FINANCIAL_ARGS);
+          FROM sf_financials f WHERE ${COUNTABLE_FINANCIAL}`, FINANCIAL_ARGS);
 
       // Until the financials sync has delivered anything, the opportunity figures
       // still answer — the same fallback the Salesforce layer already used before
@@ -1990,10 +2101,14 @@ export function registerMarketing(app, pool) {
       const layer = hasFin
         ? { count: fin.count, revenue: Number(fin.revenue), org_count: fin.org_count,
             attr_count: fin.attr_count, attr_revenue: Number(fin.attr_revenue),
-            untracked_count: fin.untracked_count, untracked_revenue: Number(fin.untracked_revenue) }
+            untracked_count: fin.untracked_count, untracked_revenue: Number(fin.untracked_revenue),
+            untracked_repeat_count: fin.untracked_repeat_count,
+            untracked_repeat_revenue: Number(fin.untracked_repeat_revenue) }
         : { count: sw.sf_count, revenue: Number(sw.sf_revenue), org_count: sw.sf_org_count,
             attr_count: sw.sf_attr_count, attr_revenue: Number(sw.sf_attr_revenue),
-            untracked_count: sw.sf_untracked_count, untracked_revenue: Number(sw.sf_untracked_revenue) };
+            untracked_count: sw.sf_untracked_count, untracked_revenue: Number(sw.sf_untracked_revenue),
+            untracked_repeat_count: sw.sf_untracked_repeat_count,
+            untracked_repeat_revenue: Number(sw.sf_untracked_repeat_revenue) };
       const hasSf = layer.count > 0;
       const sfTotalRev = layer.revenue;
 
@@ -2025,8 +2140,20 @@ export function registerMarketing(app, pool) {
         bookings_last_month_to_date: s.bookings_last_month_to_date,
         client_rate: s.total_bookings ? s.clients / s.total_bookings : 0,
         held_rate: s.resolved_meetings ? s.held_count / s.resolved_meetings : 0,
+        // How many past meetings anyone has marked as a no-show. While this is 0,
+        // held_rate is 100% by construction and says nothing about attendance.
+        no_show_count: s.no_show_count,
+        // The relabel, for anything reading held_rate as a show rate (the MCP tools
+        // do). Null once no-shows are being recorded and the rate means something.
+        held_rate_note: s.no_show_count === 0
+          ? 'No no-shows have been recorded in Calendly, so every past meeting counts as held. This is not an attendance rate.'
+          : null,
         instantly_pct: s.total_bookings ? s.instantly_count / s.total_bookings : 0,
         total_fees_won: Number(s.total_fees_won),
+        // total_fees_won split by where each fee came from: an LOE saved in the
+        // generator, or the won amount of a Salesforce contract with no letter here.
+        fees_from_letters: Number(s.total_fees_won) - Number(s.fees_from_salesforce),
+        fees_from_salesforce: Number(s.fees_from_salesforce),
         won_count: s.won_count,
         won_rate: s.total_bookings ? s.won_count / s.total_bookings : 0,
         won_revenue: Number(s.won_revenue),
@@ -2039,7 +2166,18 @@ export function registerMarketing(app, pool) {
         attributed_count: layer.attr_count,
         untracked_revenue: layer.untracked_revenue,
         untracked_count: layer.untracked_count,
+        // The untracked figures split: returning clients, who never book a first
+        // consultation, and new business with no booking — the real gaps.
+        untracked_repeat_revenue: layer.untracked_repeat_revenue,
+        untracked_repeat_count: layer.untracked_repeat_count,
+        untracked_new_revenue: layer.untracked_revenue - layer.untracked_repeat_revenue,
+        untracked_new_count: layer.untracked_count - layer.untracked_repeat_count,
         attribution_coverage: sfTotalRev > 0 ? layer.attr_revenue / sfTotalRev : 0,
+        // Coverage of new business only: what the funnel could have seen.
+        attribution_coverage_new: (() => {
+          const base = layer.attr_revenue + (layer.untracked_revenue - layer.untracked_repeat_revenue);
+          return base > 0 ? layer.attr_revenue / base : 0;
+        })(),
         // Which store the headline came from, so the UI never has to guess.
         revenue_source: hasFin ? 'financials' : 'opportunities',
         // Excluded from every figure above, broken out by reason so the dashboard can
@@ -2065,9 +2203,12 @@ export function registerMarketing(app, pool) {
   app.get('/api/marketing/untracked-wins', async (req, res) => {
     if (!pool) return guard(res);
     try {
+      // repeat_client marks a returning client, who never books a first
+      // consultation and so can never have a booking; the rest are the real gaps.
       const { rows } = await pool.query(`
-        SELECT opportunity_id, organization, domain, amount::numeric AS amount, close_date
-          FROM sf_wins
+        SELECT opportunity_id, organization, domain, amount::numeric AS amount, close_date,
+               ${REPEAT_WIN} AS repeat_client
+          FROM sf_wins w
          WHERE booking_id IS NULL
          ORDER BY close_date DESC NULLS LAST, amount DESC`);
       res.json(rows.map(r => ({
@@ -2076,6 +2217,7 @@ export function registerMarketing(app, pool) {
         domain: r.domain,
         amount: Number(r.amount),
         close_date: r.close_date,
+        repeat_client: r.repeat_client === true,
       })));
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
@@ -2297,7 +2439,7 @@ export function registerMarketing(app, pool) {
                 -- #158 and #173 fixed exactly that on this side. Grouping needs the
                 -- id, and the id is not something the client can derive.
                 b.instantly_campaign_id, b.host,
-                b.held, b.became_client, b.fee,
+                b.held, b.became_client, b.fee, b.fee_source,
                 b.won, b.won_amount, b.exclusion_reason, b.cancelled, b.cancelled_at,
                 b.rescheduled_from, b.rescheduled_to,
                 prev.meeting_date AS rescheduled_from_date,

@@ -611,7 +611,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
   server.registerTool('marketing_untracked_wins', {
     title: 'Untracked wins',
-    description: 'Salesforce wins with no matching tracked booking. Most predate funnel tracking (late February 2026); recent ones may be attribution gaps.',
+    description: 'Salesforce wins with no matching tracked booking. Most predate funnel tracking (late February 2026). repeat_client marks a returning client, who never books a consultation; the rest since then are attribution gaps.',
     inputSchema: {},
     annotations: READ,
   }, tool(async () => api('/marketing/untracked-wins')));
