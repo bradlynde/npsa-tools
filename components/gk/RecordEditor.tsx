@@ -33,6 +33,17 @@ export function RecActions({ rec, onlyEdit = false }: { rec: Rec; onlyEdit?: boo
   const [confirm, confirmDialog] = useConfirm();
   if (!on || rec.jurisdiction !== home) return null; // the federal baseline is edited on the federal page
   const needsVerify = rec.effective_status !== "verified" || rec.unverified_fields.length > 0;
+  // Verified, or verified once and now stale. A record with only some fields in doubt
+  // is still verified overall, so it can be taken back too.
+  const canUnverify = !!rec.verified_at;
+  const unverify = async () => {
+    const ok = await confirm({
+      title: `Take back the verification on “${rec.title}”?`,
+      body: "It goes back into the queue of things that need a person, and client pages and briefings stop using it until someone verifies it again. Use this when it's wrong or you're no longer sure. To fix it, edit it and verify again.",
+      confirmLabel: "Unverify",
+    });
+    if (ok) move(rec, "unverify");
+  };
   const archive = async () => {
     const ok = await confirm({ title: `Archive “${rec.title}”?`, body: "It leaves the page, and can be restored from History.", confirmLabel: "Archive" });
     if (ok) move(rec, "archive");
@@ -41,6 +52,7 @@ export function RecActions({ rec, onlyEdit = false }: { rec: Rec; onlyEdit?: boo
     <span style={{ display: "inline-flex", gap: 10, marginLeft: 4, whiteSpace: "nowrap" }}>
       <button style={tiny} onClick={() => open({ rec })}>Edit</button>
       {!onlyEdit && needsVerify && <button style={{ ...tiny, color: "var(--ok-fg)" }} title="I have confirmed this myself" onClick={() => move(rec, "verify")}>Verify</button>}
+      {!onlyEdit && canUnverify && <button style={{ ...tiny, color: "var(--mute)" }} title="Take back a verification that turned out to be wrong" onClick={unverify}>Unverify</button>}
       {!onlyEdit && rec.kind !== "jurisdiction" && <button style={{ ...tiny, color: "var(--mute)" }} title="Take out of view. Reversible from History." onClick={archive}>Archive</button>}
       {confirmDialog}
     </span>
