@@ -37,7 +37,7 @@ globalThis.fetch = async (url, init = {}) => {
 // reads the header through req.get(), which the fake request had no answer for.
 process.env.ZAPIER_WEBHOOK_SECRET = 'psg-secret';
 delete process.env.CALENDLY_API_TOKEN;
-process.env.BOOKING_SWEEP_MINUTES = '100000';
+process.env.BOOKING_SWEEP_MINUTES = '30000';   // ~3 weeks: the most a Node timer holds (2^31 ms); above it, it fires every 1 ms
 
 const { Pool } = pg;
 const pool = new Pool({

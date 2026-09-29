@@ -58,7 +58,7 @@ globalThis.fetch = async (url, init = {}) => {
 
 process.env.INSTANTLY_API_KEY = 'test-key';
 delete process.env.CALENDLY_API_TOKEN;        // enrich must survive with no Calendly
-process.env.BOOKING_SWEEP_MINUTES = '100000'; // never let the background sweep race us
+process.env.BOOKING_SWEEP_MINUTES = '30000';   // ~3 weeks: the most a Node timer holds (2^31 ms); above it, it fires every 1 ms
 
 const { Pool } = pg;
 const pool = new Pool({

@@ -619,7 +619,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
   if (canWrite) {
     server.registerTool('marketing_booking_update', {
       title: 'Update booking flags',
-      description: 'WRITE. Confirm with the user before calling. Sets the dashboard\'s manual overrides on one booking; only the fields given change: held (the meeting happened), became_client (an LOE was signed), exclusion (drops it from the totals; "" clears), channel or campaign ("" hands it back to automatic detection; a campaign also clears any channel override). The booking is re-enriched afterwards.',
+      description: 'WRITE. Confirm with the user before calling. Sets the dashboard\'s manual overrides on one booking; only the fields given change: held (the meeting happened), became_client (an LOE was signed), exclusion (drops it from the totals; "" clears), channel or campaign ("" hands it back to automatic detection; a campaign also clears any channel override), organization (corrects the name the invitee typed, so the booking matches its Salesforce win; kept across Calendly re-imports; "" drops the correction). The booking is re-enriched afterwards, and after an organization change any unmatched Salesforce wins are matched again.',
       inputSchema: {
         id: z.number().int().describe('Booking id from marketing_bookings'),
         held: z.boolean().optional(),
@@ -627,11 +627,12 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         exclusion: z.enum([...EXCLUSION_REASONS, '']).optional(),
         channel: z.string().optional(),
         campaign: z.string().optional(),
+        organization: z.string().optional(),
       },
       annotations: WRITE,
     }, write('marketing_booking_update', async ({ id, ...fields }) => {
       const body = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-      if (!Object.keys(body).length) throw new Error('Nothing to change: give at least one of held, became_client, exclusion, channel, campaign');
+      if (!Object.keys(body).length) throw new Error('Nothing to change: give at least one of held, became_client, exclusion, channel, campaign, organization');
       return api(`/marketing/bookings/${id}`, { method: 'PATCH', body });
     }));
 
