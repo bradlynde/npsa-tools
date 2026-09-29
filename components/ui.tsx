@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Info } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 /* ── Motion ─────────────────────────────────────────────────────── */
@@ -427,6 +428,77 @@ export function Spinner({ size = 16 }: { size?: number }) {
         flexShrink: 0,
       }}
     />
+  );
+}
+
+/**
+ * An "i" that opens a small panel of detail on hover, focus or tap, for notes a
+ * figure needs but should not show all the time. The panel can hold a link or a
+ * button: it stays open while the pointer is over it, and closes on leaving,
+ * Escape, or a tap elsewhere.
+ */
+export function InfoTip({ label, children, width = 280 }: { label: string; children: React.ReactNode; width?: number }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const show = () => { clearTimeout(timer.current); setOpen(true); };
+  // A short delay, so crossing from the icon to the panel does not close it.
+  const hide = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(false), 140); };
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  return (
+    <span
+      ref={box}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node)) hide(); }}
+      style={{ position: "relative", display: "inline-flex", verticalAlign: "middle" }}
+    >
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        style={{ display: "inline-flex", padding: 2, margin: -2, background: "none", border: "none", borderRadius: 999, color: open ? "var(--ink)" : "var(--mute)", cursor: "pointer" }}
+      >
+        <Info size={15} strokeWidth={1.75} aria-hidden />
+      </button>
+      {open && (
+        // The top padding bridges the gap to the icon, so the pointer never leaves the box.
+        <span style={{ position: "absolute", top: "100%", left: -8, paddingTop: 8, zIndex: 80 }}>
+          <span
+            role="note"
+            style={{
+              display: "block",
+              width: `min(${width}px, calc(100vw - 48px))`,
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "var(--tip-bg)",
+              color: "var(--tip-fg)",
+              fontSize: 13,
+              lineHeight: "19px",
+              fontWeight: 400,
+              textTransform: "none",
+              letterSpacing: "normal",
+              boxShadow: "var(--shadow-pop)",
+              textAlign: "left",
+            }}
+          >
+            {children}
+          </span>
+        </span>
+      )}
+    </span>
   );
 }
 
