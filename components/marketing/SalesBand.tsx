@@ -490,7 +490,7 @@ export default function SalesBand({
           <Figure
             label="Acceptance rate"
             value={pct(apps.acceptance_rate * roll)}
-            note={`${apps.awarded_count} of ${apps.awarded_count + apps.denied_count} decided${
+            note={`${apps.awarded_count} of ${apps.awarded_count + apps.denied_count + (apps.resubmitted_count ?? 0)} decided${
               apps.award_fill_rate > 0 ? ` · ${pct(apps.award_fill_rate)} of ask funded` : ""
             }`}
           />
