@@ -119,5 +119,17 @@ ok("K  this month sums Sep 1 onward", totalsFor(daily, "month", TODAY).booked, 1
 ok("K2 its comparison stops at Aug 21 inclusive", priorTotalsFor(daily, "month", TODAY).booked, 1);
 ok("K3 last month sums all of August and nothing of September", totalsFor(daily, "lastmonth", TODAY).booked, 111);
 
+// FEE SOURCE: a client won in Salesforce with no letter carries the contract
+// amount, and the page names that part so it isn't read as letter value.
+const lettered = b({ id: 30, booked_on: "2026-09-10T15:00:00Z", became_client: true, fee: 6000, fee_source: "letter" });
+const sfOnly = b({ id: 31, booked_on: "2026-09-11T15:00:00Z", became_client: true, fee: 15000, fee_source: "salesforce", won: true });
+const sfExcluded = b({ id: 32, booked_on: "2026-09-12T15:00:00Z", became_client: true, fee: 9000, fee_source: "salesforce", exclusion_reason: "unqualified" });
+const older = b({ id: 33, booked_on: "2026-09-13T15:00:00Z", became_client: true, fee: 2000 });
+const fees = [lettered, sfOnly, sfExcluded, older];
+ok("L  all fees in range, whatever their source", feesInRange(fees, "month", TODAY), 23000);
+ok("L2 only the Salesforce part", feesInRange(fees, "month", TODAY, "salesforce"), 15000);
+ok("L3 only the letter part", feesInRange(fees, "month", TODAY, "letter"), 6000);
+ok("L4 no Salesforce part from a backend that doesn't send fee_source", feesInRange([older], "month", TODAY, "salesforce"), 0);
+
 console.log(`\n${results.filter(r => r === "P").length}/${results.length} passed`);
 process.exit(results.includes("F") ? 1 : 0);

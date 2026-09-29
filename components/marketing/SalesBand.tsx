@@ -7,6 +7,7 @@ import {
   SectionHeader,
   SegPill,
   Note,
+  Tag,
   useRoll,
   useElementWidth,
   fmtInt,
@@ -352,6 +353,14 @@ export default function SalesBand({
               {showUntracked ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
             </button>
           )}
+          {/* A returning client never books a first call again, so the funnel was
+              never going to see that deal. Only the new clients are a real gap. */}
+          {stats.untracked_count > 0 && (stats.untracked_repeat_count ?? 0) > 0 && (
+            <div style={{ fontSize: 13, lineHeight: "18px", color: "var(--mute)" }}>
+              {fmtMoney(stats.untracked_repeat_revenue ?? 0)} from returning clients ·{" "}
+              {fmtMoney(stats.untracked_new_revenue ?? 0)} from new clients
+            </div>
+          )}
         </Figure>
 
         {apps && (
@@ -393,8 +402,19 @@ export default function SalesBand({
                   fontSize: 14,
                 }}
               >
-                <div style={{ flex: 1, color: "var(--ink)", fontWeight: 500 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    color: "var(--ink)",
+                    fontWeight: 500,
+                  }}
+                >
                   {u.organization || "—"}
+                  {u.repeat_client && <Tag>Returning client</Tag>}
                 </div>
                 <div
                   style={{
