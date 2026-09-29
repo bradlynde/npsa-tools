@@ -162,7 +162,12 @@ export function parseMoney(v) {
   if (m[2]) n *= m[2].toLowerCase() === 'k' ? 1000 : 1000000;
   return Math.round(n);
 }
-const WISH_FACILITIES = [1, 2, 3].map(n => ({
+// A client can have up to SITE_MAX locations (2026-09-29: a church applying to CSNSGP for two
+// campuses and to the federal program for three more). Each federal application still covers
+// at most the program's locations_max (three). The page clones its site 3 blocks up to this.
+export const SITE_MAX = 8;
+export const SITE_NUMBERS = Array.from({ length: SITE_MAX }, (_, i) => i + 1);
+const WISH_FACILITIES = SITE_NUMBERS.map(n => ({
   n,
   items: QUESTIONS.filter(q => q.key.startsWith(`wl_f${n}_`) && q.key.endsWith('_int')).map(q => ({
     stem: q.key.slice(`wl_f${n}_`.length, -'_int'.length),
@@ -297,12 +302,14 @@ function validApplications(list, state) {
     const prog = programs.find(p => p.code.toLowerCase() === String(a?.program || '').trim().toLowerCase());
     if (!prog) throw new BadRequest(`${label}.program must be one of ${programs.map(p => p.code).join(', ')}`);
     const sites = a.sites === undefined ? [1] : a.sites;
-    if (!Array.isArray(sites) || !sites.length || sites.some(n => ![1, 2, 3].includes(n)) || new Set(sites).size !== sites.length) throw new BadRequest(`${label}.sites must list site numbers 1–3`);
+    if (!Array.isArray(sites) || !sites.length || sites.some(n => !SITE_NUMBERS.includes(n)) || new Set(sites).size !== sites.length) throw new BadRequest(`${label}.sites must list site numbers 1–${SITE_MAX}`);
+    const perApp = prog.kind === 'federal' ? (knowledgeFor(state).federal.locationsMax || 3) : null;
+    if (perApp && sites.length > perApp) throw new BadRequest(`${label}: ${prog.code} covers at most ${perApp} sites per application`);
     const status = a.status === undefined ? 'active' : String(a.status);
     if (!APPLICATION_STATUSES.includes(status)) throw new BadRequest(`${label}.status must be one of ${APPLICATION_STATUSES.join(', ')}`);
     let id = String(a.id || '');
     if (!/^a\d{1,2}$/.test(id)) { id = `a${next++}`; used.add(id); }
-    return { id, program: prog.code, cycle: String(a.cycle || '').trim().slice(0, 24), sites: [...sites].sort(), status };
+    return { id, program: prog.code, cycle: String(a.cycle || '').trim().slice(0, 24), sites: [...sites].sort((x, y) => x - y), status };
   });
 }
 /** The stored list with names filled in, or one derived from the Locations tab (derived: true). */
@@ -313,7 +320,7 @@ export function applicationsFor(client, val = () => '') {
   if (Array.isArray(client.applications)) return client.applications.map(view);
   const sp = programsFor(client.state).find(p => p.kind === 'state');
   const groups = new Map();
-  for (const n of [1, 2, 3]) {
+  for (const n of SITE_NUMBERS) {
     const v = val(`loc${n}_programs`);
     if (!v) continue;
     const codes = [];
@@ -332,7 +339,7 @@ export function applicationCap(app) {
 }
 /** The key prefix for an application's wish list: a1 keeps the catalog's wl_f<n>_ keys, the rest are wl_<id>_f<n>_. */
 export function wishPrefix(id) { return !id || id === 'a1' ? 'wl_' : `wl_${id}_`; }
-const WL_APP_KEY_RE = /^wl_(a(?:[2-9]|[1-9]\d))_(f[123]_.+)$/;
+const WL_APP_KEY_RE = /^wl_(a(?:[2-9]|[1-9]\d))_(f[1-8]_.+)$/;
 // The checklist splits. A second application is an add-on rather than a second engagement: it needs
 // its own wish list, budget, IJ and submission, while the prep, the drafting and the review with the
 // client are done once. Vendor quotes stay shared because we usually work from estimates.
@@ -550,8 +557,8 @@ export function progressFor(client, answered, uploaded = new Set()) {
   const community = sections.find(x => x.section.startsWith('3.'));
   if (community) { community.total++; if (programs) community.answered++; }
   const sites = new Set([1, ...(stored || []).flatMap(a => a.sites)]);
-  for (const n of [2, 3]) if ([...LOC_FIELDS, 'programs'].some(f => has(`loc${n}_${f}`))) sites.add(n);
-  const locKeys = [...sites].sort().flatMap(n => [...LOC_FIELDS, ...(stored ? [] : ['programs'])].map(f => `loc${n}_${f}`));
+  for (const n of SITE_NUMBERS.slice(1)) if ([...LOC_FIELDS, 'programs'].some(f => has(`loc${n}_${f}`))) sites.add(n);
+  const locKeys = [...sites].sort((a, b) => a - b).flatMap(n => [...LOC_FIELDS, ...(stored ? [] : ['programs'])].map(f => `loc${n}_${f}`));
   sections.push({ section: 'Locations', answered: locKeys.filter(has).length, total: locKeys.length });
   const docs = documentsFor(client).map(d => d.key), received = receivedFor(client);
   sections.push({ section: 'Uploads', answered: docs.filter(k => has(k) || uploaded.has(k) || received[k]).length, total: docs.length });
@@ -630,6 +637,7 @@ function statusView(client, answers, base, uploads = []) {
   const stored = Array.isArray(client.applications);
   if (stored) for (const f of wish_list) f.budget.programs = siteProgramsFromApplications(applications, f.facility);
   const active = wish_list.filter(f => f.facility === 1 || f.name || val(`loc${f.facility}_addr`) || f.prioritized > 0 || f.budget.items > 0 || (stored && applications.some(a => a.sites.includes(f.facility))));
+  const inPlay = new Set(active.map(f => f.facility));
   const caps = capsFor(client.state, active.map(f => ({ facility: f.facility, programs: f.budget.programs })));
   for (const f of wish_list) {
     const cap = caps.sites.find(x => x.facility === f.facility);
@@ -681,7 +689,9 @@ function statusView(client, answers, base, uploads = []) {
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: val('_filled_by'), status_line: val('_status'),
     applications, applications_set: stored,
-    core: progress.core, sections, wish_list, ...(wish_lists ? { wish_lists } : {}), budget,
+    // Sites 4 and up show only once they are in play, so a three-site client reads as before.
+    core: progress.core, sections: sections.filter(x => { const m = /^Wish List — Facility (\d+)$/.exec(x.section); return !m || +m[1] <= 3 || inPlay.has(+m[1]); }),
+    wish_list: wish_list.filter(f => f.facility <= 3 || inPlay.has(f.facility)), ...(wish_lists ? { wish_lists } : {}), budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
     checklist: {
       completed: items.filter(t => t.status === 'Completed').length,
@@ -1107,7 +1117,7 @@ export function renderClientPage({ client, stateConfig, existing, contacts = { n
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, received, apiBase, uploadBase, checklistMeta: CHECKLIST_META };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, received, apiBase, uploadBase, checklistMeta: CHECKLIST_META, siteMax: SITE_MAX };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 

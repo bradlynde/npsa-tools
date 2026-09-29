@@ -101,11 +101,13 @@ await check('with MCP_API_KEYS unset only the internal key gets in', async () =>
 });
 
 // ── 2. Registration ───────────────────────────────────────────────────────────
-await check('catalog is served with 966 questions and the section list', async () => {
+await check('catalog is served with 1641 questions (eight sites) and the section list', async () => {
   const r = await call('GET', '/api/intake/questions', { headers: TEAM });
   assert.equal(r.status, 200);
-  assert.equal(r.data.count, 966);
-  assert.equal(QUESTIONS.length, 966);
+  assert.equal(r.data.count, 1641);
+  assert.equal(QUESTIONS.length, 1641);
+  assert.ok(QUESTIONS.some(q => q.key === 'loc8_infra') && QUESTIONS.some(q => q.key === 'wl_f8_anything_else'), 'sites run to 8');
+  assert.ok(!QUESTIONS.some(q => q.key.startsWith('loc9_')));
   assert.ok(r.data.sections.includes('Checklist'));
   const chk = await call('GET', '/api/intake/questions?prefix=chk_who_', { headers: TEAM });
   assert.ok(chk.data.count > 0 && chk.data.questions.every(q => q.key.startsWith('chk_who_')));
@@ -672,7 +674,10 @@ await check('applications: stored list drives caps, documents and the page; deri
   st = await call('GET', '/api/clients/modesto-cove-church/status', { headers: TEAM });
   assert.equal(st.data.budget.cap, 450000);
   assert.equal((await call('PATCH', '/api/clients/modesto-cove-church', { headers: TEAM, body: { applications: [{ program: 'NSGP-IL' }] } })).status, 400);
-  assert.equal((await call('PATCH', '/api/clients/modesto-cove-church', { headers: TEAM, body: { applications: [{ program: 'NSGP-S', sites: [4] }] } })).status, 400);
+  assert.equal((await call('PATCH', '/api/clients/modesto-cove-church', { headers: TEAM, body: { applications: [{ program: 'NSGP-S', sites: [9] }] } })).status, 400, 'eight sites at most');
+  const four = await call('PATCH', '/api/clients/modesto-cove-church', { headers: TEAM, body: { applications: [{ program: 'NSGP-S', sites: [1, 2, 3, 4] }] } });
+  assert.equal(four.status, 400, 'a federal application covers three sites');
+  assert.match(four.data.error, /at most 3 sites/);
   const html = renderClientPage({ client: { slug: 'modesto-cove-church', token: 't', name: 'M', state: 'CA', applications: up.data.applications.map(({ id, program, cycle, sites, status }) => ({ id, program, cycle, sites, status })) }, stateConfig: {}, existing: {} });
   assert.match(html, /APPLICATIONS=\[\{"id":"a1","program":"CSNSGP"/);
   const legacy = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Legacy Two Site Church', state: 'CA' } });
@@ -734,6 +739,22 @@ await check('vendor quotes are a submission requirement only where the state ask
   assert.match(html, /"quotes_required":false/);
   assert.match(html, /if\(CFG\.quotes_required\)out\.push/);
 });
+await check('more than three sites: CSNSGP on two, federal on three more', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Five Campus Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27', sites: [1, 2] }, { program: 'NSGP-S', cycle: 'FY2027', sites: [3, 4, 5], status: 'planned' }] } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const seed = await call('PUT', '/api/clients/five-campus-church/answers', { headers: TEAM, body: { answers: { loc5_name: 'Canyon Country', loc5_addr: '27053 Honby Ave', wl_a2_f5_cctv_camera_system_int: '1', wl_a2_f5_cctv_camera_system_cost: '$40,000' } } });
+  assert.equal(seed.status, 200, JSON.stringify(seed.data));
+  const st = (await call('GET', '/api/clients/five-campus-church/status', { headers: TEAM })).data;
+  assert.deepEqual(st.wish_list.map(f => f.facility), [1, 2, 3, 4, 5], 'sites 4 and 5 show because an application covers them; 6 to 8 stay out');
+  const fed = st.wish_lists.find(w => w.program === 'NSGP-S');
+  assert.deepEqual(fed.facilities.map(f => f.facility), [3, 4, 5]);
+  assert.equal(fed.facilities.find(f => f.facility === 5).budget.items, 40000);
+  assert.ok(st.sections.some(x => x.section === 'Wish List — Facility 5') && !st.sections.some(x => x.section === 'Wish List — Facility 6'));
+  assert.equal(st.sections.find(x => x.section === 'Locations').total, 50, 'five sites of ten fields');
+  const html = renderClientPage({ client: { slug: 'five-campus-church', token: 't', name: 'F', state: 'CA' }, stateConfig: {}, existing: {} });
+  assert.ok(html.includes('var SITE_MAX=8||3') && html.includes('renumber(html,n)'), 'the page clones site 3 up to eight');
+});
+
 await check('checklist: prep shared, wish list and submission repeated per application', async () => {
   const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Split List Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27' }, { program: 'NSGP-S', cycle: 'FY2027' }] } });
   assert.equal(r.status, 201);

@@ -74,7 +74,7 @@ const applicationShape = z.object({
   id: z.string().regex(/^a\d{1,2}$/).optional().describe('Keep when editing; omit for a new one'),
   program: z.string().min(1).describe('"NSGP-S", "NSGP-UA", or a state program key (gk_state_get)'),
   cycle: z.string().max(24).optional().describe('e.g. "FY2027"'),
-  sites: z.array(z.number().int().min(1).max(3)).min(1).optional().describe('Locations-tab site numbers; default [1]'),
+  sites: z.array(z.number().int().min(1).max(8)).min(1).optional().describe('Locations-tab site numbers 1-8; default [1]. A federal application covers at most 3'),
   status: z.enum(['active', 'planned', 'submitted', 'awarded', 'not_awarded', 'withdrawn']).optional().describe('Default active; planned = a later cycle'),
 });
 
