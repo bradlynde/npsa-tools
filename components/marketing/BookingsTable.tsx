@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
-import { Card, Note } from "../ui";
+import { Card, Note, fmtMoney } from "../ui";
 import {
   CHANNEL_CHOICES,
   EXCLUSION_LABELS,
@@ -514,7 +514,16 @@ export default function BookingsTable({
                         style={{ cursor: "pointer", accentColor: "var(--navy)" }}
                       />
                     </span>
-                    <span style={{ textAlign: "center" }}>
+                    {/* A client won in Salesforce with no letter here is ticked by the
+                        win, and its fee is the contract amount: the tooltip says so. */}
+                    <span
+                      style={{ textAlign: "center" }}
+                      title={
+                        r.became_client && r.fee_source === "salesforce"
+                          ? `Won in Salesforce, no letter in the tool${r.fee ? ` · ${fmtMoney(r.fee)} from Salesforce` : ""}`
+                          : undefined
+                      }
+                    >
                       <input
                         type="checkbox"
                         checked={!!r.became_client}

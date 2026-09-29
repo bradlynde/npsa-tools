@@ -63,6 +63,10 @@ export type BookingRow = {
   held: boolean | null;
   became_client: boolean | null;
   fee: number;
+  /** Where the fee came from: the signed letter, or — when the client was won in
+   *  Salesforce with no letter in the tool — the Salesforce contract amount.
+   *  Optional because the backend only began sending it in Sep 2026. */
+  fee_source?: 'letter' | 'salesforce' | null;
   won: boolean | null;
   won_amount: number;
   /** Set when a booking is deliberately left out of every total. */
@@ -112,8 +116,15 @@ export type Stats = {
   bookings_last_month_to_date?: number;
   client_rate: number;
   held_rate: number;
+  /** Meetings marked as no-shows in Calendly. Newer backends only. */
+  no_show_count?: number;
+  /** Set when held_rate is not an attendance rate (nobody records no-shows). */
+  held_rate_note?: string | null;
   instantly_pct: number;
   total_fees_won: number;
+  /** total_fees_won split by where each fee came from. Newer backends only. */
+  fees_from_letters?: number;
+  fees_from_salesforce?: number;
   won_count: number;
   won_rate: number;
   won_revenue: number;
@@ -123,6 +134,15 @@ export type Stats = {
   attributed_count: number;
   untracked_revenue: number;
   untracked_count: number;
+  /**
+   * The untracked figures split: returning clients (who never book a first call
+   * again, so the funnel was never going to see them) and new clients (a real
+   * attribution gap). Newer backends only.
+   */
+  untracked_repeat_revenue?: number;
+  untracked_repeat_count?: number;
+  untracked_new_revenue?: number;
+  untracked_new_count?: number;
   attribution_coverage: number;
   /** Distinct organisations won — an org with several grants is still one win. */
   won_org_count?: number;
@@ -144,6 +164,8 @@ export type UntrackedWin = {
   domain: string | null;
   amount: number;
   close_date: string | null;
+  /** An organisation already won before this deal. Newer backends only. */
+  repeat_client?: boolean;
 };
 
 /** Grant applications — the client-side of the business, from Salesforce. */
@@ -485,11 +507,21 @@ export function attributionNote(source?: string | null): string {
   return `Attribution: ${ATTRIBUTION_NOTES[key] || key}`;
 }
 
-/** LOE fee value booked in the range — the time series doesn't carry fees. */
-export function feesInRange(bookings: BookingRow[], range: Range, today?: string): number {
+/**
+ * LOE fee value booked in the range — the time series doesn't carry fees.
+ * With `source`, only the fees that came from there: 'salesforce' is the part
+ * taken from a Salesforce contract because no letter exists in the tool.
+ */
+export function feesInRange(
+  bookings: BookingRow[],
+  range: Range,
+  today?: string,
+  source?: 'letter' | 'salesforce'
+): number {
   const w = rangeWindow(range, today);
   return bookings.reduce((n, b) => {
     if (!countsTowardTotals(b)) return n;
+    if (source && b.fee_source !== source) return n;
     const credited = creditedOn(b);
     if (!credited || !inWindow(centralDate(credited), w)) return n;
     return b.became_client ? n + (Number(b.fee) || 0) : n;

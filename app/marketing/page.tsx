@@ -228,6 +228,15 @@ export default function MarketingPage() {
     () => (range === "all" && funnelAll ? funnelAll.fees : feesInRange(allBookings, range)),
     [range, funnelAll, allBookings]
   );
+  // The part of that value taken from a Salesforce contract, for clients won there
+  // with no letter in the tool. Said out loud so it isn't read as letter value.
+  const sfValue = useMemo(
+    () =>
+      range === "all"
+        ? stats?.fees_from_salesforce ?? 0
+        : feesInRange(allBookings, range, undefined, "salesforce"),
+    [range, stats, allBookings]
+  );
 
   // Re-run once the data lands, not just on mount — otherwise the counters
   // finish rolling against zeroes and the numbers appear with no animation.
@@ -402,8 +411,11 @@ export default function MarketingPage() {
                 label: "LOE value won",
                 value: fmtMoney(stats.total_fees_won),
                 // The fees on booked calls that became clients, not every letter
-                // ever signed: the backend sums them from bookings.
-                note: "All time, from booked calls",
+                // ever signed: the backend sums them from bookings. A client won in
+                // Salesforce with no letter here carries the contract amount instead.
+                note: stats.fees_from_salesforce
+                  ? `All time, from booked calls · ${fmtMoney(stats.fees_from_salesforce)} from Salesforce, no letter`
+                  : "All time, from booked calls",
                 accent: true,
               },
             ].map((s) => (
@@ -520,7 +532,7 @@ export default function MarketingPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                { rn: "i.", name: "Booked", val: totals.booked, won: false, foot: "" },
+                { rn: "i.", name: "Booked", val: totals.booked, won: false, foot: "", caveat: "" },
                 {
                   rn: "ii.",
                   name: "Held",
@@ -530,6 +542,10 @@ export default function MarketingPage() {
                   // counts meetings still to come as not-yet-held. Saying how many
                   // stops it reading as a drop-off it is not.
                   foot: upcomingCount ? `${upcomingCount} still to come` : "",
+                  // Held is ticked for every past meeting unless someone marks a
+                  // no-show in Calendly, and nobody does. The backend says so when
+                  // it has seen none; the stage then isn't read as attendance.
+                  caveat: stats?.held_rate_note ? "Every past meeting counts as held: no no-shows are recorded" : "",
                 },
                 {
                   rn: "iii.",
@@ -537,6 +553,7 @@ export default function MarketingPage() {
                   val: totals.loes,
                   won: false,
                   foot: loeValue ? `${fmtMoney(loeValue)} in LOE value` : "",
+                  caveat: sfValue ? `${fmtMoney(sfValue)} of it from Salesforce wins with no letter in the tool` : "",
                 },
                 {
                   rn: "iv.",
@@ -544,6 +561,7 @@ export default function MarketingPage() {
                   val: totals.won,
                   won: true,
                   foot: totals.wonAmount ? `${fmtMoney(totals.wonAmount)} in revenue` : "",
+                  caveat: "",
                 },
               ].map((f) => {
                 const pct = totals.booked ? Math.round((f.val / totals.booked) * 100) : 0;
@@ -597,6 +615,19 @@ export default function MarketingPage() {
                         }}
                       >
                         {f.foot}
+                      </div>
+                    )}
+                    {f.caveat && (
+                      <div
+                        style={{
+                          fontSize: 13,
+                          lineHeight: "18px",
+                          color: "var(--mute)",
+                          marginTop: f.foot ? 2 : 4,
+                          paddingLeft: 134,
+                        }}
+                      >
+                        {f.caveat}
                       </div>
                     )}
                   </div>
