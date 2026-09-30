@@ -350,10 +350,19 @@ export const PER_APPLICATION_STEMS = [
 /** The checklist key prefix for an application: a1 keeps chk_status_…, the rest are chk_<id>_status_…. */
 export function checklistPrefix(id) { return !id || id === 'a1' ? 'chk_' : `chk_${id}_`; }
 const CHK_APP_KEY_RE = /^chk_(a(?:[2-9]|[1-9]\d))_((?:status|due|who|note)_.+)$/;
-/** A per-application wish list or checklist key answers to the same catalog question as its plain twin. */
+// Per-campus answers (2026-09-30). With the client's per_campus on, a client with more than one site answers
+// sections 3 to 5 (community, threats, the project) for each site: site 1 keeps the catalog keys,
+// site n uses s<n>_q_… and its NPSA notes note_s<n>_q_…. Sections 1 and 2 stay whole-organisation.
+const CAMPUS_SECTIONS = /^[345]\. /;
+const CAMPUS_KEY_RE = new RegExp(`^(note_)?s([2-${SITE_MAX}])_(q_[345]_[0-9_]+)$`);
+/** The key a site answers a catalog question under (site 1: the catalog key itself). */
+export const campusKey = (key, n) => (n === 1 ? key : key.startsWith('note_') ? `note_s${n}_${key.slice(5)}` : `s${n}_${key}`);
+/** A per-application wish list or checklist key, or a per-campus answer, answers to the same catalog question as its plain twin. */
 function catalogKey(k) {
   const w = WL_APP_KEY_RE.exec(k); if (w) return `wl_${w[2]}`;
   const c = CHK_APP_KEY_RE.exec(k); if (c) return `chk_${c[2]}`;
+  const s = CAMPUS_KEY_RE.exec(k);
+  if (s && CAMPUS_SECTIONS.test(QUESTION_BY_KEY.get(s[3])?.section || '')) return (s[1] || '') + s[3];
   return k;
 }
 
@@ -541,28 +550,33 @@ export function summarise(answers, applications = 0) {
 // program is listed, as on the page.
 const STATE_ONLY = { q_1_3_4: ['TX', 'IL'], q_1_3_9: ['NY'] };
 const LOC_FIELDS = ['name', 'addr', 'county', 'ownlease', 'year', 'historic', 'sqft', 'acreage', 'buildings', 'value'];
-const PROGRESS_KEY_RE = /^(q_|loc\d_|up_|prog\d+_(name|unique)$)/;
+const PROGRESS_KEY_RE = /^(q_|s\d_q_|loc\d_|up_|prog\d+_(name|unique)$)/;
 export function progressFor(client, answered, uploaded = new Set()) {
   const has = k => answered.has(k);
   const st = String(client.state || '').toUpperCase();
   const stored = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn') : null;
   const programs = PROGRAM_SLOTS.some(n => has(`prog${n}_name`)), unique = PROGRAM_SLOTS.some(n => has(`prog${n}_unique`));
+  const sites = new Set([1, ...(stored || []).flatMap(a => a.sites)]);
+  for (const n of SITE_NUMBERS.slice(1)) if ([...LOC_FIELDS, 'programs'].some(f => has(`loc${n}_${f}`))) sites.add(n);
+  // Per campus: sections 3 to 5 count once for each site in play; each site's own tally goes in campuses.
+  const perCampus = !!client.per_campus && sites.size > 1;
+  const campuses = (perCampus ? [...sites].sort((a, b) => a - b) : [1]).map(site => ({ site, answered: 0, total: 0 }));
   const sections = [];
   for (const q of QUESTIONS) {
     if (!/^[1-5]\. /.test(q.section) || q.kind === 'meta' || (STATE_ONLY[q.key] && !STATE_ONLY[q.key].includes(st))) continue;
     let sec = sections.find(x => x.section === q.section);
     if (!sec) sections.push(sec = { section: q.section, answered: 0, total: 0 });
-    sec.total++; if (has(q.key) || (q.key === 'q_3_2_3' && unique)) sec.answered++;
+    const done = k => has(k) || (q.key === 'q_3_2_3' && unique);
+    if (!CAMPUS_SECTIONS.test(q.section)) { sec.total++; if (done(q.key)) sec.answered++; continue; }
+    for (const c of campuses) { sec.total++; c.total++; if (done(campusKey(q.key, c.site))) { sec.answered++; c.answered++; } }
   }
   const community = sections.find(x => x.section.startsWith('3.'));
   if (community) { community.total++; if (programs) community.answered++; }
-  const sites = new Set([1, ...(stored || []).flatMap(a => a.sites)]);
-  for (const n of SITE_NUMBERS.slice(1)) if ([...LOC_FIELDS, 'programs'].some(f => has(`loc${n}_${f}`))) sites.add(n);
   const locKeys = [...sites].sort((a, b) => a - b).flatMap(n => [...LOC_FIELDS, ...(stored ? [] : ['programs'])].map(f => `loc${n}_${f}`));
   sections.push({ section: 'Locations', answered: locKeys.filter(has).length, total: locKeys.length });
   const docs = documentsFor(client).map(d => d.key), received = receivedFor(client);
   sections.push({ section: 'Uploads', answered: docs.filter(k => has(k) || uploaded.has(k) || received[k]).length, total: docs.length });
-  return { sections, core: { answered: sections.reduce((n, x) => n + x.answered, 0), total: sections.reduce((n, x) => n + x.total, 0) } };
+  return { sections, core: { answered: sections.reduce((n, x) => n + x.answered, 0), total: sections.reduce((n, x) => n + x.total, 0) }, ...(perCampus ? { campuses } : {}) };
 }
 const answeredSet = answers => new Set([...answers].filter(([k, a]) => a?.value && PROGRESS_KEY_RE.test(k)).map(([k]) => k));
 
@@ -690,6 +704,7 @@ function statusView(client, answers, base, uploads = []) {
     filled_by: val('_filled_by'), status_line: val('_status'),
     applications, applications_set: stored,
     // Sites 4 and up show only once they are in play, so a three-site client reads as before.
+    ...(progress.campuses ? { campuses: progress.campuses.map(c => ({ ...c, name: val(`loc${c.site}_name`), lead: val(`loc${c.site}_lead`) })) } : {}),
     core: progress.core, sections: sections.filter(x => { const m = /^Wish List — Facility (\d+)$/.exec(x.section); return !m || +m[1] <= 3 || inPlay.has(+m[1]); }),
     wish_list: wish_list.filter(f => f.facility <= 3 || inPlay.has(f.facility)), ...(wish_lists ? { wish_lists } : {}), budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
@@ -728,7 +743,7 @@ function clientView(client, base) {
 
 // ── Stores ────────────────────────────────────────────────────────────────────
 
-const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes', 'documents', 'applications', 'documents_received'];
+const CLIENT_FIELDS = ['name', 'state', 'phase', 'status', 'program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid', 'kickoff_date', 'notes', 'documents', 'applications', 'documents_received', 'per_campus'];
 
 export async function ensureIntakeSchema(pool) {
   if (!pool) return;
@@ -768,6 +783,7 @@ export async function ensureIntakeSchema(pool) {
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents JSONB;
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS applications JSONB;
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS documents_received JSONB;
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS per_campus BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE client_contacts ADD COLUMN IF NOT EXISTS welcomed_at TIMESTAMPTZ;
     CREATE TABLE IF NOT EXISTS intake_answers (
       client_id   INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -801,7 +817,7 @@ export async function ensureIntakeSchema(pool) {
 const UPLOAD_COLS = 'id, client_id, key, filename, mime, size_bytes, drive_file_id, drive_url, uploaded_by, uploaded_at';
 
 const CLIENT_COLS = `id, slug, name, state, token, phase, status, program_track, drive_folder_id, upload_folder_id,
-  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, documents, applications, documents_received, created_at, updated_at,
+  asana_project_gid, to_char(kickoff_date, 'YYYY-MM-DD') AS kickoff_date, notes, documents, applications, documents_received, per_campus, created_at, updated_at,
   submitted_at, last_client_activity_at`;
 
 /** Postgres-backed store. Every method takes and returns plain objects. */
@@ -987,7 +1003,7 @@ export function createMemoryStore() {
     },
     async createClient(c) {
       if (find(c.slug)) { const e = new Error(`slug "${c.slug}" is already registered`); e.status = 409; throw e; }
-      const row = { id: nextId++, documents: null, applications: null, documents_received: null, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
+      const row = { id: nextId++, documents: null, applications: null, documents_received: null, per_campus: false, ...c, created_at: now(), updated_at: now(), submitted_at: null, last_client_activity_at: null };
       clients.push(row); return view(row);
     },
     async getClient(slug) { return view(find(slug)); },
@@ -1117,7 +1133,7 @@ export function renderClientPage({ client, stateConfig, existing, contacts = { n
     try { pageTemplate = readFileSync(TEMPLATE_URL, 'utf8'); } catch { pageTemplate = null; }
   }
   if (!pageTemplate) return null;
-  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, received, apiBase, uploadBase, checklistMeta: CHECKLIST_META, siteMax: SITE_MAX };
+  const vars = { client: client.slug, token: client.token, clientName: client.name, state: client.state, stateConfig, existing, contacts, documents, applications, uploaded, received, apiBase, uploadBase, checklistMeta: CHECKLIST_META, siteMax: SITE_MAX, perCampus: !!client.per_campus };
   return pageTemplate.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? jsForInject(vars[k]) : m));
 }
 
@@ -1301,6 +1317,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       for (const k of ['program_track', 'drive_folder_id', 'upload_folder_id', 'asana_project_gid']) if (b[k] !== undefined) patch[k] = text(b[k], k, 200).trim();
       if (b.notes !== undefined) patch.notes = text(b.notes, 'notes', 5000);
       if (b.kickoff_date !== undefined) patch.kickoff_date = validDate(b.kickoff_date, 'kickoff_date');
+      if (b.per_campus !== undefined) { if (typeof b.per_campus !== 'boolean') throw new BadRequest('per_campus must be true or false'); patch.per_campus = b.per_campus; }
       // Documents: replace the list, reset it (null), or add/remove against the current one.
       if (b.applications !== undefined) patch.applications = validApplications(b.applications, patch.state || c.state);
       if (b.documents !== undefined) patch.documents = validDocuments(b.documents, 'documents');
@@ -1415,6 +1432,12 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     // Wish lists for a client's second and later applications live under wl_<id>_f<n>_ keys; they are
     // listed after the catalog, grouped by application, and only where something is stored.
     const apps = applicationsFor(c);
+    // Per-campus answers (s<n>_q_…) follow, grouped by site and named for it.
+    const siteName = n => answers.get(`loc${n}_name`)?.value || `Site ${n}`;
+    const campusRows = [...answers.keys()].map(k => [k, CAMPUS_KEY_RE.exec(k)]).filter(([k, m]) => m && QUESTION_BY_KEY.has(catalogKey(k))).map(([k, m]) => {
+      const q = QUESTION_BY_KEY.get(catalogKey(k)), n = Number(m[2]);
+      return { key: k, n, q, section: `${q.section} (${siteName(n)})`, label: `${siteName(n)} · ${q.label}` };
+    }).sort((x, y) => x.n - y.n || x.q.ordinal - y.q.ordinal);
     const extra = [...answers.keys()].filter(k => WL_APP_KEY_RE.test(k) || CHK_APP_KEY_RE.test(k)).map(k => {
       const id = (WL_APP_KEY_RE.exec(k) || CHK_APP_KEY_RE.exec(k))[1], q = QUESTION_BY_KEY.get(catalogKey(k)), app = apps.find(a => a.id === id);
       if (!q) return { q: null };
@@ -1422,7 +1445,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       return { key: k, id, q, section: q.section.replace(/^(Wish List|Checklist)/, `$1 (${who})`), label: `${who} · ${q.label}` };
     }).filter(x => x.q).sort((x, y) => (x.id === y.id ? x.q.ordinal - y.q.ordinal : x.id.localeCompare(y.id, 'en', { numeric: true })));
     const extras = q => ({ ...(q.number ? { number: q.number } : {}), ...(q.prompt ? { prompt: q.prompt } : {}) });
-    const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind, ...extras(q) })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
+    const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind, ...extras(q) })), ...campusRows.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind, ...extras(x.q) })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
       .filter(q => !section || q.section.toLowerCase() === section)
       .map(q => { const a = answers.get(q.key); return { ...q, value: a?.value || '', updated_at: a?.updated_at || null, updated_by: a?.updated_by || '' }; })
       .filter(r => includeEmpty || r.value !== '');

@@ -756,7 +756,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
   server.registerTool('intake_status', {
     title: 'Intake status',
-    description: 'Where a client\'s intake stands: answered vs total per section; wish list progress per facility (prioritised items, detail fields filled of five; truer than raw section counts), per application in wish_lists (wish_list = the first); checklist tasks with status, due date, owner, note (wish list, budget, IJ and submission tasks repeat per application, tagged application and application_label); who is filling it in; submission stamp; last client save; uploads. Check it before a nudge or drafting the IJ.',
+    description: 'Where a client\'s intake stands: answered vs total per section; wish list progress per facility (prioritised items, detail fields filled of five; truer than raw section counts), per application in wish_lists (wish_list = the first); checklist tasks with status, due date, owner, note (wish list, budget, IJ and submission tasks repeat per application, tagged application and application_label); who is filling it in; submission stamp; last client save; uploads; with per-campus answers on, campuses (site, name, lead, answered/total for sections 3 to 5). Check it before a nudge or drafting the IJ.',
     inputSchema: { slug: z.string().min(1) },
     annotations: READ,
   }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/status`)));
@@ -819,6 +819,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
         documents: z.array(documentShape).nullable().optional().describe('null resets to the defaults for the state (Cal OES set when program_track names CSNSGP)'),
         add_documents: z.array(documentShape).optional(),
         remove_document_keys: z.array(z.string()).optional().describe('e.g. ["up_bios"]'),
+        per_campus: z.boolean().optional().describe('true: a client with 2+ sites answers Information Collection sections 3 to 5 for each campus (and gets per-campus document rows); off by default'),
       },
       annotations: WRITE,
     }, write('client_update', async ({ slug, ...fields }) => {
@@ -847,7 +848,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
     server.registerTool('intake_seed', {
       title: 'Seed intake answers',
-      description: 'WRITE. Confirm with the user before calling. Writes intake answers: kickoff facts (legal name, EIN, contacts, website programs), checklist statuses, owners and due dates, NPSA notes, corrections. Every key must be in intake_questions, except that a later application keeps its wish list under wl_<application id>_f<n>_… (e.g. wl_a2_f1_vehicle_bollards_int, same questions as wl_f1_…). One unknown key fails the whole call, naming the keys; nothing is written. Values are text and overwrite. The client\'s "who is filling this out" and last activity are untouched. Website programs: prog<n>_… with prog<n>_suggested "Yes" (shown as suggested until the client confirms). NPSA notes: note_q_… keys, read-only under the answer; _note_asks (comma-separated question keys, e.g. "q_3_3_1,q_4_2") marks the ones that are questions for the client.',
+      description: 'WRITE. Confirm with the user before calling. Writes intake answers: kickoff facts (legal name, EIN, contacts, website programs), checklist statuses, owners and due dates, NPSA notes, corrections. Every key must be in intake_questions, except that a later application keeps its wish list under wl_<application id>_f<n>_… (e.g. wl_a2_f1_vehicle_bollards_int, same questions as wl_f1_…). One unknown key fails the whole call, naming the keys; nothing is written. Values are text and overwrite. The client\'s "who is filling this out" and last activity are untouched. Website programs: prog<n>_… with prog<n>_suggested "Yes" (shown as suggested until the client confirms). NPSA notes: note_q_… keys, read-only under the answer; _note_asks (comma-separated question keys, e.g. "q_3_3_1,q_4_2") marks the ones that are questions for the client. Per campus (client_update per_campus true, 2+ sites): sections 3 to 5 are answered per site; site 1 keeps q_… keys, site n uses s<n>_q_… (notes note_s<n>_q_…, asks may name s<n>_ keys), and loc<n>_lead names who fills in each campus.',
       inputSchema: {
         slug: z.string().min(1),
         answers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).describe('Intake key → value, e.g. {"q_1_3_1": "Trinity Wellsprings Church, Inc.", "chk_status_kickoff_call": "Completed"}'),
