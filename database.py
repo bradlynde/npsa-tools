@@ -43,6 +43,8 @@ SEED_USERS = [
     ("Steven", "steven@nonprofitsecurityadvisors.com"),
     ("Jeff", "jeff@nonprofitsecurityadvisors.com"),
     ("Michael", "michael@nonprofitsecurityadvisors.com"),
+    ("Will", "will@nonprofitsecurityadvisors.com"),
+    ("Ethan", "ethan@nonprofitsecurityadvisors.com"),
 ]
 
 
