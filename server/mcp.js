@@ -71,7 +71,7 @@ const contactShape = z.object({
   phone: z.string().optional(),
 });
 const contactList = z.array(contactShape);
-const documentShape = z.object({ key: z.string().regex(/^up_[a-z0-9_]{2,40}$/), label: z.string().min(1).max(140), hint: z.string().max(80).optional() });
+const documentShape = z.object({ key: z.string().regex(/^up_[a-z0-9_]{2,40}$/), label: z.string().min(1).max(140), hint: z.string().max(80).optional(), per_site: z.boolean().optional().describe('Needed once per campus (per-campus clients get a row per campus)') });
 const applicationShape = z.object({
   id: z.string().regex(/^a\d{1,2}$/).optional().describe('Keep when editing; omit for a new one'),
   program: z.string().min(1).describe('"NSGP-S", "NSGP-UA", or a state program key (gk_state_get)'),
