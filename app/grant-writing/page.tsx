@@ -53,7 +53,7 @@ type Contact = {
   welcomed_at?: string | null;
 };
 
-type Doc = { key: string; label: string; hint?: string; source?: "standard" | "state" | "program" | "custom" };
+type Doc = { key: string; label: string; hint?: string; source?: "standard" | "state" | "program" | "custom"; site?: number };
 
 type AppStatus = "active" | "planned" | "submitted" | "awarded" | "not_awarded" | "withdrawn";
 /** One application NPSA is writing: program, cycle, the sites it covers. */
@@ -85,6 +85,8 @@ type ClientRow = {
   documents_received?: Record<string, { at: string; by: string; note: string }>;
   applications?: Application[]; // stored list; empty until the team sets one
   applications_set?: boolean;
+  /** Sections 3 to 5 (and once-per-site documents) answered per campus. */
+  per_campus?: boolean;
   programs?: ProgramOption[]; // what this client's state can apply for
   core: { answered: number; total: number };
   checklist: { completed: number; total: number };
@@ -115,6 +117,8 @@ type Status = {
   sections: { section: string; answered: number; total: number }[];
   /** Per facility: items with a priority set and how complete each is. Absent until the backend that reports it is deployed. */
   wish_list?: WishFacility[];
+  /** With per-campus answers on: each campus's sections 3 to 5 progress and who is filling it in. */
+  campuses?: { site: number; name: string; lead: string; answered: number; total: number }[];
   /** One wish list per stored application, each against its own caps. */
   wish_lists?: { application: string; label: string; status: AppStatus; sites: number[]; prioritized: number; facilities: WishFacility[]; budget: { requested: number; cap: number; room: number } }[];
   /** Program rows with a name, out of the slots the page offers. */
@@ -395,8 +399,52 @@ function ApplicationsSection({ client, derived, editing, onSaved }: { client: Cl
   );
 }
 
+/**
+ * Per-campus answers: for a client whose applications cover two or more sites. Off, sections 3 to 5
+ * are answered once for all sites; on, each campus answers its own and gets its own copies of the
+ * documents needed once per site.
+ */
+function CampusesSection({ client, campuses, onSaved }: { client: ClientRow; campuses?: Status["campuses"]; onSaved: (c: ClientRow) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const sites = [...new Set((client.applications || []).filter((a) => a.status !== "withdrawn").flatMap((a) => a.sites))];
+  if (sites.length < 2) return null;
+  const on = !!client.per_campus;
+  const flip = async () => {
+    if (!on && !window.confirm("Answer Information Collection sections 3 to 5 and the once-per-site documents per campus? Answers already given stay with the first campus.")) return;
+    setBusy(true); setErr(null);
+    try { onSaved(await patchJson<ClientRow>(`/api/clients/${client.slug}`, { per_campus: !on })); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Section title="Campuses" meta={on ? "answered per campus" : "answered once for all sites"}>
+      {on && campuses && campuses.length > 0 ? (
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 14 }}>
+          {campuses.map((c) => (
+            <li key={c.site} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px auto", gap: 10, alignItems: "center" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: "var(--ink)" }}>{c.name || `Site ${c.site}`}</div>
+                <div className="meta">{c.lead || "No one named yet"}</div>
+              </div>
+              <Bar pct={pct(c.answered, c.total)} height={6} animate={false} />
+              <span className="num meta" style={{ whiteSpace: "nowrap" }}>{c.answered} of {c.total}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Faint>{on ? "Each campus answers sections 3 to 5 on its own." : `Sections 3 to 5 are answered once for all ${sites.length} sites.`}</Faint>
+      )}
+      <div style={{ marginTop: 10 }}>
+        <button type="button" disabled={busy} onClick={flip} style={linkBtn}>{on ? "Answer once for all sites" : "Answer per campus"}</button>
+      </div>
+      {err && <ErrorLine>{err}</ErrorLine>}
+    </Section>
+  );
+}
+
 /** The Documents-tab rows with what has come in against each; editing adds remove, add and reset. */
-function DocumentsSection({ client, uploads, editing, onSaved }: { client: ClientRow; uploads: Upload[]; editing: boolean; onSaved: (c: ClientRow) => void }) {
+function DocumentsSection({ client, uploads, editing, onSaved, siteName }: { client: ClientRow; uploads: Upload[]; editing: boolean; onSaved: (c: ClientRow) => void; siteName?: (n: number) => string }) {
   const [label, setLabel] = useState("");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -433,7 +481,7 @@ function DocumentsSection({ client, uploads, editing, onSaved }: { client: Clien
             <li key={d.key} style={{ display: "grid", gridTemplateColumns: "14px minmax(0, 1fr) auto", gap: 10, alignItems: "start" }}>
               <span aria-hidden style={{ marginTop: 5, width: 10, height: 10, borderRadius: "50%", justifySelf: "center", border: `2px solid ${got ? "var(--ok-fg)" : "var(--line-strong)"}`, background: got ? "var(--ok-fg)" : "transparent" }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ color: "var(--ink)" }}>{d.label}{got && <span className="meta"> · received</span>}</div>
+                <div style={{ color: "var(--ink)" }}>{d.label}{d.site && <span className="meta"> · {siteName ? siteName(d.site) : `Site ${d.site}`}</span>}{got && <span className="meta"> · received</span>}</div>
                 {!got && (
                   <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap", fontSize: 13, color: "var(--mute)" }}>
                     <span>Not received yet{d.hint ? ` · ${d.hint}` : ""}</span>
@@ -448,7 +496,7 @@ function DocumentsSection({ client, uploads, editing, onSaved }: { client: Clien
                 )}
                 {files.map(fileRow)}
               </div>
-              {editing ? <RemoveButton label={`Remove ${d.label} from the client's Documents tab`} disabled={busy} onClick={() => run({ remove_document_keys: [d.key] })} /> : <span />}
+              {editing && !(d.site && d.site > 1) ? <RemoveButton label={`Remove ${d.label} from the client's Documents tab${d.site ? " (every campus)" : ""}`} disabled={busy} onClick={() => run({ remove_document_keys: [d.key] })} /> : <span />}
             </li>
           );
         })}
@@ -1039,6 +1087,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                 {/* Left: the engagement and the people and papers around it */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
                   <ApplicationsSection client={c} derived={s.applications_set ? [] : s.applications || []} editing={editing} onSaved={saved} />
+                  <CampusesSection client={c} campuses={s.campuses} onSaved={saved} />
                   <Section title="Engagement">
                     <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "8px 16px", fontSize: 14, lineHeight: "20px", margin: 0 }}>
                       <dt style={dt}>Track</dt><dd style={dd}>{c.program_track || <Faint>Not set</Faint>}</dd>
@@ -1061,7 +1110,7 @@ function ClientDialog({ row, onClose }: { row: ClientRow; onClose: () => void })
                     </dl>
                   </Section>
                   <PeopleSection client={c} editing={editing} onSaved={saved} confirm={confirm} notify={notify} />
-                  <DocumentsSection client={c} uploads={s.uploads} editing={editing} onSaved={saved} />
+                  <DocumentsSection client={c} uploads={s.uploads} editing={editing} onSaved={saved} siteName={(n) => s.campuses?.find((x) => x.site === n)?.name || s.wish_list?.find((f) => f.facility === n)?.name || `Site ${n}`} />
                   <NotesSection client={c} version={notesVersion} onOpen={() => setNotesOpen(true)} />
                 </div>
 
