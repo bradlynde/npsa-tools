@@ -283,6 +283,9 @@
   .icx-campus-row .in{max-width:320px;}
   .icx-campus-copy{background:var(--amber-bg);border-radius:8px;padding:8px 12px;}
   .icx-campus-row[hidden]{display:none;}
+  .pg-filter{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--muted);}
+  .pg-filter button{font:600 13px var(--sans);border:1px solid var(--line-strong);border-radius:999px;padding:4px 12px;background:var(--paper);color:var(--muted);cursor:pointer;}
+  .pg-filter button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff;}
 </style>
 <style>
   /* ---- live inputs styled into the design cells ---- */
@@ -1232,20 +1235,32 @@
     c.querySelector('.tagline').innerHTML=tags.map(function(t){return '<button type="button" class="chip" data-tag="'+escT(t)+'" title="Remove">'+escT(t)+'</button>';}).join('')
       +(uniq?'<button type="button" class="chip is-unique" data-unique title="Remove">'+UNIQUE_TAG+'</button>':'')
       +'<button type="button" class="chip add" aria-expanded="false">+ Add</button>';}
-  function pgLayout(){var shown=0,toConfirm=0,outside=0,unique=[];
-    pgCards.forEach(function(c){var on=pgHas(c)||c.classList.contains('pg-added');c.hidden=!on;
+  /* per campus (2026-09-30): a filter by campus over the one list; a program with no campus picked counts everywhere */
+  var PGF=0;
+  function pgAt(c,n){var p=pgKey(c,'site').value.split(',').filter(Boolean);return !p.length||p.indexOf(String(n))>=0;}
+  function pgFilter(){var top=document.querySelector('.pg-top'),box=document.getElementById('pgFilter'),sites=pgSitesOn();
+    if(!PER_CAMPUS||sites.length<2){if(box)box.hidden=true;PGF=0;return;}
+    if(!box){box=document.createElement('div');box.id='pgFilter';box.className='pg-filter';top.appendChild(box);
+      box.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;PGF=Number(b.getAttribute('data-f'));pgLayout();});}
+    box.hidden=false;if(sites.indexOf(PGF)<0)PGF=0;
+    var named=pgCards.filter(function(c){return pgKey(c,'name').value!=='';});
+    box.innerHTML='<span>Show</span>'+[0].concat(sites).map(function(n){var k=n?named.filter(function(c){return pgAt(c,n);}).length:named.length;
+      return '<button type="button" data-f="'+n+'" aria-pressed="'+(PGF===n)+'">'+escT(n?pgSiteName(n):'All campuses')+' · '+k+'</button>';}).join('');}
+  function pgLayout(){var shown=0,toConfirm=0,outside=0,unique=[];pgFilter();
+    pgCards.forEach(function(c){var on=pgHas(c)||c.classList.contains('pg-added');c.hidden=!on||(PGF&&!pgAt(c,PGF)&&!c.classList.contains('pg-added'));
       if(!on)return;shown++;if(pgKey(c,'suggested').value!=='')toConfirm++;if(pgKey(c,'runby').value==='Outside')outside++;
       if(pgKey(c,'unique').value!=='')unique.push(pgKey(c,'name').value||'Unnamed program');pgRender(c);});
     var named=pgCards.filter(function(c){return pgKey(c,'name').value!=='';}).length;
     document.getElementById('progCount').innerHTML=named?'<b>'+named+' program'+(named===1?'':'s')+'</b>'+(toConfirm?' · '+toConfirm+' to confirm':''):'';
     document.getElementById('progEmpty').hidden=shown>0;document.getElementById('progAdd').parentNode.hidden=shown===0;
-    document.getElementById('progAdd').disabled=!pgCards.some(function(c){return c.hidden;});
+    document.getElementById('progAdd').disabled=!pgCards.some(pgFree);
     var sum=document.getElementById('icxProgSummary');
-    if(sum)sum.textContent=named?named+' program'+(named===1?'':'s')+' listed'+(outside?', '+outside+' run by an outside group':'')+(unique.length?', '+unique.length+' marked only one nearby':'')+'.':'No programs listed yet.';
+    if(sum)sum.textContent=named?named+' program'+(named===1?'':'s')+' listed'+(campusOn?', '+pgCards.filter(function(c){return pgKey(c,'name').value!==''&&pgAt(c,CUR);}).length+' at '+pgSiteName(CUR):'')+(outside?', '+outside+' run by an outside group':'')+(unique.length?', '+unique.length+' marked only one nearby':'')+'.':'No programs listed yet.';
     var ut=document.getElementById('icxUniqueTagged');if(ut){ut.hidden=!unique.length;ut.textContent=unique.length?'Tagged on the Programs tab: '+unique.join(', ')+'.':'';}
     if(icxReady){icxCount();var q38=document.getElementById('q-3-8');if(q38)icxSide(q38);}}
-  function pgAdd(){var c=pgCards.filter(function(x){return x.hidden;})[0];if(!c)return;
-    c.classList.add('pg-added');pgLayout();c.querySelector('.pg-name').focus();}
+  function pgFree(c){return !pgHas(c)&&!c.classList.contains('pg-added');}
+  function pgAdd(){var c=pgCards.filter(pgFree)[0];if(!c)return;
+    c.classList.add('pg-added');if(PGF)pgSet(c,'site',String(PGF));pgLayout();c.querySelector('.pg-name').focus();}
   document.getElementById('progAdd').addEventListener('click',pgAdd);
   document.querySelector('[data-prog-add]').addEventListener('click',pgAdd);
   pgCards.forEach(function(c){
@@ -1371,7 +1386,7 @@
     campusNotes.forEach(function(el){el.setAttribute('data-note',campusKey(el.getAttribute('data-base-note'),n));icxNote(el);});
     document.querySelectorAll('.icx-q[data-q]').forEach(function(q){if(q.querySelector('[data-base]'))icxSide(q);});
     try{localStorage.setItem('npsa-campus-'+CLIENT,String(n));}catch(e){}
-    icxCount();campusRender();growAll();}
+    pgLayout();icxCount();campusRender();growAll();}
   (function(){if(!PER_CAMPUS||campusList().length<2)return;campusOn=true;
     icxSecs.forEach(function(sec){if(CAMPUS_SEC.indexOf(sec.getAttribute('data-sec'))<0)return;
       sec.querySelectorAll('[data-key^="q_"]').forEach(function(el){el.setAttribute('data-base',el.getAttribute('data-key'));campusEls.push(el);});
