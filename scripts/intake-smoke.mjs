@@ -101,11 +101,11 @@ await check('with MCP_API_KEYS unset only the internal key gets in', async () =>
 });
 
 // ── 2. Registration ───────────────────────────────────────────────────────────
-await check('catalog is served with 1641 questions (eight sites) and the section list', async () => {
+await check('catalog is served with 1650 questions (eight sites) and the section list', async () => {
   const r = await call('GET', '/api/intake/questions', { headers: TEAM });
   assert.equal(r.status, 200);
-  assert.equal(r.data.count, 1641);
-  assert.equal(QUESTIONS.length, 1641);
+  assert.equal(r.data.count, 1650);
+  assert.equal(QUESTIONS.length, 1650);
   assert.ok(QUESTIONS.some(q => q.key === 'loc8_infra') && QUESTIONS.some(q => q.key === 'wl_f8_anything_else'), 'sites run to 8');
   assert.ok(!QUESTIONS.some(q => q.key.startsWith('loc9_')));
   assert.ok(r.data.sections.includes('Checklist'));
@@ -739,6 +739,34 @@ await check('vendor quotes are a submission requirement only where the state ask
   assert.match(html, /"quotes_required":false/);
   assert.match(html, /if\(CFG\.quotes_required\)out\.push/);
 });
+await check('per campus: sections 3 to 5 per site once NPSA turns it on; 1 and 2 stay whole-organisation', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Two Campus Church', state: 'CA', applications: [{ program: 'NSGP-S', cycle: 'FY2027', sites: [1, 2] }] } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const slug = 'two-campus-church', t = new URL(r.data.intake_url).searchParams.get('t');
+  const seed = a => call('PUT', `/api/clients/${slug}/answers`, { headers: TEAM, body: { answers: a } });
+  assert.equal((await seed({ s2_q_1_1_1: 'x' })).status, 400, 'section 1 has no campus copy');
+  assert.equal((await seed({ s9_q_3_1_1: 'x' })).status, 400, 'no site 9');
+  assert.equal((await seed({ _per_campus: 'yes' })).status, 400, 'on or off');
+  const before = (await call('GET', `/api/clients/${slug}/status`, { headers: TEAM })).data;
+  assert.equal(before.campuses, undefined, 'off by default: nothing changes for a client until NPSA turns it on');
+  assert.equal((await seed({ _per_campus: 'on', loc1_name: 'North', loc2_name: 'South', q_3_1_1: '400', note_s2_q_3_1_1: 'South has its own count?', _note_asks: 's2_q_3_1_1' })).status, 200);
+  const saved = await call('PUT', `/api/intake/${slug}/answers`, { headers: { 'X-Intake-Token': t }, body: { answers: { s2_q_3_1_1: '120', s2_q_4_1: 'Graffiti in May', loc2_lead: 'Pat, campus pastor' } } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.data));
+  await call('PUT', `/api/intake/${slug}/answers`, { headers: { 'X-Intake-Token': t }, body: { answers: { note_s2_q_3_1_1: 'client note' } } });
+  const st = (await call('GET', `/api/clients/${slug}/status`, { headers: TEAM })).data;
+  assert.deepEqual(st.campuses.map(c => [c.site, c.name, c.lead, c.answered]), [[1, 'North', '', 1], [2, 'South', 'Pat, campus pastor', 2]]);
+  const s3 = st.sections.find(x => x.section === '3. Community Role'), s1 = st.sections.find(x => x.section === '1. Applicant Information');
+  assert.equal(s3.total, 2 * 12 + 1, 'twelve section 3 questions per campus, plus the programs list once');
+  assert.equal(s1.total, 16, 'section 1 counts once');
+  const ans = (await call('GET', `/api/clients/${slug}/answers`, { headers: TEAM })).data.answers;
+  assert.ok(ans.some(a => a.key === 's2_q_4_1' && a.section === '4. Threats (South)' && a.label.startsWith('South · ')));
+  assert.equal(ans.find(a => a.key === 'note_s2_q_3_1_1').value, 'South has its own count?', 'notes are NPSA\'s: the form cannot write one');
+  const list = (await call('GET', '/api/clients?status=all', { headers: TEAM })).data.find(c => c.slug === slug);
+  assert.equal(list.core.total, st.core.total, 'the list agrees with the dialog');
+  const html = renderClientPage({ client: { slug, token: 't', name: 'T', state: 'CA' }, stateConfig: {}, existing: {} });
+  assert.ok(html.includes("String(EXISTING._per_campus||'')!=='on'") && html.includes('function campusSet(n)'), 'the page has the campus bar');
+});
+
 await check('more than three sites: CSNSGP on two, federal on three more', async () => {
   const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Five Campus Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27', sites: [1, 2] }, { program: 'NSGP-S', cycle: 'FY2027', sites: [3, 4, 5], status: 'planned' }] } });
   assert.equal(r.status, 201, JSON.stringify(r.data));

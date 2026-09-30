@@ -568,3 +568,13 @@ Each applies while the status is blank or is a Not started that a seed or import
 ## More than three sites (2026-09-29)
 
 A client can have up to eight locations (`SITE_MAX` in server/intake.js), for engagements like a CSNSGP application on two campuses plus a federal one on three more. The catalog carries `loc4_`–`loc8_` and `wl_f4_`–`wl_f8_` (copies of site 3; per-application copies are `wl_<id>_f<n>_` as before). The page ships three site cards and three wish lists and clones site 3's for sites 4 to 8 before anything fills them; "Add another site" stops at eight. An application's `sites` take 1 to 8, but a federal application covers at most the program's `locations_max` (three). `intake_status` lists sites 4 and up only once they are in play (named, addressed, on an application, or with wish-list items), so a three-site client reads as before.
+
+## Per-campus answers (2026-09-30)
+
+For a client with several campuses that each need their own IJ story. NPSA turns it on per client with the meta answer `_per_campus: "on"` (`intake_seed`; `"off"` or blank turns it off). It does nothing for a one-site client, and it is off for everyone until set, so clients who answered once for all their sites see no change.
+
+With it on, Information Collection shows an "Answering for" bar with one card per campus in play: name, who is filling it in (`loc<n>_lead`), and how many section 3 to 5 questions that campus has answered. Sections 1 and 2 stay whole-organisation. Sections 3 to 5 are answered per campus. Site 1 keeps the catalog keys, and site n stores under `s<n>_q_…`, with NPSA notes under `note_s<n>_q_…`. Both answer to the same catalog questions, the way per-application wish-list keys do. The page re-keys the fields in place when the campus changes, so autosave, "Doesn't apply", NPSA notes and asks, and the rail's counts work unchanged. A campus with nothing yet offers "Copy them" to start from the main campus's answers, and an empty answer offers "Use <main campus>'s answer".
+
+Progress counts sections 3 to 5 once per campus in play, on the list, the dialog and `intake_status` alike. `intake_status` adds `campuses` (site, name, lead, answered, total), and `intake_answers` lists campus answers after the catalog, named for the campus (e.g. "4. Threats (Ventura)").
+
+Still to come: per-campus rows on the Documents tab, the Programs campus picker, and the Grant Writing dialog's campus view.

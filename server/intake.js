@@ -350,10 +350,19 @@ export const PER_APPLICATION_STEMS = [
 /** The checklist key prefix for an application: a1 keeps chk_status_…, the rest are chk_<id>_status_…. */
 export function checklistPrefix(id) { return !id || id === 'a1' ? 'chk_' : `chk_${id}_`; }
 const CHK_APP_KEY_RE = /^chk_(a(?:[2-9]|[1-9]\d))_((?:status|due|who|note)_.+)$/;
-/** A per-application wish list or checklist key answers to the same catalog question as its plain twin. */
+// Per-campus answers (2026-09-30). With _per_campus on, a client with more than one site answers
+// sections 3 to 5 (community, threats, the project) for each site: site 1 keeps the catalog keys,
+// site n uses s<n>_q_… and its NPSA notes note_s<n>_q_…. Sections 1 and 2 stay whole-organisation.
+const CAMPUS_SECTIONS = /^[345]\. /;
+const CAMPUS_KEY_RE = new RegExp(`^(note_)?s([2-${SITE_MAX}])_(q_[345]_[0-9_]+)$`);
+/** The key a site answers a catalog question under (site 1: the catalog key itself). */
+export const campusKey = (key, n) => (n === 1 ? key : key.startsWith('note_') ? `note_s${n}_${key.slice(5)}` : `s${n}_${key}`);
+/** A per-application wish list or checklist key, or a per-campus answer, answers to the same catalog question as its plain twin. */
 function catalogKey(k) {
   const w = WL_APP_KEY_RE.exec(k); if (w) return `wl_${w[2]}`;
   const c = CHK_APP_KEY_RE.exec(k); if (c) return `chk_${c[2]}`;
+  const s = CAMPUS_KEY_RE.exec(k);
+  if (s && CAMPUS_SECTIONS.test(QUESTION_BY_KEY.get(s[3])?.section || '')) return (s[1] || '') + s[3];
   return k;
 }
 
@@ -541,30 +550,35 @@ export function summarise(answers, applications = 0) {
 // program is listed, as on the page.
 const STATE_ONLY = { q_1_3_4: ['TX', 'IL'], q_1_3_9: ['NY'] };
 const LOC_FIELDS = ['name', 'addr', 'county', 'ownlease', 'year', 'historic', 'sqft', 'acreage', 'buildings', 'value'];
-const PROGRESS_KEY_RE = /^(q_|loc\d_|up_|prog\d+_(name|unique)$)/;
+const PROGRESS_KEY_RE = /^(q_|s\d_q_|loc\d_|up_|prog\d+_(name|unique)$|_per_campus$)/;
 export function progressFor(client, answered, uploaded = new Set()) {
   const has = k => answered.has(k);
   const st = String(client.state || '').toUpperCase();
   const stored = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn') : null;
   const programs = PROGRAM_SLOTS.some(n => has(`prog${n}_name`)), unique = PROGRAM_SLOTS.some(n => has(`prog${n}_unique`));
+  const sites = new Set([1, ...(stored || []).flatMap(a => a.sites)]);
+  for (const n of SITE_NUMBERS.slice(1)) if ([...LOC_FIELDS, 'programs'].some(f => has(`loc${n}_${f}`))) sites.add(n);
+  // Per campus: sections 3 to 5 count once for each site in play; each site's own tally goes in campuses.
+  const perCampus = has('_per_campus') && sites.size > 1;
+  const campuses = (perCampus ? [...sites].sort((a, b) => a - b) : [1]).map(site => ({ site, answered: 0, total: 0 }));
   const sections = [];
   for (const q of QUESTIONS) {
     if (!/^[1-5]\. /.test(q.section) || q.kind === 'meta' || (STATE_ONLY[q.key] && !STATE_ONLY[q.key].includes(st))) continue;
     let sec = sections.find(x => x.section === q.section);
     if (!sec) sections.push(sec = { section: q.section, answered: 0, total: 0 });
-    sec.total++; if (has(q.key) || (q.key === 'q_3_2_3' && unique)) sec.answered++;
+    const done = k => has(k) || (q.key === 'q_3_2_3' && unique);
+    if (!CAMPUS_SECTIONS.test(q.section)) { sec.total++; if (done(q.key)) sec.answered++; continue; }
+    for (const c of campuses) { sec.total++; c.total++; if (done(campusKey(q.key, c.site))) { sec.answered++; c.answered++; } }
   }
   const community = sections.find(x => x.section.startsWith('3.'));
   if (community) { community.total++; if (programs) community.answered++; }
-  const sites = new Set([1, ...(stored || []).flatMap(a => a.sites)]);
-  for (const n of SITE_NUMBERS.slice(1)) if ([...LOC_FIELDS, 'programs'].some(f => has(`loc${n}_${f}`))) sites.add(n);
   const locKeys = [...sites].sort((a, b) => a - b).flatMap(n => [...LOC_FIELDS, ...(stored ? [] : ['programs'])].map(f => `loc${n}_${f}`));
   sections.push({ section: 'Locations', answered: locKeys.filter(has).length, total: locKeys.length });
   const docs = documentsFor(client).map(d => d.key), received = receivedFor(client);
   sections.push({ section: 'Uploads', answered: docs.filter(k => has(k) || uploaded.has(k) || received[k]).length, total: docs.length });
-  return { sections, core: { answered: sections.reduce((n, x) => n + x.answered, 0), total: sections.reduce((n, x) => n + x.total, 0) } };
+  return { sections, core: { answered: sections.reduce((n, x) => n + x.answered, 0), total: sections.reduce((n, x) => n + x.total, 0) }, ...(perCampus ? { campuses } : {}) };
 }
-const answeredSet = answers => new Set([...answers].filter(([k, a]) => a?.value && PROGRESS_KEY_RE.test(k)).map(([k]) => k));
+const answeredSet = answers => new Set([...answers].filter(([k, a]) => a?.value && PROGRESS_KEY_RE.test(k) && (k !== '_per_campus' || a.value === 'on')).map(([k]) => k));
 
 /** How many checklist tasks a client has in total: the shared ones plus a copy of the split ones per application. */
 export function checklistTotal(client) {
@@ -690,6 +704,7 @@ function statusView(client, answers, base, uploads = []) {
     filled_by: val('_filled_by'), status_line: val('_status'),
     applications, applications_set: stored,
     // Sites 4 and up show only once they are in play, so a three-site client reads as before.
+    ...(progress.campuses ? { campuses: progress.campuses.map(c => ({ ...c, name: val(`loc${c.site}_name`), lead: val(`loc${c.site}_lead`) })) } : {}),
     core: progress.core, sections: sections.filter(x => { const m = /^Wish List — Facility (\d+)$/.exec(x.section); return !m || +m[1] <= 3 || inPlay.has(+m[1]); }),
     wish_list: wish_list.filter(f => f.facility <= 3 || inPlay.has(f.facility)), ...(wish_lists ? { wish_lists } : {}), budget,
     programs: { listed: PROGRAM_SLOTS.filter(n => val(`prog${n}_name`) !== '').length, slots: PROGRAM_SLOTS.length },
@@ -907,7 +922,7 @@ export function createIntakeStore(pool, db = pool) {
       if (!clientIds.length) return {};
       const { rows } = await db.query(
         `SELECT client_id,
-                ARRAY_AGG(key) FILTER (WHERE value <> '' AND key ~ $2) AS answered_keys,
+                ARRAY_AGG(key) FILTER (WHERE value <> '' AND key ~ $2 AND NOT (key = '_per_campus' AND value <> 'on')) AS answered_keys,
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Completed' AND NOT key = ANY($4))::int AS checklist_completed,
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Not applicable' AND NOT key = ANY($4))::int AS checklist_na,
                 JSONB_OBJECT_AGG(key, JSONB_BUILD_ARRAY(value, updated_by)) FILTER (WHERE key = ANY($3)) AS auto_statuses,
@@ -1415,6 +1430,12 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     // Wish lists for a client's second and later applications live under wl_<id>_f<n>_ keys; they are
     // listed after the catalog, grouped by application, and only where something is stored.
     const apps = applicationsFor(c);
+    // Per-campus answers (s<n>_q_…) follow, grouped by site and named for it.
+    const siteName = n => answers.get(`loc${n}_name`)?.value || `Site ${n}`;
+    const campusRows = [...answers.keys()].map(k => [k, CAMPUS_KEY_RE.exec(k)]).filter(([k, m]) => m && QUESTION_BY_KEY.has(catalogKey(k))).map(([k, m]) => {
+      const q = QUESTION_BY_KEY.get(catalogKey(k)), n = Number(m[2]);
+      return { key: k, n, q, section: `${q.section} (${siteName(n)})`, label: `${siteName(n)} · ${q.label}` };
+    }).sort((x, y) => x.n - y.n || x.q.ordinal - y.q.ordinal);
     const extra = [...answers.keys()].filter(k => WL_APP_KEY_RE.test(k) || CHK_APP_KEY_RE.test(k)).map(k => {
       const id = (WL_APP_KEY_RE.exec(k) || CHK_APP_KEY_RE.exec(k))[1], q = QUESTION_BY_KEY.get(catalogKey(k)), app = apps.find(a => a.id === id);
       if (!q) return { q: null };
@@ -1422,7 +1443,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       return { key: k, id, q, section: q.section.replace(/^(Wish List|Checklist)/, `$1 (${who})`), label: `${who} · ${q.label}` };
     }).filter(x => x.q).sort((x, y) => (x.id === y.id ? x.q.ordinal - y.q.ordinal : x.id.localeCompare(y.id, 'en', { numeric: true })));
     const extras = q => ({ ...(q.number ? { number: q.number } : {}), ...(q.prompt ? { prompt: q.prompt } : {}) });
-    const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind, ...extras(q) })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
+    const rows = [...QUESTIONS.map(q => ({ key: q.key, section: q.section, label: q.label, kind: q.kind, ...extras(q) })), ...campusRows.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind, ...extras(x.q) })), ...extra.map(x => ({ key: x.key, section: x.section, label: x.label, kind: x.q.kind }))]
       .filter(q => !section || q.section.toLowerCase() === section)
       .map(q => { const a = answers.get(q.key); return { ...q, value: a?.value || '', updated_at: a?.updated_at || null, updated_by: a?.updated_by || '' }; })
       .filter(r => includeEmpty || r.value !== '');
@@ -1433,6 +1454,8 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const c = await loadClient(req, res); if (!c) return;
     const rows = normaliseAnswers((req.body || {}).answers, { allowMeta: true });
     for (const r of rows) checkChecklistValue(r.key, r.value);
+    const flag = rows.find(r => r.key === '_per_campus');
+    if (flag && !['on', 'off', ''].includes(flag.value.trim())) throw new BadRequest('_per_campus must be "on" or "off"');
     // A seed is the team's write. It may carry its own label (an import names its
     // source), but never one that reads as the client's, which the form alone writes.
     const label = text((req.body || {}).by, 'by', 60).trim();

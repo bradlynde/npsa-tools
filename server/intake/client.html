@@ -269,6 +269,20 @@
     .wl-row{grid-template-columns:1fr 1fr;}
     .wl-row > div{border-right:none;}
   }
+  /* Per-campus answers (2026-09-30): the campus bar above Information Collection. New classes only. */
+  .icx-campus{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 18px;background:var(--paper);}
+  .icx-campus-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-bottom:10px;}
+  .icx-campus-h b{font:700 11.5px var(--head);letter-spacing:.1em;text-transform:uppercase;color:var(--navy);}
+  .icx-campus-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;}
+  .icx-campus-list button{text-align:left;border:1.5px solid var(--line-strong);border-radius:10px;background:var(--paper);padding:8px 11px;cursor:pointer;font:inherit;color:var(--ink);}
+  .icx-campus-list button[aria-pressed="true"]{border-color:var(--navy);box-shadow:inset 0 0 0 1px var(--navy);}
+  .icx-campus-list button b{display:block;font:600 14px var(--head);}
+  .icx-campus-list button span{display:block;font-size:12px;color:var(--faint);}
+  .icx-campus-list button:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
+  .icx-campus-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--muted);}
+  .icx-campus-row .in{max-width:320px;}
+  .icx-campus-copy{background:var(--amber-bg);border-radius:8px;padding:8px 12px;}
+  .icx-campus-row[hidden]{display:none;}
 </style>
 <style>
   /* ---- live inputs styled into the design cells ---- */
@@ -1028,7 +1042,7 @@
   /* autosave */
   var pill=document.getElementById('savepill');
   function setPill(s){pill.className='savepill '+s;pill.textContent=(s==='saving')?'Saving…':'All changes saved';}
-  function save(el){var k=el.getAttribute('data-key'),v=val(el);setPill('saving');var a={};a[k]=(typeof v==='boolean')?String(v):v;
+  function save(el){var k=el.getAttribute('data-key'),v=val(el);setPill('saving');var a={};a[k]=(typeof v==='boolean')?String(v):v;EXISTING[k]=a[k];
     call('PUT','/answers',{answers:a}).then(function(){setPill('saved');}).catch(function(err){
       if(err&&err.status===401){linkDead();return;}
       pill.className='savepill';pill.textContent='Save failed — retrying…';setTimeout(function(){save(el);},2000);});}
@@ -1268,8 +1282,8 @@
   var ASKS=String(EXISTING._note_asks||'').split(',').map(function(k){return k.trim();}).filter(Boolean);
   document.querySelectorAll('.icx .fld[data-states]').forEach(function(f){if(f.getAttribute('data-states').split(',').indexOf(STATE)<0)f.hidden=true;});
   function pgUniqueTagged(){return pgCards.some(function(c){return !c.hidden&&pgKey(c,'unique').value!=='';});}
-  function icxFilled(el){return el.value.trim()!==''||(el.getAttribute('data-key')==='q_3_2_3'&&pgUniqueTagged());}
-  function icxFields(sec){return [].slice.call(sec.querySelectorAll('[data-key^="q_"]')).filter(function(el){return !el.closest('[hidden]');});}
+  function icxFilled(el){return el.value.trim()!==''||((el.getAttribute('data-base')||el.getAttribute('data-key'))==='q_3_2_3'&&pgUniqueTagged());}
+  function icxFields(sec){return [].slice.call(sec.querySelectorAll('[data-key^="q_"],[data-base]')).filter(function(el){return !el.closest('[hidden]');});}
   function icxCount(){var all=0,done=0;
     icxSecs.forEach(function(sec){var n=sec.getAttribute('data-sec'),els=icxFields(sec),a=els.filter(icxFilled).length,t=els.length;
       if(sec.querySelector('[data-programs]')){t++;if(pgCards.some(function(c){return pgKey(c,'name').value!=='';}))a++;}
@@ -1290,24 +1304,26 @@
   function goTab(id){var t=document.querySelector('.tab[data-tab="'+id+'"]');if(t)t.click();}
   document.querySelectorAll('[data-goto]').forEach(function(b){b.addEventListener('click',function(){goTab(b.getAttribute('data-goto'));});});
   /* NPSA notes, and the ones that are questions for the client */
-  document.querySelectorAll('.icx-note[data-note]').forEach(function(el){var k=el.getAttribute('data-note'),v=EXISTING[k];if(!v)return;
+  function icxNote(el){var k=el.getAttribute('data-note'),v=EXISTING[k];el.hidden=true;el.classList.remove('ask','clamp');el.innerHTML='';if(!v)return;
     var q=k.replace(/^note_/,''),ask=ASKS.indexOf(q)>=0,num=el.getAttribute('data-num');
     el.hidden=false;el.classList.toggle('ask',ask);
     el.innerHTML='<div class="nb"><span class="who">'+(ask?'NPSA asks':'NPSA')+(num?' · '+num:'')+':</span> '+escT(v)+'</div>';
     if(v.length>320){el.classList.add('clamp');var m=document.createElement('button');m.type='button';m.className='link';m.textContent='More';
-      m.addEventListener('click',function(){var open=el.classList.toggle('clamp');m.textContent=open?'More':'Less';});el.appendChild(m);}});
+      m.addEventListener('click',function(){var open=el.classList.toggle('clamp');m.textContent=open?'More':'Less';});el.appendChild(m);}}
+  document.querySelectorAll('.icx-note[data-note]').forEach(icxNote);
   /* "Doesn't apply": a quiet link beside an empty answer; once used, the box dims and Undo appears */
   function icxSide(q){var el=q.querySelector('[data-key]'),side=q.querySelector('.qside'),k=el.getAttribute('data-key'),v=el.value.trim();
     var na=v===NA;el.readOnly=na;el.classList.toggle('off',na);q.classList.toggle('asked',ASKS.indexOf(k)>=0);
     if(na)side.innerHTML='<span class="quiet">Doesn\'t apply · </span><button type="button" class="link" data-undo>Undo</button>';
     else if(ASKS.indexOf(k)>=0)side.innerHTML='<span class="ask-tag">Question for you</span>';
-    else if(!icxFilled(el))side.innerHTML='<button type="button" class="link quiet" data-na>Doesn\'t apply</button>';
+    else if(!icxFilled(el))side.innerHTML=campusUseLink(el)+'<button type="button" class="link quiet" data-na>Doesn\'t apply</button>';
     else side.innerHTML='';}
   document.querySelectorAll('.icx-q[data-q]').forEach(function(q){var el=q.querySelector('[data-key]');icxSide(q);
     el.addEventListener('input',function(){icxCount();if(el.value.trim()===''||q.querySelector('[data-na]'))icxSide(q);});
     el.addEventListener('blur',function(){icxSide(q);});
     q.querySelector('.qside').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
       if(b.hasAttribute('data-na')){el.value=NA;save(el);icxSide(q);icxCount();}
+      else if(b.hasAttribute('data-use')){el.value=EXISTING[b.getAttribute('data-use')]||'';save(el);icxSide(q);icxCount();campusRender();growAll();}
       else if(b.hasAttribute('data-undo')){el.value='';save(el);icxSide(q);icxCount();el.focus();}});});
   /* a short field that can be skipped (DBA) gets the same "Doesn't apply", as a link beside its label */
   document.querySelectorAll('.icx .fld[data-na]').forEach(function(f){var el=f.querySelector('[data-key]'),lbl=f.querySelector('label'),head=document.createElement('div'),side=document.createElement('span');
@@ -1324,6 +1340,53 @@
     function done(){b.classList.add('copied');setTimeout(function(){b.classList.remove('copied');},1600);}
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,function(){window.prompt('Copy this link',url);});
     else window.prompt('Copy this link',url);});});
+  /* Per campus (2026-09-30): with NPSA's _per_campus switch on and two or more sites, sections 3 to 5
+     are answered for each campus. A bar above the sections picks the campus; the fields are re-keyed
+     in place (site 1 keeps the plain keys, site n uses s<n>_…), so saving, "Doesn't apply", notes and
+     progress all work as before. Sections 1 and 2 stay whole-organisation. */
+  var CAMPUS_SEC=['3','4','5'],CUR=1,campusOn=false,campusEls=[],campusNotes=[],campusBar=null;
+  function campusKey(base,n){return n===1?base:(base.indexOf('note_')===0?'note_s'+n+'_'+base.slice(5):'s'+n+'_'+base);}
+  function campusList(){return SITES.filter(function(n){return siteOn(n);});}
+  function campusName(n){return pgSiteName(n);}
+  function campusUseLink(el){var base=el.getAttribute('data-base');if(!campusOn||CUR===1||!base)return '';
+    var v=EXISTING[base];if(!v||v===NA)return '';return '<button type="button" class="link quiet" data-use="'+escT(base)+'">Use '+escT(campusName(1))+'\'s answer</button> · ';}
+  function campusDone(n){var t=0,a=0;campusEls.forEach(function(el){if(el.closest('[hidden]'))return;var base=el.getAttribute('data-base'),v=EXISTING[campusKey(base,n)];t++;
+    if((v&&String(v).trim()!=='')||(base==='q_3_2_3'&&pgUniqueTagged()))a++;});return {a:a,t:t};}
+  function campusRender(){if(!campusBar)return;var list=campusList();
+    campusBar.querySelector('.icx-campus-list').innerHTML=list.map(function(n){var d=campusDone(n),lead=EXISTING['loc'+n+'_lead']||'';
+      return '<button type="button" data-campus="'+n+'" aria-pressed="'+(n===CUR)+'"><b>'+escT(campusName(n))+'</b><span>'+escT(lead||'No one named yet')+'</span><span>'+d.a+' of '+d.t+' answered</span></button>';}).join('');
+    var lead=campusBar.querySelector('[data-campus-lead]');lead.setAttribute('data-key','loc'+CUR+'_lead');lead.value=EXISTING['loc'+CUR+'_lead']||'';
+    campusBar.querySelector('[data-campus-lead-label]').textContent='Who is filling in '+campusName(CUR)+'?';
+    var mine=campusDone(CUR),main=campusDone(1),copy=campusBar.querySelector('.icx-campus-copy');
+    copy.hidden=!(CUR!==1&&mine.a===0&&main.a>0);copy.querySelector('[data-copy-from]').textContent=campusName(1);
+    icxSecs.forEach(function(sec){if(CAMPUS_SEC.indexOf(sec.getAttribute('data-sec'))<0)return;var k=sec.querySelector('.icx-sec-h .k');if(!k)return;
+      if(!k.hasAttribute('data-k0'))k.setAttribute('data-k0',k.textContent);k.textContent=k.getAttribute('data-k0')+' · '+campusName(CUR);});}
+  function campusSet(n){CUR=n;
+    campusEls.forEach(function(el){var k=campusKey(el.getAttribute('data-base'),n);el.setAttribute('data-key',k);el.value=EXISTING.hasOwnProperty(k)?EXISTING[k]:'';});
+    campusNotes.forEach(function(el){el.setAttribute('data-note',campusKey(el.getAttribute('data-base-note'),n));icxNote(el);});
+    document.querySelectorAll('.icx-q[data-q]').forEach(function(q){if(q.querySelector('[data-base]'))icxSide(q);});
+    try{localStorage.setItem('npsa-campus-'+CLIENT,String(n));}catch(e){}
+    icxCount();campusRender();growAll();}
+  (function(){if(String(EXISTING._per_campus||'')!=='on'||campusList().length<2)return;campusOn=true;
+    icxSecs.forEach(function(sec){if(CAMPUS_SEC.indexOf(sec.getAttribute('data-sec'))<0)return;
+      sec.querySelectorAll('[data-key^="q_"]').forEach(function(el){el.setAttribute('data-base',el.getAttribute('data-key'));campusEls.push(el);});
+      sec.querySelectorAll('.icx-note[data-note]').forEach(function(el){el.setAttribute('data-base-note',el.getAttribute('data-note'));campusNotes.push(el);});});
+    var icx=document.querySelector('.icx');campusBar=document.createElement('div');campusBar.className='icx-campus';
+    campusBar.innerHTML='<div class="icx-campus-h"><b>Answering for</b><span>Sections 1 and 2 are for the whole organization. Sections 3 to 5 are answered for each campus: pick one here.</span></div>'
+      +'<div class="icx-campus-list" role="group" aria-label="Campus"></div>'
+      +'<div class="icx-campus-row"><label data-campus-lead-label for="icxCampusLead"></label><input type="text" class="in" id="icxCampusLead" data-campus-lead placeholder="Name and role"></div>'
+      +'<div class="icx-campus-row icx-campus-copy" hidden><span>Start from <span data-copy-from></span>\'s answers? Anything that is the same here is filled in, and you change what is different.</span><button type="button" class="link" data-copy>Copy them</button></div>';
+    icx.parentNode.insertBefore(campusBar,icx);
+    campusBar.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+      if(b.hasAttribute('data-campus')){campusSet(Number(b.getAttribute('data-campus')));return;}
+      if(b.hasAttribute('data-copy')){var a={};campusEls.forEach(function(el){var base=el.getAttribute('data-base'),v=EXISTING[base];
+          if(v&&!String(el.value).trim()){el.value=v;a[el.getAttribute('data-key')]=v;EXISTING[el.getAttribute('data-key')]=v;}});
+        if(Object.keys(a).length){setPill('saving');call('PUT','/answers',{answers:a}).then(function(){setPill('saved');}).catch(function(err){if(err&&err.status===401)linkDead();else{pill.className='savepill';pill.textContent='Save failed — try again';}});}
+        campusSet(CUR);}});
+    var lead=campusBar.querySelector('[data-campus-lead]');lead.addEventListener('blur',function(){save(lead);campusRender();});
+    var tab=document.querySelector('.tab[data-tab="ic"]');if(tab)tab.addEventListener('click',campusRender);
+    var start=1;try{start=Number(localStorage.getItem('npsa-campus-'+CLIENT))||1;}catch(e){}
+    campusSet(campusList().indexOf(start)>=0?start:1);})();
   /* open where a link points, else where the client left off */
   icxReady=true;icxCount();
   function icxFromHash(){var m=/^#q-(\d+)-(\d+)$/.exec(location.hash||''),target=m&&document.getElementById('q-'+m[1]+'-'+m[2]);if(!target)return false;
