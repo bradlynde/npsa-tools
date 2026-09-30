@@ -152,6 +152,8 @@ export const SCHEMAS = {
     upload_key: z.string().regex(/^up_[a-z0-9_]{2,40}$/).optional(),
     task_stem: short(80).optional(),
     ready_label: short().optional(),
+    // A document needed once per site; per-campus clients get a row per campus.
+    per_site: z.boolean().optional(),
   }),
 
   cycle: kind({

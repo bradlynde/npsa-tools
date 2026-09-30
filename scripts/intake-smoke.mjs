@@ -771,6 +771,34 @@ await check('per campus: sections 3 to 5 per site once NPSA turns it on; 1 and 2
   assert.ok(renderClientPage({ client: { slug, token: 't', name: 'T', state: 'CA', per_campus: true }, stateConfig: {}, existing: {} }).includes('PER_CAMPUS=true'));
 });
 
+await check('per-campus documents: once-per-site rows repeat per campus, from each campus\'s own program', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Doc Campus Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27', sites: [1, 2] }, { program: 'NSGP-S', cycle: 'FY2027', sites: [3], status: 'planned' }] } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const slug = 'doc-campus-church', t = new URL(r.data.intake_url).searchParams.get('t');
+  const before = r.data.documents.map(d => d.key);
+  assert.ok(!before.some(k => /_s\d$/.test(k)), 'off: one list, as before');
+  const on = await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { per_campus: true } });
+  const docs = on.data.documents;
+  const org = docs.filter(d => !d.site).map(d => d.key).sort();
+  assert.ok(org.includes('up_mission') && org.includes('up_501c3') && !org.includes('up_va'), 'mission and 501(c)(3) once');
+  const site = n => docs.filter(d => d.site === n).map(d => d.key);
+  assert.deepEqual(site(1).sort(), ['up_landlord_letter', 'up_proof_address', 'up_site_map', 'up_va'], 'site 1 keeps the plain keys');
+  assert.deepEqual(site(2).sort(), ['up_landlord_letter_s2', 'up_proof_address_s2', 'up_site_map_s2', 'up_va_s2']);
+  assert.deepEqual(site(3), ['up_va_s3'], 'the federal campus gets the federal VA only');
+  assert.match(docs.find(d => d.key === 'up_va').label, /Cal OES/);
+  assert.doesNotMatch(docs.find(d => d.key === 'up_va_s3').label, /Cal OES/);
+  assert.ok(!docs.some(d => d.site > 1 && d.task), 'only site 1 carries the checklist link');
+  const up = await upload(slug, t, multipart('up_va_s2', 'ventura-va.pdf', PDF, 'application/pdf'));
+  assert.equal(up.status, 200, await up.text());
+  const mark = await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { mark_documents_received: ['up_va_s3'] } });
+  assert.equal(mark.status, 200, JSON.stringify(mark.data));
+  const st = (await call('GET', `/api/clients/${slug}/status`, { headers: TEAM })).data;
+  assert.deepEqual([st.sections.find(x => x.section === 'Uploads').answered, st.sections.find(x => x.section === 'Uploads').total], [2, docs.length]);
+  const edit = await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { remove_document_keys: ['up_landlord_letter'] } });
+  assert.ok(!edit.data.documents.some(d => /^up_landlord_letter/.test(d.key)), 'removing a document removes it from every campus');
+  assert.ok(!edit.data.documents.some(d => /_s\d$/.test(d.key) && !d.site), 'the stored list holds no campus copies');
+});
+
 await check('more than three sites: CSNSGP on two, federal on three more', async () => {
   const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Five Campus Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27', sites: [1, 2] }, { program: 'NSGP-S', cycle: 'FY2027', sites: [3, 4, 5], status: 'planned' }] } });
   assert.equal(r.status, 201, JSON.stringify(r.data));

@@ -926,8 +926,13 @@
   document.querySelectorAll('[data-key]').forEach(function(el){var k=el.getAttribute('data-key');
     if(EXISTING.hasOwnProperty(k)){if(el.type==='checkbox')el.checked=(EXISTING[k]===true||EXISTING[k]==='true'||EXISTING[k]==='TRUE');else{var v=EXISTING[k];if(k.startsWith('chk_due_')&&/^\d{4}-\d{2}-\d{2}/.test(v)){var d=v.substring(0,10);var p=d.split('-');v=p[1]+'/'+p[2]+'/'+p[0].slice(2);}el.value=v;}}});
   /* documents: the rows this client is asked for (standard + state, or NPSA's own list) */
-  document.getElementById('uploads').innerHTML=(DOCUMENTS||[]).map(function(d){return '<div class="uprow"><div class="upmeta"><div class="uplbl">'+escT(d.label)+'</div>'+(d.hint?'<div class="uphint">'+escT(d.hint)+'</div>':'')+'</div>'+
-    '<div class="upctrl"><input type="file" data-upload="'+escT(d.key)+'" accept=".pdf,.doc,.docx,image/*"><div class="upstat" id="u_'+escT(d.key)+'">No file yet</div></div></div>';}).join('')||'<div class="ct-empty">No documents are needed from you right now.</div>';
+  function upRow(d){return '<div class="uprow"><div class="upmeta"><div class="uplbl">'+escT(d.label)+'</div>'+(d.hint?'<div class="uphint">'+escT(d.hint)+'</div>':'')+'</div>'+
+    '<div class="upctrl"><input type="file" data-upload="'+escT(d.key)+'" accept=".pdf,.doc,.docx,image/*"><div class="upstat" id="u_'+escT(d.key)+'">No file yet</div></div></div>';}
+  /* per campus (2026-09-30): documents needed once per site come in a group per campus, after the whole-organisation ones */
+  var upSites=[];(DOCUMENTS||[]).forEach(function(d){if(d.site&&upSites.indexOf(d.site)<0)upSites.push(d.site);});
+  document.getElementById('uploads').innerHTML=(upSites.length?'<div class="icx-grp"><span>For the whole organization</span></div>'+(DOCUMENTS||[]).filter(function(d){return !d.site;}).map(upRow).join('')
+      +upSites.map(function(n){return '<div class="icx-grp"><span>'+escT(pgSiteName(n))+'</span></div>'+(DOCUMENTS||[]).filter(function(d){return d.site===n;}).map(upRow).join('');}).join('')
+    :(DOCUMENTS||[]).map(upRow).join(''))||'<div class="ct-empty">No documents are needed from you right now.</div>';
   (DOCUMENTS||[]).forEach(function(d){var k=d.key,s=document.getElementById('u_'+k);if(!s)return;
     if(EXISTING[k]||(UPLOADED||[]).indexOf(k)>=0)s.innerHTML='Uploaded ✓';
     else if((RECEIVED||[]).indexOf(k)>=0)s.innerHTML='Received by your NPSA team ✓';});
@@ -1061,7 +1066,7 @@
     function srItemsFor(a){var out=[],p=a?checklistPrefix(a.id):'chk_';
       if(!a||a.kind==='federal')out.push({label:'Active SAM.gov / UEI registration',keys:['chk_status_sam_gov_uei_registration']});
       if(extraReg.length)out.push({label:escT(STATE+' registration: '+extraReg.join(' · ')),keys:['chk_status_state_reg']});
-      (DOCUMENTS||[]).forEach(function(d){out.push({label:escT(d.ready||d.label),keys:d.task?['chk_status_'+d.task]:[],doc:d.key});});
+      (DOCUMENTS||[]).forEach(function(d){if(d.site&&a&&a.sites&&a.sites.indexOf(d.site)<0)return;out.push({label:escT((d.ready||d.label)+(d.site?' · '+pgSiteName(d.site):'')),keys:d.task?['chk_status_'+d.task]:[],doc:d.key});});
       if(CFG.quotes_required)out.push({label:'889-compliant vendor quotes for budget items',keys:['chk_status_vendor_quotes_for_wish_list_items']});
       out.push({label:'Investment Justification finalized — one per site',keys:[p+'status_investment_justification_ij_prepar',p+'status_final_review_edits']});
       out.push({label:escT('Application submitted to '+(CFG.saa||'your state administrative agency')),keys:[p+'status_assemble_submission_package',p+'status_submit_application']});

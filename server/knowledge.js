@@ -48,6 +48,8 @@ function uploadRow(req, base = null) {
     hint: d.client_hint ?? b.client_hint,
     ready: d.ready_label || b.ready_label,
     task: d.task_stem || b.task_stem,
+    // One per site (vulnerability assessment, site map): per-campus clients get a row per campus.
+    per_site: d.per_site ?? b.per_site,
   });
 }
 

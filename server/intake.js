@@ -79,14 +79,56 @@ function appliedCodes(client, kb) {
  * CSNSGP), else the federal list: the US baseline in the state's wording plus what
  * the state adds. From the knowledge base's verified records.
  */
-export function documentsFor(client) {
-  if (Array.isArray(client.documents)) return client.documents.map(d => ({ ...d, source: d.source || 'custom' }));
-  const st = String(client.state || '').toUpperCase();
-  const kb = knowledgeFor(st);
-  const codes = appliedCodes(client, kb);
+function programDocuments(kb, codes) {
   const own = kb.programs.find(p => codes.includes(p.code) && kb.documents[p.code]);
   const fed = [...codes, 'NSGP-S', ...kb.federal.programs.map(p => p.code)].find(c => kb.federal.programs.some(p => p.code === c) && kb.documents[c]);
   return (kb.documents[own ? own.code : fed || 'baseline'] || []).map(d => ({ ...d }));
+}
+/** The list the team edits: the client's own, or the knowledge base's for their programs (before any per-campus copies). */
+export function documentListFor(client) {
+  if (Array.isArray(client.documents)) return client.documents.map(d => ({ ...d, source: d.source || 'custom' }));
+  const kb = knowledgeFor(String(client.state || '').toUpperCase());
+  return programDocuments(kb, appliedCodes(client, kb));
+}
+
+// Per-campus documents (2026-09-30). With per_campus on and applications covering two or more
+// sites, a document needed once per site (per_site in the knowledge base; by default the
+// vulnerability assessment, site map, proof of ownership and landlord letter) gets a row per
+// site, keyed <key> for site 1 and <key>_s<n> for site n, from the list for the programs that
+// site applies to (a CSNSGP campus gets the Cal OES worksheet, a federal one the federal VA).
+// Whole-organisation documents (mission, 501(c)(3), bios) stay once.
+const PER_SITE_DEFAULT = /^up_(va|vulnerability_assessment|site_map|proof_address|proof_of_ownership|landlord_letter)$/;
+export const perSiteDocument = d => (typeof d.per_site === 'boolean' ? d.per_site : PER_SITE_DEFAULT.test(d.key));
+export const siteDocumentKey = (key, n) => (n === 1 ? key : `${key}_s${n}`);
+/** The sites that answer per campus: those the live applications cover, when per_campus is on and there are two or more. */
+export function campusSites(client) {
+  const apps = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn') : [];
+  const sites = [...new Set([1, ...apps.flatMap(a => a.sites || [])])].sort((a, b) => a - b);
+  return client.per_campus && sites.length > 1 ? sites : [1];
+}
+/**
+ * The upload rows a client's Documents tab shows: their own list if the team changed
+ * it, else their state program's list where that program has its own (California's
+ * CSNSGP), else the federal list: the US baseline in the state's wording plus what
+ * the state adds. From the knowledge base's verified records. Per campus, the per-site
+ * rows repeat for each site (site: n).
+ */
+export function documentsFor(client) {
+  const base = documentListFor(client), sites = campusSites(client);
+  if (sites.length < 2) return base;
+  const kb = knowledgeFor(String(client.state || '').toUpperCase());
+  const apps = client.applications.filter(a => a.status !== 'withdrawn');
+  const org = base.filter(d => !perSiteDocument(d)), rows = [];
+  for (const n of sites) {
+    const codes = apps.filter(a => (a.sites || []).includes(n)).map(a => a.program);
+    const list = Array.isArray(client.documents) || !codes.length ? base : programDocuments(kb, codes);
+    for (const d of list) {
+      if (!perSiteDocument(d)) { if (!org.some(o => o.key === d.key)) org.push(d); continue; }
+      const { task, ...rest } = d;
+      rows.push({ ...rest, ...(n === 1 && task ? { task } : {}), key: siteDocumentKey(d.key, n), site: n });
+    }
+  }
+  return [...org, ...rows];
 }
 const npsaChecklistKey = k => { const m = /^chk_(?:a\d{1,2}_)?(?:status|due|who|note)_(.+)$/.exec(k); return !!m && CHECKLIST_META[m[1]]?.owner === 'npsa'; };
 const CHECKLIST_STATUSES = ['Not started', 'In progress', 'Completed', 'Not applicable'];
@@ -105,6 +147,7 @@ function validDocument(d, label) {
   if (d.ready) out.ready = String(d.ready).trim().slice(0, 100);
   if (d.task) { const t = String(d.task).trim(); if (!CHECKLIST_STEM_SET.has(t)) throw new BadRequest(`${label}.task "${t}" is not a checklist task`); out.task = t; }
   if (d.source && ['standard', 'state', 'program', 'custom'].includes(d.source)) out.source = d.source;
+  if (typeof d.per_site === 'boolean') out.per_site = d.per_site;
   return out;
 }
 // Some MCP clients hand an array argument over as its JSON text. Take that as the array it is,
@@ -1324,7 +1367,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       if (b.add_documents !== undefined || b.remove_document_keys !== undefined) {
         const adds = validDocuments(b.add_documents, 'add_documents') || [];
         const removes = b.remove_document_keys === undefined ? [] : (Array.isArray(asArray(b.remove_document_keys)) ? asArray(b.remove_document_keys).map(k => String(k).toLowerCase()) : (() => { throw new BadRequest('remove_document_keys must be an array'); })());
-        const current = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
+        const current = patch.documents === undefined ? documentListFor(c) : (patch.documents || documentListFor({ ...c, documents: null }));
         const list = current.filter(d => !removes.includes(d.key) && !adds.some(a => a.key === d.key)).concat(adds.map(a => ({ ...a, source: 'custom' })));
         patch.documents = list;
       }
@@ -1336,7 +1379,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       const remove = validEmails(b.remove_contact_emails, 'remove_contact_emails');
       // Marking a document received (by email, in person) or taking the mark back.
       if (b.mark_documents_received !== undefined || b.unmark_documents_received !== undefined) {
-        const docs = patch.documents === undefined ? documentsFor(c) : (patch.documents || documentsFor({ ...c, documents: null }));
+        const docs = documentsFor({ ...c, ...patch, documents: patch.documents === undefined ? c.documents : patch.documents });
         const marks = asArray(b.mark_documents_received) ?? [];
         const unmarks = asArray(b.unmark_documents_received) ?? [];
         if (!Array.isArray(marks) || !Array.isArray(unmarks)) throw new BadRequest('mark_documents_received and unmark_documents_received must be arrays');
