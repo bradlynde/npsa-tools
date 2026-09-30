@@ -41,6 +41,16 @@ Code: `server/mcp.js`, and `server/oauth.js` for the sign-in. Both mounted from
    one variable away.
 
    ```
+   MCP_WRITE_USERS  # comma-separated toolbox usernames allowed the write tools when signed in (OAuth)
+   ```
+
+   The OAuth counterpart, and it defaults the other way: **unset, nobody signed in
+   can write**. Everyone signed in reads everything; only the usernames listed here
+   (case-insensitive, e.g. `Stuart,Steven,Will`) see the write tools at all. A
+   signed-in user left off the list gets "tool not found" for a write, and nothing
+   reaches the route.
+
+   ```
    MCP_KEY_NAMES      # fingerprint:name pairs, e.g. ab12cd34:Stuart,ef567890:Brad
    ACTOR_PROXY_KEYS   # fingerprints of keys allowed to send X-Actor (the toolbox's key on Vercel)
    ```
@@ -170,7 +180,8 @@ its own authorization server for that (`server/oauth.js`, on the MCP SDK's
 `mcpAuthRouter`). The person signs in with the same emailed code as the toolbox, so
 every call is made as them: the MCP audit line (`[mcp] write rep_add by stuart ...`),
 the `X-Actor` on the loopback call, and the grant knowledge edit history all carry
-their username. An OAuth caller can use the write tools; `MCP_WRITE_KEYS` narrows
+their username. An OAuth caller gets the write tools only if their username is in
+`MCP_WRITE_USERS`; everyone else signed in is read-only. `MCP_WRITE_KEYS` governs
 keys only.
 
 ### How it works

@@ -138,6 +138,18 @@ export function mayAssertActor(key) {
  * MCP_WRITE_KEYS narrows keys only. With neither keys nor OAuth there is no
  * service at all (503), never an open one.
  */
+/**
+ * Whether a signed-in (OAuth) user gets the write tools. MCP_WRITE_USERS lists
+ * toolbox usernames, comma-separated, matched without regard to case. Unset or
+ * empty means nobody: a signed-in user reads everything and changes nothing
+ * unless named here. Keys are governed by MCP_WRITE_KEYS instead.
+ */
+export function oauthCanWrite(username) {
+  const name = String(username || '').trim().toLowerCase();
+  if (!name) return false;
+  return splitKeys(process.env.MCP_WRITE_USERS).some(u => u.toLowerCase() === name);
+}
+
 export function mcpAuth({ oauth = null } = {}) {
   const challenge = presented => oauth
     ? `Bearer realm="npsa-tools", resource_metadata="${oauth.resourceMetadataUrl}"${presented ? ', error="invalid_token"' : ''}`
@@ -162,7 +174,7 @@ export function mcpAuth({ oauth = null } = {}) {
       let who = null;
       try { who = await oauth.authenticate(presented); } catch (err) { console.error('[mcp] token check failed:', err?.message || err); }
       if (who) {
-        req.mcp = { actor: cleanActor(who.username) || 'oauth', canWrite: true, kind: 'oauth' };
+        req.mcp = { actor: cleanActor(who.username) || 'oauth', canWrite: oauthCanWrite(who.username), kind: 'oauth' };
         return next();
       }
     }
