@@ -25,7 +25,9 @@
  *      line and the X-Actor loopback name them. Refresh rotates and the old refresh
  *      is refused; revoke and expiry end a token; a token for another resource is
  *      refused; no token is 401 pointing at the resource metadata. Keys still work,
- *      and MCP_WRITE_KEYS narrows keys only.
+ *      and MCP_WRITE_KEYS narrows keys only. Only users named in MCP_WRITE_USERS
+ *      get the write tools; everyone else signed in reads only, and unset means
+ *      nobody writes.
  *   7. Unconfigured. With AUTH_API_URL unset nothing is mounted and /mcp is keys
  *      only, as before (401 without resource_metadata, 503 with no keys).
  *   8. The SDK's own client OAuth helper, end to end.
@@ -88,6 +90,8 @@ process.env.JWT_SECRET = SECRET;
 process.env.MCP_PUBLIC_URL = BASE;
 process.env.MCP_API_KEYS = TEAM_KEY;
 delete process.env.MCP_WRITE_KEYS;
+// Mixed case and stray spaces on purpose: the match ignores both.
+process.env.MCP_WRITE_USERS = ' Stuart, Steven ,Will';
 delete process.env.OAUTH_REDIRECT_HOSTS;
 
 let clock = Date.now();
@@ -406,6 +410,42 @@ await check('MCP_WRITE_KEYS narrows keys only: the OAuth caller still writes, a 
     assert.ok(!(await key.listTools()).tools.some(t => t.name === 'rep_add'));
     await key.close();
   } finally { delete process.env.MCP_WRITE_KEYS; }
+});
+await check('a signed-in user not on MCP_WRITE_USERS reads everything and writes nothing', async () => {
+  const s = await signIn(chatgpt, { email: 'ethan@nonprofitsecurityadvisors.com' });
+  const t = (await exchange(chatgpt, s.code, s.verifier)).data;
+  assert.ok(t.access_token, 'ethan signs in fine');
+  const client = await connect(t.access_token);
+  const names = (await client.listTools()).tools.map(x => x.name);
+  for (const read of ['letters_stats', 'clients_list', 'intake_status', 'gk_state_brief', 'marketing_overview']) {
+    assert.ok(names.includes(read), `reads ${read}`);
+  }
+  for (const w of ['rep_add', 'client_update', 'client_delete', 'intake_seed', 'gk_record_upsert', 'client_invite']) {
+    assert.ok(!names.includes(w), `no ${w}`);
+  }
+  const stats = JSON.parse((await client.callTool({ name: 'letters_stats', arguments: {} })).content[0].text);
+  assert.equal(stats.actor, 'ethan');
+  const before = received.length;
+  const w = await client.callTool({ name: 'rep_add', arguments: { name: 'Sneaky Rep' } });
+  assert.equal(w.isError, true);
+  assert.match(w.content[0].text, /not found/i);
+  assert.equal(received.length, before, 'nothing reached the route');
+  assert.ok(!mcpLog.some(l => l.includes('Sneaky') || l.startsWith('[mcp] write rep_add by ethan')), 'no write logged');
+  await client.close();
+});
+await check('with MCP_WRITE_USERS unset, nobody signed in can write', async () => {
+  const saved = process.env.MCP_WRITE_USERS;
+  delete process.env.MCP_WRITE_USERS;
+  try {
+    const client = await connect(tokens.access_token);
+    const names = (await client.listTools()).tools.map(x => x.name);
+    assert.ok(names.includes('letters_stats'));
+    assert.ok(!names.includes('rep_add'), 'stuart too is read-only when the list is unset');
+    await client.close();
+    const key = await connect(TEAM_KEY);
+    assert.ok((await key.listTools()).tools.some(x => x.name === 'rep_add'), 'keys keep their own rule');
+    await key.close();
+  } finally { process.env.MCP_WRITE_USERS = saved; }
 });
 await check('an MCP_API_KEYS key still works and is named by its fingerprint', async () => {
   const client = await connect(TEAM_KEY);
