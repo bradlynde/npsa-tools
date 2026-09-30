@@ -2,12 +2,14 @@
 
 The Sales Toolbox backend exposes its data to Claude through the Model Context
 Protocol at `POST /mcp` on the Railway service (the `loe-generator` lineage). Claude
-Code and Claude Desktop connect to it directly and get tools for letters, reps,
+Code and Claude Desktop connect to it with a bearer key; ChatGPT and claude.ai connect
+with each person's own sign-in (OAuth, below). Either way they get tools for letters, reps,
 pre-call bookings, the marketing dashboard figures, the in-house grant clients with
 their intake forms, and the grant knowledge base -- twenty-six reads, and fifteen
 writes for keys allowed them.
 
-Code: `server/mcp.js`. Mounted from `server/index.js` ahead of the SPA fallback.
+Code: `server/mcp.js`, and `server/oauth.js` for the sign-in. Both mounted from
+`server/index.js` ahead of the SPA fallback.
 
 ## Setup (once, on Railway)
 
@@ -23,7 +25,8 @@ Code: `server/mcp.js`. Mounted from `server/index.js` ahead of the SPA fallback.
    MCP_API_KEYS   # comma-separated, one key per person
    ```
 
-   The endpoint refuses every request until this is set (503). One key per person
+   The endpoint refuses every request until this is set (503), unless OAuth sign-in
+   is configured (below), in which case it answers 401 and points at the sign-in. One key per person
    means one can be revoked without rotating the others. `MCP_API_KEY` (singular)
    also works for a single key.
 
@@ -151,13 +154,104 @@ ENVIRONMENT before it can connect, and neither is in the repo:
 
 ### claude.ai connectors and Cowork
 
-Add it as a custom connector pointing at
-`https://loe-generator-production.up.railway.app/mcp`, with a request header
-`authorization: Bearer <key>` carrying the person's key from `MCP_API_KEYS`. No
-OAuth is involved: the endpoint checks the bearer key exactly as it does for Claude
-Code. The key sits in the connector's settings, so give each person their own and
-revoke it from `MCP_API_KEYS` if it leaks. This is separate from Claude Code on the
-web above, which is a Claude Code client and reads `.mcp.json` like any other.
+Use OAuth sign-in (next section): a custom connector with no request header, and
+each person signs in as themselves.
+
+The older route still works: a custom connector with a request header
+`authorization: Bearer <key>` carrying the person's key from `MCP_API_KEYS`. The
+key then sits in the connector's settings, so give each person their own and revoke
+it from `MCP_API_KEYS` if it leaks. This is separate from Claude Code on the web
+above, which is a Claude Code client and reads `.mcp.json` like any other.
+
+## OAuth sign-in (ChatGPT, claude.ai)
+
+ChatGPT and claude.ai connect to a remote MCP server with OAuth, and this server is
+its own authorization server for that (`server/oauth.js`, on the MCP SDK's
+`mcpAuthRouter`). The person signs in with the same emailed code as the toolbox, so
+every call is made as them: the MCP audit line (`[mcp] write rep_add by stuart ...`),
+the `X-Actor` on the loopback call, and the grant knowledge edit history all carry
+their username. An OAuth caller can use the write tools; `MCP_WRITE_KEYS` narrows
+keys only.
+
+### How it works
+
+1. The app calls `/mcp` with no token and gets `401` with
+   `WWW-Authenticate: Bearer realm="npsa-tools", resource_metadata=".../.well-known/oauth-protected-resource/mcp"`.
+2. It reads that document (also served at `/.well-known/oauth-protected-resource`),
+   then `/.well-known/oauth-authorization-server`, and registers itself at
+   `/register`. Registration is refused unless every redirect URI is https on
+   `chatgpt.com`, `chat.openai.com`, `claude.ai` or `claude.com` (exact host), or
+   `http://localhost` / `http://127.0.0.1` on any port (Claude Code).
+3. It sends the person to `/authorize`, which shows an NPSA sign-in page: "ChatGPT
+   wants to use NPSA Tools as you", and the host it will send them back to. They
+   enter their email (`/oauth/login/request` asks the auth service to email a
+   code), then the code (`/oauth/login/verify` checks it with the auth service and
+   verifies the returned login token against `JWT_SECRET`). A wrong code can be
+   retried; ten wrong codes, or ten minutes, and they start again from the app.
+4. The page sends them back to the app with a one-time code (good for 60 seconds,
+   PKCE S256 required), which the app trades at `/token` for an access token (1
+   hour) and a refresh token (30 days). Each refresh issues a new pair and retires
+   the old one. `/revoke` ends a token. A code presented twice withdraws the tokens
+   it bought.
+
+Tokens are only for `https://.../mcp`; a token issued for any other resource is
+refused. Only SHA-256 hashes of codes and tokens are stored (tables `oauth_clients`,
+`oauth_pending`, `oauth_codes`, `oauth_tokens`, created on boot). Without a database
+they are kept in memory and lost on restart, so everyone signs in again.
+
+### Railway variables
+
+```
+AUTH_API_URL           # the auth service's base URL (the one the Vercel shell logs in through)
+JWT_SECRET             # already set for the /api gate; the auth service's signing secret
+MCP_PUBLIC_URL         # optional; defaults to https://loe-generator-production.up.railway.app
+OAUTH_REDIRECT_HOSTS   # optional; comma list replacing chatgpt.com,chat.openai.com,claude.ai,claude.com
+```
+
+OAuth is on only when both `AUTH_API_URL` and `JWT_SECRET` are set. Without them
+nothing above is mounted and `/mcp` takes `MCP_API_KEYS` keys exactly as before.
+`MCP_PUBLIC_URL` is the issuer and the base of the resource URL, so it must be the
+address the apps connect to; change it if the service moves to a custom domain.
+
+Check after deploying:
+
+```bash
+curl -s https://loe-generator-production.up.railway.app/.well-known/oauth-protected-resource/mcp
+curl -s -i -X POST https://loe-generator-production.up.railway.app/mcp | grep -i www-authenticate
+```
+
+The first should show `"resource":"https://loe-generator-production.up.railway.app/mcp"`,
+the second a `resource_metadata=` pointing at it.
+
+**Shared sign-in limit.** The auth service limits requests per IP address
+(`IP_MAX_REQUESTS=20` per window). Every sign-in through this page reaches it from
+this server's address, so all ChatGPT and claude.ai sign-ins count together against
+that one limit. A burst of sign-ins (or someone hammering the page) shows up as "Too
+many attempts" for everyone until the window passes. The SDK's own rate limits on
+`/authorize`, `/token`, `/register` and `/revoke` are per caller.
+
+### Connecting ChatGPT
+
+Menu names move between releases; the shape stays the same.
+
+1. Settings → Apps & Connectors → Advanced settings: turn on **Developer mode**
+   (a workspace admin may need to allow it).
+2. Settings → Apps & Connectors → **Create**. Name it "NPSA Tools", MCP server URL
+   `https://loe-generator-production.up.railway.app/mcp`, Authentication **OAuth**.
+   Leave the client ID and secret empty; ChatGPT registers itself.
+3. Create, then sign in on the NPSA page it opens: email, then the code.
+
+### Connecting claude.ai (and Cowork, Claude Desktop)
+
+1. Settings → Connectors → **Add custom connector**.
+2. Name "NPSA Tools", URL `https://loe-generator-production.up.railway.app/mcp`. No
+   request header, no client ID or secret: Claude detects OAuth from the 401. If
+   the form asks for an authentication mode, choose OAuth / "Always required".
+3. Connect, then sign in on the NPSA page: email, then the code.
+
+Claude Code can use it too, with no key: `claude mcp add --transport http npsa-tools
+https://loe-generator-production.up.railway.app/mcp`, then `/mcp` → Authenticate,
+which opens the same page and returns to a localhost port.
 
 ## Tools
 
@@ -263,8 +357,8 @@ Calendly backfill.
   MCP audit line does. See [grant-clients.md](grant-clients.md).
 - **Errors come back as tool errors**, not protocol failures. "Storage not
   configured" or "Calendly is not connected" reach Claude as text it can act on.
-- **Fail closed.** No `MCP_API_KEYS`, no service. Keys are compared with
-  `timingSafeEqual`.
+- **Fail closed.** No `MCP_API_KEYS` and no OAuth, no service. Keys are compared
+  with `timingSafeEqual`; OAuth tokens are looked up by hash.
 
 ## Checking it
 
@@ -284,6 +378,19 @@ the loopback call, shapes per tool, `client_invite` forwarding, an unknown-key s
 refusal surfacing by name), and the grant knowledge tools against the real routes on
 an in-memory store (including the `gk_revisions` limit on one record).
 
+```bash
+node scripts/oauth-smoke.mjs
+```
+
+Runs with no database or network: a fake auth service on a local port, and the
+OAuth module on its in-memory store in front of the real MCP layer. It checks the
+metadata documents, registration allowed and refused, the sign-in page (escaping,
+headers), the code steps (wrong code, 429, a login token that does not verify), the
+token endpoint (PKCE, single use, redirect and resource matching, expiry), `/mcp`
+as the person (audit line and `X-Actor`), refresh rotation, revocation, expiry, keys
+still working, OAuth off when `AUTH_API_URL` is unset, and the MCP SDK's own client
+OAuth flow end to end.
+
 ## What comes next
 
 The end goal is to move grant-writing client management, today in the Google Apps
@@ -295,8 +402,6 @@ follow-up, in order:
 2. ~~**Grant clients module.**~~ Tables, routes and the twelve tools above are in; the
    client page, the import from the Apps Script registry and uploads follow, per
    [grant-clients.md](grant-clients.md).
-3. **Per-user identity.** Partly done: `MCP_KEY_NAMES` names the holder of each key
-   and `ACTOR_PROXY_KEYS` lets the toolbox pass the logged-in person through, which
-   is what the grant knowledge edit history records. Moving to OAuth against the
-   auth service is still open; claude.ai and Cowork already connect with a bearer
-   header (above).
+3. ~~**Per-user identity.**~~ Done: OAuth sign-in against the auth service for
+   ChatGPT and claude.ai (above); `MCP_KEY_NAMES` names the holder of each key, and
+   `ACTOR_PROXY_KEYS` lets the toolbox pass the logged-in person through.
