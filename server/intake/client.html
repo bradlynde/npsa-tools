@@ -283,6 +283,8 @@
   .icx-campus-row .in{max-width:320px;}
   .icx-campus-copy{background:var(--amber-bg);border-radius:8px;padding:8px 12px;}
   .icx-campus-row[hidden]{display:none;}
+  .pg-card.pg-many-sites .pg-where{grid-column:1 / -1;order:1;}
+  @media (min-width:761px){.pg-card.pg-many-sites .pg-tagsf{grid-column:span 2;}.pg-card.pg-many-sites.pg-wide-tags .pg-tagsf{grid-column:span 3;}}
   .pg-filter{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--muted);}
   .pg-filter button{font:600 13px var(--sans);border:1px solid var(--line-strong);border-radius:999px;padding:4px 12px;background:var(--paper);color:var(--muted);cursor:pointer;}
   .pg-filter button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff;}
@@ -1227,7 +1229,9 @@
     c.querySelectorAll('.pg-runby button').forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-val')===run?'true':'false');});
     var outside=run==='Outside',where=sites.length>1;
     c.querySelector('.pg-partner').hidden=!outside;c.querySelector('.pg-where').hidden=!where;
-    c.classList.toggle('pg-wide-tags',outside===where);c.classList.toggle('pg-full-tags',outside&&where);
+    /* more than three sites: Where gets its own full row (after Run by and Who it serves) so every campus fits */
+    var many=where&&sites.length>3;c.classList.toggle('pg-many-sites',many);
+    c.classList.toggle('pg-wide-tags',many?!outside:outside===where);c.classList.toggle('pg-full-tags',!many&&outside&&where);
     var box=c.querySelector('.pg-sites');
     if(where){box.innerHTML=sites.map(function(n){return '<button type="button" data-site="'+n+'" aria-pressed="'+(picked.indexOf(String(n))>=0)+'">'+escT(pgSiteName(n))+'</button>';}).join('');}
     c.querySelector('.pg-sugg').hidden=!sugg;c.classList.toggle('pg-suggested',sugg);
