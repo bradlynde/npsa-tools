@@ -17,6 +17,7 @@ import { ensureDeadlineSchema, renderDeadlines } from './nsgp-deadlines.js';
 import { registerSalesforceConnector } from './connectors/salesforce.js';
 import { registerMcp } from './mcp.js';
 import { apiGate } from './api-gate.js';
+import { ensureOAuthSchema, registerOAuth } from './oauth.js';
 import { ensureIntakeSchema, createIntakeStore, registerIntake } from './intake.js';
 import { ensureGrantKnowledgeSchema, createKnowledgeStore, registerGrantKnowledge } from './grant-knowledge.js';
 import { createDeadlineSource } from './gk-deadlines.js';
@@ -63,6 +64,7 @@ if (process.env.DATABASE_URL) {
   ensureDeadlineSchema(pool).catch(err => console.error('Deadline init error:', err.message));
   ensureIntakeSchema(pool).catch(err => console.error('Intake init error:', err.message));
   ensureGrantKnowledgeSchema(pool).catch(err => console.error('Grant knowledge init error:', err.message));
+  ensureOAuthSchema(pool).catch(err => console.error('OAuth init error:', err.message));
 }
 
 // One knowledge store for the tab's own routes and for the deadline readers below,
@@ -975,7 +977,12 @@ registerIntake(app, {
 // Grant knowledge: the per-state knowledge base. Team routes only, keyed like the
 // grant-client routes.
 registerGrantKnowledge(app, { store: knowledgeStore, internalKey: INTERNAL_KEY, onChange: knowledgeSync.refresh });
-registerMcp(app, { port: () => PORT, internalKey: INTERNAL_KEY });
+// OAuth sign-in for /mcp (ChatGPT, claude.ai): the authorization server, its
+// /.well-known documents and the sign-in page, all outside /api and ahead of the
+// SPA fallback. Null, and nothing mounted, unless AUTH_API_URL and JWT_SECRET are
+// set; /mcp then takes MCP_API_KEYS keys only. See server/oauth.js.
+const oauth = registerOAuth(app, { pool });
+registerMcp(app, { port: () => PORT, internalKey: INTERNAL_KEY, oauth });
 
 // An API route that does not exist must say so. Without this the fallback below
 // answers for it, so a JSON caller gets 200 and a page of HTML — which reads as a

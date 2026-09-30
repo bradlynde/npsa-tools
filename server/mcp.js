@@ -21,12 +21,14 @@
 // hop per call, which is nothing next to the Postgres round trip behind it.
 //
 // Auth is a bearer key from MCP_API_KEYS (comma-separated, so each person gets
-// their own and one can be revoked without rotating the rest). With the variable
-// unset the endpoint refuses everything — the routes it fronts have no auth of
-// their own, so this must never fall open. MCP_WRITE_KEYS, when set, narrows the
-// write tools to the keys it lists; a key that is not on it never sees them.
+// their own and one can be revoked without rotating the rest), or an OAuth access
+// token from a person's own sign-in when server/oauth.js is configured (ChatGPT,
+// claude.ai). With neither the endpoint refuses everything — the routes it fronts
+// have no auth of their own, so this must never fall open. MCP_WRITE_KEYS, when
+// set, narrows the write tools to the keys it lists; a key that is not on it never
+// sees them. OAuth callers are named people and may write.
 //
-//   registerMcp(app, { port })   // before the SPA fallback in index.js
+//   registerMcp(app, { port, internalKey, oauth })   // before the SPA fallback in index.js
 
 import crypto, { webcrypto } from 'crypto';
 
@@ -129,24 +131,48 @@ export function mayAssertActor(key) {
   return splitKeys(process.env.ACTOR_PROXY_KEYS).some(k => k.toLowerCase() === fp);
 }
 
-export function requireMcpKey(req, res, next) {
-  const keys = configuredKeys();
-  if (!keys.length) {
-    return res.status(503).json({ error: 'MCP is not configured on this server (MCP_API_KEYS is unset)' });
-  }
-  const presented = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  if (!presented || !keyMatches(presented, keys)) {
-    res.set('WWW-Authenticate', 'Bearer realm="npsa-tools"');
+/**
+ * The /mcp gate. A request gets in with a key from MCP_API_KEYS, as it always
+ * has, or, when OAuth is configured (server/oauth.js), with an access token from
+ * a person's sign-in. An OAuth caller is named by their username and may write;
+ * MCP_WRITE_KEYS narrows keys only. With neither keys nor OAuth there is no
+ * service at all (503), never an open one.
+ */
+export function mcpAuth({ oauth = null } = {}) {
+  const challenge = presented => oauth
+    ? `Bearer realm="npsa-tools", resource_metadata="${oauth.resourceMetadataUrl}"${presented ? ', error="invalid_token"' : ''}`
+    : 'Bearer realm="npsa-tools"';
+  return async (req, res, next) => {
+    const keys = configuredKeys();
+    if (!keys.length && !oauth) {
+      return res.status(503).json({ error: 'MCP is not configured on this server (MCP_API_KEYS is unset)' });
+    }
+    const presented = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    if (presented && keys.length && keyMatches(presented, keys)) {
+      // Writes are open to every key unless MCP_WRITE_KEYS narrows them.
+      const writeKeys = splitKeys(process.env.MCP_WRITE_KEYS);
+      req.mcp = {
+        actor: nameFor(presented),
+        canWrite: writeKeys.length ? keyMatches(presented, writeKeys) : true,
+        kind: 'key',
+      };
+      return next();
+    }
+    if (presented && oauth) {
+      let who = null;
+      try { who = await oauth.authenticate(presented); } catch (err) { console.error('[mcp] token check failed:', err?.message || err); }
+      if (who) {
+        req.mcp = { actor: cleanActor(who.username) || 'oauth', canWrite: true, kind: 'oauth' };
+        return next();
+      }
+    }
+    res.set('WWW-Authenticate', challenge(presented));
     return res.status(401).json({ error: 'Unauthorized' });
-  }
-  // Writes are open to every key unless MCP_WRITE_KEYS narrows them.
-  const writeKeys = splitKeys(process.env.MCP_WRITE_KEYS);
-  req.mcp = {
-    actor: nameFor(presented),
-    canWrite: writeKeys.length ? keyMatches(presented, writeKeys) : true,
   };
-  next();
 }
+
+// Keys only, as before OAuth; kept for callers that import it by name.
+export const requireMcpKey = mcpAuth();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -847,7 +873,8 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
 // ── Express wiring ────────────────────────────────────────────────────────────
 
-export function registerMcp(app, { port, internalKey }) {
+export function registerMcp(app, { port, internalKey, oauth = null }) {
+  const requireAuth = mcpAuth({ oauth });
   const base = () => `http://127.0.0.1:${typeof port === 'function' ? port() : port}/api`;
 
   // The grant-client routes are keyed. Loopback calls get in with the key this
@@ -882,7 +909,7 @@ export function registerMcp(app, { port, internalKey }) {
     return data;
   }
 
-  app.post(MCP_PATH, requireMcpKey, async (req, res) => {
+  app.post(MCP_PATH, requireAuth, async (req, res) => {
     const { actor } = req.mcp;
     const server = buildMcpServer({ api: (path, opts) => api(path, { ...opts, actor }), canWrite: req.mcp.canWrite, actor });
     const transport = new StreamableHTTPServerTransport({
@@ -905,6 +932,6 @@ export function registerMcp(app, { port, internalKey }) {
   const notAllowed = (req, res) => res.status(405).json({
     jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null,
   });
-  app.get(MCP_PATH, requireMcpKey, notAllowed);
-  app.delete(MCP_PATH, requireMcpKey, notAllowed);
+  app.get(MCP_PATH, requireAuth, notAllowed);
+  app.delete(MCP_PATH, requireAuth, notAllowed);
 }
