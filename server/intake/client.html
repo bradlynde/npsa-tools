@@ -825,7 +825,7 @@
      server-side as JSON; the page talks to /api/intake/<slug>/* with the token in
      a header. Everything below the API helper is the form as it always was. */
   var CLIENT={{client}},TOKEN={{token}},CLIENT_NAME={{clientName}},STATE={{state}};
-  var CHECKLIST_META={{checklistMeta}};
+  var CHECKLIST_META={{checklistMeta}},PER_CAMPUS={{perCampus}};
   var SITE_MAX={{siteMax}}||3,SITES=[];for(var si=1;si<=SITE_MAX;si++)SITES.push(si);
   var CFG={{stateConfig}}, EXISTING={{existing}}, CONTACTS={{contacts}}, DOCUMENTS={{documents}}, APPLICATIONS={{applications}}, UPLOADED={{uploaded}}, RECEIVED={{received}}, API_BASE={{apiBase}}, UPLOAD_BASE={{uploadBase}};
   var API=API_BASE+'/api/intake/'+encodeURIComponent(CLIENT);
@@ -1340,7 +1340,7 @@
     function done(){b.classList.add('copied');setTimeout(function(){b.classList.remove('copied');},1600);}
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,function(){window.prompt('Copy this link',url);});
     else window.prompt('Copy this link',url);});});
-  /* Per campus (2026-09-30): with NPSA's _per_campus switch on and two or more sites, sections 3 to 5
+  /* Per campus (2026-09-30): with NPSA's per-campus switch on and two or more sites, sections 3 to 5
      are answered for each campus. A bar above the sections picks the campus; the fields are re-keyed
      in place (site 1 keeps the plain keys, site n uses s<n>_…), so saving, "Doesn't apply", notes and
      progress all work as before. Sections 1 and 2 stay whole-organisation. */
@@ -1367,7 +1367,7 @@
     document.querySelectorAll('.icx-q[data-q]').forEach(function(q){if(q.querySelector('[data-base]'))icxSide(q);});
     try{localStorage.setItem('npsa-campus-'+CLIENT,String(n));}catch(e){}
     icxCount();campusRender();growAll();}
-  (function(){if(String(EXISTING._per_campus||'')!=='on'||campusList().length<2)return;campusOn=true;
+  (function(){if(!PER_CAMPUS||campusList().length<2)return;campusOn=true;
     icxSecs.forEach(function(sec){if(CAMPUS_SEC.indexOf(sec.getAttribute('data-sec'))<0)return;
       sec.querySelectorAll('[data-key^="q_"]').forEach(function(el){el.setAttribute('data-base',el.getAttribute('data-key'));campusEls.push(el);});
       sec.querySelectorAll('.icx-note[data-note]').forEach(function(el){el.setAttribute('data-base-note',el.getAttribute('data-note'));campusNotes.push(el);});});

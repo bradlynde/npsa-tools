@@ -571,7 +571,7 @@ A client can have up to eight locations (`SITE_MAX` in server/intake.js), for en
 
 ## Per-campus answers (2026-09-30)
 
-For a client with several campuses that each need their own IJ story. NPSA turns it on per client with the meta answer `_per_campus: "on"` (`intake_seed`; `"off"` or blank turns it off). It does nothing for a one-site client, and it is off for everyone until set, so clients who answered once for all their sites see no change.
+For a client with several campuses that each need their own IJ story. NPSA turns it on per client with `client_update per_campus: true` (the `per_campus` column; `false` turns it off). It does nothing for a one-site client, and it is off for everyone until set, so clients who answered once for all their sites see no change.
 
 With it on, Information Collection shows an "Answering for" bar with one card per campus in play: name, who is filling it in (`loc<n>_lead`), and how many section 3 to 5 questions that campus has answered. Sections 1 and 2 stay whole-organisation. Sections 3 to 5 are answered per campus. Site 1 keeps the catalog keys, and site n stores under `s<n>_q_…`, with NPSA notes under `note_s<n>_q_…`. Both answer to the same catalog questions, the way per-application wish-list keys do. The page re-keys the fields in place when the campus changes, so autosave, "Doesn't apply", NPSA notes and asks, and the rail's counts work unchanged. A campus with nothing yet offers "Copy them" to start from the main campus's answers, and an empty answer offers "Use <main campus>'s answer".
 

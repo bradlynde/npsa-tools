@@ -101,11 +101,11 @@ await check('with MCP_API_KEYS unset only the internal key gets in', async () =>
 });
 
 // ── 2. Registration ───────────────────────────────────────────────────────────
-await check('catalog is served with 1650 questions (eight sites) and the section list', async () => {
+await check('catalog is served with 1649 questions (eight sites) and the section list', async () => {
   const r = await call('GET', '/api/intake/questions', { headers: TEAM });
   assert.equal(r.status, 200);
-  assert.equal(r.data.count, 1650);
-  assert.equal(QUESTIONS.length, 1650);
+  assert.equal(r.data.count, 1649);
+  assert.equal(QUESTIONS.length, 1649);
   assert.ok(QUESTIONS.some(q => q.key === 'loc8_infra') && QUESTIONS.some(q => q.key === 'wl_f8_anything_else'), 'sites run to 8');
   assert.ok(!QUESTIONS.some(q => q.key.startsWith('loc9_')));
   assert.ok(r.data.sections.includes('Checklist'));
@@ -746,10 +746,13 @@ await check('per campus: sections 3 to 5 per site once NPSA turns it on; 1 and 2
   const seed = a => call('PUT', `/api/clients/${slug}/answers`, { headers: TEAM, body: { answers: a } });
   assert.equal((await seed({ s2_q_1_1_1: 'x' })).status, 400, 'section 1 has no campus copy');
   assert.equal((await seed({ s9_q_3_1_1: 'x' })).status, 400, 'no site 9');
-  assert.equal((await seed({ _per_campus: 'yes' })).status, 400, 'on or off');
+  assert.equal((await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { per_campus: 'yes' } })).status, 400, 'true or false');
   const before = (await call('GET', `/api/clients/${slug}/status`, { headers: TEAM })).data;
   assert.equal(before.campuses, undefined, 'off by default: nothing changes for a client until NPSA turns it on');
-  assert.equal((await seed({ _per_campus: 'on', loc1_name: 'North', loc2_name: 'South', q_3_1_1: '400', note_s2_q_3_1_1: 'South has its own count?', _note_asks: 's2_q_3_1_1' })).status, 200);
+  const on = await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { per_campus: true } });
+  assert.equal(on.status, 200, JSON.stringify(on.data));
+  assert.equal(on.data.per_campus, true);
+  assert.equal((await seed({ loc1_name: 'North', loc2_name: 'South', q_3_1_1: '400', note_s2_q_3_1_1: 'South has its own count?', _note_asks: 's2_q_3_1_1' })).status, 200);
   const saved = await call('PUT', `/api/intake/${slug}/answers`, { headers: { 'X-Intake-Token': t }, body: { answers: { s2_q_3_1_1: '120', s2_q_4_1: 'Graffiti in May', loc2_lead: 'Pat, campus pastor' } } });
   assert.equal(saved.status, 200, JSON.stringify(saved.data));
   await call('PUT', `/api/intake/${slug}/answers`, { headers: { 'X-Intake-Token': t }, body: { answers: { note_s2_q_3_1_1: 'client note' } } });
@@ -764,7 +767,8 @@ await check('per campus: sections 3 to 5 per site once NPSA turns it on; 1 and 2
   const list = (await call('GET', '/api/clients?status=all', { headers: TEAM })).data.find(c => c.slug === slug);
   assert.equal(list.core.total, st.core.total, 'the list agrees with the dialog');
   const html = renderClientPage({ client: { slug, token: 't', name: 'T', state: 'CA' }, stateConfig: {}, existing: {} });
-  assert.ok(html.includes("String(EXISTING._per_campus||'')!=='on'") && html.includes('function campusSet(n)'), 'the page has the campus bar');
+  assert.ok(html.includes('PER_CAMPUS=false') && html.includes('function campusSet(n)'), 'the page has the campus bar, off for this client');
+  assert.ok(renderClientPage({ client: { slug, token: 't', name: 'T', state: 'CA', per_campus: true }, stateConfig: {}, existing: {} }).includes('PER_CAMPUS=true'));
 });
 
 await check('more than three sites: CSNSGP on two, federal on three more', async () => {
