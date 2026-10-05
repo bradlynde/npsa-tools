@@ -9,6 +9,7 @@ import {
   EXCLUSION_LABELS,
   attributionNote,
   channelLabel,
+  eventOf,
   fetchCampaignOptions,
   hostName,
   patchBooking,
@@ -441,6 +442,7 @@ export default function BookingsTable({
                         }}
                       >
                         {r.instantly_campaign ||
+                          eventOf(r) ||
                           // Where a campaign is expected and missing, say what clicking does.
                           (!excluded && (!r.attribution_channel || r.attribution_channel === "direct" || r.attribution_channel === "instantly")
                             ? <span style={{ color: "var(--navy)", fontWeight: 500 }}>Find the campaign</span>
@@ -868,7 +870,7 @@ function BookingCard({
             }}
           >
             <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", textDecoration: r.instantly_campaign ? strike : "none" }}>
-              {r.instantly_campaign || (campaignExpected ? "Find the campaign" : "None")}
+              {r.instantly_campaign || eventOf(r) || (campaignExpected ? "Find the campaign" : "None")}
             </span>
             <ChevronDown size={16} strokeWidth={2} aria-hidden style={{ flexShrink: 0, color: "var(--ink)" }} />
           </button>

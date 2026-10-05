@@ -1,4 +1,4 @@
-import { bookingsInRange, campaignsInRange, centralDate, channelsInRange, creditedOn, feesInRange, priorTotalsFor,
+import { bookingsInRange, campaignsInRange, eventLabel, eventOf, centralDate, channelsInRange, creditedOn, feesInRange, priorTotalsFor,
   priorWindow, rangeWindow, totalsFor, windowLabel, type BookingRow, type TimeseriesRow } from "./marketing.ts";
 
 const b = (o: Partial<BookingRow>): BookingRow => ({
@@ -130,6 +130,15 @@ ok("L  all fees in range, whatever their source", feesInRange(fees, "month", TOD
 ok("L2 only the Salesforce part", feesInRange(fees, "month", TODAY, "salesforce"), 15000);
 ok("L3 only the letter part", feesInRange(fees, "month", TODAY, "letter"), 6000);
 ok("L4 no Salesforce part from a backend that doesn't send fee_source", feesInRange([older], "month", TODAY, "salesforce"), 0);
+
+// CONFERENCE bookings name their event, off the booking link's utm_campaign.
+ok("L  event slugs read as names", ["citn_2026", "nsgp-summit-2027", "ai_expo"].map(eventLabel), ["CITN 2026", "NSGP Summit 2027", "AI EXPO"]);
+ok("L2 only a conference booking has an event", [eventOf({ attribution_channel: "conference", utm_campaign: "citn_2026" }), eventOf({ attribution_channel: "instantly", utm_campaign: "citn_2026" }), eventOf({ attribution_channel: "conference", utm_campaign: null })], ["CITN 2026", null, null]);
+ok("L3 one campaign row per event", campaignsInRange([
+  b({ id: 30, attribution_channel: "conference", utm_campaign: "citn_2026" } as any),
+  b({ id: 31, attribution_channel: "conference", utm_campaign: "citn_2026" } as any),
+  b({ id: 32, attribution_channel: "conference" }),
+], "all").map((r) => [r.campaign, r.booked, r.isCampaign]), [["Conference · CITN 2026", 2, false], ["Conference", 1, false]]);
 
 console.log(`\n${results.filter(r => r === "P").length}/${results.length} passed`);
 process.exit(results.includes("F") ? 1 : 0);

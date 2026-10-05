@@ -59,6 +59,9 @@ export type BookingRow = {
    *  only for rows enriched before the column existed. Optional because the
    *  backend only began sending it alongside this change. */
   instantly_campaign_id?: string | null;
+  /** The booking link's utm_campaign. On a conference booking it names the event
+   *  (citn_2026). Optional because the backend only began sending it in Oct 2026. */
+  utm_campaign?: string | null;
   host: string | null;
   held: boolean | null;
   became_client: boolean | null;
@@ -748,11 +751,15 @@ export function campaignsInRange(
       stored;
     // An Instantly booking with no campaign is a real gap. Anything else simply
     // came from somewhere that is not a campaign, and says so.
+    // A conference booking gets a row per event, read off its booking link.
+    const event = eventOf(b);
     const key =
       named ||
       (b.attribution_channel === 'instantly'
         ? 'Instantly — campaign unknown'
-        : channelLabel(b.attribution_channel));
+        : event
+          ? `${channelLabel(b.attribution_channel)} · ${event}`
+          : channelLabel(b.attribution_channel));
     const cur = map.get(key) || {
       campaign: key, isCampaign: Boolean(named), booked: 0, held: 0, loes: 0, fees: 0,
     };
@@ -766,6 +773,18 @@ export function campaignsInRange(
   }
   return [...map.values()].sort((a, b) => b.booked - a.booked);
 }
+
+/** "citn_2026" -> "CITN 2026": short all-letter words read as acronyms. */
+export const eventLabel = (slug: string): string =>
+  slug
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => (/^[a-z]{2,4}$/i.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
+    .join(' ');
+
+/** The event a conference booking came from, from its booking link; null otherwise. */
+export const eventOf = (b: Pick<BookingRow, 'attribution_channel' | 'utm_campaign'>): string | null =>
+  b.attribution_channel === 'conference' && b.utm_campaign?.trim() ? eventLabel(b.utm_campaign.trim()) : null;
 
 const CHANNEL_LABELS: Record<string, string> = {
   instantly: 'Instantly',
