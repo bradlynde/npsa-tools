@@ -946,7 +946,16 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
 // ─────────────────────────────────────────────────────────────
 // 5. Channel derivation
 // ─────────────────────────────────────────────────────────────
+// A booking link handed out at an event carries an event medium, e.g. the Church IT
+// Network conference page: utm_source=church_it_network, utm_medium=in_person_event,
+// utm_campaign=citn_2026. utm_campaign then names the event.
+const EVENT_MEDIUM = /(^|[-_ ])(in[-_ ]?person[-_ ]?event|event|conference|trade[-_ ]?show|expo|booth)([-_ ]|$)/;
+const isEventUtm = (row) => EVENT_MEDIUM.test((row.utm_medium || '').toLowerCase());
+
 function deriveChannel(row, instantlyCampaign) {
+  // Ahead of Instantly: an event attendee may well sit in a campaign list too, but
+  // the link they actually booked through was the one handed out at the event.
+  if (isEventUtm(row)) return 'conference';
   if (instantlyCampaign) return 'instantly';
   const t = (row.told_us || '').toLowerCase();
   const med = (row.utm_medium || '').toLowerCase();
@@ -979,6 +988,9 @@ const CHANNEL_LABELS = {
   social: 'Social', referral: 'Referral', conference: 'Conference', linkedin: 'LinkedIn',
   past_engaged_prospect: 'Past Engaged Prospect', direct: 'Direct / Other',
 };
+/** "citn_2026" -> "CITN 2026": short all-letter words read as acronyms. */
+const eventLabel = (slug) => String(slug).split(/[-_\s]+/).filter(Boolean)
+  .map((w) => (/^[a-z]{2,4}$/i.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1))).join(' ');
 const channelLabel = (c) => CHANNEL_LABELS[c] || (c ? c[0].toUpperCase() + c.slice(1) : 'Direct / Other');
 
 // ─────────────────────────────────────────────────────────────
@@ -1040,7 +1052,10 @@ async function enrichBooking(pool, id) {
       const map = await instantlyCampaignMap();
       campaign = map[campaignId] || null;
     }
-  } else {
+  } else if (!isEventUtm(row)) {
+    // An event booking is not looked up: which campaign list the attendee also sits
+    // in says nothing about how this booking came about.
+    //
     // Each branch records the id it matched on as well as the name, because the id
     // is what the campaign actually is. A name resolving to null here used to end
     // the chain silently -- a lead in a campaign the workspace no longer lists
@@ -2291,6 +2306,8 @@ export function registerMarketing(app, pool) {
       const { rows } = await pool.query(`
         SELECT instantly_campaign_id AS cid,
                instantly_campaign     AS cname,
+               -- A conference booking's utm_campaign names the event, one row each.
+               CASE WHEN attribution_channel = 'conference' THEN NULLIF(utm_campaign, '') END AS event,
                CASE
                  WHEN attribution_channel = 'instantly'   THEN 'Instantly – campaign unknown'
                  WHEN attribution_channel = 'google_ads'  THEN 'Google Ads'
@@ -2309,7 +2326,7 @@ export function registerMarketing(app, pool) {
                COUNT(*) FILTER (WHERE became_client)::int AS clients,
                COALESCE(SUM(fee) FILTER (WHERE became_client),0)::numeric AS fees
           FROM bookings WHERE ${COUNTABLE}
-         GROUP BY 1, 2, 3`);
+         GROUP BY 1, 2, 3, 4`);
 
       const out = new Map();
       for (const r of rows) {
@@ -2325,7 +2342,7 @@ export function registerMarketing(app, pool) {
         const cid = r.cid || deadNameToId(r.cname);
         const label = isCampaign
           ? ((cid && map[cid]) || r.cname || 'Instantly – campaign unknown')
-          : r.channel_label;
+          : r.event ? `${r.channel_label} · ${eventLabel(r.event)}` : r.channel_label;
         const key = `${isCampaign ? 'c' : 'x'}:${label}`;
         const cur = out.get(key) || { campaign: label, is_campaign: isCampaign,
                                       booked: 0, held: 0, clients: 0, fees: 0 };
@@ -2467,6 +2484,8 @@ export function registerMarketing(app, pool) {
         // say what a moved meeting moved from or to without a second round trip.
         `SELECT b.id, b.booked_on, b.originated_on, b.meeting_date, b.name, b.organization, b.email, b.told_us,
                 b.attribution_channel, b.attribution_source, b.instantly_campaign,
+                -- Names the event on a conference booking (citn_2026).
+                b.utm_campaign,
                 -- The id as well as the name. The toolbox builds its own campaign
                 -- table in the browser, because that panel is range-scoped and
                 -- by-campaign is not, and it had only the name to group on -- so a
