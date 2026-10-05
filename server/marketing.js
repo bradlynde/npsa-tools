@@ -1267,6 +1267,61 @@ async function enrichBooking(pool, id) {
   // Only now is this row's rescheduled_from on disk, so only now can the chain it
   // just joined be dated from its first booking.
   if (linkedNow) await resolveOrigins(pool);
+
+  // Last, because it reads this row's settled exclusion and its originated date.
+  if (row.email) await settleRepeats(pool, row.email);
+}
+
+/**
+ * Marks a person's later bookings as double bookings, so a follow-up meeting is
+ * not counted as a new appointment (Stuart, 2026-10-05).
+ *
+ * Reps book follow-ups through their own Calendly links: of the four bookings on
+ * Chad's link when it was connected, two were follow-ups with people whose first
+ * call was already counted. Until this, someone had to catch each one by hand.
+ *
+ * Walks one email's bookings in the order they were first set. The first that is a
+ * real appointment counts; every later one is a double booking. A cancelled,
+ * rescheduled or unqualified row is not a real appointment, so a person who
+ * cancelled and booked again still has the rebooking counted.
+ *
+ * Only rows with no exclusion or an automatic double booking are touched: a reason
+ * a person chose (manual_override.exclusion, including an explicit "counts") is
+ * never overruled, and it settles whether that row was the real appointment.
+ *
+ * Outcomes are never lost. A won booking always counts, so a win can never sit on
+ * an excluded row. A later booking that is a client counts unless an earlier
+ * counted booking is already a client: client status comes from matching the
+ * organization to a letter, so a follow-up can carry it when the first booking was
+ * enriched before the letter existed (Storyline Church, 2026-09). Where both are
+ * clients, flagging the later one stops its fee being counted twice.
+ */
+async function settleRepeats(pool, email) {
+  const { rows } = await pool.query(
+    `SELECT id, exclusion_reason, won, became_client, manual_override ? 'exclusion' AS manual
+       FROM bookings WHERE lower(trim(email)) = lower(trim($1))
+      ORDER BY ${ORIGINATED} NULLS LAST, id`, [email]);
+  let seen = false, seenClient = false;
+  for (const r of rows) {
+    const client = r.won === true || r.became_client === true;
+    let want;
+    if (r.manual) want = r.exclusion_reason;
+    else if (r.exclusion_reason && r.exclusion_reason !== 'double_booking') want = r.exclusion_reason;
+    else want = seen && !r.won && !(client && !seenClient) ? 'double_booking' : null;
+    if (want === null) { seen = true; if (client) seenClient = true; }
+    if (want !== r.exclusion_reason) {
+      await pool.query('UPDATE bookings SET exclusion_reason = $2, updated_at = NOW() WHERE id = $1', [r.id, want]);
+    }
+  }
+}
+
+/** settleRepeats for everyone who has booked more than once. */
+async function settleAllRepeats(pool) {
+  const { rows } = await pool.query(
+    `SELECT lower(trim(email)) AS email FROM bookings
+      WHERE COALESCE(trim(email), '') <> '' GROUP BY 1 HAVING COUNT(*) > 1`);
+  for (const r of rows) await settleRepeats(pool, r.email);
+  return rows.length;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1380,12 +1435,14 @@ async function settleOutcomes(pool, ids) {
  * two matchers would eventually disagree, and the disagreement would show up as
  * revenue counted twice or attributed to nobody.
  */
+// A double booking is passed over when there is another: it is excluded from every
+// total, so a win or a financial placed on it would drop out of them too.
 async function matchBookingByOrg(pool, domain, org, columns = 'id') {
   if (domain) {
     const { rows } = await pool.query(
       `SELECT ${columns} FROM bookings
          WHERE regexp_replace(lower(split_part(email,'@',2)), '^www\\.', '') = $1
-         ORDER BY booked_on DESC NULLS LAST, id DESC
+         ORDER BY (exclusion_reason IS NOT DISTINCT FROM 'double_booking'), booked_on DESC NULLS LAST, id DESC
          LIMIT 1`,
       [domain]
     );
@@ -1402,7 +1459,7 @@ async function matchBookingByOrg(pool, domain, org, columns = 'id') {
                   AND length(regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g')) >= 6
                   AND ( position(q.t IN regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g')) > 0
                      OR position(regexp_replace(lower(b.organization), '[^a-z0-9]', '', 'g') IN q.t) > 0 ) ) )
-        ORDER BY b.booked_on DESC NULLS LAST, b.id DESC
+        ORDER BY (b.exclusion_reason IS NOT DISTINCT FROM 'double_booking'), b.booked_on DESC NULLS LAST, b.id DESC
         LIMIT 1`,
       [org]
     );
@@ -1833,7 +1890,11 @@ const REPEAT_WIN = `EXISTS (
 
 export function registerMarketing(app, pool) {
   if (!pool) { console.warn('[marketing] no DB pool — marketing endpoints disabled'); return; }
-  ensureSchema(pool);
+  // Once the schema is there, mark the follow-ups already in the table.
+  ensureSchema(pool)
+    .then(() => settleAllRepeats(pool))
+    .then((n) => console.log(`[marketing] settled repeat bookings for ${n} people`))
+    .catch((err) => console.error('settle repeats error:', err.message));
   const guard = (res) => res.status(503).json({ error: 'Storage not configured' });
 
   // Ingest (called by Zapier). Protect with a shared secret.
@@ -2780,7 +2841,10 @@ export function registerMarketing(app, pool) {
       if (typeof held === 'boolean') ov.held = held;
       if (typeof became_client === 'boolean') ov.became_client = became_client;
       if (exclusion !== undefined) {
-        if (exclusion === '') delete ov.exclusion; else ov.exclusion = exclusion;
+        // '' is kept, not deleted: it is a person saying this booking counts, and
+        // settleRepeats() must not mark it a double booking again. A Calendly
+        // cancellation still applies to it, since '' is not a reason.
+        ov.exclusion = exclusion;
       }
       // A corrected organization name, for when the invitee's own answer keeps the
       // booking from matching its Salesforce win ("Centerppoint Church"). Written to
