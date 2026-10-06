@@ -590,11 +590,12 @@ export function summarise(answers, applications = 0) {
 // state, Locations counts the sites in use (not all three slots; the research box and, once
 // applications are set, the programs select are not the client's to fill), Uploads counts this
 // client's Documents list (uploaded, or marked received by the team), and 3.6 counts once a
-// program is listed, as on the page.
+// program is listed, as on the page. A program tagged only one nearby answers 3.8; per campus,
+// only for the campuses it runs at (prog<n>_site, none picked meaning every campus), as on the page.
 const STATE_ONLY = { q_1_3_4: ['TX', 'IL'], q_1_3_9: ['NY'] };
 const LOC_FIELDS = ['name', 'addr', 'county', 'ownlease', 'year', 'historic', 'sqft', 'acreage', 'buildings', 'value'];
 const PROGRESS_KEY_RE = /^(q_|s\d_q_|loc\d_|up_|prog\d+_(name|unique)$)/;
-export function progressFor(client, answered, uploaded = new Set()) {
+export function progressFor(client, answered, uploaded = new Set(), programSites = {}) {
   const has = k => answered.has(k);
   const st = String(client.state || '').toUpperCase();
   const stored = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn') : null;
@@ -604,14 +605,16 @@ export function progressFor(client, answered, uploaded = new Set()) {
   // Per campus: sections 3 to 5 count once for each site in play; each site's own tally goes in campuses.
   const perCampus = !!client.per_campus && sites.size > 1;
   const campuses = (perCampus ? [...sites].sort((a, b) => a - b) : [1]).map(site => ({ site, answered: 0, total: 0 }));
+  const runsAt = (n, site) => { const picked = String(programSites[`prog${n}_site`] || '').split(',').filter(Boolean); return !picked.length || picked.includes(String(site)); };
+  const uniqueAt = site => (perCampus ? PROGRAM_SLOTS.some(n => has(`prog${n}_unique`) && runsAt(n, site)) : unique);
   const sections = [];
   for (const q of QUESTIONS) {
     if (!/^[1-5]\. /.test(q.section) || q.kind === 'meta' || (STATE_ONLY[q.key] && !STATE_ONLY[q.key].includes(st))) continue;
     let sec = sections.find(x => x.section === q.section);
     if (!sec) sections.push(sec = { section: q.section, answered: 0, total: 0 });
-    const done = k => has(k) || (q.key === 'q_3_2_3' && unique);
+    const done = (k, site = 1) => has(k) || (q.key === 'q_3_2_3' && uniqueAt(site));
     if (!CAMPUS_SECTIONS.test(q.section)) { sec.total++; if (done(q.key)) sec.answered++; continue; }
-    for (const c of campuses) { sec.total++; c.total++; if (done(campusKey(q.key, c.site))) { sec.answered++; c.answered++; } }
+    for (const c of campuses) { sec.total++; c.total++; if (done(campusKey(q.key, c.site), c.site)) { sec.answered++; c.answered++; } }
   }
   const community = sections.find(x => x.section.startsWith('3.'));
   if (community) { community.total++; if (programs) community.answered++; }
@@ -622,6 +625,8 @@ export function progressFor(client, answered, uploaded = new Set()) {
   return { sections, core: { answered: sections.reduce((n, x) => n + x.answered, 0), total: sections.reduce((n, x) => n + x.total, 0) }, ...(perCampus ? { campuses } : {}) };
 }
 const answeredSet = answers => new Set([...answers].filter(([k, a]) => a?.value && PROGRESS_KEY_RE.test(k)).map(([k]) => k));
+/** Each program's campuses (prog<n>_site, "1,3"), which decide per campus where its only-one-nearby tag counts. */
+const programSitesOf = answers => Object.fromEntries([...answers].filter(([k, a]) => a?.value && /^prog\d+_site$/.test(k)).map(([k, a]) => [k, a.value]));
 
 /** How many checklist tasks a client has in total: the shared ones plus a copy of the split ones per application. */
 export function checklistTotal(client) {
@@ -658,7 +663,7 @@ function uploadView(u, slug, docs = []) {
 
 function statusView(client, answers, base, uploads = []) {
   const val = k => answers.get(k)?.value || '';
-  const progress = progressFor(client, answeredSet(answers), new Set(uploads.map(u => u.key)));
+  const progress = progressFor(client, answeredSet(answers), new Set(uploads.map(u => u.key)), programSitesOf(answers));
   const sections = SECTIONS.map(section => {
     const own = progress.sections.find(x => x.section === section);
     if (own) return own;
@@ -967,6 +972,7 @@ export function createIntakeStore(pool, db = pool) {
       const { rows } = await db.query(
         `SELECT client_id,
                 ARRAY_AGG(key) FILTER (WHERE value <> '' AND key ~ $2) AS answered_keys,
+                JSONB_OBJECT_AGG(key, value) FILTER (WHERE value <> '' AND key ~ '^prog[0-9]+_site$') AS program_sites,
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Completed' AND NOT key = ANY($4))::int AS checklist_completed,
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Not applicable' AND NOT key = ANY($4))::int AS checklist_na,
                 JSONB_OBJECT_AGG(key, JSONB_BUILD_ARRAY(value, updated_by)) FILTER (WHERE key = ANY($3)) AS auto_statuses,
@@ -974,7 +980,7 @@ export function createIntakeStore(pool, db = pool) {
            FROM intake_answers WHERE client_id = ANY($1) GROUP BY client_id`, [clientIds, PROGRESS_KEY_RE.source, AUTO_STATUS_KEYS, RETIRED_STEMS.map(stem => `chk_status_${stem}`)]);
       const up = await db.query('SELECT client_id, ARRAY_AGG(DISTINCT key) AS keys FROM intake_uploads WHERE client_id = ANY($1) GROUP BY client_id', [clientIds]);
       const uploaded = Object.fromEntries(up.rows.map(r => [r.client_id, r.keys]));
-      return Object.fromEntries(rows.map(r => [r.client_id, { ...r, answered_keys: r.answered_keys || [], uploaded_keys: uploaded[r.client_id] || [] }]));
+      return Object.fromEntries(rows.map(r => [r.client_id, { ...r, answered_keys: r.answered_keys || [], program_sites: r.program_sites || {}, uploaded_keys: uploaded[r.client_id] || [] }]));
     },
     async upsertAnswers(clientId, rows, by, { clientActivity = false } = {}) {
       const write = async q => {
@@ -1094,7 +1100,7 @@ export function createMemoryStore() {
       return Object.fromEntries(ids.map(id => {
         const s = summarise(bucket(id), (clients.find(c => c.id === id)?.applications || []).filter(a => a.status !== 'withdrawn').length);
         const auto_statuses = Object.fromEntries(AUTO_STATUS_KEYS.filter(k => bucket(id).has(k)).map(k => [k, [bucket(id).get(k).value, bucket(id).get(k).updated_by]]));
-        return [id, { answered_keys: [...answeredSet(bucket(id))], uploaded_keys: [...new Set(uploads.filter(u => u.client_id === id).map(u => u.key))], checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, auto_statuses, filled_by: bucket(id).get('_filled_by')?.value || null }];
+        return [id, { answered_keys: [...answeredSet(bucket(id))], program_sites: programSitesOf(bucket(id)), uploaded_keys: [...new Set(uploads.filter(u => u.client_id === id).map(u => u.key))], checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, auto_statuses, filled_by: bucket(id).get('_filled_by')?.value || null }];
       }));
     },
     async upsertAnswers(clientId, rows, by, { clientActivity = false } = {}) {
@@ -1269,7 +1275,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       const na = (s.checklist_na || 0) + autoNotApplicable(r, stem => st(stem)[0], stem => st(stem)[1]).size;
       return {
         ...clientView(r, base(req)),
-        core: progressFor(r, new Set(s.answered_keys || []), new Set(s.uploaded_keys || [])).core,
+        core: progressFor(r, new Set(s.answered_keys || []), new Set(s.uploaded_keys || []), s.program_sites || {}).core,
         checklist: { completed: s.checklist_completed || 0, total: checklistTotal(r) - na, not_applicable: na },
         filled_by: s.filled_by || '',
       };
@@ -1334,7 +1340,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const c = await loadClient(req, res); if (!c) return;
     const answers = await store.getAnswers(c.id);
     const uploaded = new Set((await store.listUploads(c.id)).map(u => u.key));
-    res.json({ ...clientView(c, base(req)), ...summarise(answers), checklist: checklistCounts(c, answers), core: progressFor(c, answeredSet(answers), uploaded).core, filled_by: answers.get('_filled_by')?.value || '', status_line: answers.get('_status')?.value || '' });
+    res.json({ ...clientView(c, base(req)), ...summarise(answers), checklist: checklistCounts(c, answers), core: progressFor(c, answeredSet(answers), uploaded, programSitesOf(answers)).core, filled_by: answers.get('_filled_by')?.value || '', status_line: answers.get('_status')?.value || '' });
   }));
 
   app.patch('/api/clients/:slug', team, guard(async (req, res) => {

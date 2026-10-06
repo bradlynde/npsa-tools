@@ -771,6 +771,28 @@ await check('per campus: sections 3 to 5 per site once NPSA turns it on; 1 and 2
   assert.ok(renderClientPage({ client: { slug, token: 't', name: 'T', state: 'CA', per_campus: true }, stateConfig: {}, existing: {} }).includes('PER_CAMPUS=true'));
 });
 
+await check('per campus: a program tagged only one nearby answers 3.8 where it runs, not at every campus', async () => {
+  const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Pantry Campus Church', state: 'CA', applications: [{ program: 'NSGP-S', cycle: 'FY2027', sites: [1, 2, 3] }] } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const slug = 'pantry-campus-church';
+  const seed = a => call('PUT', `/api/clients/${slug}/answers`, { headers: TEAM, body: { answers: a } });
+  const status = async () => (await call('GET', `/api/clients/${slug}/status`, { headers: TEAM })).data;
+  const agree = async st => {
+    assert.deepEqual((await call('GET', '/api/clients?status=all', { headers: TEAM })).data.find(c => c.slug === slug).core, st.core, 'the list agrees with the dialog');
+    assert.deepEqual((await call('GET', `/api/clients/${slug}`, { headers: TEAM })).data.core, st.core);
+  };
+  assert.equal((await seed({ loc1_name: 'North', loc2_name: 'South', loc3_name: 'East', prog1_name: 'Food pantry', prog1_unique: 'Yes', prog1_site: '2' })).status, 200);
+  assert.equal((await status()).sections.find(x => x.section === '3. Community Role').answered, 2, 'per campus off: the tag answers 3.8 for the whole organization, as before');
+  assert.equal((await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { per_campus: true } })).status, 200);
+  let st = await status();
+  assert.deepEqual(st.campuses.map(c => c.answered), [0, 1, 0], 'only South, where the pantry runs');
+  await agree(st);
+  assert.equal((await seed({ prog1_site: '' })).status, 200);
+  st = await status();
+  assert.deepEqual(st.campuses.map(c => c.answered), [1, 1, 1], 'a program with no campus picked runs at every campus');
+  await agree(st);
+});
+
 await check('per-campus documents: once-per-site rows repeat per campus, from each campus\'s own program', async () => {
   const r = await call('POST', '/api/clients', { headers: TEAM, body: { name: 'Doc Campus Church', state: 'CA', applications: [{ program: 'CSNSGP', cycle: '2026-27', sites: [1, 2] }, { program: 'NSGP-S', cycle: 'FY2027', sites: [3], status: 'planned' }] } });
   assert.equal(r.status, 201, JSON.stringify(r.data));

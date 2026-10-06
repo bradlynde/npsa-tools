@@ -1250,17 +1250,17 @@
     var named=pgCards.filter(function(c){return pgKey(c,'name').value!=='';});
     box.innerHTML='<span>Show</span>'+[0].concat(sites).map(function(n){var k=n?named.filter(function(c){return pgAt(c,n);}).length:named.length;
       return '<button type="button" data-f="'+n+'" aria-pressed="'+(PGF===n)+'">'+escT(n?pgSiteName(n):'All campuses')+' · '+k+'</button>';}).join('');}
-  function pgLayout(){var shown=0,toConfirm=0,outside=0,unique=[];pgFilter();
+  function pgLayout(){var shown=0,toConfirm=0,outside=0,unique=[],uniqueHere=[];pgFilter();
     pgCards.forEach(function(c){var on=pgHas(c)||c.classList.contains('pg-added');c.hidden=!on||(PGF&&!pgAt(c,PGF)&&!c.classList.contains('pg-added'));
       if(!on)return;shown++;if(pgKey(c,'suggested').value!=='')toConfirm++;if(pgKey(c,'runby').value==='Outside')outside++;
-      if(pgKey(c,'unique').value!=='')unique.push(pgKey(c,'name').value||'Unnamed program');pgRender(c);});
+      if(pgKey(c,'unique').value!==''){unique.push(pgKey(c,'name').value||'Unnamed program');if(!campusOn||pgAt(c,CUR))uniqueHere.push(pgKey(c,'name').value||'Unnamed program');}pgRender(c);});
     var named=pgCards.filter(function(c){return pgKey(c,'name').value!=='';}).length;
     document.getElementById('progCount').innerHTML=named?'<b>'+named+' program'+(named===1?'':'s')+'</b>'+(toConfirm?' · '+toConfirm+' to confirm':''):'';
     document.getElementById('progEmpty').hidden=shown>0;document.getElementById('progAdd').parentNode.hidden=shown===0;
     document.getElementById('progAdd').disabled=!pgCards.some(pgFree);
     var sum=document.getElementById('icxProgSummary');
     if(sum)sum.textContent=named?named+' program'+(named===1?'':'s')+' listed'+(campusOn?', '+pgCards.filter(function(c){return pgKey(c,'name').value!==''&&pgAt(c,CUR);}).length+' at '+pgSiteName(CUR):'')+(outside?', '+outside+' run by an outside group':'')+(unique.length?', '+unique.length+' marked only one nearby':'')+'.':'No programs listed yet.';
-    var ut=document.getElementById('icxUniqueTagged');if(ut){ut.hidden=!unique.length;ut.textContent=unique.length?'Tagged on the Programs tab: '+unique.join(', ')+'.':'';}
+    var ut=document.getElementById('icxUniqueTagged');if(ut){ut.hidden=!uniqueHere.length;ut.textContent=uniqueHere.length?'Tagged on the Programs tab: '+uniqueHere.join(', ')+'.':'';}
     if(icxReady){icxCount();var q38=document.getElementById('q-3-8');if(q38)icxSide(q38);}}
   function pgFree(c){return !pgHas(c)&&!c.classList.contains('pg-added');}
   function pgAdd(){var c=pgCards.filter(pgFree)[0];if(!c)return;
@@ -1305,8 +1305,10 @@
   var icxSecs=[].slice.call(document.querySelectorAll('.icx-sec')),icxNavs=[].slice.call(document.querySelectorAll('.icx-nav'));
   var ASKS=String(EXISTING._note_asks||'').split(',').map(function(k){return k.trim();}).filter(Boolean);
   document.querySelectorAll('.icx .fld[data-states]').forEach(function(f){if(f.getAttribute('data-states').split(',').indexOf(STATE)<0)f.hidden=true;});
-  function pgUniqueTagged(){return pgCards.some(function(c){return !c.hidden&&pgKey(c,'unique').value!=='';});}
-  function icxFilled(el){return el.value.trim()!==''||((el.getAttribute('data-base')||el.getAttribute('data-key'))==='q_3_2_3'&&pgUniqueTagged());}
+  /* a program tagged Only one nearby answers 3.8; per campus, only for the campuses it runs at (pgAt).
+     Whether the Programs filter is showing the card makes no difference. */
+  function pgUniqueTagged(n){return pgCards.some(function(c){return pgKey(c,'unique').value!==''&&(!n||pgAt(c,n));});}
+  function icxFilled(el){return el.value.trim()!==''||((el.getAttribute('data-base')||el.getAttribute('data-key'))==='q_3_2_3'&&pgUniqueTagged(campusOn?CUR:0));}
   function icxFields(sec){return [].slice.call(sec.querySelectorAll('[data-key^="q_"],[data-base]')).filter(function(el){return !el.closest('[hidden]');});}
   function icxCount(){var all=0,done=0;
     icxSecs.forEach(function(sec){var n=sec.getAttribute('data-sec'),els=icxFields(sec),a=els.filter(icxFilled).length,t=els.length;
@@ -1375,7 +1377,7 @@
   function campusUseLink(el){var base=el.getAttribute('data-base');if(!campusOn||CUR===1||!base)return '';
     var v=EXISTING[base];if(!v||v===NA)return '';return '<button type="button" class="link quiet" data-use="'+escT(base)+'">Use '+escT(campusName(1))+'\'s answer</button> · ';}
   function campusDone(n){var t=0,a=0;campusEls.forEach(function(el){if(el.closest('[hidden]'))return;var base=el.getAttribute('data-base'),v=EXISTING[campusKey(base,n)];t++;
-    if((v&&String(v).trim()!=='')||(base==='q_3_2_3'&&pgUniqueTagged()))a++;});return {a:a,t:t};}
+    if((v&&String(v).trim()!=='')||(base==='q_3_2_3'&&pgUniqueTagged(n)))a++;});return {a:a,t:t};}
   function campusRender(){if(!campusBar)return;var list=campusList();
     campusBar.querySelector('.icx-campus-list').innerHTML=list.map(function(n){var d=campusDone(n),lead=EXISTING['loc'+n+'_lead']||'';
       return '<button type="button" data-campus="'+n+'" aria-pressed="'+(n===CUR)+'"><b>'+escT(campusName(n))+'</b><span>'+escT(lead||'No one named yet')+'</span><span>'+d.a+' of '+d.t+' answered</span></button>';}).join('');
