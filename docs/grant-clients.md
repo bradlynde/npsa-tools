@@ -482,7 +482,7 @@ Clients often email a file instead of uploading it. The team marks it received f
 Writing dialog ("mark received" under any document not yet in, with undo), or with
 `client_update mark_documents_received` / `unmark_documents_received`. Marks live in
 `clients.documents_received` as `{ key: { at, by, note } }` and count as received everywhere an
-upload would: the dialog's count, the client's Documents tab ("Received by your NPSA team ✓"), and
+upload would: the dialog's count, the client's Documents tab (a "Received by NPSA" chip on the document's card), and
 the submission box. The mark does not store the file; save the emailed copy to the client's Phase 2
 folder as usual.
 
