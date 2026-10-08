@@ -440,12 +440,12 @@ await check('welcome emails the client can trigger are capped per client per hou
 await check('page route: unknown slug and wrong token get the error page, right token renders', async () => {
   const unknown = await call('GET', '/client/nobody?t=abc');
   assert.equal(unknown.status, 404);
-  assert.match(unknown.data, /isn’t recognized/);
+  assert.match(unknown.data, /This link isn’t working/);
   const wrong = await call('GET', `/client/${created.slug}?t=nope`);
   assert.equal(wrong.status, 404);
   assert.equal(wrong.data, unknown.data, 'a wrong token and an unknown client look the same');
   // Same page as an unknown slug: a wrong token must not confirm the client exists.
-  assert.match(wrong.data, /isn’t recognized/);
+  assert.match(wrong.data, /This link isn’t working/);
   assert.equal(rendered, null);
   const ok = await call('GET', `/client/${created.slug}?t=${token()}`);
   assert.equal(ok.status, 200);
@@ -934,7 +934,7 @@ await check('documents received by email count as received everywhere, and the m
   assert.ok(st.data.documents_received.up_mission);
   const html = renderClientPage({ client: { slug: 'emailed-docs-church', token: 't', name: 'E', state: 'IL', documents_received: mark.data.documents_received }, stateConfig: {}, existing: {} });
   assert.match(html, /RECEIVED=\["up_mission","up_501c3"\]|RECEIVED=\["up_501c3","up_mission"\]/);
-  assert.match(html, /Received by your NPSA team/);
+  assert.match(html, /Received by NPSA/);
   const undo = await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { unmark_documents_received: ['up_mission'] } });
   assert.deepEqual(Object.keys(undo.data.documents_received), ['up_501c3']);
   await call('PATCH', '/api/clients/emailed-docs-church', { headers: TEAM, body: { status: 'cancelled' } });
