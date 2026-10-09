@@ -32,6 +32,9 @@ import {
 
 const pct = (n: number) => `${Math.round((n || 0) * 100)}%`;
 
+// Temporarily hidden from the Company Report. Flip to true to bring the card back.
+const SHOW_ACCEPTANCE_RATE = false;
+
 type SalesMetric = "new_orgs" | "amount" | "contracts";
 
 const SALES_METRICS: { key: SalesMetric; label: string; title: string; money: boolean }[] = [
@@ -487,13 +490,15 @@ export default function SalesBand({
             value={fmtMoney(apps.pending_amount * roll)}
             note={`${apps.pending_count} submitted, awaiting notification`}
           />
-          <Figure
-            label="Acceptance rate"
-            value={pct(apps.acceptance_rate * roll)}
-            note={`${apps.awarded_count} of ${apps.awarded_count + apps.denied_count + (apps.resubmitted_count ?? 0)} decided${
-              apps.award_fill_rate > 0 ? ` · ${pct(apps.award_fill_rate)} of ask funded` : ""
-            }`}
-          />
+          {SHOW_ACCEPTANCE_RATE && (
+            <Figure
+              label="Acceptance rate"
+              value={pct(apps.acceptance_rate * roll)}
+              note={`${apps.awarded_count} of ${apps.awarded_count + apps.denied_count + (apps.resubmitted_count ?? 0)} decided${
+                apps.award_fill_rate > 0 ? ` · ${pct(apps.award_fill_rate)} of ask funded` : ""
+              }`}
+            />
+          )}
         </div>
       )}
 
