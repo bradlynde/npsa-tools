@@ -11,7 +11,7 @@ export const BUCKETS: { key: ApplicationBucket; label: string }[] = [
   { key: "pending", label: "Submitted" },
   { key: "awarded", label: "Won" },
   { key: "denied", label: "Denied" },
-  { key: "resubmitted", label: "Resubmitted" },
+  { key: "resubmitted", label: "Resubmitting" },
   { key: "cancelled", label: "Cancelled" },
 ];
 export const BUCKET_LABEL = Object.fromEntries(BUCKETS.map((b) => [b.key, b.label])) as Record<ApplicationBucket, string>;
