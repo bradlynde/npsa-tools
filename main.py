@@ -24,6 +24,7 @@ from database import (
     codes_sent_recently,
     create_login_code,
     get_user_by_email,
+    get_user_by_username,
     init_db,
     purge_expired_codes,
     verify_login_code,
@@ -39,10 +40,11 @@ if not JWT_SECRET:
     raise ValueError("JWT_SECRET environment variable must be set")
 JWT_ALGORITHM = "HS256"
 
-# Matches the frontend's seven-day inactivity window. These used to disagree —
-# the token died after 24h while the UI still believed it was signed in, so the
-# dashboard's data calls started failing against a screen that looked fine.
-JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "168"))
+# How long a sign-in lasts without use. Each token is issued for this long, and
+# the toolbox swaps it for a fresh one (POST /auth/refresh) about twice a day
+# while someone is using it, so the window counts from their last use rather
+# than from when they typed a code. Someone away longer than this signs in again.
+JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", str(14 * 24)))
 
 # Throttles. Per-address limits live in Postgres so they survive a restart and
 # hold across replicas; the per-IP limit is in-process and best-effort, there to
@@ -103,6 +105,10 @@ class RequestCodeResponse(BaseModel):
 class VerifyCodeRequest(BaseModel):
     email: EmailStr
     code: str
+
+
+class RefreshRequest(BaseModel):
+    token: str
 
 
 @app.on_event("startup")
@@ -170,4 +176,22 @@ async def verify_code(req: VerifyCodeRequest, request: Request):
         raise HTTPException(status_code=401, detail="That code isn't valid. Request a new one.")
 
     log.info("Signed in %s (%s)", user["username"], email)
+    return LoginResponse(status="success", token=_issue_token(user["username"]), username=user["username"])
+
+
+@app.post("/auth/refresh", response_model=LoginResponse)
+async def refresh(req: RefreshRequest):
+    """Swap a sign-in token that still works for a fresh one.
+
+    Only a token this service signed and that hasn't lapsed is accepted, and
+    only for someone still in the users table, so removing a person ends their
+    sign-in at its next renewal. A lapsed or unknown token gets 401: sign in again.
+    """
+    try:
+        claims = jwt.decode(req.token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="This sign-in has expired. Sign in again.")
+    user = get_user_by_username(str(claims.get("username") or ""))
+    if not user:
+        raise HTTPException(status_code=401, detail="This sign-in has expired. Sign in again.")
     return LoginResponse(status="success", token=_issue_token(user["username"]), username=user["username"])
