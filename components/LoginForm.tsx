@@ -21,7 +21,7 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const codeRef = useRef<HTMLInputElement>(null);
-  const { requestCode, verifyCode } = useAuth();
+  const { requestCode, verifyCode, notice } = useAuth();
 
   // The service won't send another code for a minute, so don't offer to.
   useEffect(() => {
@@ -154,6 +154,11 @@ export default function LoginForm() {
         >
           {step === "email" ? (
             <form onSubmit={submitEmail}>
+              {notice && (
+                <p role="status" style={{ fontSize: 14, lineHeight: "20px", color: "var(--warn-fg)", background: "var(--warn-bg)", borderRadius: "var(--r-md)", padding: "10px 12px", margin: "0 0 16px" }}>
+                  {notice}
+                </p>
+              )}
               <div style={{ marginBottom: 16 }}>
                 <label htmlFor="login-email" style={labelStyle}>
                   Work email
