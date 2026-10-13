@@ -1,28 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Newsreader, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Libre_Franklin, Source_Code_Pro, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import AppShell from "../components/AppShell";
 
-// Self-hosted by next/font — no external stylesheet request at runtime.
-const newsreader = Newsreader({
+// One type system across the toolbox, the client intake form and the letters:
+// Libre Franklin for headings and figures, Source Sans 3 for everything else,
+// Source Code Pro for codes and IDs. Self-hosted by next/font, so there is no
+// external stylesheet request at runtime.
+const franklin = Libre_Franklin({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
-  variable: "--font-serif",
+  variable: "--font-head",
   display: "swap",
-  // Newsreader ships no fallback-override metrics in this next version.
-  adjustFontFallback: false,
 });
 
-const plexSans = IBM_Plex_Sans({
+const sourceSans = Source_Sans_3({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
   variable: "--font-sans",
   display: "swap",
 });
 
-const plexMono = IBM_Plex_Mono({
+const sourceCode = Source_Code_Pro({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-mono",
@@ -59,7 +60,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${newsreader.variable} ${plexSans.variable} ${plexMono.variable}`}
+      className={`${franklin.variable} ${sourceSans.variable} ${sourceCode.variable}`}
       suppressHydrationWarning
     >
       <body>

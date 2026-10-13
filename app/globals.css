@@ -106,6 +106,9 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* Source Sans has a shorter x-height than the Plex it replaced; this keeps
+     every px size in the app reading at the size it was designed at. */
+  font-size-adjust: 0.52;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -222,16 +225,19 @@ textarea:focus-visible {
 
 /* ── Type ────────────────────────────────────────────────────────
    Three families, each with one job:
-   Newsreader for page titles and the figures people come to read,
-   IBM Plex Sans for everything you click or scan,
-   IBM Plex Mono for codes and IDs only.
+   Libre Franklin for page titles and the figures people come to read,
+   Source Sans 3 for everything you click or scan,
+   Source Code Pro for codes and IDs only.
+   The same pair as the client intake form and the letters; Word
+   downloads stay in Arial so they open the same on any computer.
    ─────────────────────────────────────────────────────────────── */
 
 .mono {
   font-family: var(--font-mono);
 }
 .serif {
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
+  font-size-adjust: none;
 }
 .num {
   font-variant-numeric: tabular-nums;
@@ -248,8 +254,9 @@ textarea:focus-visible {
 
 /* Page title */
 .headline {
-  font-family: var(--font-serif);
-  font-weight: 400;
+  font-family: var(--font-head);
+  font-size-adjust: none;
+  font-weight: 600;
   font-size: 32px;
   line-height: 40px;
   letter-spacing: -0.01em;
@@ -257,7 +264,7 @@ textarea:focus-visible {
   text-wrap: balance;
 }
 .headline em {
-  font-weight: 500;
+  font-weight: 700;
 }
 .headline-hero {
   font-size: 40px;
@@ -276,8 +283,9 @@ textarea:focus-visible {
 
 /* KPI figure */
 .kpi {
-  font-family: var(--font-serif);
-  font-weight: 500;
+  font-family: var(--font-head);
+  font-size-adjust: none;
+  font-weight: 600;
   font-size: 40px;
   line-height: 44px;
   letter-spacing: -0.015em;
