@@ -94,7 +94,7 @@
 }
 
 .wz-h {
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
   font-size: 19px;
   font-weight: 500;
   color: var(--ink);
@@ -317,7 +317,7 @@
 }
 
 .wz-fee-line b {
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   font-weight: 500;
@@ -442,7 +442,7 @@ textarea.wz-input {
 }
 
 .wz-bar-amt {
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
   font-variant-numeric: tabular-nums;
   font-size: 27px;
   color: var(--olive);
