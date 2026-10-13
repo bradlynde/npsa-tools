@@ -44,7 +44,7 @@ const DEFAULT_PROPOSAL = PROPOSAL;
 const PC_NOTES_CSS = `
   .pc{color:#26334d}
   .pc h1{font-size:22px;font-weight:800;color:#182230;margin:0 0 3px;letter-spacing:-0.2px;line-height:1.2}
-  .pc h2{font-size:12.5px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.7px;margin:22px 0 9px;padding-bottom:6px;border-bottom:2px solid #dce8f4}
+  .pc h2{font-size:12.5px;font-weight:700;color:#00395b;text-transform:uppercase;letter-spacing:0.7px;margin:22px 0 9px;padding-bottom:6px;border-bottom:2px solid #dce8f4}
   .pc h3{font-size:13px;font-weight:700;color:#182230;margin:14px 0 5px}
   .pc p{margin:0 0 10px;line-height:1.62;color:#26334d;font-size:14px}
   .pc ul{margin:0 0 12px;padding-left:20px}
@@ -52,7 +52,7 @@ const PC_NOTES_CSS = `
   .pc ol{margin:0 0 12px;padding-left:20px}
   .pc ol li{margin:0 0 4px;line-height:1.55;color:#26334d;font-size:14px}
   .pc strong{color:#182230;font-weight:700}
-  .pc a{color:#1e3a5f;text-decoration:none}
+  .pc a{color:#00395b;text-decoration:none}
   .pc hr{border:none;border-top:1px solid #e2ecf5;margin:18px 0}
   .pc blockquote{border-left:3px solid #dce8f4;margin:0 0 12px;padding:8px 14px;background:#f7fafd;color:#4a5462;font-size:13px}
 `;
