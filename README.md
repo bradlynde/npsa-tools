@@ -13,6 +13,7 @@ password to store, leak, rotate, or read out over the phone.
 |---|---|---|
 | POST | `/auth/request-code` | `{ email }` → emails a code. **Always returns 200.** |
 | POST | `/auth/verify-code` | `{ email, code }` → `{ status, token, username }` |
+| POST | `/auth/refresh` | `{ token }` → a fresh `{ status, token, username }`, or 401 if it lapsed |
 | GET | `/health` | Health check |
 
 `/auth/request-code` answers identically whether the address is known,
@@ -33,7 +34,10 @@ Postgres, so they survive restarts), plus a best-effort in-process per-IP cap.
 2. `DATABASE_URL` — Railway Postgres.
 3. `RESEND_API_KEY` — a **Sending access** key, not full access.
 4. `AUTH_EMAIL_FROM` — must be on a domain verified in Resend.
-5. `CORS_ORIGINS` — comma-separated. The toolbox proxies login server-side, so
+5. `JWT_EXPIRATION_HOURS` — how long a sign-in lasts without use (default 336,
+   14 days). The toolbox renews the token through `/auth/refresh` while someone
+   uses it, so active people stay signed in and only an idle sign-in lapses.
+6. `CORS_ORIGINS` — comma-separated. The toolbox proxies login server-side, so
    this only matters for direct browser calls.
 
 Without `RESEND_API_KEY` the code is written to the log instead of sent. That

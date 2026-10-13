@@ -116,6 +116,16 @@ def get_user_by_email(email: str) -> dict | None:
             return dict(row) if row else None
 
 
+def get_user_by_username(username: str) -> dict | None:
+    if not username:
+        return None
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT id, username, email FROM users WHERE username = %s", (username,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
 def codes_sent_recently(email: str, within_seconds: int) -> int:
     """How many codes this address has been sent lately — the per-user throttle."""
     with get_conn() as conn:
