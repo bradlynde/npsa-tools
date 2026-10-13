@@ -3,8 +3,9 @@
  *
  * The Sales Toolbox sits inside the toolbox shell, so it should read as the
  * same product. These are the shell's tokens: warm paper, navy and olive as
- * the only two hues, Newsreader for figures and headings, IBM Plex Mono for
- * labels.
+ * the only two hues, Libre Franklin for figures and headings, Source Sans 3 for
+ * text, Source Code Pro for labels. The same type as the client intake form;
+ * Word downloads stay in Arial so they open the same on any computer.
  *
  * This file only sets typography and page-level surfaces. The screens
  * themselves style inline, so their colours were mapped to this palette
@@ -65,9 +66,9 @@
   --shadow-card: 0 2px 12px rgba(60, 50, 30, 0.06);
   --shadow-card-hover: 0 14px 30px rgba(60, 50, 30, 0.1);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-head: "Libre Franklin", "Source Sans 3", Arial, sans-serif;
+  --font-mono: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /*
@@ -120,6 +121,9 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* Source Sans has a shorter x-height than the system sans it replaced; this
+     keeps the app's px sizes reading at the size they were designed at. */
+  font-size-adjust: 0.52;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -142,19 +146,17 @@ body {
   color: #1a1a1a;
 
   /*
-   * The letter's own typeface.
-   *
-   * The print window wraps everything in Georgia, but on screen only the
-   * elements that set fontFamily themselves got it — the section headings, the
-   * parties box and the fee boxes set none, so they previewed in the app's
-   * sans and printed in Georgia. A rep proofreading the preview was not
-   * looking at the document the client receives.
-   *
-   * Set once here, so anything added to the letter later is Georgia in both
-   * without its author having to remember, and runPrint hands this same
-   * computed value to the print document.
+   * The letter's own typeface: Source Sans 3, the intake form's text face, with
+   * Libre Franklin for its titles. Set once here so anything added to the
+   * letter later gets it in both the preview and the print, and runPrint hands
+   * this same computed value to the print document. Arial is the fallback a
+   * printer can always find.
    */
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Source Sans 3", Arial, sans-serif;
+  font-size-adjust: none;
+  /* Source Sans has a narrow space; at the letter's small sizes words crowd
+     without a touch more. runPrint carries it to the print document too. */
+  word-spacing: 0.05em;
 
   /*
    * The brand hues, pinned to their light-mode values.
@@ -220,12 +222,13 @@ body.dark input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* Screen titles pick up the shell's serif without touching each component. */
 .npsa-title {
-  font-family: var(--font-serif);
-  font-weight: 400;
+  font-family: var(--font-head);
+  font-size-adjust: none;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 .npsa-title em {
-  font-weight: 500;
+  font-weight: 700;
 }
 
 /* Uppercase section labels read as mono, matching the shell's eyebrows. */
@@ -237,7 +240,8 @@ body.dark input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* Figures line up in columns wherever they're compared. */
 .npsa-num {
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
+  font-size-adjust: none;
   font-variant-numeric: tabular-nums;
 }
 

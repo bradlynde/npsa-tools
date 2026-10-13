@@ -2,6 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import html2pdf from "html2pdf.js";
 import { marked } from "marked";
 import { LOGO_SRC } from "./generator/logo.js";
+
+// The letters share the intake form's type: Source Sans 3 for text, Libre Franklin
+// for titles and fee figures. Arial is the fallback a printer can always find.
+const LETTER_FONT = "'Source Sans 3', Arial, sans-serif";
+const LETTER_HEAD = "'Libre Franklin', Arial, sans-serif";
+const LETTER_FONTS_LINK = '<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400..800;1,400..800&family=Source+Sans+3:ital,wght@0,400..700;1,400..700&family=Ms+Madi&display=swap" rel="stylesheet">';
 import {
   fmt, calcFees, buildCompBlock, applicationCount, totalMaxAward, locationInProgram,
   programsKeyFor, oneApplicationPerLetter, engagementModelFor, enumerateApplications, divideFee,
@@ -859,8 +865,8 @@ export default function App() {
    * print document is handed.
    *
    * These declarations go into the print stylesheet, not a style="" attribute.
-   * A computed font stack contains double quotes — Georgia, "Times New Roman",
-   * serif — and inside style="${...}" the first of them closes the attribute,
+   * A computed font stack contains double quotes — "Source Sans 3", Arial,
+   * sans-serif — and inside style="${...}" the first of them closes the attribute,
    * silently dropping everything after it, --navy and --olive included. That
    * is the same missing-rule bug by another route, so the values are given a
    * .npsa-paper rule and the wrapper carries the class.
@@ -873,7 +879,7 @@ export default function App() {
       .map((v) => `${v}:${cs.getPropertyValue(v).trim()}`)
       .filter((d) => !d.endsWith(":"))
       .join(";");
-    return `font-family:${cs.fontFamily};color:${cs.color};background:${cs.backgroundColor};${vars}`;
+    return `font-family:${cs.fontFamily};word-spacing:${cs.wordSpacing};color:${cs.color};background:${cs.backgroundColor};${vars}`;
   };
 
   const runPrint = () => {
@@ -886,11 +892,11 @@ export default function App() {
     if (isGw) {
       // Grant Writer tab: use print dialog (has checkbox fields that render better via print)
       const bodyHtml = previewRef.current.innerHTML;
-      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle + clientLabel}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Ms+Madi&display=swap" rel="stylesheet"><style>
-        body{font-family:Georgia,serif;font-size:11.5pt;line-height:1.7;color:#1a1a1a;margin:0;padding:0}
+      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle + clientLabel}</title><link rel="preconnect" href="https://fonts.googleapis.com">${LETTER_FONTS_LINK}<style>
+        body{font-family:${LETTER_FONT};font-size:11.5pt;line-height:1.7;color:#1a1a1a;margin:0;padding:0}
         .page{padding:72pt;max-width:8.5in;margin:0 auto}
-        pre{white-space:pre-wrap;font-family:Georgia,serif;font-size:11pt;line-height:1.75;margin:0 0 8pt}
-        div,span{font-family:Georgia,serif;font-size:11pt;line-height:1.75;box-sizing:border-box}
+        pre{white-space:pre-wrap;font-family:${LETTER_FONT};font-size:11pt;line-height:1.75;margin:0 0 8pt}
+        div,span{font-family:${LETTER_FONT};font-size:11pt;line-height:1.75;box-sizing:border-box}
         button{display:none!important}.no-print{display:none!important}
         @media print{@page{margin:72pt;size:letter}body{margin:0}}
         .npsa-paper{${paperSurface()}}
@@ -908,10 +914,10 @@ export default function App() {
     } else {
       // Engagement letter tabs: native browser print for perfect page breaks + margins
       const bodyHtml = previewRef.current.innerHTML;
-      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle + clientLabel}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Ms+Madi&display=swap" rel="stylesheet"><style>
+      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle + clientLabel}</title><link rel="preconnect" href="https://fonts.googleapis.com">${LETTER_FONTS_LINK}<style>
         *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
         @page{margin:0.75in;size:letter}
-        body{margin:0;padding:0;font-family:Georgia,serif}
+        body{margin:0;padding:0;font-family:${LETTER_FONT}}
         button,.no-print{display:none!important}
         h1,h2,h3,h4{page-break-after:avoid;break-after:avoid}
         p,li{orphans:3;widows:3}
@@ -986,7 +992,7 @@ export default function App() {
       const sectionHeaderMatch = trimmed.match(/^([A-Z])\.\s+(.+)$/);
       if (sectionHeaderMatch && sectionHeaderMatch[1].length === 1) {
         return (
-          <div key={i} style={{fontFamily:"Georgia,serif",fontSize:12,lineHeight:1.75,color:"#1a1a1a",fontWeight:700,marginTop:6,marginBottom:2}}>
+          <div key={i} style={{fontFamily:LETTER_FONT,fontSize:12,lineHeight:1.75,color:"#1a1a1a",fontWeight:700,marginTop:6,marginBottom:2}}>
             {markUnresolved(trimmed)}
           </div>
         );
@@ -996,7 +1002,7 @@ export default function App() {
       if (prefixMatch) {
         const prefix = prefixMatch[0]; // e.g. "1. " or "(a) "
         const rest = trimmed.slice(prefix.length);
-        // Base indent from leading spaces (each space ≈ 0.55em in Georgia 13px)
+        // Base indent from leading spaces (0.55em each, whatever the face)
         const baseIndent = leadSpaces * 0.55;
         // Fixed widths by prefix type so alignment is consistent regardless of
         // digit count. It used to widen for two digits, which moved the text
@@ -1008,7 +1014,7 @@ export default function App() {
         const hangEm = isTopLevel ? 2.2 : isSubLetter ? 2.0 : isRoman ? 1.8 : prefix.length * 0.6;
         return (
           <div key={i} style={{
-            fontFamily:"Georgia,serif", fontSize:12, lineHeight:1.75, color:"#222",
+            fontFamily:LETTER_FONT, fontSize:12, lineHeight:1.75, color:"#222",
             display:"flex", alignItems:"flex-start",
             marginLeft:`${baseIndent}em`, marginBottom:2,
           }}>
@@ -1022,21 +1028,21 @@ export default function App() {
       const isCostLine = trimmed.includes("×") || trimmed.match(/^[A-Za-z].+:\s+\d/);
       return (
         <div key={i} style={{
-          fontFamily:"Georgia,serif", fontSize:12, lineHeight:1.75, color:"#222",
+          fontFamily:LETTER_FONT, fontSize:12, lineHeight:1.75, color:"#222",
           marginLeft: isCostLine ? `3.5em` : `${leadSpaces * 0.55}em`, marginBottom:2,
         }}>{markUnresolved(trimmed)}</div>
       );
     });
   };
   const SH = ({id}) => { const s=sections.find(x=>x.id===id); if(!s||!s.roman) return null;
-    return <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"var(--navy)",borderBottom:"2px solid var(--navy)",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{s.roman} {s.title}</div>; };
+    return <div style={{fontFamily:LETTER_HEAD,fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"var(--navy)",borderBottom:"2px solid var(--navy)",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{s.roman} {s.title}</div>; };
   /*
    * A section appended after the template's own, styled exactly as SH styles a
    * template section — the short-notice heading used to carry its own literal
    * copy of these rules plus a hard-coded numeral, so it could drift from the
    * others and did.
    */
-  const ExtraSH = ({roman,title}) => <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"var(--navy)",borderBottom:"2px solid var(--navy)",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{roman ? `${roman} ` : ""}{title}</div>;
+  const ExtraSH = ({roman,title}) => <div style={{fontFamily:LETTER_HEAD,fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"var(--navy)",borderBottom:"2px solid var(--navy)",paddingBottom:4,marginTop:30,marginBottom:10,pageBreakAfter:"avoid",breakAfter:"avoid"}}>{roman ? `${roman} ` : ""}{title}</div>;
   const SubH = ({label}) => <div style={{fontSize:13,fontWeight:700,fontStyle:"italic",marginTop:14,marginBottom:6,color:"#333",pageBreakAfter:"avoid",breakAfter:"avoid"}}>{label}</div>;
   const Body = ({id,subId}) => {
     const raw = gc(id,subId);
@@ -1048,7 +1054,7 @@ export default function App() {
     const parts = raw.split(full);
     return <>
       <div style={{marginBottom:8}}>{renderLines(parts[0].trimEnd())}</div>
-      <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"12px 16px",margin:"10px 0 8px",fontFamily:"Georgia,serif",fontSize:12,lineHeight:1.7,color:"#222"}}>
+      <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"12px 16px",margin:"10px 0 8px",fontFamily:LETTER_FONT,fontSize:12,lineHeight:1.7,color:"#222"}}>
         <span style={{fontWeight:700,color:"var(--navy)",fontSize:11.5,textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:5}}>Early Signing Discount</span>
         {`A ${discAmt} early signing discount has been applied to the standard ${baseFee} ${appliedTo === "contingent" ? "contingent" : "consulting"} fee. To retain this discount, this Agreement must be executed on or before ${date}.`}
       </div>
@@ -1877,8 +1883,8 @@ export default function App() {
           </div>
           {/* Editable iframe */}
           <iframe ref={reviewIframeRef} style={{flex:1,border:"none",background:"var(--desk)"}}
-            srcDoc={`<!DOCTYPE html><html><head><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Ms+Madi&display=swap" rel="stylesheet"><style>
-              body{margin:0;padding:40px;background:${deskColor};font-family:Georgia,serif;}
+            srcDoc={`<!DOCTYPE html><html><head><link rel="preconnect" href="https://fonts.googleapis.com">${LETTER_FONTS_LINK}<style>
+              body{margin:0;padding:40px;background:${deskColor};font-family:${LETTER_FONT};}
               #editable-body{max-width:800px;margin:0 auto;background:var(--card);padding:64px 72px;box-shadow:0 4px 32px rgba(0,0,0,0.13);outline:none;font-size:13px;line-height:1.75;color:#1a1a1a;}
               #editable-body:focus{outline:none;}
               @media print{body{margin:0;padding:0;background:var(--card);}#editable-body{box-shadow:none;padding:72pt;max-width:100%;}}
@@ -1938,7 +1944,7 @@ export default function App() {
               </div>
               {/* Title */}
               <div style={{textAlign:"center",margin:"12px 0 4px"}}>
-                <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Proposal</div>
+                <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:LETTER_HEAD}}>Proposal</div>
                 <div style={{fontSize:13,fontStyle:"italic",color:"#444",marginTop:4}}>{proposalProgramList}</div>
                 <div style={{fontSize:11.5,color:"#555",marginTop:5}}>{today}</div>
               </div>
@@ -1946,7 +1952,7 @@ export default function App() {
               <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Client</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(form.clientName||"[CLIENT NAME]")}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>{markUnresolved(form.clientName||"[CLIENT NAME]")}</div>
                   {clientAddr&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{clientAddr}</div>}
                   {form.contactName&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{form.contactName}</div>}
                   {form.contactTitle&&<div style={{fontSize:11.5,color:"#555"}}>{form.contactTitle}</div>}
@@ -1956,7 +1962,7 @@ export default function App() {
                 <div style={{width:1,background:"#8796aa"}}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Consultant</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>Nonprofit Security Advisors</div>
                   <div style={{fontSize:12,color:"#555"}}>Lynde Consulting LLC</div>
                   <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Winnebago County, Illinois</div>
                 </div>
@@ -1965,36 +1971,36 @@ export default function App() {
               <div style={{border:"1px solid #1e3a5f",borderRadius:4,overflow:"hidden",marginBottom:24}}>
                 {summaryRows.map(([k,v],i)=>(
                   <div key={k} style={{display:"flex",borderTop:i===0?"none":"1px solid #a7b4c6"}}>
-                    <div style={{width:180,flexShrink:0,background:"#fbfaf8",padding:"9px 14px",fontSize:11.5,fontWeight:700,letterSpacing:0.5,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{k}</div>
-                    <div style={{flex:1,padding:"9px 14px",fontSize:13,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{v}</div>
+                    <div style={{width:180,flexShrink:0,background:"#fbfaf8",padding:"9px 14px",fontSize:11.5,fontWeight:700,letterSpacing:0.5,color:"#1e3a5f",fontFamily:LETTER_FONT}}>{k}</div>
+                    <div style={{flex:1,padding:"9px 14px",fontSize:13,color:"#1a1a1a",fontFamily:LETTER_FONT}}>{v}</div>
                   </div>
                 ))}
               </div>
               {/* Executive Summary */}
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Executive Summary</div>
-              <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20}}>{interpolateProposal(execSummaryText)}</p>
+              <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,marginBottom:20}}>{interpolateProposal(execSummaryText)}</p>
               {/* Project Locations */}
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Project Locations</div>
               <div style={{marginBottom:20}}>
                 {(form.locations||[]).filter(l=>l.address||l.city||l.name).length>0
                   ? (form.locations||[]).filter(l=>l.address||l.city||l.name).map((loc,i)=>{
                       const parts=[loc.address,loc.city,loc.state,loc.zip].filter(Boolean).join(", ");
-                      return <div key={i} style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:3}}>&#8226; {loc.name?`${loc.name} — `:""}{markUnresolved(parts||"[Address TBD]")}</div>;
+                      return <div key={i} style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,marginBottom:3}}>&#8226; {loc.name?`${loc.name} — `:""}{markUnresolved(parts||"[Address TBD]")}</div>;
                     })
-                  : <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#555",fontStyle:"italic"}}>Add locations on the Scope step to list project campuses here.</div>}
+                  : <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#555",fontStyle:"italic"}}>Add locations on the Scope step to list project campuses here.</div>}
               </div>
               {/* Three Phase Approach */}
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Three Phase Approach</div>
               {phasesToShow.map((ph,i)=>(
                 <div key={i} style={{marginBottom:16}}>
-                  <div style={{fontSize:12.5,fontWeight:700,fontFamily:"Georgia,serif",color:"#1a1a1a",marginBottom:4}}>{ph.title}</div>
-                  <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{interpolateProposal(ph.body)}</p>
-                  {ph.deliverable&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:"6px 0 0",fontStyle:"italic",color:"#333"}}><strong>Deliverable:</strong> {interpolateProposal(ph.deliverable)}</p>}
+                  <div style={{fontSize:12.5,fontWeight:700,fontFamily:LETTER_FONT,color:"#1a1a1a",marginBottom:4}}>{ph.title}</div>
+                  <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{interpolateProposal(ph.body)}</p>
+                  {ph.deliverable&&<p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:"6px 0 0",fontStyle:"italic",color:"#333"}}><strong>Deliverable:</strong> {interpolateProposal(ph.deliverable)}</p>}
                 </div>
               ))}
               {/* Eligible Project Types */}
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:20,marginBottom:10}}>Eligible Project Types</div>
-              <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.8,marginBottom:20}}>{proposalTpl.eligible}</p>
+              <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.8,marginBottom:20}}>{proposalTpl.eligible}</p>
               {/* Investment & Payment Terms */}
               {(()=>{
                 const useInh = form.proposalFeeModel === "inh";
@@ -2003,7 +2009,7 @@ export default function App() {
                 const pDiscDate = useInh ? form.inhEarlySigningDate : form.earlySigningDate;
                 return <>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Investment &amp; Payment Terms</div>
-                  <div style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.8,marginBottom:8}}>
+                  <div style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.8,marginBottom:8}}>
                     <div><strong>Professional Fee:</strong> {fmt(pFees.upfront)}</div>
                     {pDisc&&pFees.discount>0&&<div>Includes a {fmt(pFees.discount)} early-signing discount from the standard {fmt(pFees.baseUpfront)} fee.</div>}
                     <div>Invoice issued upon execution of the Engagement Letter.</div>
@@ -2016,7 +2022,7 @@ export default function App() {
                     {isFull&&<div>Award Implementation services are billed as a percentage-based fee, due upon notification of a grant award and formally engaged following State authorization to proceed, as set forth in the governing Engagement Letter.</div>}
                   </div>
                   {pDisc&&pDiscDate&&(
-                    <div style={{border:"1px solid #1e3a5f",borderRadius:4,background:"#fbfaf8",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:"Georgia,serif",color:"#1e3a5f",fontWeight:700}}>
+                    <div style={{border:"1px solid #1e3a5f",borderRadius:4,background:"#fbfaf8",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:LETTER_FONT,color:"#1e3a5f",fontWeight:700}}>
                       To lock the discounted fee, execute the Engagement Letter by {pDiscDate}.
                     </div>
                   )}
@@ -2024,8 +2030,8 @@ export default function App() {
               })()}
               {/* Important Note */}
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Important Note</div>
-              <p style={{fontSize:12.5,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20,fontStyle:"italic",color:"#333"}}>{proposalTpl.note}</p>
-              {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
+              <p style={{fontSize:12.5,fontFamily:LETTER_FONT,lineHeight:1.7,marginBottom:20,fontStyle:"italic",color:"#333"}}>{proposalTpl.note}</p>
+              {fmtExpiry&&<p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
               <div style={{marginTop:30,paddingTop:10,borderTop:"1px solid #ddd",textAlign:"center",fontSize:11.5,color:"#555"}}>
                 Prepared for the leadership of {markUnresolved(form.clientName||"[CLIENT NAME]")} &nbsp;&#8226;&nbsp; Nonprofit Security Advisors &nbsp;&#8226;&nbsp; Lynde Consulting LLC
               </div>
@@ -2041,7 +2047,7 @@ export default function App() {
                 <div style={{fontSize:11.5,color:"#555",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
               </div>
               <div style={{textAlign:"center",margin:"12px 0 4px"}}>
-                <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Addendum to Engagement Letter</div>
+                <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:LETTER_HEAD}}>Addendum to Engagement Letter</div>
                 {/*
                   * Two dates sat under this title with nothing to tell them
                   * apart — the original agreement's and this addendum's — so a
@@ -2054,7 +2060,7 @@ export default function App() {
               <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Client</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(addClient)}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>{markUnresolved(addClient)}</div>
                   {clientAddr&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{clientAddr}</div>}
                   {form.contactName&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{form.contactName}</div>}
                   {form.contactTitle&&<div style={{fontSize:11.5,color:"#555"}}>{form.contactTitle}</div>}
@@ -2064,7 +2070,7 @@ export default function App() {
                 <div style={{width:1,background:"#8796aa"}}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Consultant</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>Nonprofit Security Advisors</div>
                   <div style={{fontSize:12,color:"#555"}}>Lynde Consulting LLC</div>
                   <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Winnebago County, Illinois</div>
                 </div>
@@ -2072,7 +2078,7 @@ export default function App() {
               <div style={{marginTop:18}}>
                 {(addendumTpl.sections||[]).map(sec=>(
                   <div key={sec.id} style={{marginBottom:16}}>
-                    <div style={{fontSize:13,fontWeight:700,fontFamily:"Georgia,serif",color:"#1a1a1a",marginBottom:6}}>{sec.heading}</div>
+                    <div style={{fontSize:13,fontWeight:700,fontFamily:LETTER_FONT,color:"#1a1a1a",marginBottom:6}}>{sec.heading}</div>
                     {renderLines(interpolateAddendum(sec.content))}
                   </div>
                 ))}
@@ -2085,7 +2091,7 @@ export default function App() {
                   {party:"Lynde Consulting, LLC",sub:"DBA Nonprofit Security Advisors",isNpsa:true,fields:[["Signature",form.npsaSignerName||""],["Printed Name",form.npsaSignerName||""],["Title",form.npsaSignerTitle||""],["Date",npsaDate]]},
                 ].map((p,i)=>(
                   <div key={i} style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:13,fontFamily:"Georgia,serif",marginBottom:2}}>{p.party}</div>
+                    <div style={{fontWeight:700,fontSize:13,fontFamily:LETTER_FONT,marginBottom:2}}>{p.party}</div>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:18,minHeight:16}}>{p.sub||" "}</div>
                     {/*
                       * Row heights follow the row, not whether that row happens
@@ -2099,7 +2105,7 @@ export default function App() {
                           <div style={{borderBottom:"1px solid #333",minHeight:isSigRow?40:24,paddingBottom:2,
                             fontSize:sigStyle?sigStyle.size:"13px",
                             color:val?(sigStyle?sigStyle.color:"#111"):"transparent",
-                            fontFamily:sigStyle?sigStyle.font:"Georgia,serif",
+                            fontFamily:sigStyle?sigStyle.font:LETTER_FONT,
                             lineHeight:sigStyle?"1":"inherit"}}>
                             {val||"."}
                           </div>
@@ -2122,7 +2128,7 @@ export default function App() {
           </div>
           {/* Title */}
           <div style={{textAlign:"center",margin:"12px 0 4px"}}>
-            <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{isGw?"New Client Form":"Engagement Letter"}</div>
+            <div style={{fontSize:17,fontWeight:700,letterSpacing:4,textTransform:"uppercase",color:"#1a1a1a",fontFamily:LETTER_HEAD}}>{isGw?"New Client Form":"Engagement Letter"}</div>
             <div style={{fontSize:13,fontStyle:"italic",color:"#444",marginTop:4}}>
               {(()=>{
                 const preProgLabel = (form.programs||[{key:"federal"}]).map(pg=>(PROGRAMS[pg.key]||PROGRAMS.federal).acronym).join(" / ");
@@ -2139,7 +2145,7 @@ export default function App() {
           {!isGw&&<div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
             <div style={{flex:1}}>
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Client</div>
-              <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(form.clientName||"[CLIENT NAME]")}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>{markUnresolved(form.clientName||"[CLIENT NAME]")}</div>
               {clientAddr&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{clientAddr}</div>}
               {form.contactName&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{form.contactName}</div>}
               {form.contactTitle&&<div style={{fontSize:11.5,color:"#555"}}>{form.contactTitle}</div>}
@@ -2149,7 +2155,7 @@ export default function App() {
             <div style={{width:1,background:"#8796aa"}}/>
             <div style={{flex:1}}>
               <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>Consultant</div>
-              <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>Nonprofit Security Advisors</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>Nonprofit Security Advisors</div>
               <div style={{fontSize:12,color:"#555"}}>Lynde Consulting LLC</div>
               <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Winnebago County, Illinois</div>
             </div>
@@ -2172,7 +2178,7 @@ export default function App() {
                     return (
                       <div key={p.num} style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16,minWidth:80}}>
                         <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment {p.num}{pct>0?` (${pct}%)`:""}</div>
-                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{pct>0?fmt(amt):"—"}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{pct>0?fmt(amt):"—"}</div>
                         <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{p.label||"—"}</div>
                       </div>
                     );
@@ -2181,10 +2187,10 @@ export default function App() {
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Upfront Fee</div>
                     {fees.discount>0
-                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif",textDecoration:"line-through",opacity:0.5}}>{fmt(fees.baseUpfront)}</div>
-                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.upfront)}</div>
+                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD,textDecoration:"line-through",opacity:0.5}}>{fmt(fees.baseUpfront)}</div>
+                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.upfront)}</div>
                           <div style={{fontSize:11.5,color:"#b05400",marginTop:1,fontWeight:600}}>− {fmt(fees.discount)} early signing discount</div></>
-                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.upfront)}</div>
+                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.upfront)}</div>
                     }
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due at signing</div>
                   </div>
@@ -2192,20 +2198,20 @@ export default function App() {
                 {fees.contingent!==null&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Contingent Fee</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.contingent)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.contingent)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 {form.optPostAwardScope&&fees.postAward>0&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(fees.postAward)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.postAward)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Total</div>
-                  <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fmt(fees.total)}</div>
+                  <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:LETTER_HEAD}}>{fmt(fees.total)}</div>
                   <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Max grant: {fmt(totalMaxAward(form.programs?.length ? form.programs : [{key:"federal"}], form.locations))}</div>
                 </div>
               </div>
@@ -2229,7 +2235,7 @@ export default function App() {
                     return (
                       <div key={p.num} style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16,minWidth:80}}>
                         <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment {p.num}{pct>0?` (${pct}%)`:""}</div>
-                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{pct>0?fmt(amt):"—"}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{pct>0?fmt(amt):"—"}</div>
                         <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{p.label||"—"}</div>
                       </div>
                     );
@@ -2238,10 +2244,10 @@ export default function App() {
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Upfront Fee</div>
                     {inhFees.discount>0
-                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif",textDecoration:"line-through",opacity:0.5}}>{fmt(inhFees.baseUpfront)}</div>
-                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.upfront)}</div>
+                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD,textDecoration:"line-through",opacity:0.5}}>{fmt(inhFees.baseUpfront)}</div>
+                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.upfront)}</div>
                           <div style={{fontSize:11.5,color:"#b05400",marginTop:1,fontWeight:600}}>− {fmt(inhFees.discount)} early signing discount</div></>
-                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.upfront)}</div>
+                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.upfront)}</div>
                     }
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due at signing</div>
                   </div>
@@ -2249,20 +2255,20 @@ export default function App() {
                 {inhFees.contingent!==null&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Contingent Fee</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.contingent)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.contingent)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 {form.inhOptPostAwardScope&&inhFees.postAward>0&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fmt(inhFees.postAward)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.postAward)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Total</div>
-                  <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fmt(inhFees.total)}</div>
+                  <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:LETTER_HEAD}}>{fmt(inhFees.total)}</div>
                   <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Max grant: {fmt(totalMaxAward(form.programs?.length ? form.programs : [{key:"federal"}], form.locations))}</div>
                 </div>
               </div>
@@ -2285,7 +2291,7 @@ export default function App() {
             {form.optStateSwitch&&(
               <div style={{border:"1px solid #c5d16a",borderRadius:4,background:"#f9fbf2",padding:"14px 18px",margin:"16px 0"}}>
                 <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#5a6800",marginBottom:8}}>Additional Optional Guarantees</div>
-                <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:"4px 0"}}>• If CLIENT elects to transition from a Federal NSGP application to a State NSGP application, NPSA will accommodate such a change and apply all fees and services to the State NSGP opportunity.</p>
+                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:"4px 0"}}>• If CLIENT elects to transition from a Federal NSGP application to a State NSGP application, NPSA will accommodate such a change and apply all fees and services to the State NSGP opportunity.</p>
               </div>
             )}
             <SH id="pre_cancel"/><Body id="pre_cancel"/>
@@ -2307,7 +2313,7 @@ export default function App() {
             {form.polishedClause&&(
               <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
                 <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{form.polishedClause}</p>
+                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.polishedClause}</p>
               </div>
             )}
           </>}
@@ -2328,7 +2334,7 @@ export default function App() {
             {form.inhOptStateSwitch&&(
               <div style={{border:"1px solid #c5d16a",borderRadius:4,background:"#f9fbf2",padding:"14px 18px",margin:"16px 0"}}>
                 <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#5a6800",marginBottom:8}}>Additional Optional Guarantees</div>
-                <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:"4px 0"}}>• If CLIENT elects to transition from a Federal NSGP application to a State NSGP application, NPSA will accommodate such a change and apply all fees and services to the State NSGP opportunity.</p>
+                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:"4px 0"}}>• If CLIENT elects to transition from a Federal NSGP application to a State NSGP application, NPSA will accommodate such a change and apply all fees and services to the State NSGP opportunity.</p>
               </div>
             )}
             <SH id="inh_cancel"/><Body id="inh_cancel"/>
@@ -2350,7 +2356,7 @@ export default function App() {
             {form.inhPolishedClause&&(
               <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
                 <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{form.inhPolishedClause}</p>
+                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.inhPolishedClause}</p>
               </div>
             )}
           </>}
@@ -2382,22 +2388,22 @@ export default function App() {
                   <div style={{display:"flex",gap:0}}>
                     <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment 1 — At Signing{p1>0?` (${p1}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fee>0&&p1>0?fmt(pmt1):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fee>0&&p1>0?fmt(pmt1):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due at signing</div>
                     </div>
                     <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment 2 — Month 4{p2>0?` (${p2}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fee>0&&p2>0?fmt(pmt2):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fee>0&&p2>0?fmt(pmt2):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{pmt2Due}</div>
                     </div>
                     <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment 3 — Month 8{p3>0?` (${p3}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:"Georgia,serif"}}>{fee>0&&p3>0?fmt(pmt3):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fee>0&&p3>0?fmt(pmt3):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{pmt3Due}</div>
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Total Fixed Fee</div>
-                      <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:"Georgia,serif"}}>{fee>0?fmt(fee):"—"}</div>
+                      <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:LETTER_HEAD}}>{fee>0?fmt(fee):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Fixed engagement fee</div>
                     </div>
                   </div>
@@ -2415,7 +2421,7 @@ export default function App() {
             {form.postPolishedClause&&(
               <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
                 <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,margin:0}}>{form.postPolishedClause}</p>
+                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.postPolishedClause}</p>
               </div>
             )}
           </>}
@@ -2437,7 +2443,7 @@ export default function App() {
             const F = ({label,value}) => (
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:3}}>{label}</div>
-                <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#1a1a1a",borderBottom:"1px solid #ccc",paddingBottom:4,minHeight:22}}>{value||"\u00a0"}</div>
+                <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#1a1a1a",borderBottom:"1px solid #ccc",paddingBottom:4,minHeight:22}}>{value||"\u00a0"}</div>
               </div>
             );
             const Row = ({children}) => <div style={{display:"flex",gap:32,marginBottom:0}}>{children}</div>;
@@ -2448,7 +2454,7 @@ export default function App() {
               </div>
             );
             const Check = ({checked,label}) => (
-              <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:10,fontFamily:"Georgia,serif",fontSize:13,lineHeight:1.5}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:10,fontFamily:LETTER_FONT,fontSize:13,lineHeight:1.5}}>
                 <span style={{fontSize:15,flexShrink:0,marginTop:1}}>{checked?"[X]":"[ ]"}</span>
                 <span style={{color:checked?"#1a1a1a":"#555"}}>{label}</span>
               </div>
@@ -2458,19 +2464,19 @@ export default function App() {
               <div style={{border:"1px solid #8796aa",borderRadius:4,padding:"14px 20px",marginBottom:20,marginTop:20,background:"#f6f4ee",display:"flex",gap:40}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>To: Grant Writer</div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{markUnresolved(form.gwRecipientName||"[Grant Writer Name]")}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>{markUnresolved(form.gwRecipientName||"[Grant Writer Name]")}</div>
                   {form.gwOrgName&&<div style={{fontSize:12,color:"#555"}}>{form.gwOrgName}</div>}
                 </div>
                 <div style={{width:1,background:"#8796aa"}}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#555",marginBottom:4}}>From: Consultant</div>
-                  {form.npsa1Name&&<div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:"Georgia,serif"}}>{form.npsa1Name}</div>}
+                  {form.npsa1Name&&<div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",fontFamily:LETTER_FONT}}>{form.npsa1Name}</div>}
                   <div style={{fontSize:12,color:"#555"}}>Nonprofit Security Advisors</div>
                   {form.npsa1Email&&<div style={{fontSize:11.5,color:"#555",marginTop:2}}>{form.npsa1Email}</div>}
                   {form.npsa1Phone&&<div style={{fontSize:11.5,color:"#555"}}>{form.npsa1Phone}</div>}
                 </div>
               </div>
-              <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#555",fontStyle:"italic",marginBottom:20,marginTop:4}}>
+              <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#555",fontStyle:"italic",marginBottom:20,marginTop:4}}>
                 {markUnresolved(form.npsa1Name||"[Consultant Name]")} is acting solely in their capacity as an authorized consultant of Nonprofit Security Advisors (NPSA).
               </div>
               <SectionHead num="1" title="Client Information"/>
@@ -2519,7 +2525,7 @@ export default function App() {
                   {form.gwNotes && (<>
                     <SectionHead num="" title="Additional Notes"/>
                     <div style={{background:"#fbfaf8",border:"1px solid #a7b4c6",borderRadius:8,padding:"14px 18px",marginBottom:16}}>
-                      <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#333",whiteSpace:"pre-wrap",lineHeight:1.7}}>{form.gwNotes}</div>
+                      <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#333",whiteSpace:"pre-wrap",lineHeight:1.7}}>{form.gwNotes}</div>
                     </div>
                   </>)}
                   {(()=>{
@@ -2545,34 +2551,34 @@ export default function App() {
                   <Check checked={form.gwGuar1} label="1. One additional application at no additional fee if not awarded (materially similar scope required)."/>
                   <Check checked={form.gwGuar2} label="2. If no NOFO: (a) Apply work to next comparable opportunity; or (b) Refund within 10 business days upon written request."/>
                   <Check checked={form.gwGuar3} label="3. If no NOFO is released, apply work to next available comparable opportunity."/>
-                  <div style={{fontSize:12,fontFamily:"Georgia,serif",color:"#555",fontStyle:"italic",marginBottom:10,marginLeft:26}}>Note: Options 2 and 3 are mutually exclusive.</div>
+                  <div style={{fontSize:12,fontFamily:LETTER_FONT,color:"#555",fontStyle:"italic",marginBottom:10,marginLeft:26}}>Note: Options 2 and 3 are mutually exclusive.</div>
                   <Check checked={form.gwGuar4} label={`4. Commercially reasonable efforts to meet deadline: ${form.gwGuar4Deadline||"____________"}. If not completed in time, apply work to next available opportunity.`}/>
-                  <div style={{fontSize:12,fontFamily:"Georgia,serif",color:"#555",fontStyle:"italic",marginBottom:10,marginLeft:26}}>Note: If Option 4 is selected, Options 2 and 3 may not be selected.</div>
-                  <div style={{fontSize:12,fontFamily:"Georgia,serif",color:"#555",fontStyle:"italic",marginTop:8,borderTop:"1px solid #ddd",paddingTop:10}}>NPSA provides recommendations only. Final terms remain subject solely to the Grant Writer's independent contract.</div>
+                  <div style={{fontSize:12,fontFamily:LETTER_FONT,color:"#555",fontStyle:"italic",marginBottom:10,marginLeft:26}}>Note: If Option 4 is selected, Options 2 and 3 may not be selected.</div>
+                  <div style={{fontSize:12,fontFamily:LETTER_FONT,color:"#555",fontStyle:"italic",marginTop:8,borderTop:"1px solid #ddd",paddingTop:10}}>NPSA provides recommendations only. Final terms remain subject solely to the Grant Writer's independent contract.</div>
                   <SectionHead num={actionsNum} title={`Requested Actions by ${form.gwOrgName||"Grant Writer"}`}/>
                 </>;
               })()}
-              <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#333",marginBottom:12}}>Upon receipt of this form, the Grant Writer is requested to:</div>
+              <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#333",marginBottom:12}}>Upon receipt of this form, the Grant Writer is requested to:</div>
               {renderLines(`1. Send its services agreement directly to the Authorized Contract Signer${(form.gwCcContacts||[]).filter(c=>c.name).length>0?` (copy: ${(form.gwCcContacts||[]).filter(c=>c.name).map(c=>c.name).join(", ")})`:""}.
 2. Provide its white paper and/or informational materials directly to the client.
 3. Send a meeting invitation including:`)}
               <div style={{marginLeft:24,marginTop:8}}>
                 <div style={{fontSize:12,fontWeight:700,color:"#1e3a5f",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>NPSA:</div>
-                {form.npsa1Name&&<div style={{fontSize:13,fontFamily:"Georgia,serif",marginBottom:4}}>• {form.npsa1Name}{form.npsa1Email?` – ${form.npsa1Email}`:""}</div>}
+                {form.npsa1Name&&<div style={{fontSize:13,fontFamily:LETTER_FONT,marginBottom:4}}>• {form.npsa1Name}{form.npsa1Email?` – ${form.npsa1Email}`:""}</div>}
                 {(form.npsa2Selected||[]).map(r=>(
-                  <div key={r.name} style={{fontSize:13,fontFamily:"Georgia,serif",marginBottom:4}}>• {r.name}{r.email?` – ${r.email}`:""}</div>
+                  <div key={r.name} style={{fontSize:13,fontFamily:LETTER_FONT,marginBottom:4}}>• {r.name}{r.email?` – ${r.email}`:""}</div>
                 ))}
                 <div style={{fontSize:12,fontWeight:700,color:"#1e3a5f",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{form.clientName||"CLIENT"}:</div>
                 {[
                   form.contactName ? {name:form.contactName, email:form.contactEmail} : null,
                   ...(form.gwCcContacts||[]).filter(c=>c.name).map(c=>({name:c.name,email:c.email})),
                 ].filter(Boolean).map((a,i)=>(
-                  <div key={i} style={{fontSize:13,fontFamily:"Georgia,serif",marginBottom:4}}>• {a.name}{a.email?` – ${a.email}`:""}</div>
+                  <div key={i} style={{fontSize:13,fontFamily:LETTER_FONT,marginBottom:4}}>• {a.name}{a.email?` – ${a.email}`:""}</div>
                 ))}
               </div>
               {/* Disclosures */}
               <div style={{marginTop:28,borderTop:"2px solid #1e3a5f",paddingTop:16}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",marginBottom:14,fontFamily:"Georgia,serif"}}>Disclosures</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",marginBottom:14,fontFamily:LETTER_FONT}}>Disclosures</div>
                 {(()=>{
                   const gw = form.gwOrgName||"the Grant Writer";
                   return [
@@ -2581,28 +2587,28 @@ export default function App() {
                     {num:"3.", title:"No Pre-Selection / Client Discretion Statement", body:`The client is under no obligation to retain ${gw} and may select any provider. This communication does not constitute vendor pre-selection, required designation, or procurement steering. Any engagement must be contracted directly between ${gw} and the client at the client's sole discretion.`},
                   ].map(d=>(
                     <div key={d.num} style={{marginBottom:16}}>
-                      <div style={{fontSize:13,fontWeight:700,fontFamily:"Georgia,serif",color:"#1a1a1a",marginBottom:4}}>{d.num} {d.title}</div>
-                      <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#333",lineHeight:1.7}}>{d.body}</div>
+                      <div style={{fontSize:13,fontWeight:700,fontFamily:LETTER_FONT,color:"#1a1a1a",marginBottom:4}}>{d.num} {d.title}</div>
+                      <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#333",lineHeight:1.7}}>{d.body}</div>
                     </div>
                   ));
                 })()}
-                <div style={{fontSize:13,fontFamily:"Georgia,serif",color:"#333",fontStyle:"italic",marginTop:12,borderTop:"1px solid #ddd",paddingTop:10}}>No services shall commence unless and until the Grant Writer executes a written agreement directly with the client.</div>
+                <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#333",fontStyle:"italic",marginTop:12,borderTop:"1px solid #ddd",paddingTop:10}}>No services shall commence unless and until the Grant Writer executes a written agreement directly with the client.</div>
               </div>
             </>;
           })()}
           {/* Expiration clause — all letter variants (pre/inh/post/gw) */}
-          {fmtExpiry&&<p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginTop:24,marginBottom:0}}>This offer expires on {fmtExpiry}.</p>}
+          {fmtExpiry&&<p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginTop:24,marginBottom:0}}>This offer expires on {fmtExpiry}.</p>}
           {/* Signature — pre/post only */}
           {!isGw&&<>
           <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:14}}>Acknowledged and Agreed</div>
-          <p style={{fontSize:13,fontFamily:"Georgia,serif",lineHeight:1.7,marginBottom:20}}>The undersigned parties hereby acknowledge and agree to the terms and conditions set forth in this Engagement Letter as of the date first written above.</p>
+          <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,marginBottom:20}}>The undersigned parties hereby acknowledge and agree to the terms and conditions set forth in this Engagement Letter as of the date first written above.</p>
           <div style={{display:"flex",gap:48}}>
             {[
               {party:form.clientName||"CLIENT",sub:null,fields:[["Signature",""],["Date",""],["Printed Name",form.contactName||""],["Title",form.contactTitle||""]]},
               {party:"Lynde Consulting, LLC",sub:"DBA Nonprofit Security Advisors",isNpsa:true,fields:[["Signature",form.npsaSignerName||""],["Date",fmtLetterDate(form.npsaSigningDate||"")],["Printed Name",form.npsaSignerName||""],["Title",form.npsaSignerTitle||""]]}
             ].map((p,i)=>(
               <div key={i} style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:13,fontFamily:"Georgia,serif",marginBottom:2}}>{p.party}</div>
+                <div style={{fontWeight:700,fontSize:13,fontFamily:LETTER_FONT,marginBottom:2}}>{p.party}</div>
                 <div style={{fontSize:11.5,color:"#555",marginBottom:18,minHeight:16}}>{p.sub||"\u00a0"}</div>
                 {/*
                   * Row heights follow the row, not whether that row happens to
@@ -2618,7 +2624,7 @@ export default function App() {
                       <div style={{borderBottom:"1px solid #333",minHeight:isSigRow?40:24,paddingBottom:2,
                         fontSize:sigStyle?sigStyle.size:"13px",
                         color:val?(sigStyle?sigStyle.color:"#111"):"transparent",
-                        fontFamily:sigStyle?sigStyle.font:"Georgia,serif",
+                        fontFamily:sigStyle?sigStyle.font:LETTER_FONT,
                         lineHeight:sigStyle?"1":"inherit"}}>
                         {val||"."}
                       </div>
