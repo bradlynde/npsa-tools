@@ -927,6 +927,44 @@
   }
 
 </style>
+<style>
+  /* In-page dialogs (replacing confirm/prompt) */
+  .askd{border:0;border-radius:14px;padding:0;max-width:min(440px,calc(100vw - 32px));width:100%;box-shadow:0 18px 48px rgba(7,42,65,.28);color:var(--ink);}
+  .askd::backdrop{background:rgba(7,42,65,.45);}
+  .askd form{padding:22px 22px 18px;}
+  .askd h2{font:700 18px/1.3 var(--head);color:var(--navy);margin:0 0 8px;}
+  .askd p{font-size:15px;line-height:1.5;color:var(--muted);margin:0 0 16px;}
+  .askd-link{display:block;width:100%;box-sizing:border-box;height:44px;padding:0 12px;margin:0 0 16px;border:1px solid var(--line-strong);border-radius:8px;font:15px var(--sans);color:var(--ink);background:var(--row-alt);}
+  .askd-link[hidden],.askd-act button[hidden]{display:none;}
+  .askd-act{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+  .askd-act button{min-height:44px;padding:0 18px;border-radius:10px;font:600 15px var(--head);cursor:pointer;}
+  .askd-no{background:#fff;border:1px solid var(--line-strong);color:var(--navy);}
+  .askd-yes{background:var(--navy);border:1px solid var(--navy);color:#fff;}
+  .askd-yes.danger{background:#9b1c1c;border-color:#9b1c1c;}
+  .askd-act button:focus-visible{outline:3px solid rgba(144,156,72,.5);outline-offset:2px;}
+  /* First visit */
+  .start-here{border:1px solid var(--sage-line);background:var(--sage-tint);border-radius:14px;padding:18px 20px;margin:0 0 22px;}
+  .start-here h3{font:700 17px var(--head);color:var(--navy);margin:0 0 6px;}
+  .start-here p,.start-here li{font-size:15px;line-height:1.55;color:var(--ink);}
+  .start-here p{margin:0 0 8px;}
+  .start-here ul{margin:0 0 10px;padding-left:20px;}
+  .start-here .sh-who{color:var(--muted);}
+  .start-here .sh-who a{color:var(--navy);font-weight:600;}
+  .sh-act{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  .sh-act button{min-height:44px;padding:0 16px;border-radius:10px;font:600 15px var(--head);cursor:pointer;}
+  .sh-go{background:var(--navy);border:1px solid var(--navy);color:#fff;}
+  .sh-ok{background:#fff;border:1px solid var(--line-strong);color:var(--navy);}
+  /* Contacts: fixed columns so rows line up across groups, and buttons you can hit on a phone */
+  .ct-row{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,.9fr) 150px;}
+  .ct-row .ct-btns{justify-content:flex-end;gap:6px;}
+  .ct-row button{min-height:36px;padding:0 12px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--navy);font:600 13.5px var(--head);}
+  .ct-row button:hover{background:#f0f5f9;color:var(--navy);}
+  .ct-row button[data-remove]:hover{color:#9b1c1c;border-color:#e2b4ae;background:#fdf2f1;}
+  @media (max-width:760px){.ct-row{grid-template-columns:1fr;}.ct-row .ct-btns{justify-content:flex-start;margin-top:6px;}.ct-row button{min-height:44px;padding:0 16px;}}
+  /* Placeholders readable on the green fields (#a9b3bb was 1.9:1; this is 4.9:1) */
+  .icx .in::placeholder,.pg-b .in::placeholder,.tag-pop .in::placeholder,.icx-campus .in::placeholder,.pg-name::placeholder{color:#5f6b76;}
+  .pg-name::placeholder{font-weight:600;}
+</style>
 </head>
 <body>
 <div class="linkdead" id="linkdead" hidden><div class="ld-card" role="alertdialog" aria-modal="true" aria-labelledby="ldTitle" aria-describedby="ldText"><img class="ld-logo" src="data:image/png;base64,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" alt="Nonprofit Security Advisors"><h2 id="ldTitle" tabindex="-1">This link has stopped working</h2><p id="ldText">Everything you saved before now is safe. Ask your grant writer for a new link and you can carry on where you left off.</p><div class="ld-who" id="ldWho"></div></div></div>
@@ -966,6 +1004,7 @@
     <div class="fright">Confidential · Prepared for grant applicants</div>
   </footer>
 </div>
+<dialog class="askd" id="askDialog" aria-labelledby="askT" aria-describedby="askB"><form method="dialog"><h2 id="askT"></h2><p id="askB"></p><input type="text" id="askLink" class="askd-link" readonly hidden aria-label="Link"><div class="askd-act"><button value="cancel" class="askd-no">Cancel</button><button value="ok" class="askd-yes">OK</button></div></form></dialog>
 <script>
   /* Served by npsa-tools (server/intake.js). The six double-brace placeholders are filled
      server-side as JSON; the page talks to /api/intake/<slug>/* with the token in
@@ -1138,8 +1177,9 @@
   document.getElementById('siteAdd').addEventListener('click',function(){var n=SITES.filter(function(i){return !siteOn(i);})[0];if(!n)return;
     siteEl(n).classList.add('site-added');siteLayout();siteEl(n).querySelector('input').focus();});
   document.querySelectorAll('.site-rm').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.getAttribute('data-site')),c=siteEl(n),ws=facsFor(n);
-    if((hasData(c)||ws.some(hasData))&&!confirm('Remove Site '+n+' and everything entered for it, including its wish list'+(ws.length>1?'s':'')+'?'))return;
-    clearAndSave(c);ws.forEach(function(w){clearAndSave(w);w.querySelectorAll('.wl-item').forEach(function(it){wlSet(it,false);});});c.classList.remove('site-added');siteLayout();wlSummary();});});
+    var go=function(){clearAndSave(c);ws.forEach(function(w){clearAndSave(w);w.querySelectorAll('.wl-item').forEach(function(it){wlSet(it,false);});});c.classList.remove('site-added');siteLayout();wlSummary();};
+    if(!(hasData(c)||ws.some(hasData))){go();return;}
+    ask({title:'Remove Site '+n+'?',body:'Everything entered for this site goes too, including its wish list'+(ws.length>1?'s':'')+'.',ok:'Remove site',danger:true}).then(function(y){if(y)go();});});});
   if(APPLICATIONS.length)SITES.forEach(function(n){var sel=document.querySelector('[data-key="loc'+n+'_programs"]');if(!sel)return;var f=sel.closest('.site-field');
     var here=APPLICATIONS.filter(function(a){return a.sites.indexOf(n)>=0;});
     sel.style.display='none';f.querySelector('label').textContent='Applications for this site';
@@ -1214,8 +1254,10 @@
     wlSet(it,isMa?maOn(appOf(it),Number(it.getAttribute('data-site'))):hasData(it));
     it.querySelector('.wl-check').addEventListener('change',function(e){var on=e.target.checked;
       if(isMa){var sel=it.querySelector('.wl-ma-on');sel.value=on?'on':'off';save(sel);wlSet(it,on);wlSummary();return;}
-      if(!on&&hasData(it)&&!confirm('Clear what you entered for '+it.querySelector('.wl-type').textContent+'?')){e.target.checked=true;return;}
-      if(!on)clearAndSave(it);wlSet(it,on);if(on){growAll();it.querySelector('.wl-priority').focus();}wlSummary();});
+      var apply=function(){if(!on)clearAndSave(it);wlSet(it,on);if(on){growAll();it.querySelector('.wl-priority').focus();}wlSummary();};
+      if(!on&&hasData(it)){e.target.checked=true;
+        ask({title:'Clear '+it.querySelector('.wl-type').textContent+'?',body:'What you entered for this item will be cleared.',ok:'Clear it',danger:true}).then(function(y){if(y){e.target.checked=false;apply();}});return;}
+      apply();});
     it.addEventListener('change',function(e){if(isMa&&e.target.classList.contains('wl-ma-on')){var on=e.target.value!=='off';it.querySelector('.wl-check').checked=on;wlSet(it,on);}wlSummary();});
     it.addEventListener('input',function(e){if(/_cost$|_ma_amount$/.test(e.target.getAttribute('data-key')||''))renderBudgets();});});
   wlSummary();siteLayout();
@@ -1468,8 +1510,9 @@
   pgCards.forEach(function(c){
     c.addEventListener('input',function(e){if(e.target.classList.contains('pg-name'))pgLayout();});
     c.querySelector('.pg-rm').addEventListener('click',function(){
-      if(pgHas(c)&&!confirm('Remove '+(pgKey(c,'name').value||'this program')+' and everything entered for it?'))return;
-      clearAndSave(c);c.classList.remove('pg-added');pgLayout();});
+      var go=function(){clearAndSave(c);c.classList.remove('pg-added');pgLayout();};
+      if(!pgHas(c)){go();return;}
+      ask({title:'Remove '+(pgKey(c,'name').value||'this program')+'?',body:'Everything entered for this program goes too.',ok:'Remove program',danger:true}).then(function(y){if(y)go();});});
     c.querySelector('.pg-ok').addEventListener('click',function(){pgSet(c,'suggested','');pgLayout();});
     c.querySelector('.pg-runby').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
       var v=b.getAttribute('data-val');pgSet(c,'runby',pgKey(c,'runby').value===v?'':v);pgLayout();
@@ -1558,12 +1601,42 @@
     side.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
       if(b.hasAttribute('data-na')){el.value=NA;save(el);}else{el.value='';save(el);el.focus();}draw();icxCount();});});
   document.querySelector('.icx').addEventListener('input',icxCount);
+  /* In-page dialog in place of the browser's confirm() and prompt(): says what will happen, names the
+     action on its button, and resolves true only for that button. Esc or Cancel resolve false. */
+  function ask(o){var d=document.getElementById('askDialog');
+    d.querySelector('#askT').textContent=o.title||'';d.querySelector('#askB').textContent=o.body||'';
+    var l=d.querySelector('#askLink');l.hidden=!o.link;l.value=o.link||'';
+    var yes=d.querySelector('[value="ok"]'),no=d.querySelector('[value="cancel"]');
+    yes.textContent=o.ok||'OK';yes.classList.toggle('danger',!!o.danger);no.hidden=o.cancel===false;
+    d.returnValue='';
+    if(typeof d.showModal==='function')d.showModal();else d.setAttribute('open','');
+    if(o.link){l.focus();l.select();}else (o.cancel===false?yes:no).focus();
+    return new Promise(function(res){d.addEventListener('close',function h(){d.removeEventListener('close',h);res(d.returnValue==='ok');});});}
+  document.getElementById('askDialog').addEventListener('click',function(e){if(e.target===this)this.close('cancel');});
   /* copy a link that opens this question */
   document.querySelectorAll('.icx .qn[data-link]').forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();
     var url=location.origin+location.pathname+location.search+'#q-'+b.getAttribute('data-link');
     function done(){b.classList.add('copied');setTimeout(function(){b.classList.remove('copied');},1600);}
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,function(){window.prompt('Copy this link',url);});
-    else window.prompt('Copy this link',url);});});
+    var show=function(){ask({title:'Copy this link',body:'It opens this question. Select it and copy it.',link:url,ok:'Done',cancel:false});};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,show);
+    else show();});});
+  /* First visit: before a client has answered anything, a short card on the Checklist says what this
+     is, that it saves as they go, and who to ask. "Got it" puts it away for good on this device. */
+  (function(){var answered=Object.keys(EXISTING).some(function(k){return /^(s\d_)?q_|^loc\d_|^prog\d+_|^wl_/.test(k)&&String(EXISTING[k]||'').trim()!=='';});
+    var key='npsa-welcomed-'+CLIENT,seen=false;try{seen=localStorage.getItem(key)==='1';}catch(e){}
+    var body=document.querySelector('.sheet[data-sheet="ck"] .sheet-body');if(answered||seen||!body)return;
+    var gw=(CONTACTS.npsa||[]).filter(function(c){return /grant writer/i.test(c.role||'');})[0]||(CONTACTS.npsa||[])[0];
+    body.insertAdjacentHTML('afterbegin','<section class="start-here" id="startHere" aria-labelledby="startHereT"><h3 id="startHereT">Start here</h3>'
+      +'<p>This form gathers what your NPSA team needs to write your grant application: your organization, programs, sites, the security items you want funded, and a few documents.</p>'
+      +'<ul><li>Go through the tabs in order. Most people start with <b>Information Collection</b>.</li>'
+      +'<li>Everything saves as you type. You don\u2019t have to finish in one sitting: come back with this same link any time.</li>'
+      +'<li>Others at your organization can help. Share this link with them and add them on the <b>Contacts</b> tab.</li></ul>'
+      +(gw?'<p class="sh-who">Questions? Ask '+escT(gw.name)+(gw.email?', <a href="mailto:'+escT(gw.email)+'">'+escT(gw.email)+'</a>':'')+'.</p>':'')
+      +'<div class="sh-act"><button type="button" class="sh-go" data-goto="ic">Start with Information Collection</button><button type="button" class="sh-ok">Got it</button></div></section>');
+    var card=document.getElementById('startHere');
+    function done(){try{localStorage.setItem(key,'1');}catch(e){}card.remove();}
+    card.querySelector('.sh-ok').addEventListener('click',done);
+    card.querySelector('.sh-go').addEventListener('click',function(){done();goTab('ic');});})();
   /* Per campus (2026-09-30): with NPSA's per-campus switch on and two or more sites, sections 3 to 5
      are answered for each campus. A bar above the sections picks the campus; the fields are re-keyed
      in place (site 1 keeps the plain keys, site n uses s<n>_…), so saving, "Doesn't apply", notes and
@@ -1685,9 +1758,10 @@
       document.getElementById('ctName').value=x.name||'';document.getElementById('ctRole').value=x.role||'';document.getElementById('ctEmail').value=x.email||'';document.getElementById('ctPhone').value=x.phone||'';
       ctMode(em);ctSay('');document.getElementById('ctName').focus();return;}
     var b=e.target.closest('button[data-remove]');if(!b)return;
-    var email=b.getAttribute('data-remove');if(!confirm('Remove '+email+' from your team list?'))return;setPill('saving');
+    var email=b.getAttribute('data-remove'),who=(CONTACTS.client||[]).filter(function(x){return x.email===email;})[0];
+    ask({title:'Remove '+((who&&who.name)||email)+'?',body:'They come off your team list here. Nothing is sent to them.',ok:'Remove',danger:true}).then(function(y){if(!y)return;setPill('saving');
     call('DELETE','/contacts?email='+encodeURIComponent(email),{}).then(function(res){CONTACTS={npsa:res.npsa,client:res.client};renderContacts();ctSay('Removed.');setPill('saved');})
-      .catch(function(err){ctSay((err&&err.message)||'Could not remove that person.',true);setPill('error');if(err&&err.status===401)linkDead();});});
+      .catch(function(err){ctSay((err&&err.message)||'Could not remove that person.',true);setPill('error');if(err&&err.status===401)linkDead();});});});
 
 </script>
 </body></html>
