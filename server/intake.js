@@ -599,7 +599,7 @@ export function progressFor(client, answered, uploaded = new Set(), programSites
   const has = k => answered.has(k);
   const st = String(client.state || '').toUpperCase();
   const stored = Array.isArray(client.applications) ? client.applications.filter(a => a.status !== 'withdrawn') : null;
-  const programs = PROGRAM_SLOTS.some(n => has(`prog${n}_name`)), unique = PROGRAM_SLOTS.some(n => has(`prog${n}_unique`));
+  const unique = PROGRAM_SLOTS.some(n => has(`prog${n}_unique`));
   const sites = new Set([1, ...(stored || []).flatMap(a => a.sites)]);
   for (const n of SITE_NUMBERS.slice(1)) if ([...LOC_FIELDS, 'programs'].some(f => has(`loc${n}_${f}`))) sites.add(n);
   // Per campus: sections 3 to 5 count once for each site in play; each site's own tally goes in campuses.
@@ -616,8 +616,6 @@ export function progressFor(client, answered, uploaded = new Set(), programSites
     if (!CAMPUS_SECTIONS.test(q.section)) { sec.total++; if (done(q.key)) sec.answered++; continue; }
     for (const c of campuses) { sec.total++; c.total++; if (done(campusKey(q.key, c.site), c.site)) { sec.answered++; c.answered++; } }
   }
-  const community = sections.find(x => x.section.startsWith('3.'));
-  if (community) { community.total++; if (programs) community.answered++; }
   const locKeys = [...sites].sort((a, b) => a - b).flatMap(n => [...LOC_FIELDS, ...(stored ? [] : ['programs'])].map(f => `loc${n}_${f}`));
   sections.push({ section: 'Locations', answered: locKeys.filter(has).length, total: locKeys.length });
   const docs = documentsFor(client).map(d => d.key), received = receivedFor(client);

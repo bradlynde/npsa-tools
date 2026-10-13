@@ -759,7 +759,7 @@ await check('per campus: sections 3 to 5 per site once NPSA turns it on; 1 and 2
   const st = (await call('GET', `/api/clients/${slug}/status`, { headers: TEAM })).data;
   assert.deepEqual(st.campuses.map(c => [c.site, c.name, c.lead, c.answered]), [[1, 'North', '', 1], [2, 'South', 'Pat, campus pastor', 2]]);
   const s3 = st.sections.find(x => x.section === '3. Community Role'), s1 = st.sections.find(x => x.section === '1. Applicant Information');
-  assert.equal(s3.total, 2 * 12 + 1, 'twelve section 3 questions per campus, plus the programs list once');
+  assert.equal(s3.total, 2 * 12, 'twelve section 3 questions per campus; the programs list no longer counts here');
   assert.equal(s1.total, 16, 'section 1 counts once');
   const ans = (await call('GET', `/api/clients/${slug}/answers`, { headers: TEAM })).data.answers;
   assert.ok(ans.some(a => a.key === 's2_q_4_1' && a.section === '4. Threats (South)' && a.label.startsWith('South · ')));
@@ -782,7 +782,7 @@ await check('per campus: a program tagged only one nearby answers 3.8 where it r
     assert.deepEqual((await call('GET', `/api/clients/${slug}`, { headers: TEAM })).data.core, st.core);
   };
   assert.equal((await seed({ loc1_name: 'North', loc2_name: 'South', loc3_name: 'East', prog1_name: 'Food pantry', prog1_unique: 'Yes', prog1_site: '2' })).status, 200);
-  assert.equal((await status()).sections.find(x => x.section === '3. Community Role').answered, 2, 'per campus off: the tag answers 3.8 for the whole organization, as before');
+  assert.equal((await status()).sections.find(x => x.section === '3. Community Role').answered, 1, 'per campus off: the tag answers 3.8 for the whole organization, as before');
   assert.equal((await call('PATCH', `/api/clients/${slug}`, { headers: TEAM, body: { per_campus: true } })).status, 200);
   let st = await status();
   assert.deepEqual(st.campuses.map(c => c.answered), [0, 1, 0], 'only South, where the pantry runs');
@@ -996,7 +996,7 @@ await check('progress counts what this client is asked: their sites, their docum
   assert.deepEqual(sec('Locations'), [10, 10], 'a fully filled single site is complete; applications replace the programs select');
   assert.deepEqual(sec('Uploads'), [2, 3], 'their three documents, two received by email');
   assert.deepEqual(sec('1. Applicant Information'), [1, 16]);
-  assert.deepEqual(sec('3. Community Role'), [2, 13], '3.6 counts a listed program; 3.8 counts a program tagged only one nearby');
+  assert.deepEqual(sec('3. Community Role'), [1, 12], 'a listed program no longer counts (3.6 is gone); 3.8 counts a program tagged only one nearby');
   const list = (await call('GET', '/api/clients?search=Progress', { headers: TEAM })).data.find(c => c.slug === 'progress-church');
   assert.deepEqual(list.core, st.core, 'the list and the dialog agree');
   assert.deepEqual((await call('GET', '/api/clients/progress-church', { headers: TEAM })).data.core, st.core);
