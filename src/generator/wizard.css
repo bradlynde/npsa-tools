@@ -146,7 +146,7 @@
 .wz-input:focus,
 .wz-select:focus {
   border-color: var(--navy);
-  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
+  box-shadow: 0 0 0 3px rgba(0, 57, 91, 0.12);
 }
 
 .wz-input[readonly] {

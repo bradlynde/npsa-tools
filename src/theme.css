@@ -30,9 +30,9 @@
   --mute: #8a8577;
   --faint: #a09a8c;
 
-  /* brand — navy and olive are the only two hues */
-  --navy: #1e3a5f;
-  --olive: #6b8e23;
+  /* brand — navy and olive are the only two hues, taken from the logo */
+  --navy: #00395b;
+  --olive: #787c04;
   --on-accent: #ffffff;
 
   /* the dark editing panel beside the letter preview */
@@ -61,7 +61,7 @@
 
   /* Navy as a FILL. It stays navy in dark mode; --navy is the text/accent
      sibling and lightens, which would be unreadable behind white type. */
-  --navycard: #1e3a5f;
+  --navycard: #00395b;
 
   --shadow-card: 0 2px 12px rgba(60, 50, 30, 0.06);
   --shadow-card-hover: 0 14px 30px rgba(60, 50, 30, 0.1);
@@ -164,7 +164,7 @@ body {
    * --navy and --olive lighten in dark mode so they stay legible on a dark
    * page. The letter is white paper in either theme, so a lightened navy put
    * the rule under every section heading at #4a8bc4 while the letterhead above
-   * it — a literal #1e3a5f — held. Two different blues on one page, in the
+   * it — a literal navy — held. Two different blues on one page, in the
    * document that goes to the client.
    *
    * Redefining them on the paper rather than at each use insulates the whole
@@ -172,8 +172,8 @@ body {
    * the letter later gets the brand colour without its author having to know
    * dark mode exists.
    */
-  --navy: #1e3a5f;
-  --olive: #6b8e23;
+  --navy: #00395b;
+  --olive: #787c04;
 }
 
 /*

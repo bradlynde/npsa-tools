@@ -857,7 +857,7 @@ export default function App() {
    *
    * So every section rule was missing from the PDF that goes to the client.
    * SH has been `var(--navy)` since #190; #268 moved the short-notice heading
-   * onto the same path from a literal #1e3a5f that had been printing correctly,
+   * onto the same path from a literal #00395b that had been printing correctly,
    * which made one more heading wrong rather than fewer.
    *
    * Rather than restating the paper's values here and letting the two drift,
@@ -1938,7 +1938,7 @@ export default function App() {
             ];
             return <>
               {/* Logo */}
-              <div style={{textAlign:"center",borderBottom:"2.5px solid #1e3a5f",paddingBottom:10,marginBottom:12}}>
+              <div style={{textAlign:"center",borderBottom:"2.5px solid #00395b",paddingBottom:10,marginBottom:12}}>
                 <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
                 <div style={{fontSize:11.5,color:"#555",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
               </div>
@@ -1968,19 +1968,19 @@ export default function App() {
                 </div>
               </div>
               {/* Summary box */}
-              <div style={{border:"1px solid #1e3a5f",borderRadius:4,overflow:"hidden",marginBottom:24}}>
+              <div style={{border:"1px solid #00395b",borderRadius:4,overflow:"hidden",marginBottom:24}}>
                 {summaryRows.map(([k,v],i)=>(
                   <div key={k} style={{display:"flex",borderTop:i===0?"none":"1px solid #a7b4c6"}}>
-                    <div style={{width:180,flexShrink:0,background:"#fbfaf8",padding:"9px 14px",fontSize:11.5,fontWeight:700,letterSpacing:0.5,color:"#1e3a5f",fontFamily:LETTER_FONT}}>{k}</div>
+                    <div style={{width:180,flexShrink:0,background:"#fbfaf8",padding:"9px 14px",fontSize:11.5,fontWeight:700,letterSpacing:0.5,color:"#00395b",fontFamily:LETTER_FONT}}>{k}</div>
                     <div style={{flex:1,padding:"9px 14px",fontSize:13,color:"#1a1a1a",fontFamily:LETTER_FONT}}>{v}</div>
                   </div>
                 ))}
               </div>
               {/* Executive Summary */}
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Executive Summary</div>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginBottom:10}}>Executive Summary</div>
               <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,marginBottom:20}}>{interpolateProposal(execSummaryText)}</p>
               {/* Project Locations */}
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Project Locations</div>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginBottom:10}}>Project Locations</div>
               <div style={{marginBottom:20}}>
                 {(form.locations||[]).filter(l=>l.address||l.city||l.name).length>0
                   ? (form.locations||[]).filter(l=>l.address||l.city||l.name).map((loc,i)=>{
@@ -1990,7 +1990,7 @@ export default function App() {
                   : <div style={{fontSize:13,fontFamily:LETTER_FONT,color:"#555",fontStyle:"italic"}}>Add locations on the Scope step to list project campuses here.</div>}
               </div>
               {/* Three Phase Approach */}
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Three Phase Approach</div>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginBottom:10}}>Three Phase Approach</div>
               {phasesToShow.map((ph,i)=>(
                 <div key={i} style={{marginBottom:16}}>
                   <div style={{fontSize:12.5,fontWeight:700,fontFamily:LETTER_FONT,color:"#1a1a1a",marginBottom:4}}>{ph.title}</div>
@@ -1999,7 +1999,7 @@ export default function App() {
                 </div>
               ))}
               {/* Eligible Project Types */}
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:20,marginBottom:10}}>Eligible Project Types</div>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginTop:20,marginBottom:10}}>Eligible Project Types</div>
               <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.8,marginBottom:20}}>{proposalTpl.eligible}</p>
               {/* Investment & Payment Terms */}
               {(()=>{
@@ -2008,7 +2008,7 @@ export default function App() {
                 const pDisc = useInh ? form.inhPricingTier==="discounted" : form.pricingTier==="discounted";
                 const pDiscDate = useInh ? form.inhEarlySigningDate : form.earlySigningDate;
                 return <>
-                  <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Investment &amp; Payment Terms</div>
+                  <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginBottom:10}}>Investment &amp; Payment Terms</div>
                   <div style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.8,marginBottom:8}}>
                     <div><strong>Professional Fee:</strong> {fmt(pFees.upfront)}</div>
                     {pDisc&&pFees.discount>0&&<div>Includes a {fmt(pFees.discount)} early-signing discount from the standard {fmt(pFees.baseUpfront)} fee.</div>}
@@ -2022,16 +2022,16 @@ export default function App() {
                     {isFull&&<div>Award Implementation services are billed as a percentage-based fee, due upon notification of a grant award and formally engaged following State authorization to proceed, as set forth in the governing Engagement Letter.</div>}
                   </div>
                   {pDisc&&pDiscDate&&(
-                    <div style={{border:"1px solid #1e3a5f",borderRadius:4,background:"#fbfaf8",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:LETTER_FONT,color:"#1e3a5f",fontWeight:700}}>
+                    <div style={{border:"1px solid #00395b",borderRadius:4,background:"#fbfaf8",padding:"12px 16px",margin:"6px 0 20px",fontSize:13,fontFamily:LETTER_FONT,color:"#00395b",fontWeight:700}}>
                       To lock the discounted fee, execute the Engagement Letter by {pDiscDate}.
                     </div>
                   )}
                 </>;
               })()}
               {/* Important Note */}
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginBottom:10}}>Important Note</div>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginBottom:10}}>Important Note</div>
               <p style={{fontSize:12.5,fontFamily:LETTER_FONT,lineHeight:1.7,marginBottom:20,fontStyle:"italic",color:"#333"}}>{proposalTpl.note}</p>
-              {fmtExpiry&&<p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
+              {fmtExpiry&&<p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#00395b",marginBottom:20}}>This proposal expires on {fmtExpiry}.</p>}
               <div style={{marginTop:30,paddingTop:10,borderTop:"1px solid #ddd",textAlign:"center",fontSize:11.5,color:"#555"}}>
                 Prepared for the leadership of {markUnresolved(form.clientName||"[CLIENT NAME]")} &nbsp;&#8226;&nbsp; Nonprofit Security Advisors &nbsp;&#8226;&nbsp; Lynde Consulting LLC
               </div>
@@ -2042,7 +2042,7 @@ export default function App() {
             const npsaDate = fmtLetterDate(form.npsaSigningDate||"");
             return <>
               {/* Letterhead */}
-              <div style={{textAlign:"center",borderBottom:"2.5px solid #1e3a5f",paddingBottom:10,marginBottom:12}}>
+              <div style={{textAlign:"center",borderBottom:"2.5px solid #00395b",paddingBottom:10,marginBottom:12}}>
                 <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
                 <div style={{fontSize:11.5,color:"#555",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
               </div>
@@ -2084,7 +2084,7 @@ export default function App() {
                 ))}
               </div>
               {/* Signature block */}
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:26,marginBottom:14}}>Acknowledged and Agreed</div>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginTop:26,marginBottom:14}}>Acknowledged and Agreed</div>
               <div style={{display:"flex",gap:48}}>
                 {[
                   {party:addClient,sub:null,isNpsa:false,fields:[["Signature",""],["Printed Name",form.contactName||""],["Title",form.contactTitle||""],["Date",""]]},
@@ -2122,7 +2122,7 @@ export default function App() {
             </>;
           })() : <>
           {/* Logo */}
-          <div style={{textAlign:"center",borderBottom:"2.5px solid #1e3a5f",paddingBottom:10,marginBottom:12}}>
+          <div style={{textAlign:"center",borderBottom:"2.5px solid #00395b",paddingBottom:10,marginBottom:12}}>
             <img src={LOGO_SRC} alt="Nonprofit Security Advisors" style={{display:"block",margin:"0 auto",maxHeight:80,maxWidth:340}}/>
             <div style={{fontSize:11.5,color:"#555",marginTop:6,letterSpacing:0.5}}>Lynde Consulting LLC, DBA Nonprofit Security Advisors</div>
           </div>
@@ -2162,8 +2162,8 @@ export default function App() {
           </div>}
           {/* Pre-Award Fee Summary Box */}
           {isPre&&(
-            <div style={{border:"1px solid #1e3a5f",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>
+            <div style={{border:"1px solid #00395b",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>
                 Fee Summary — Pre-Award{form.optPostAwardScope?" & Compliance":""} · {totalApps} Application{totalApps>1?"s":""}
               </div>
               <div style={{display:"flex",gap:0,flexWrap:"wrap"}}>
@@ -2178,7 +2178,7 @@ export default function App() {
                     return (
                       <div key={p.num} style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16,minWidth:80}}>
                         <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment {p.num}{pct>0?` (${pct}%)`:""}</div>
-                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{pct>0?fmt(amt):"—"}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{pct>0?fmt(amt):"—"}</div>
                         <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{p.label||"—"}</div>
                       </div>
                     );
@@ -2187,10 +2187,10 @@ export default function App() {
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Upfront Fee</div>
                     {fees.discount>0
-                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD,textDecoration:"line-through",opacity:0.5}}>{fmt(fees.baseUpfront)}</div>
-                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.upfront)}</div>
+                      ? <><div style={{fontSize:15,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD,textDecoration:"line-through",opacity:0.5}}>{fmt(fees.baseUpfront)}</div>
+                          <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(fees.upfront)}</div>
                           <div style={{fontSize:11.5,color:"#b05400",marginTop:1,fontWeight:600}}>− {fmt(fees.discount)} early signing discount</div></>
-                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.upfront)}</div>
+                      : <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(fees.upfront)}</div>
                     }
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due at signing</div>
                   </div>
@@ -2198,20 +2198,20 @@ export default function App() {
                 {fees.contingent!==null&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Contingent Fee</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.contingent)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(fees.contingent)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 {form.optPostAwardScope&&fees.postAward>0&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(fees.postAward)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(fees.postAward)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Total</div>
-                  <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:LETTER_HEAD}}>{fmt(fees.total)}</div>
+                  <div style={{fontSize:19,fontWeight:700,color:"#787c04",fontFamily:LETTER_HEAD}}>{fmt(fees.total)}</div>
                   <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Max grant: {fmt(totalMaxAward(form.programs?.length ? form.programs : [{key:"federal"}], form.locations))}</div>
                 </div>
               </div>
@@ -2219,8 +2219,8 @@ export default function App() {
           )}
           {/* In-House Pre-Award Fee Summary Box */}
           {isInh&&(
-            <div style={{border:"1px solid #1e3a5f",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>
+            <div style={{border:"1px solid #00395b",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>
                 Fee Summary — Pre-Award{form.inhOptPostAwardScope?" & Compliance":""} · {totalApps} Application{totalApps>1?"s":""}
               </div>
               <div style={{display:"flex",gap:0,flexWrap:"wrap"}}>
@@ -2235,7 +2235,7 @@ export default function App() {
                     return (
                       <div key={p.num} style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16,minWidth:80}}>
                         <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment {p.num}{pct>0?` (${pct}%)`:""}</div>
-                        <div style={{fontSize:16,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{pct>0?fmt(amt):"—"}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{pct>0?fmt(amt):"—"}</div>
                         <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{p.label||"—"}</div>
                       </div>
                     );
@@ -2244,10 +2244,10 @@ export default function App() {
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Upfront Fee</div>
                     {inhFees.discount>0
-                      ? <><div style={{fontSize:15,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD,textDecoration:"line-through",opacity:0.5}}>{fmt(inhFees.baseUpfront)}</div>
-                          <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.upfront)}</div>
+                      ? <><div style={{fontSize:15,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD,textDecoration:"line-through",opacity:0.5}}>{fmt(inhFees.baseUpfront)}</div>
+                          <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(inhFees.upfront)}</div>
                           <div style={{fontSize:11.5,color:"#b05400",marginTop:1,fontWeight:600}}>− {fmt(inhFees.discount)} early signing discount</div></>
-                      : <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.upfront)}</div>
+                      : <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(inhFees.upfront)}</div>
                     }
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due at signing</div>
                   </div>
@@ -2255,20 +2255,20 @@ export default function App() {
                 {inhFees.contingent!==null&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Contingent Fee</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.contingent)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(inhFees.contingent)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 {form.inhOptPostAwardScope&&inhFees.postAward>0&&(
                   <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                     <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Compliance Consulting Fee{numLocs>1?` (×${numLocs})`:""}</div>
-                    <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fmt(inhFees.postAward)}</div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fmt(inhFees.postAward)}</div>
                     <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due after award notification</div>
                   </div>
                 )}
                 <div style={{flex:1}}>
                   <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Total</div>
-                  <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:LETTER_HEAD}}>{fmt(inhFees.total)}</div>
+                  <div style={{fontSize:19,fontWeight:700,color:"#787c04",fontFamily:LETTER_HEAD}}>{fmt(inhFees.total)}</div>
                   <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Max grant: {fmt(totalMaxAward(form.programs?.length ? form.programs : [{key:"federal"}], form.locations))}</div>
                 </div>
               </div>
@@ -2312,7 +2312,7 @@ export default function App() {
             )}
             {form.polishedClause&&(
               <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
+                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
                 <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.polishedClause}</p>
               </div>
             )}
@@ -2355,7 +2355,7 @@ export default function App() {
             )}
             {form.inhPolishedClause&&(
               <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
+                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
                 <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.inhPolishedClause}</p>
               </div>
             )}
@@ -2381,29 +2381,29 @@ export default function App() {
                 pmt3Due = `Due ${fmtLetterDate(iso(m8))}`;
               }
               return (
-                <div style={{border:"1px solid #1e3a5f",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
-                  <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>
+                <div style={{border:"1px solid #00395b",borderRadius:4,padding:"12px 18px",marginBottom:20,background:"#fbfaf8"}}>
+                  <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>
                     Fee Summary — Award Implementation M&A · {postGrantYear}
                   </div>
                   <div style={{display:"flex",gap:0}}>
                     <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment 1 — At Signing{p1>0?` (${p1}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fee>0&&p1>0?fmt(pmt1):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fee>0&&p1>0?fmt(pmt1):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Due at signing</div>
                     </div>
                     <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment 2 — Month 4{p2>0?` (${p2}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fee>0&&p2>0?fmt(pmt2):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fee>0&&p2>0?fmt(pmt2):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{pmt2Due}</div>
                     </div>
                     <div style={{flex:1,borderRight:"1px solid #a7b4c6",paddingRight:16,marginRight:16}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Payment 3 — Month 8{p3>0?` (${p3}%)`:""}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1e3a5f",fontFamily:LETTER_HEAD}}>{fee>0&&p3>0?fmt(pmt3):"—"}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:"#00395b",fontFamily:LETTER_HEAD}}>{fee>0&&p3>0?fmt(pmt3):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>{pmt3Due}</div>
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:11.5,color:"#555",marginBottom:2}}>Total Fixed Fee</div>
-                      <div style={{fontSize:19,fontWeight:700,color:"#6b8e23",fontFamily:LETTER_HEAD}}>{fee>0?fmt(fee):"—"}</div>
+                      <div style={{fontSize:19,fontWeight:700,color:"#787c04",fontFamily:LETTER_HEAD}}>{fee>0?fmt(fee):"—"}</div>
                       <div style={{fontSize:11.5,color:"#555",marginTop:2}}>Fixed engagement fee</div>
                     </div>
                   </div>
@@ -2420,7 +2420,7 @@ export default function App() {
             <SH id="post_other"/><Body id="post_other"/>
             {form.postPolishedClause&&(
               <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",marginBottom:8}}>Additional Terms</div>
+                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
                 <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.postPolishedClause}</p>
               </div>
             )}
@@ -2449,7 +2449,7 @@ export default function App() {
             const Row = ({children}) => <div style={{display:"flex",gap:32,marginBottom:0}}>{children}</div>;
             const Col = ({children,flex=1}) => <div style={{flex}}>{children}</div>;
             const SectionHead = ({num,title}) => (
-              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#1e3a5f",borderBottom:"1.5px solid #1e3a5f",paddingBottom:4,marginTop:24,marginBottom:14}}>
+              <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",borderBottom:"1.5px solid #00395b",paddingBottom:4,marginTop:24,marginBottom:14}}>
                 {num}. {title}
               </div>
             );
@@ -2563,12 +2563,12 @@ export default function App() {
 2. Provide its white paper and/or informational materials directly to the client.
 3. Send a meeting invitation including:`)}
               <div style={{marginLeft:24,marginTop:8}}>
-                <div style={{fontSize:12,fontWeight:700,color:"#1e3a5f",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>NPSA:</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#00395b",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>NPSA:</div>
                 {form.npsa1Name&&<div style={{fontSize:13,fontFamily:LETTER_FONT,marginBottom:4}}>• {form.npsa1Name}{form.npsa1Email?` – ${form.npsa1Email}`:""}</div>}
                 {(form.npsa2Selected||[]).map(r=>(
                   <div key={r.name} style={{fontSize:13,fontFamily:LETTER_FONT,marginBottom:4}}>• {r.name}{r.email?` – ${r.email}`:""}</div>
                 ))}
-                <div style={{fontSize:12,fontWeight:700,color:"#1e3a5f",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{form.clientName||"CLIENT"}:</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#00395b",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{form.clientName||"CLIENT"}:</div>
                 {[
                   form.contactName ? {name:form.contactName, email:form.contactEmail} : null,
                   ...(form.gwCcContacts||[]).filter(c=>c.name).map(c=>({name:c.name,email:c.email})),
@@ -2577,7 +2577,7 @@ export default function App() {
                 ))}
               </div>
               {/* Disclosures */}
-              <div style={{marginTop:28,borderTop:"2px solid #1e3a5f",paddingTop:16}}>
+              <div style={{marginTop:28,borderTop:"2px solid #00395b",paddingTop:16}}>
                 <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",marginBottom:14,fontFamily:LETTER_FONT}}>Disclosures</div>
                 {(()=>{
                   const gw = form.gwOrgName||"the Grant Writer";
@@ -2597,10 +2597,10 @@ export default function App() {
             </>;
           })()}
           {/* Expiration clause — all letter variants (pre/inh/post/gw) */}
-          {fmtExpiry&&<p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#1e3a5f",marginTop:24,marginBottom:0}}>This offer expires on {fmtExpiry}.</p>}
+          {fmtExpiry&&<p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,fontStyle:"italic",fontWeight:700,color:"#00395b",marginTop:24,marginBottom:0}}>This offer expires on {fmtExpiry}.</p>}
           {/* Signature — pre/post only */}
           {!isGw&&<>
-          <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#1e3a5f",borderBottom:"2px solid #1e3a5f",paddingBottom:4,marginTop:30,marginBottom:14}}>Acknowledged and Agreed</div>
+          <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#00395b",borderBottom:"2px solid #00395b",paddingBottom:4,marginTop:30,marginBottom:14}}>Acknowledged and Agreed</div>
           <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,marginBottom:20}}>The undersigned parties hereby acknowledge and agree to the terms and conditions set forth in this Engagement Letter as of the date first written above.</p>
           <div style={{display:"flex",gap:48}}>
             {[
