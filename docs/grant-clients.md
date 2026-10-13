@@ -386,7 +386,13 @@ tracks plus the state's own programs in the NSGP state reference. Set it with `c
 
 What reads it:
 - The client form's header shows a chip per application; the Locations tab shows each site's
-  applications in place of the "Programs applying" select.
+  applications as the same chips, in place of the "Programs applying" select.
+
+The Locations tab (2026-10-13) shows one site at a time. A "Your sites" bar picks the site (a dropdown
+on a phone) and holds Add another site; each card says how much of that site is filled in, counted the
+way `progressFor` counts the Locations section (the ten `loc<n>_` fields, plus `programs` when no
+applications are set). The chosen site reads like an Information Collection section: the site, its
+size and value, its applications, and NPSA's `loc<n>_infra` research as an NPSA note.
 - Site caps count `active`, `submitted` and `awarded` applications; `planned` stays out of
   today's caps.
 - `documentsFor` matches `by_program` against stored applications (falling back to
