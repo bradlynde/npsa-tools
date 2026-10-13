@@ -510,8 +510,10 @@ the question; the grey number beside each question copies that link.
 - **1.1 Primary contact** fills from the client's primary contact the first time the page opens with
   all four fields blank, written as `contacts`. A client edit is never overwritten.
 - **State-only fields** hide by state: SAM.gov expiration (TX, IL) and volunteers (NY).
-- **3.6** is a live summary of the Programs tab; **3.8** ("only one of its kind") counts as answered
-  once a program is tagged Only one nearby.
+- **3.6** is gone from the page (2026-10-13): it was a summary that sent the client off to the Programs
+  tab mid-section, so programs no longer count toward section 3. NPSA's note on `q_3_2_1` shows at
+  the top of the Programs tab instead. **3.8** ("only one of its kind") counts as answered once a
+  program is tagged Only one nearby.
 
 **Programs** moved to tab 3 and is one card per program, 40 slots (was 20 table rows). Each card:
 name (the card title), what it is, how often, people each time, Run by (Us / Outside group; Outside
