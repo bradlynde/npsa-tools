@@ -57,7 +57,7 @@ const pool = new Pool({
 
 const routes = {};
 const add = (m) => (p, ...fns) => { routes[`${m} ${p}`] = fns[fns.length - 1]; };
-const app = { get: add('GET'), post: add('POST'), put: add('PUT'), patch: add('PATCH'), use: () => {} };
+const app = { get: add('GET'), post: add('POST'), put: add('PUT'), patch: add('PATCH'), delete: add('DELETE'), use: () => {} };
 
 const { registerMarketing } = await import(process.env.TARGET || '../server/marketing.js');
 registerMarketing(app, pool);

@@ -376,6 +376,21 @@ async function ensureSchema(pool) {
       error        TEXT
     );
   `).catch(err => console.error('sync_runs schema error:', err.message));
+
+  // The tracked links the team hands out, saved from the Links panel's builder.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS utm_links (
+      id           SERIAL PRIMARY KEY,
+      label        TEXT NOT NULL,
+      base_url     TEXT NOT NULL,
+      utm_source   TEXT NOT NULL,
+      utm_medium   TEXT NOT NULL,
+      utm_campaign TEXT,
+      utm_content  TEXT,
+      created_by   TEXT,
+      created_at   TIMESTAMPTZ DEFAULT NOW()
+    );
+  `).catch(err => console.error('utm_links schema error:', err.message));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1010,6 +1025,78 @@ const CHANNEL_LABELS = {
 const eventLabel = (slug) => String(slug).split(/[-_\s]+/).filter(Boolean)
   .map((w) => (/^[a-z]{2,4}$/i.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1))).join(' ');
 const channelLabel = (c) => CHANNEL_LABELS[c] || (c ? c[0].toUpperCase() + c.slice(1) : 'Direct / Other');
+
+// ─────────────────────────────────────────────────────────────
+// 5b. Tracked links (the Links panel)
+// ─────────────────────────────────────────────────────────────
+// The four intro links a Zapier workflow ingests. A booking on any other Calendly
+// link never reaches the dashboard, however it is tagged.
+const BOOKING_LINKS = [
+  { label: 'Team round robin (30min NPSA Intro)', url: 'https://calendly.com/npsa-consultation/intro' },
+  { label: 'Chad: Intro Consultation', url: 'https://calendly.com/chad-nonprofitsecurityadvisors/new-meeting' },
+  { label: 'Jeff: Intro Consultation', url: 'https://calendly.com/jeff-nonprofitsecurityadvisors/30min' },
+  { label: 'Brad: Intro Consultation', url: 'https://calendly.com/brad-15/npsa-30-minute-introduction-zoom-call' },
+];
+const SITE_LINKS = [
+  { label: 'Website home page', url: 'https://nonprofitsecurityadvisors.com' },
+];
+const bareUrl = (u) => String(u || '').trim().toLowerCase()
+  .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+const TRACKED_BOOKING = new Set(BOOKING_LINKS.map((l) => bareUrl(l.url)));
+
+/** A UTM value as the dashboard reads it: lower case, no spaces, nothing exotic. */
+const utmSlug = (v) => String(v || '').trim().toLowerCase()
+  .replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '').replace(/-{2,}/g, '-');
+
+function buildTrackedUrl(base, utm) {
+  const u = new URL(base);
+  for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content']) {
+    if (utm[k]) u.searchParams.set(k, utm[k]); else u.searchParams.delete(k);
+  }
+  return u.toString();
+}
+
+/**
+ * How the dashboard will credit a booking made through a link with these tags --
+ * the same deriveChannel and slugToCampaign enrichment runs, so the preview and
+ * the real thing cannot drift apart.
+ */
+async function creditForUtm({ utm_source, utm_medium, utm_campaign }) {
+  let campaign = null;
+  let mapped = false;
+  if (utm_source === 'instantly' && utm_campaign) {
+    campaign = (await slugToCampaign(utm_campaign)).name;
+    mapped = !!CAMPAIGN_SLUG_IDS[utm_campaign];
+  }
+  const channel = deriveChannel({ utm_source, utm_medium, utm_campaign, told_us: null }, campaign);
+  let detail = null;
+  if (channel === 'instantly') detail = campaign || 'campaign unknown';
+  else if (channel === 'conference' && utm_campaign) detail = eventLabel(utm_campaign);
+  return { channel, label: channelLabel(channel), detail, mapped };
+}
+
+/** What could go wrong with a link, in words, worst first. */
+function linkWarnings(baseUrl, utm, credit) {
+  const out = [];
+  const bare = bareUrl(baseUrl);
+  if (bare.startsWith('calendly.com/') && !TRACKED_BOOKING.has(bare)) {
+    out.push('This Calendly link is not one the dashboard ingests, so its bookings will not show up at all. Use one of the four intro links.');
+  } else if (bare && !bare.startsWith('calendly.com/')) {
+    out.push('Only tracked if this page passes the tags on to its Calendly booking link. Check with whoever built the page.');
+  }
+  if (credit.channel === 'direct') {
+    out.push('The dashboard does not recognise this source and medium, so bookings will count as Direct / Other.');
+  }
+  if (credit.channel === 'instantly' && !utm.utm_campaign) {
+    out.push('No campaign tag: bookings will read "Instantly, campaign unknown".');
+  } else if (credit.channel === 'instantly' && utm.utm_source === 'instantly' && !credit.mapped) {
+    out.push(`"${utm.utm_campaign}" is not mapped to an Instantly campaign yet, so bookings will group under "${credit.detail}" on their own until it is added.`);
+  }
+  return out;
+}
+
+/** Applies to every non-Instantly, non-event tag: enrichment still looks the booker up. */
+const LOOKUP_NOTE = 'If the booker, or someone at their organization, sits in an Instantly campaign, that campaign still takes the credit.';
 
 // ─────────────────────────────────────────────────────────────
 // 6. Enrichment (Instantly campaign + held + became-client/fee)
@@ -1937,6 +2024,131 @@ export function registerMarketing(app, pool) {
     .then((n) => console.log(`[marketing] settled repeat bookings for ${n} people`))
     .catch((err) => console.error('settle repeats error:', err.message));
   const guard = (res) => res.status(503).json({ error: 'Storage not configured' });
+
+  // ── Tracked links ────────────────────────────────────────────
+  // Saved links, plus every tag combination that has actually turned up on a
+  // booking -- so a mistyped or never-registered link shows itself.
+  const pickUtm = (src) => ({
+    utm_source: utmSlug(src.utm_source),
+    utm_medium: utmSlug(src.utm_medium),
+    utm_campaign: utmSlug(src.utm_campaign) || null,
+    utm_content: utmSlug(src.utm_content) || null,
+  });
+  const comboKey = (r) => [r.utm_source || '', r.utm_medium || '', r.utm_campaign || ''].join('|');
+  const describe = async (r) => {
+    const credit = await creditForUtm(r);
+    const note = ['instantly', 'conference', 'direct'].includes(credit.channel) ? null : LOOKUP_NOTE;
+    return { credit, note };
+  };
+
+  app.get('/api/marketing/links', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const [{ rows: saved }, { rows: seenRows }] = await Promise.all([
+        pool.query('SELECT * FROM utm_links ORDER BY created_at DESC, id DESC'),
+        pool.query(
+          `SELECT LOWER(NULLIF(TRIM(utm_source), ''))   AS utm_source,
+                  LOWER(NULLIF(TRIM(utm_medium), ''))   AS utm_medium,
+                  LOWER(NULLIF(TRIM(utm_campaign), '')) AS utm_campaign,
+                  attribution_channel                   AS channel,
+                  COUNT(*)::int                         AS bookings,
+                  COUNT(*) FILTER (WHERE exclusion_reason IS NULL)::int AS counted,
+                  MAX(booked_on)                        AS last_booked
+             FROM bookings
+            WHERE COALESCE(TRIM(utm_source), '') <> '' OR COALESCE(TRIM(utm_medium), '') <> ''
+               OR COALESCE(TRIM(utm_campaign), '') <> ''
+            GROUP BY 1, 2, 3, 4`),
+      ]);
+      // One entry per tag combination, with how its bookings were actually credited.
+      const seen = new Map();
+      for (const r of seenRows) {
+        const k = comboKey(r);
+        const e = seen.get(k) || { utm_source: r.utm_source, utm_medium: r.utm_medium,
+          utm_campaign: r.utm_campaign, bookings: 0, counted: 0, last_booked: null, credited_as: {} };
+        e.bookings += r.bookings;
+        e.counted += r.counted;
+        if (!e.last_booked || (r.last_booked && r.last_booked > e.last_booked)) e.last_booked = r.last_booked;
+        const lab = channelLabel(r.channel);
+        e.credited_as[lab] = (e.credited_as[lab] || 0) + r.bookings;
+        seen.set(k, e);
+      }
+      const usage = (k) => {
+        const e = seen.get(k);
+        return e ? { bookings: e.bookings, counted: e.counted, last_booked: e.last_booked, credited_as: e.credited_as }
+                 : { bookings: 0, counted: 0, last_booked: null, credited_as: {} };
+      };
+      const savedKeys = new Set();
+      const savedOut = [];
+      for (const l of saved) {
+        const k = comboKey(l);
+        savedKeys.add(k);
+        const { credit, note } = await describe(l);
+        let url = l.base_url;
+        try { url = buildTrackedUrl(l.base_url, l); } catch { /* stored before validation; show as is */ }
+        savedOut.push({ ...l, url, credit, note, warnings: linkWarnings(l.base_url, l, credit), ...usage(k) });
+      }
+      const seenOut = [];
+      for (const [k, e] of seen) {
+        if (savedKeys.has(k)) continue;
+        const { credit, note } = await describe(e);
+        seenOut.push({ ...e, credit, note });
+      }
+      seenOut.sort((a, b) => b.bookings - a.bookings);
+      // The campaign slugs enrichment can map to a campaign, one per campaign.
+      const map = await instantlyCampaignMap().catch(() => ({}));
+      const instantly = [];
+      const ids = new Set();
+      for (const [slug, id] of Object.entries(CAMPAIGN_SLUG_IDS)) {
+        if (ids.has(id)) continue;
+        ids.add(id);
+        instantly.push({ slug, name: map[id] || CAMPAIGN_SLUG_FALLBACK[slug] || titleFromSlug(slug) });
+      }
+      res.json({ presets: { booking: BOOKING_LINKS, site: SITE_LINKS }, instantly,
+        saved: savedOut, seen: seenOut });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // The builder's live preview: the finished URL and how its bookings will count.
+  app.get('/api/marketing/links/preview', async (req, res) => {
+    try {
+      const utm = pickUtm(req.query || {});
+      const base = String(req.query.base_url || '').trim();
+      let url = null;
+      try { url = /^https?:\/\//i.test(base) ? buildTrackedUrl(base, utm) : null; } catch { url = null; }
+      const { credit, note } = await describe(utm);
+      res.json({ url, utm, credit, note, warnings: linkWarnings(base, utm, credit) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/marketing/links', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const body = req.body || {};
+      const label = String(body.label || '').trim().slice(0, 120);
+      const base = String(body.base_url || '').trim();
+      const utm = pickUtm(body);
+      if (!label) return res.status(400).json({ error: 'Give the link a name' });
+      try { if (!/^https?:$/.test(new URL(base).protocol)) throw new Error(); }
+      catch { return res.status(400).json({ error: 'The link must start with http:// or https://' }); }
+      if (!utm.utm_source || !utm.utm_medium) {
+        return res.status(400).json({ error: 'Source and medium are both needed' });
+      }
+      const { rows } = await pool.query(
+        `INSERT INTO utm_links (label, base_url, utm_source, utm_medium, utm_campaign, utm_content, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [label, base, utm.utm_source, utm.utm_medium, utm.utm_campaign, utm.utm_content, req.actor || null]);
+      res.json({ ok: true, link: rows[0] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.delete('/api/marketing/links/:id', async (req, res) => {
+    if (!pool) return guard(res);
+    try {
+      const { rowCount } = await pool.query('DELETE FROM utm_links WHERE id=$1', [Number(req.params.id) || 0]);
+      if (!rowCount) return res.status(404).json({ error: 'No such link' });
+      res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
 
   // Ingest (called by Zapier). Protect with a shared secret.
   app.post('/api/marketing/bookings/ingest', async (req, res) => {
