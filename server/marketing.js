@@ -400,7 +400,7 @@ async function ensureSchema(pool) {
 //    affected — UTM attribution keeps working regardless.
 // ─────────────────────────────────────────────────────────────
 const INSTANTLY_BASE = 'https://api.instantly.ai/api/v2';
-let _campaignCache = { at: 0, map: {} };
+let _campaignCache = { at: 0, map: {}, starts: {} };
 // A booking whose campaign id was never filled in. Grouping and the campaign
 // name both come from it now, so a row without one is still carrying whatever
 // Instantly called that campaign at the time it was enriched.
@@ -448,11 +448,13 @@ async function instantlyApi(path, init = {}, attempt = 0) {
 
 // { campaignId -> name } for the whole workspace. Paginated (v2 caps at 100 per
 // page) and cached 1h. GET /api/v2/campaigns returns { items: [{ id, name }], next_starting_after }.
+// The same pull records when each campaign was created; see instantlyCampaignStarts.
 async function instantlyCampaignMap() {
   const key = process.env.INSTANTLY_API_KEY;
   if (!key) return {};
   if (Date.now() - _campaignCache.at < 60 * 60 * 1000) return _campaignCache.map; // 1h cache
   const map = {};
+  const starts = {};
   let startingAfter = null;
   do {
     const qs = new URLSearchParams({ limit: '100' });
@@ -460,12 +462,48 @@ async function instantlyCampaignMap() {
     const data = await instantlyApi(`/campaigns?${qs.toString()}`);
     if (!data) break;
     for (const c of (data.items || (Array.isArray(data) ? data : []))) {
-      if (c && c.id) map[c.id] = c.name;
+      if (c && c.id) {
+        map[c.id] = c.name;
+        if (c.timestamp_created) starts[c.id] = c.timestamp_created;
+      }
     }
     startingAfter = data.next_starting_after || null;
   } while (startingAfter);
-  if (Object.keys(map).length) _campaignCache = { at: Date.now(), map }; // don't cache an empty/failed pull
+  if (Object.keys(map).length) _campaignCache = { at: Date.now(), map, starts }; // don't cache an empty/failed pull
   return Object.keys(map).length ? map : _campaignCache.map;
+}
+
+/** { campaignId -> when Instantly created it }, from the same cached pull. */
+async function instantlyCampaignStarts() {
+  await instantlyCampaignMap();
+  return _campaignCache.starts || {};
+}
+
+/** True only when the campaign is known to have been created after `when`. */
+const startedAfter = (starts, campaignId, when) => {
+  const s = campaignId && starts[campaignId] ? new Date(starts[campaignId]).getTime() : NaN;
+  const w = when ? new Date(when).getTime() : NaN;
+  return Number.isFinite(s) && Number.isFinite(w) && s > w;
+};
+
+/**
+ * The campaign a matched lead was in when the booking was made.
+ *
+ * A lead's `campaign` is where it lives NOW. Leads are moved between campaigns
+ * (Instantly moves, it does not copy), and the remarketing campaign took in
+ * everyone who had not replied, so a February booker whose lead was later moved
+ * into Remarket FY27 was credited to a campaign that started in July. The lead
+ * keeps the campaign it was imported into on `payload.campaign`. When the current
+ * campaign started after the booking it cannot be how they came to book, and the
+ * import campaign is the better answer -- provided that one had started.
+ * Otherwise the current campaign stands, as before.
+ */
+function campaignAtBooking(lead, when, starts) {
+  const now = lead?.campaign || null;
+  if (!now || !startedAfter(starts, now, when)) return now;
+  const original = lead.payload?.campaign || null;
+  if (original && original !== now && !startedAfter(starts, original, when)) return original;
+  return now;
 }
 
 // All Instantly lead records for an EXACT email, most-recently-created first.
@@ -1133,7 +1171,15 @@ async function enrichBooking(pool, id) {
   // gave no date for, and null for "never matched a lead". It is carried forward
   // untouched on the sticky path so a re-enrich cannot blank it.
   let campaign = null, campaignId = null, leadAt = null, source = 'none';
-  const hasCampaign = !!(row.instantly_campaign || row.instantly_campaign_id);
+  // The day the appointment was first set, which is the day it is credited to.
+  const setOn = row.originated_on || row.booked_on;
+  const starts = await instantlyCampaignStarts().catch(() => ({}));
+  // One exception to keeping what is recorded: a reverse match to a campaign that
+  // started after the booking was made. That is not a judgement call to defer to,
+  // it is impossible, so the lookup runs again and campaignAtBooking answers it.
+  const impossible = /^reverse_/.test(row.attribution_source || '')
+    && startedAfter(starts, row.instantly_campaign_id, setOn);
+  const hasCampaign = !impossible && !!(row.instantly_campaign || row.instantly_campaign_id);
   if ((row.utm_source || '').toLowerCase() === 'instantly' && row.utm_campaign) {
     ({ id: campaignId, name: campaign } = await slugToCampaign(row.utm_campaign));
     source = 'utm';
@@ -1168,27 +1214,27 @@ async function enrichBooking(pool, id) {
     const lead = await instantlyFindLead(row.email, row.booked_on);
     if (lead?.campaign) {
       const map = await instantlyCampaignMap();
-      campaignId = lead.campaign;
+      campaignId = campaignAtBooking(lead, setOn, starts);
       leadAt = lead.timestamp_created || '-infinity';
-      campaign = map[lead.campaign] || null; source = 'reverse_email';
+      campaign = map[campaignId] || null; source = 'reverse_email';
     }
     if (!campaignId) {
       const last = (row.name || '').trim().split(/\s+/).pop();
       const lead2 = await instantlyFindLeadByNameOrg(last, row.organization, row.booked_on);
       if (lead2?.campaign) {
         const map = await instantlyCampaignMap();
-        campaignId = lead2.campaign;
+        campaignId = campaignAtBooking(lead2, setOn, starts);
         leadAt = lead2.timestamp_created || '-infinity';
-        campaign = map[lead2.campaign] || null; source = 'reverse_name_org';
+        campaign = map[campaignId] || null; source = 'reverse_name_org';
       }
     }
     if (!campaignId) {
       const lead3 = await instantlyFindLeadByDomain((row.email || '').split('@')[1], row.booked_on);
       if (lead3?.campaign) {
         const map = await instantlyCampaignMap();
-        campaignId = lead3.campaign;
+        campaignId = campaignAtBooking(lead3, setOn, starts);
         leadAt = lead3.timestamp_created || '-infinity';
-        campaign = map[lead3.campaign] || null; source = 'reverse_domain';
+        campaign = map[campaignId] || null; source = 'reverse_domain';
       }
     }
   }
