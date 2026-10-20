@@ -590,3 +590,11 @@ Progress counts sections 3 to 5 once per campus in play, on the list, the dialog
 **Programs per campus.** The list stays one list. For per-campus clients, a "Show" filter above it narrows to one campus, with a count per campus. A program with no campus picked counts everywhere. "Add a program" while filtered starts the new program at that campus. Question 3.6 in Information Collection shows how many programs run at the campus being answered. Question 3.8 counts as answered for a campus only when a program tagged Only one nearby runs there (or has no campus picked), on the page and in progress alike, and the line under it names just those programs. The filter changes what the list shows, never what counts.
 
 **Grant Writing dialog.** A Campuses block appears when the applications cover two or more sites. It shows each campus's section 3 to 5 progress and who is filling it in, with a switch between "Answer per campus" and "Answer once for all sites" (`per_campus`). The Documents block names the campus on each per-site row, and only site 1's row (which stands for every campus) can be removed. The Grant Knowledge editor has "Needed once per site" (`per_site`) on document requirements.
+
+## The quick guide, built in (2026-10-20)
+
+The "NSGP Intake Form: A Quick Guide" PDF that went out with the kickoff email now lives in the form. A **How this form works** button under the client's name in the header opens it as a dialog (the same `.ckg` dialog as the task guides), and the first-visit "Start here" card has a **Read the quick guide** button. The content is built from the client's own page each time it opens:
+
+- **The tabs, in order**: one line per tab actually on the page; Locations says how many sites the client's applications cover, Documents how many files are on their list.
+- **Good places to start**: the 501(c)(3) letter and mission statement only while they are on the document list and not yet in; SAM.gov and the state registration only while those tasks are open (not done, not "Not applicable"). Each line has a "Go there" link to its tab.
+- Opening and saving, working with a team, and tips are fixed text in `server/intake/client.html` (search for `How this form works`). Change them there when the form changes; no PDF to regenerate. The kickoff email points to the button instead of attaching a file.
