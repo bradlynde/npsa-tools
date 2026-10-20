@@ -1135,6 +1135,22 @@
     .loc-rm .site-rm{min-height:44px;}
   }
 </style>
+<style>
+  /* "How this form works" (2026-10-20): the quick guide, built in. New classes only; the dialog reuses .ckg. */
+  .hw-open{display:inline-flex;align-items:center;gap:6px;margin-top:9px;padding:5px 11px;border:1px solid var(--line-strong);border-radius:999px;background:var(--paper);color:var(--navy);font:600 12.5px var(--head);cursor:pointer;}
+  .hw-open::before{content:"?";display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--navy);color:#fff;font:700 10.5px var(--head);}
+  .hw-open:hover{border-color:var(--navy);}
+  .hw-open:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
+  .hw-tabs{margin:8px 0 0;display:grid;gap:10px;}
+  .hw-tabs div{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;font-size:14.5px;}
+  .hw-tabs dt{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;font:700 11.5px var(--head);}
+  .hw-tabs dd{margin:0;}
+  .hw-tabs dd b{color:var(--navy);}
+  .hw-start{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:8px;}
+  .hw-start li{display:flex;gap:10px;align-items:baseline;justify-content:space-between;flex-wrap:wrap;font-size:14.5px;padding:8px 12px;background:#f7f9fb;border-radius:8px;}
+  .hw-start button{font:600 12.5px var(--head);color:var(--navy);background:none;border:0;padding:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer;white-space:nowrap;}
+  ul.hw-tips{margin:8px 0 0;padding-left:18px;display:grid;gap:4px;font-size:14.5px;}
+</style>
 </head>
 <body>
 <div class="linkdead" id="linkdead" hidden><div class="ld-card" role="alertdialog" aria-modal="true" aria-labelledby="ldTitle" aria-describedby="ldText"><img class="ld-logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAARUAAABUCAMAAACbQ1OtAAAAYFBMVEUAKmVnaQJ4fAQAYWF4fAQAOVt4fAQAOVuoqAD//wABPj0AOVxmmAAAAP8AQGd8gAR8gAR7gAQA/wCKjgUffwB//wCqVQCBhAX/AAAAAAAAOVx9fgCDhwUAPWF5fQR9gQRdrdURAAAAIHRSTlMYGZ8CXaLOXAMBBM4LAf+p0lkB9AMCA5gBAPsH/v7z/YljQC8AAA3BSURBVHja7VyJeqM4EpYAY65Mjp495LLh/d9y6tQBOMdu4nZmwuy3bcsqqepX3UBc+Lm2l/vk9Xr8HwT/nwY/ed//oCIXeMSjPc/woytJU3zb+hCqcwsBqkcI/Q8qAUJzPjehg2kK9LEK8INKAGBdISh88PPSwA8q2cV+Fl3Mj18hMLyEoTTwP+iKq4ehrv8uqEyhWWYfugyShrzuxxyuyzga6PrmqACGHnK1CRUaQP/yQX7cES/n/jYWBFXjC5j8YwMfZMcdThe6DgrP0X17v/L/c+NOlxNdjArh88cxJB9Tf0tUoFsnuv6DTuXAoFwUFfoYUamHf6au1OEomjKOCMYalZUr/segMgRRlaPITxZ0ShbkjuPJ3caI7kxXCJXLyF8e0PHiNTIq6HBG8jj/RFQeBJUDKk39sMLLsRbdEBU3DI7OQ7xZXQKlWWY9lNnVLkFNKzmjyfJTI8hEckMdylm1c4OgQsuIG6GL6HF7djhIdYu8zhVRT3ioQxkKnWPW642+7xBEt8gIuDVBbf5Sid0q3qqu7DEqqNzI26r5Hil/Gsn9H1wSBvk96ihlUzoeCY6HkuBIPzilQRKjEILAO4w0mzNYnsSz6kg9cgTSZZytx/SMiu785ahgNPwDc6UxHMnjn+j/jiEe6HG8XCSDuJxUejJxJDgVBKJLB1rpiDmHkggFp2a6Ax837skZrK47srMQ6pOkcJy8xSyON7zYL5fTbVCh3UbNFE6ZT6OQkI1e+JgJFT7QDYFGkMMYfyAB+D9OVp3NpYCSr8uo1hqVbTDLV9R67BpvhoqyJ+k2GraLcZKPU8cZljoxmX4QuA7xrE0TDnVCRX+VRMTIL5ap7eqKofKbdEXURRyFnr0lmpcDj18ErjqhsiU4WA1DP5i8g1PlErROpimoInEaDg6BSkHxK1oUJlTwu/qV29SLEZWLKCZzSbIEU/OjzBvTobp9gqhbh5B+OFCWmsOIMjHaSi67X8Z6E4Meyoz/tjEo6gp5QfxP5RpUVejjUNcqGX77M+pKSRB1hcxpqF2aFWE8iEz1eDHyejAocRrmJJqvcLMpR6XIV+rbocIJJV2jnFYd2ZXUa4jcJ4DqgiCiwopmBJdjyADCxRL5oKlb+prltitdqaOu1LfUFZXFGV+12Awe/IMWbsdSyC1BOvZ9AnbJNn5KpfAYa5+7Q0X3c4mvUiMSFnb0MUkpUdHazuTIUDnkOnSy1E+xZMdy96isFD1DpWRwi4qE9WyBUrnWqAyZhn07Xam/CpX6e6Li8jZZZkFXUDmN9RULEpPb9yuSsN49KrVyaxlCapO9hYpqwZ57rgt4h6wYlhzl/lHJIytNq8eYhL6OStQJw2goUEkRaQhrkO4fFeODKlpqr1hOV9dv6QoBgaDKsmNduKTkSCiTp4Uj2vU7UJHc+ndakHHPGamLCfDbqEguf7TbOoNbo6JJHdczWhOJU7+OStQwd5NG/3VUzH9cqNUzXk7r6vC6rjDFKeWzq1sYCT2adokdh9dQiVUZ0oxfb0aveNta20SnWMYfHjYmvodKRnFM8KYbO3YvzKYZKK+hYqGLaH4rKpz1X7Lm0CEPudfzldQ9knXc9naXO5wuRTerDuEtXXFx3eNvRYUAOI5yM5wblO9DhVuXRDFq/Nq5CRiOB1t3PMazfw2VEO/LX26Ait1fcKk7n77QSXNPmVs9dTFlQxBRCUoyxPZ3QWALH3mWc/mtgJ2VM7LEym++S1avbwy9eefvkGheoahdeMesa7zcApU6PxGH34obdzU/cVTcO6v1do+ofc1dk9KYmCT09rCgywniRrLwajCfWH7j23lI8HBVGPishxM/URu3uvIlF9zgke8vRQUF+OwnS7vQPLXXnioDf/+6Qs/JzfDJzyHTc87LPio9PRL+vVDp+k9DhR7U/Fao0B3Va7oCX49Ke4eoPMjd96P2v8NL8M/2XBw0v6rgvxaVQPvdHSqvCjOfb4DKPcYgfaoni8swGffQ3gIV6D4zBgG9h4BLQpkP+VVShNN6GpXHR7vcgXrjhz/4iV4ooyWZe6SYUFc66Dq0qq54ULnze7KB8lTszVwZKn2xPTIDxWr9RqLQbURiXlGaXsYmmUDrEipbxvzmA7H0/vPcXqQrH6WGHYamd1nQKxIZBus9YKUrGCaaqmqrqklJkMeRqnrOXk3wNlg1DQ2D/KM7eX1UHZpnXMRX7SM90O+f6YF1nNk0qCv0Dx51k55q73XGSgDZpvLrwZYeiO8ZFfD59rwtPSBvXAR4LiXKZIwAIF/E6yPxSkeuE4ghx5Z6lmvRdxOgmmVgbmwJPB4bpFcY7KWx3G0wVuRVeb0Kj5UjM43hSvMilDjmU7Ru6aWQ4uji3ue56v7bmzNJDDEqtAftEDM7XNlbZM4kUh5xpF1sVdO0nFc8wSejQUmcp2RxpoOs2oWWxnOoZKSaF3tHzjN5mgb8ptgaFf7QIItzuyRUfPXUtvM8t237REIt9t4dvW62egkPh85Ly9vkm+NCPFottDzB2mUvfMbESLK4rURdqJZFFsBVFz3qHpn2i/AKCNHMEyr6hrqCG6qyelAedMS3iwIVPC6rOk3FzSuoECsYfCAx65ECxe/h36io+KmFTJrSR5D1NbKqbD6JlDMqCV2oKCiYF6BMszXua27b70jEC/RiBstiykq8IjBYPelyWkyF3tHhNezdlRkaoDdMyeuj6O3EnpZZJBcu0/w1VOaFxje5bTert+1yE9oYkHq9joONKhJLSYfDeyMshEonv3ZmMCSCooJz5kIiPkHcs+dVSW0qiRxtxisbH4D2Ihzh6MFHjiBje6IlUPaOdLKKUci/hgofGzvCHBU+zUFiiFkNG1CzjViWDqubADE6n5AWVCKiuk+vqEjsziTyIgWYJvABd4zK0rJq/Isx1jwc2NuqriQVjoeASqnnhdo8T30RKa+isjQ9bHQly207E6crPW9R0gDmEoBCdiZUr+eOHLEFJetTA+pChkopEVnUBFkaqCC3GVicOUCKzMDqZe9NypqedQkmckKtIeXDe1BZZouY+6h0yZmQ2vbbWtrbqqICfCRZFEZZGBXz1Kwb5P0iKsREEyXqJF5ladC8yNuQbfQw7FeqIZhAFoO8pmkqSpZ90cE20XG/hUpWtu6jEgMPc7s1IBBVoeSGyT3756zrZKCaCYG8aZ86CbCVKOc+aVmb+X0UZ2kbr/Zr+Qqv4g21dPHZi4f270MlHssVCzJx9g2Is6lWsht0rICOqAjfwH6QsNIPmiNB1l/ZkcivUGGUihP0T7hh+yz8OomGs6U3SLPEbE3SHkHFv1dXquQud1HRs+qiNCUo/nHhpA+zGz6RlfnG6hDUV6dyMXWdMomgCB95yJIqJPM+z0iyPDVWHRKgqBTqo0pdwYtD3meiomI2y7I2IMmLZsrUpymmO7uoWFxnA5pWvbiNRG+iwh6qIRKsYq1mplUWcmO8xrQ+wOq85C8qb1CZPoBKeCFxvJeNYBV70ANWEBuObEHTrgXZJ1pawM07lCrRbBJtLahbocKeFssN3kz7KxSrK8rehAayq8vQ3Uclmfa7UFFxdgyoswyyQ/3880XJs2w497ZqQrrYpm8LKpG/4m1hgwpX0w0Hfpe2g1brrrViS467QSUGkKyeeR8qXuqyHQPKlLKPyVmbt3+9RGbt01b8t14kbK+72VMf2lRJdkX6IpF5cyw9yOTUi4NeagFCANY21Ip15Q4gHTWkku8aKl1b+AZiX7ORNSpWGL30mvsUZ931fpkVFdY5iAa07fF7lWjChSaAIovrwh4qVLLNgkoHhW76LOXrJRPi/VuDhdLMnqxd1cdzlfSGruD4i899Q7PTsxQAAKJbFVREU9lIvGb83k6miQaUodJBaStVqldATQJWqHj/IrI0c9QV33mpoSYtMLm/J39ExbzgQl4w9he1uPDTxAXXWxbEuQFAH5V4bueVA0/n2E+0C7HD2gSyFe7F1jAbKgxDVUXRCl3x3QSaaVMOwDU3VvI9+WCjWOlKP03si1D3sA56FIXwrdg+CzNLiwwa7qlpxGxtEOjQUJWl+PYZb1dQ6axS77IaD4+gX9/R4WTdc+/taa4WRYUA4sgEqZNgOpfcW6qZH70vJSIsJbRRqG3VnCIqPf3dC9B+G23qQvVrbjEraanLQ6fZ91iWUdLAme0vlRZBoGYST+S+F+slD8znBd5EhfivqkdbDb/uNf05iVl4lzMbhxbf6AKZIRlNqFCpGNUx1kGZRC3rp/XMmPnzk4/6G9ta/qwCc0MSuGaW9qQlCtTcif28p8bKF4Ixb2SCUS6PZO3V5g5H4VcQN7x+tVEndgxI8NJO4ZP2IqFojy5N3s1m24pWkHQlSeTX/dVFEt4SFWC1ig1MzuKg4fYxqdBLag833Lf2ocj9pJsd/1AGD9Cc3v54RvkUQvHN5saq0+93+D1tTTtDIsd/pkZ4pNGE5uT9tH0mIZOoL3vx3KuGnUcYQHro2uzO75JNeZq3uSPQ+6t3E95zT6Rf+Y8shXjzpku2w8futGWH2u/ItsunVYcdJrAdlE8NeBzqVs8O9d1qsGdCL58s1e7zHaBcESAvZq7w19miYUver0b73f12JYLNWEHr+Wdd4Lf89QhvLZF7vW6PCkijv7nnPzv4W3Sl/4KHoL45KhgHWsofpx8Lyp9k+UV3Lfu7/gOVt0eF04Jw35cLP9f2+guhO+13DlQeegAAAABJRU5ErkJggg==" alt="Nonprofit Security Advisors"><h2 id="ldTitle" tabindex="-1">This link has stopped working</h2><p id="ldText">Everything you saved before now is safe. Ask your grant writer for a new link and you can carry on where you left off.</p><div class="ld-who" id="ldWho"></div></div></div>
@@ -2095,5 +2111,57 @@
     call('DELETE','/contacts?email='+encodeURIComponent(email),{}).then(function(res){CONTACTS={npsa:res.npsa,client:res.client};renderContacts();ctSay('Removed.');setPill('saved');})
       .catch(function(err){ctSay((err&&err.message)||'Could not remove that person.',true);setPill('error');if(err&&err.status===401)linkDead();});});});
 
+  /* "How this form works" (2026-10-20): the quick guide that used to go out as a PDF, built from this
+     client's own form (their tabs, sites, documents and tasks), so it never drifts from what they see.
+     The header button opens it any time, and the first-visit "Start here" card gets a button for it. */
+  (function(){
+    var meta=document.querySelector('.masthead .meta');
+    var gw=(CONTACTS.npsa||[]).filter(function(c){return /grant writer/i.test(c.role||'');})[0]||(CONTACTS.npsa||[])[0];
+    function sites(){var s=[1];(APPLICATIONS||[]).forEach(function(a){(a.sites||[]).forEach(function(n){if(s.indexOf(n)<0)s.push(n);});});return s.length;}
+    function doc(re){return (DOCUMENTS||[]).filter(function(d){return re.test(d.key)&&!d.site;})[0]||(DOCUMENTS||[]).filter(function(d){return re.test(d.key);})[0];}
+    function task(stem){var v=EXISTING['chk_status_'+stem]||'';return v!=='Not applicable'&&v!=='Completed'&&document.querySelector('[data-key="chk_status_'+stem+'"]');}
+    var TAB={
+      ck:'Your to-do list. <b>Your tasks</b> shows what your team needs to do, in order; mark each one <b>To do</b>, <b>Working on it</b> or <b>Done</b>. <b>What NPSA is working on</b> shows our side, and the box at the top checks off what your state needs as your files arrive.',
+      ic:'Five short sections, one at a time: your organization, your identity, your community, the threats you face, and the project. Please confirm anything we pre-filled. A dot on a section means we left you a question there.',
+      prog:'Worship services, ministries, schools and outside groups that use your building. Add each one as a card. These help tell your story to reviewers.',
+      loc:function(){var n=sites();return n>1?'Details for each of your '+n+' sites, one at a time. Pick a site at the top to switch.':'Details for your site. Most applicants have one. Add another only if it has its own address and we are applying for it too.';},
+      wl:'Tick the improvements you want at each site, rank them, and say how many and where. Add a cost only if you have a quote or a real ballpark; otherwise leave it blank and we will price it.',
+      up:function(){var n=(DOCUMENTS||[]).length;return 'Upload the files on your list'+(n?' ('+n+' right now)':'')+'. PDF is best. The list is set for your state, so you only see what you need.';},
+      ct:'Your NPSA team, helpful contacts for your state, and your own people.'};
+    function tabsHtml(){return '<dl class="hw-tabs">'+[].map.call(document.querySelectorAll('.tabs .tab'),function(t,i){var id=t.getAttribute('data-tab'),d=TAB[id];
+      d=typeof d==='function'?d():d||'';return '<div><dt>'+(i+1)+'</dt><dd><b>'+escT(tabName(t))+'.</b> '+d+'</dd></div>';}).join('')+'</dl>';}
+    function startList(){var out=[],d;
+      if((d=doc(/501c3|irs|determination/i))&&docState(d.key)==='need')out.push(['Upload your IRS 501(c)(3) letter. No IRS letter? Your state nonprofit registration from the Secretary of State works instead.','up']);
+      if((d=doc(/mission/i))&&docState(d.key)==='need')out.push(['Upload your mission statement on letterhead.','up']);
+      if(task('sam_gov_uei_registration'))out.push(['Check for an active SAM.gov registration. The task has a <b>How to do this</b> guide.','ck']);
+      if(STATE_REGS.length&&task('state_reg'))out.push(['Register with '+escT(CFG.stateName||STATE)+'. The task has a <b>How to do this</b> guide.','ck']);
+      if((d=doc(/bio/i))&&docState(d.key)==='need')out.push(['Gather short bios for your leadership, with personal details taken out.','up']);
+      out.push(['Confirm the details we pre-filled, including your EIN.','ic']);
+      out.push(['Add your teammates so they can help.','ct']);
+      return out;}
+    function guideHtml(){var s=startList();
+      return '<div class="ckg-h"><div class="ckg-eye">Quick guide</div><h2 id="hwTitle">How this form works</h2>'
+        +'<p>This is where you give us what we need to write your NSGP application. We pre-filled what we already know, and we walk through it together on our kickoff call, so there is nothing you need to finish first.</p>'
+        +'<button type="button" class="ckg-x" data-close aria-label="Close">&#x2715;</button></div><div class="ckg-b">'
+        +'<div class="ckg-part"><h3>Opening it and saving</h3><p>Your link opens right in the browser: nothing to install and no password. Bookmark it to come back. Every answer saves as you go (watch for <b>Saved</b> beside the tabs), so close the tab any time and pick up later from the same link.</p></div>'
+        +'<div class="ckg-part"><h3>The tabs, in order</h3>'+tabsHtml()+'</div>'
+        +'<div class="ckg-part"><h3>Working with your team</h3><p>Anyone you add on the Contacts tab can use this same link, so share it with the people who will help. Everyone sees the same answers, so it helps to split up the sections. Put your name and role in <b>Who is filling this out?</b> on the Information Collection tab so we know who to ask.</p></div>'
+        +'<div class="ckg-part"><h3>Good places to start</h3><ul class="hw-start">'+s.map(function(x){return '<li><span>'+x[0]+'</span><button type="button" data-hw-go="'+x[1]+'">Go there</button></li>';}).join('')
+          +'<li><span>We will cover your vulnerability assessment on our call.</span></li></ul></div>'
+        +'<div class="ckg-part"><h3>A few tips</h3><ul class="hw-tips"><li>Uploads are capped at 25 MB. If a scan is very large, compress it first.</li><li>Partial progress is fine. Unsure about something? Leave it and we will fill the gaps together.</li><li>Questions? Reply to our email or call us. Our phone numbers are on the Contacts tab.</li></ul></div>'
+        +'</div><div class="ckg-f"><span>'+(gw&&gw.email?'Stuck? Email '+escT(gw.name||'your grant writer')+' at <a href="mailto:'+escT(gw.email)+'">'+escT(gw.email)+'</a>':'Stuck? Ask your grant writer.')+'</span><button type="button" class="ckg-close" data-close>Close</button></div>';}
+    var dlg=null;
+    function close(){if(dlg.close)dlg.close();else dlg.removeAttribute('open');}
+    function open(){if(!dlg){dlg=document.createElement('dialog');dlg.id='hwGuide';dlg.className='ckg';dlg.setAttribute('aria-labelledby','hwTitle');document.body.appendChild(dlg);
+        dlg.addEventListener('click',function(e){var g=e.target.closest('[data-hw-go]');if(g){close();goTab(g.getAttribute('data-hw-go'));window.scrollTo({top:document.getElementById('tabbar').offsetTop-8,behavior:'smooth'});return;}
+          if(e.target===dlg||e.target.closest('[data-close]'))close();});}
+      dlg.innerHTML=guideHtml();
+      if(dlg.showModal){if(!dlg.open)dlg.showModal();}else dlg.setAttribute('open','');
+      var x=dlg.querySelector('.ckg-x');if(x)x.focus();}
+    var btn=document.createElement('button');btn.type='button';btn.className='hw-open';btn.textContent='How this form works';btn.addEventListener('click',open);
+    if(meta)meta.appendChild(btn);
+    var sh=document.querySelector('#startHere .sh-act');
+    if(sh){var b2=document.createElement('button');b2.type='button';b2.className='sh-ok';b2.textContent='Read the quick guide';b2.addEventListener('click',open);sh.insertBefore(b2,sh.lastChild);}
+  })();
 </script>
 </body></html>
