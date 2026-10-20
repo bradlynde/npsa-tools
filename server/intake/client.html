@@ -2135,7 +2135,6 @@
       if((d=doc(/mission/i))&&docState(d.key)==='need')out.push(['Upload your mission statement on letterhead.','up']);
       if(task('sam_gov_uei_registration'))out.push(['Check for an active SAM.gov registration. The task has a <b>How to do this</b> guide.','ck']);
       if(STATE_REGS.length&&task('state_reg'))out.push(['Register with '+escT(CFG.stateName||STATE)+'. The task has a <b>How to do this</b> guide.','ck']);
-      if((d=doc(/bio/i))&&docState(d.key)==='need')out.push(['Gather short bios for your leadership, with personal details taken out.','up']);
       out.push(['Confirm the details we pre-filled, including your EIN.','ic']);
       out.push(['Add your teammates so they can help.','ct']);
       return out;}
