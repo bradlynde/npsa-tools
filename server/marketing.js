@@ -952,6 +952,26 @@ async function backfillCalendly(pool, { eventType, since, dryRun }) {
 const EVENT_MEDIUM = /(^|[-_ ])(in[-_ ]?person[-_ ]?event|event|conference|trade[-_ ]?show|expo|booth)([-_ ]|$)/;
 const isEventUtm = (row) => EVENT_MEDIUM.test((row.utm_medium || '').toLowerCase());
 
+// Events people name in "How did you hear about us?" without saying "conference":
+// a Sagemont booking answered just "CITN" and was credited to Remarket.
+const NAMED_EVENTS = /\bcitn\b|church it network/;
+
+/**
+ * The channel a "How did you hear about us?" answer names, or null when it names
+ * none. "Email from Nonprofit Security Advisors", "Other" and "Dont remember" all
+ * return null: none of them points anywhere but our own email, or anywhere at all.
+ */
+function selfReportChannel(toldUs) {
+  const t = (toldUs || '').toLowerCase();
+  if (!t) return null;
+  if (t.includes('refer') || t.includes('word of mouth')) return 'referral';
+  if (t.includes('conference') || t.includes('event') || t.includes('trade show')
+      || NAMED_EVENTS.test(t)) return 'conference';
+  if (t.includes('linkedin')) return 'linkedin';
+  if (t.includes('google') || t.includes('search') || t.includes('online') || t.includes('web')) return 'search';
+  return null;
+}
+
 function deriveChannel(row, instantlyCampaign) {
   // Ahead of Instantly: an event attendee may well sit in a campaign list too, but
   // the link they actually booked through was the one handed out at the event.
@@ -972,11 +992,9 @@ function deriveChannel(row, instantlyCampaign) {
   if (src === 'linkedin' || med === 'linkedin') return 'linkedin';
 
   // Self-report ("How did you hear about us?") for untagged traffic.
-  if (t.includes('refer')) return 'referral';
-  if (t.includes('conference') || t.includes('event') || t.includes('trade show')) return 'conference';
-  if (t.includes('linkedin')) return 'linkedin';
-  if (src.includes('google') || src.includes('bing')
-      || t.includes('google') || t.includes('search') || t.includes('online') || t.includes('web')) return 'search';
+  const said = selfReportChannel(t);
+  if (said) return said;
+  if (src.includes('google') || src.includes('bing')) return 'search';
 
   return 'direct'; // no signal — direct / other
 }
@@ -1087,6 +1105,29 @@ async function enrichBooking(pool, id) {
       }
     }
   }
+  // What the person told us outranks a guess. Evidence, strongest first:
+  //   utm           -- the link they actually clicked
+  //   reverse_email -- their own address sits in a campaign
+  //   self-report   -- their answer to "How did you hear about us?"
+  //   reverse_domain / reverse_name_org -- someone at the same church sits in one
+  // A domain or name match only says a colleague was emailed, so when the person
+  // says Google, a referral or an event, that answer stands: Storyline, Redeemer
+  // and Antioch all said "Referred by someone I know" and were credited to
+  // Remarket on a domain match. A named event outranks an exact email match too,
+  // for the reason an event UTM does: attendees often sit in a campaign list as
+  // well, and the event is how this booking came about.
+  //
+  // The campaign is cleared rather than kept alongside: a booking cannot be from a
+  // campaign and from another channel at once. That leaves the row unattributed,
+  // so the next enrich re-runs the lookups and lands here again; the result is the
+  // same each time. Manual overrides below still win over all of it.
+  const said = selfReportChannel(row.told_us);
+  const guessed = source === 'reverse_domain' || source === 'reverse_name_org'
+    || (source === 'reverse_email' && said === 'conference');
+  if (said && (campaign || campaignId) && guessed) {
+    campaign = null; campaignId = null; leadAt = null; source = 'self_report';
+  }
+
   // A person can overrule the derived channel, and that is the only way to correct a
   // booking the reverse-match got wrong — someone who happens to sit in an Instantly
   // campaign but actually reached out directly looks identical to a campaign win from
