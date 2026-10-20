@@ -72,7 +72,7 @@ export async function proxyRequest(
   prefix: string,
   segments: string[],
   allowed: Set<string>,
-  method: "GET" | "POST" | "PATCH" = "GET",
+  method: "GET" | "POST" | "PATCH" | "DELETE" = "GET",
   options: {
     /** Bearer sent upstream. The grant-client routes on the LOE service are keyed. */
     upstreamKey?: string;
