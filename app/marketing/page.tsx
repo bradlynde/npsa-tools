@@ -22,6 +22,7 @@ import {
 import TimeSeriesChart from "../../components/marketing/TimeSeriesChart";
 import CampaignTable from "../../components/marketing/CampaignTable";
 import BookingsTable from "../../components/marketing/BookingsTable";
+import LinksButton from "../../components/marketing/LinksPanel";
 import {
   fetchStats,
   fetchFunnel,
@@ -337,6 +338,7 @@ export default function MarketingPage() {
         {/* One range for the whole page, so it sits with the title rather than a section. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <SegPill options={RANGES} value={range} onChange={changeRange} size="sm" label="Date range" />
+          <LinksButton />
           <Button variant="secondary" size="sm" icon={RefreshCw} onClick={handleRefresh} busy={refreshing} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh data"}
           </Button>
