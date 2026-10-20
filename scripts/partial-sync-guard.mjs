@@ -51,7 +51,7 @@ const pool = new Pool({
 // the body is supplied already parsed.
 const routes = {};
 const add = (method) => (p, ...fns) => { routes[`${method} ${p}`] = fns[fns.length - 1]; };
-const app = { get: add('GET'), post: add('POST'), put: add('PUT'), patch: add('PATCH'), use: () => {} };
+const app = { get: add('GET'), post: add('POST'), put: add('PUT'), patch: add('PATCH'), delete: add('DELETE'), use: () => {} };
 
 const { registerMarketing } = await import('../server/marketing.js');
 const { registerSalesforceConnector } = await import(

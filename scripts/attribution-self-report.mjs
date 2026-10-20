@@ -63,6 +63,7 @@ const app = {
   post:  (p, h) => { routes[`POST ${p}`]  = h; },
   put:   (p, h) => { routes[`PUT ${p}`]   = h; },
   patch: (p, h) => { routes[`PATCH ${p}`] = h; },
+  delete: (p, h) => { routes[`DELETE ${p}`] = h; },
   use:   () => {},
 };
 const { registerMarketing } = await import(process.env.TARGET || '../server/marketing.js');
