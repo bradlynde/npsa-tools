@@ -499,6 +499,7 @@ const ATTRIBUTION_NOTES: Record<string, string> = {
   reverse_email: 'matched to an Instantly lead by email',
   reverse_name_org: 'matched to an Instantly lead by name and organization',
   reverse_domain: 'matched only on email domain — may be a colleague’s campaign',
+  self_report: 'their “How did you hear about us?” answer outranked a campaign match',
   manual: 'set by hand',
   none: 'no campaign found',
 };
