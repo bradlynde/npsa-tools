@@ -267,6 +267,20 @@ export function stateConfig(state, codes = []) {
   };
 }
 
+// Working together (2026-10-21). Who last edited the form: the newest answer a named person on
+// the client's side saved (each device asks for a name once), else the old shared "Who is filling
+// this out?" box from before.
+const editorName = by => (/^client:/.test(by || '') ? by.slice(7) : '');
+export function lastEditor(answers) {
+  let best = null;
+  for (const a of answers.values()) if (editorName(a.updated_by) && (!best || new Date(a.updated_at) > new Date(best.updated_at))) best = a;
+  return best ? editorName(best.updated_by) : answers.get('_filled_by')?.value || '';
+}
+/** How the page names whoever saved an answer: the person's name, their team, or NPSA. */
+export function editorLabel(by) {
+  if (editorName(by)) return editorName(by);
+  return /^client/.test(by || '') ? 'Someone on your team' : 'NPSA';
+}
 const BIOS_STEM = 'leadership_bios_resumes_pii_scrubb', STATE_REG_STEM = 'state_reg', SAM_STEM = 'sam_gov_uei_registration';
 /** The programs of a client's stored, live applications (none stored: []). */
 const liveCodes = client => (Array.isArray(client.applications) ? client.applications : []).filter(a => a.status !== 'withdrawn').map(a => a.program);
@@ -747,7 +761,7 @@ function statusView(client, answers, base, uploads = []) {
     slug: client.slug, name: client.name, state: client.state, phase: client.phase, status: client.status,
     intake_url: intakeUrl(base, client.slug, client.token),
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
-    filled_by: val('_filled_by'), status_line: val('_status'),
+    filled_by: lastEditor(answers), status_line: val('_status'),
     applications, applications_set: stored,
     // Sites 4 and up show only once they are in play, so a three-site client reads as before.
     ...(progress.campuses ? { campuses: progress.campuses.map(c => ({ ...c, name: val(`loc${c.site}_name`), lead: val(`loc${c.site}_lead`) })) } : {}),
@@ -974,7 +988,8 @@ export function createIntakeStore(pool, db = pool) {
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Completed' AND NOT key = ANY($4))::int AS checklist_completed,
                 COUNT(*) FILTER (WHERE key ~ '^chk_(a[0-9]{1,2}_)?status_' AND value = 'Not applicable' AND NOT key = ANY($4))::int AS checklist_na,
                 JSONB_OBJECT_AGG(key, JSONB_BUILD_ARRAY(value, updated_by)) FILTER (WHERE key = ANY($3)) AS auto_statuses,
-                MAX(value) FILTER (WHERE key = '_filled_by') AS filled_by
+                MAX(value) FILTER (WHERE key = '_filled_by') AS filled_by,
+                (ARRAY_AGG(SUBSTRING(updated_by FROM 8) ORDER BY updated_at DESC) FILTER (WHERE updated_by LIKE 'client:%'))[1] AS last_editor
            FROM intake_answers WHERE client_id = ANY($1) GROUP BY client_id`, [clientIds, PROGRESS_KEY_RE.source, AUTO_STATUS_KEYS, RETIRED_STEMS.map(stem => `chk_status_${stem}`)]);
       const up = await db.query('SELECT client_id, ARRAY_AGG(DISTINCT key) AS keys FROM intake_uploads WHERE client_id = ANY($1) GROUP BY client_id', [clientIds]);
       const uploaded = Object.fromEntries(up.rows.map(r => [r.client_id, r.keys]));
@@ -1098,7 +1113,7 @@ export function createMemoryStore() {
       return Object.fromEntries(ids.map(id => {
         const s = summarise(bucket(id), (clients.find(c => c.id === id)?.applications || []).filter(a => a.status !== 'withdrawn').length);
         const auto_statuses = Object.fromEntries(AUTO_STATUS_KEYS.filter(k => bucket(id).has(k)).map(k => [k, [bucket(id).get(k).value, bucket(id).get(k).updated_by]]));
-        return [id, { answered_keys: [...answeredSet(bucket(id))], program_sites: programSitesOf(bucket(id)), uploaded_keys: [...new Set(uploads.filter(u => u.client_id === id).map(u => u.key))], checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, auto_statuses, filled_by: bucket(id).get('_filled_by')?.value || null }];
+        return [id, { answered_keys: [...answeredSet(bucket(id))], program_sites: programSitesOf(bucket(id)), uploaded_keys: [...new Set(uploads.filter(u => u.client_id === id).map(u => u.key))], checklist_completed: s.checklist.completed, checklist_na: s.checklist.not_applicable, auto_statuses, filled_by: lastEditor(bucket(id)) || null }];
       }));
     },
     async upsertAnswers(clientId, rows, by, { clientActivity = false } = {}) {
@@ -1250,6 +1265,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
 
   // A client-token check for /api/intake/:slug/*. Wrong or missing token gets the
   // same answer as an unknown slug, so the endpoint does not confirm which slugs exist.
+  const presence = new Map(), PRESENT_MS = 45000;
   const clientAuth = async (req, res) => {
     const c = await store.getClient(String(req.params.slug || ''));
     const presented = req.get('x-intake-token') || '';
@@ -1281,7 +1297,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
         ...clientView(r, base(req)),
         core: progressFor(r, new Set(s.answered_keys || []), new Set(s.uploaded_keys || []), s.program_sites || {}).core,
         checklist: { completed: s.checklist_completed || 0, total: checklistTotal(r) - na, not_applicable: na },
-        filled_by: s.filled_by || '',
+        filled_by: s.last_editor || s.filled_by || '',
       };
     }));
   }));
@@ -1344,7 +1360,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const c = await loadClient(req, res); if (!c) return;
     const answers = await store.getAnswers(c.id);
     const uploaded = new Set((await store.listUploads(c.id)).map(u => u.key));
-    res.json({ ...clientView(c, base(req)), ...summarise(answers), checklist: checklistCounts(c, answers), core: progressFor(c, answeredSet(answers), uploaded, programSitesOf(answers)).core, filled_by: answers.get('_filled_by')?.value || '', status_line: answers.get('_status')?.value || '' });
+    res.json({ ...clientView(c, base(req)), ...summarise(answers), checklist: checklistCounts(c, answers), core: progressFor(c, answeredSet(answers), uploaded, programSitesOf(answers)).core, filled_by: lastEditor(answers), status_line: answers.get('_status')?.value || '' });
   }));
 
   app.patch('/api/clients/:slug', team, guard(async (req, res) => {
@@ -1580,9 +1596,50 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     // NPSA's checklist tasks are the team's to update too (Grant Writing page); the form shows them read-only.
     const rows = normaliseAnswers((req.body || {}).answers).filter(r => !r.key.startsWith('note_') && !npsaChecklistKey(r.key));
     const existing = await store.getAnswers(c.id);
-    const who = rows.find(r => r.key === '_filled_by')?.value || existing.get('_filled_by')?.value || '';
-    const n = await store.upsertAnswers(c.id, rows, who ? `client:${who.slice(0, 80)}` : 'client', { clientActivity: true });
-    res.json({ ok: true, saved: n });
+    const body = req.body || {};
+    const who = String(typeof body.by === 'string' ? body.by : '').trim() || rows.find(r => r.key === '_filled_by')?.value || existing.get('_filled_by')?.value || '';
+    // Working together (2026-10-21): a save that says what the field held when the person started
+    // typing (base) is refused for that field if someone else has saved a different answer since,
+    // and the page asks which to keep. Saves without a base write as before.
+    const base = body.base && typeof body.base === 'object' && !Array.isArray(body.base) ? body.base : {};
+    const conflicts = {}, shown = pageAnswers(c, existing);
+    const ok = rows.filter(r => {
+      if (!Object.prototype.hasOwnProperty.call(base, r.key)) return true;
+      const cur = existing.get(r.key);
+      const now = shown[r.key] ?? (cur ? cur.value : '');
+      if (now === String(base[r.key] ?? '') || now === r.value) return true;
+      conflicts[r.key] = { value: now, by: editorLabel(cur && cur.updated_by) };
+      return false;
+    });
+    const n = ok.length ? await store.upsertAnswers(c.id, ok, who ? `client:${who.slice(0, 80)}` : 'client', { clientActivity: true }) : 0;
+    res.json({ ok: true, saved: n, conflicts });
+  }));
+
+  // Working together (2026-10-21). An open page asks every 15 seconds or so what has changed since
+  // it last looked, and says who it is so teammates see who else is on the form. Presence is held
+  // in memory: it only has to last a minute, and a restart just empties the "also here" line.
+  app.post('/api/intake/:slug/sync', guard(async (req, res) => {
+    const c = await clientAuth(req, res); if (!c) return;
+    const body = req.body || {}, v = body.viewer || {};
+    const id = /^[a-z0-9]{8,40}$/.test(String(v.id || '')) ? String(v.id) : '';
+    const now = Date.now();
+    const here = presence.get(c.id) || new Map();
+    presence.set(c.id, here);
+    if (id) here.set(id, { name: String(v.name || '').trim().slice(0, 80), at: now });
+    for (const [k, p] of here) if (now - p.at > PRESENT_MS) here.delete(k);
+    const since = Date.parse(body.since);
+    // A few seconds of overlap so a save that committed late is not missed; the page ignores
+    // answers it already has.
+    const from = Number.isFinite(since) ? since - 5000 : now - 60000;
+    const answers = await store.getAnswers(c.id);
+    const changes = {}, shown = pageAnswers(c, answers);
+    let cursor = Number.isFinite(since) ? since : now;
+    for (const [key, a] of answers) {
+      const t = new Date(a.updated_at).getTime();
+      if (t > cursor) cursor = t;
+      if (t > from && !key.startsWith('_')) changes[key] = { value: shown[key] ?? a.value, by: editorLabel(a.updated_by) };
+    }
+    res.json({ since: new Date(cursor).toISOString(), changes, here: [...here].filter(([k]) => k !== id).map(([, p]) => ({ name: p.name })) });
   }));
 
   // Uploads. The page may post these straight to this origin rather than through
