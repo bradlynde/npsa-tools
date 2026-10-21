@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * keyed team routes (/api/clients) are not reachable through here.
  */
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const ACTIONS = new Set(["answers", "complete", "upload", "contacts"]);
+const ACTIONS = new Set(["answers", "complete", "upload", "contacts", "sync"]);
 
 async function forward(req: NextRequest, segments: string[], method: "GET" | "PUT" | "POST" | "DELETE") {
   const [slug, action, ...rest] = segments;
