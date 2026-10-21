@@ -1175,6 +1175,32 @@ await check('a client create that fails partway leaves no half-made client, and 
   } finally { s4.close(); }
 });
 
+await check('working together: a save names its device, sync shows teammates and changes, a stale save is refused', async () => {
+  const h = { 'X-Intake-Token': token() }, P = `/api/intake/${created.slug}`;
+  const s0 = await call('POST', `${P}/sync`, { headers: h, body: { viewer: { id: 'devicealpha1', name: 'Alex' } } });
+  assert.equal(s0.status, 200);
+  assert.deepEqual(s0.data.here, [], 'nobody else yet');
+  const s1 = await call('POST', `${P}/sync`, { headers: h, body: { since: s0.data.since, viewer: { id: 'devicebravo22', name: 'Sam' } } });
+  assert.deepEqual(s1.data.here, [{ name: 'Alex' }], 'Sam sees Alex');
+  const w = await call('PUT', `${P}/answers`, { headers: h, body: { answers: { q_1_1_3: 'From Alex' }, by: 'Alex', base: { q_1_1_3: '' } } });
+  assert.equal(w.data.saved, 1);
+  assert.deepEqual(w.data.conflicts, {});
+  const s2 = await call('POST', `${P}/sync`, { headers: h, body: { since: s1.data.since, viewer: { id: 'devicebravo22', name: 'Sam' } } });
+  assert.deepEqual(s2.data.changes.q_1_1_3, { value: 'From Alex', by: 'Alex' });
+  // Sam started typing when the field was still empty: refused, with Alex's answer to choose from
+  const stale = await call('PUT', `${P}/answers`, { headers: h, body: { answers: { q_1_1_3: 'From Sam' }, by: 'Sam', base: { q_1_1_3: '' } } });
+  assert.equal(stale.data.saved, 0);
+  assert.deepEqual(stale.data.conflicts.q_1_1_3, { value: 'From Alex', by: 'Alex' });
+  // "Keep mine" resends with Alex's answer as the base
+  const keep = await call('PUT', `${P}/answers`, { headers: h, body: { answers: { q_1_1_3: 'From Sam' }, by: 'Sam', base: { q_1_1_3: 'From Alex' } } });
+  assert.equal(keep.data.saved, 1);
+  const a = await call('GET', `/api/clients/${created.slug}/answers`, { headers: TEAM });
+  assert.equal(a.data.answers.find(x => x.key === 'q_1_1_3').updated_by, 'client:Sam');
+  const st = await call('GET', `/api/clients/${created.slug}/status`, { headers: TEAM });
+  assert.equal(st.data.filled_by, 'Sam', 'the last named editor');
+  const bad = await call('POST', `${P}/sync`, { headers: { 'X-Intake-Token': 'ffffffffffffffffffff' }, body: {} });
+  assert.equal(bad.status, 401);
+});
 await check('a filename outside Latin-1 downloads instead of failing', async () => {
   const r = await upload(created.slug, token(), multipart('up_501c3', 'Pastor’s letter.pdf', PDF, 'application/pdf'));
   const body = await r.text();
