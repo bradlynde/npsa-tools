@@ -1,5 +1,4 @@
 import express from 'express';
-import { OpenAI } from 'openai';
 import { repairDocx, stripXmlIllegal } from './docx-repair.js';
 import { preserveInlineSpacing } from './docx-style.js';
 import path from 'path';
@@ -30,14 +29,73 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-let openai = null;
-function getOpenAI() {
-  if (!openai) {
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) throw new Error('OPENAI_API_KEY is not configured');
-    openai = new OpenAI({ apiKey: key });
+// Claude (Anthropic Messages API), called with plain fetch. Small extraction
+// jobs use Haiku; the two long-form writers (briefing and follow-up email) use
+// Sonnet. Thinking is switched off on both: these were non-reasoning calls with
+// tight max_tokens budgets, and thinking tokens count against max_tokens.
+const CLAUDE_FAST = 'claude-haiku-5-5';
+const CLAUDE_SMART = 'claude-sonnet-5-5';
+// Haiku 5.5 accepts "disabled"; Sonnet 5.5 rejects it and uses "between_tools"
+// (no up-front thinking; with no tools the reply is text only).
+const THINKING_OFF = {
+  [CLAUDE_FAST]: { type: 'disabled' },
+  [CLAUDE_SMART]: { type: 'between_tools' },
+};
+// Asked of every call that used OpenAI's JSON mode, which Claude has no direct
+// switch for. parseJsonReply() below copes if a fence or a sentence slips in.
+const JSON_ONLY = 'Respond with a single JSON object only. No prose, no explanation and no markdown code fences.';
+const CLAUDE_TIMEOUT_MS = 10 * 60 * 1000;   // the OpenAI SDK's default
+const CLAUDE_MAX_RETRIES = 2;               // likewise
+
+async function claudeMessages({ model, max_tokens, system, messages, json = false }) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error('ANTHROPIC_API_KEY is not configured');
+  const base = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
+  const sys = [system, json ? JSON_ONLY : null].filter(Boolean).join('\n\n');
+  const body = JSON.stringify({
+    model, max_tokens, messages,
+    ...(sys ? { system: sys } : {}),
+    ...(THINKING_OFF[model] ? { thinking: THINKING_OFF[model] } : {}),
+  });
+  for (let attempt = 0; ; attempt++) {
+    let r;
+    try {
+      r = await fetch(`${base}/v1/messages`, {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body,
+        signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
+      });
+    } catch (e) {
+      if (attempt < CLAUDE_MAX_RETRIES) { await new Promise(res => setTimeout(res, 500 * 2 ** attempt)); continue; }
+      throw new Error(`Claude request failed: ${e.message}`);
+    }
+    const data = await r.json().catch(() => null);
+    if (!r.ok) {
+      const retryable = r.status === 408 || r.status === 409 || r.status === 429 || r.status >= 500;
+      if (retryable && attempt < CLAUDE_MAX_RETRIES) { await new Promise(res => setTimeout(res, 500 * 2 ** attempt)); continue; }
+      throw new Error(`Claude API ${r.status}: ${data?.error?.message || r.statusText}`);
+    }
+    return (data?.content || []).filter(b => b?.type === 'text').map(b => b.text).join('');
   }
-  return openai;
+}
+
+// JSON from a model reply: the whole text if it parses, else the outermost {...}
+// (which also strips ```json fences). An empty reply reads as {} as it did before.
+function parseJsonReply(text) {
+  const t = String(text || '').trim();
+  if (!t) return {};
+  try { return JSON.parse(t); } catch { /* fall through */ }
+  const start = t.indexOf('{'), end = t.lastIndexOf('}');
+  if (start !== -1 && end > start) return JSON.parse(t.slice(start, end + 1));
+  throw new Error('Claude returned no JSON object');
+}
+
+// Fetched at the top of each handler, as the OpenAI client was: this is what
+// throws when the key is missing, before any other work is done.
+function getClaude() {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured');
+  return { messages: claudeMessages };
 }
 
 let pool = null;
@@ -101,17 +159,17 @@ app.post('/api/polish', async (req, res) => {
   const { text } = req.body;
   if (!text || !text.trim()) return res.status(400).json({ error: 'No text provided' });
   try {
-    const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await getClaude().messages({
+      model: CLAUDE_FAST,
       max_tokens: 1000,
       messages: [{
         role: 'user',
         content: `You are a legal contract drafting assistant for Nonprofit Security Advisors. Rewrite the following rough clause into polished, professional legal contract language. Return ONLY the polished clause text.\n\nRough clause: ${text}`
       }]
     });
-    res.json({ result: completion.choices[0]?.message?.content || '' });
+    res.json({ result: completion || '' });
   } catch (err) {
-    console.error('OpenAI error:', err.message);
+    console.error('Claude error:', err.message);
     res.status(500).json({ error: 'AI service error' });
   }
 });
@@ -337,17 +395,17 @@ app.post('/api/precall/parse', async (req, res) => {
   const { calendlyText } = req.body || {};
   if (!calendlyText?.trim()) return res.status(400).json({ error: 'No text provided' });
   try {
-    const client = getOpenAI();
-    const result = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const client = getClaude();
+    const result = await client.messages({
+      model: CLAUDE_FAST,
       max_tokens: 600,
-      response_format: { type: 'json_object' },
+      json: true,
       messages: [{
         role: 'user',
         content: `Extract structured data from this Calendly invite. Return ONLY valid JSON with these exact keys (use null for anything not found). Detect org_type from the org name (church, school, or other). For meeting_date use YYYY-MM-DD. For meeting_time use HH:MM in 24-hour format. For org_state detect from context (2-letter abbreviation). Convert timezone to one of: CST, EST, PST, MST — use CST if Central Time.\n\n{"org_name":null,"org_type":"church","org_state":null,"website_url":null,"meeting_date":null,"meeting_time":null,"meeting_timezone":"CST","zoom_url":null,"zoom_id":null,"zoom_password":null,"attendees":[{"name":null,"email":null,"phone":null}]}\n\nCalendly invite:\n${calendlyText.slice(0, 5000)}`
       }]
     });
-    const parsed = JSON.parse(result.choices[0]?.message?.content || '{}');
+    const parsed = parseJsonReply(result);
     res.json(parsed);
   } catch(e) {
     console.error('Parse error:', e.message);
@@ -394,13 +452,11 @@ app.post('/api/precall/followup', async (req, res) => {
   const signOff = [sender.name, sender.title, sender.email].filter(Boolean).join(' | ');
 
   try {
-    const client = getOpenAI();
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o',
+    const client = getClaude();
+    const completion = await client.messages({
+      model: CLAUDE_SMART,
       max_tokens: 800,
-      messages: [{
-        role: 'system',
-        content: `You are drafting a post-call follow-up email on behalf of ${sender.name} at NPSA (Nonprofit Security Advisors), sent after an introductory call with a nonprofit prospect.
+      system: `You are drafting a post-call follow-up email on behalf of ${sender.name} at NPSA (Nonprofit Security Advisors), sent after an introductory call with a nonprofit prospect.
 
 Write a concise, warm, professional email. Rules:
 1. Subject line on the first line, formatted as: Subject: {subject}
@@ -412,13 +468,13 @@ Write a concise, warm, professional email. Rules:
 7. ${sender.schedulingUrl ? `Invite them to book a follow-up using this scheduling link: ${sender.schedulingUrl}` : 'Invite them to reply to arrange a follow-up. Do NOT invent a scheduling link.'}
 8. Close exactly with: ${signOff}
 9. Never include a phone number — you have not been given one, and an invented one would reach a stranger.
-10. Keep it under 200 words. No fluff, no bullet points — flowing prose paragraphs only.`
-      }, {
+10. Keep it under 200 words. No fluff, no bullet points — flowing prose paragraphs only.`,
+      messages: [{
         role: 'user',
         content: `Contact: ${contactName} (${contactEmail})\nOrganization: ${org}\n\nPRE-CALL NOTES FOR CONTEXT:\n${notesText.slice(0, 3000)}`
       }]
     });
-    res.json({ email: completion.choices[0]?.message?.content || '' });
+    res.json({ email: completion || '' });
   } catch(e) {
     console.error('Follow-up email error:', e.message);
     res.status(500).json({ error: e.message });
@@ -513,7 +569,7 @@ app.post('/api/precall', async (req, res) => {
     return res.status(400).json({ error: 'No input provided' });
   }
   try {
-    const client = getOpenAI();
+    const client = getClaude();
 
     let orgName, orgType, orgState, websiteUrl, meetingDate, meetingTime, meetingTimezone,
         zoomUrl, zoomId, zoomPassword, attendees, extraNotes;
@@ -532,12 +588,12 @@ app.post('/api/precall', async (req, res) => {
     } else {
       // Legacy: parse raw Calendly text
       try {
-        const ext = await client.chat.completions.create({
-          model: 'gpt-4o-mini', max_tokens: 500,
-          response_format: { type: 'json_object' },
+        const ext = await client.messages({
+          model: CLAUDE_FAST, max_tokens: 500,
+          json: true,
           messages: [{ role: 'user', content: `Extract from this Calendly invite. JSON: {"org_name":null,"org_type":"church","org_state":null,"website_url":null,"meeting_date":null,"meeting_time":null,"meeting_timezone":"CST","zoom_url":null,"zoom_id":null,"zoom_password":null,"attendees":[{"name":null,"email":null,"phone":null}]}\n\n${calendlyText.slice(0,4000)}` }],
         });
-        const p = JSON.parse(ext.choices[0]?.message?.content || '{}');
+        const p = parseJsonReply(ext);
         orgName = p.org_name; orgType = p.org_type; orgState = p.org_state;
         websiteUrl = p.website_url; meetingDate = p.meeting_date; meetingTime = p.meeting_time;
         meetingTimezone = p.meeting_timezone || 'CST'; zoomUrl = p.zoom_url; zoomId = p.zoom_id;
@@ -606,12 +662,12 @@ app.post('/api/precall', async (req, res) => {
       const searchResults = await searchForOrgWebsite(orgName, orgType, orgState);
       if (searchResults) {
         try {
-          const urlFind = await client.chat.completions.create({
-            model: 'gpt-4o-mini', max_tokens: 100,
-            response_format: { type: 'json_object' },
+          const urlFind = await client.messages({
+            model: CLAUDE_FAST, max_tokens: 100,
+            json: true,
             messages: [{ role: 'user', content: `Find the official website URL for "${orgName}" from these search results. Return JSON: {"url":"https://..."} or {"url":null}\n\n${searchResults}` }]
           });
-          const found = JSON.parse(urlFind.choices[0]?.message?.content || '{}');
+          const found = parseJsonReply(urlFind);
           resolvedWebsite = normalizeBaseUrl(found.url);
         } catch { /* best effort */ }
       }
@@ -657,9 +713,9 @@ app.post('/api/precall', async (req, res) => {
     const toResearch = (attendees || []).filter(a => a?.email);
     if (siteText) {
       try {
-        const r = await client.chat.completions.create({
-          model: 'gpt-4o-mini', max_tokens: 700,
-          response_format: { type: 'json_object' },
+        const r = await client.messages({
+          model: CLAUDE_FAST, max_tokens: 700,
+          json: true,
           messages: [{ role: 'user', content:
             `From the website text below, return JSON {"org_state":null,"people":[{"email":"","name":null,"title":null,"evidence":null}]}.\n` +
             `"org_state": the 2-letter US state abbreviation of the organisation's own address, from a postal address or contact page. Null if the site does not state one.\n` +
@@ -669,7 +725,7 @@ app.post('/api/precall', async (req, res) => {
             `PEOPLE:\n${toResearch.map(a => `${a.email}${a.name ? ` (${a.name})` : ''}`).join('\n') || '(none)'}\n\n` +
             `WEBSITE TEXT:\n${siteText.slice(0, 14000)}` }],
         });
-        const parsed = JSON.parse(r.choices[0]?.message?.content || '{}');
+        const parsed = parseJsonReply(r);
         for (const p of (parsed.people || [])) {
           if (p?.email) research[String(p.email).toLowerCase()] = p;
         }
@@ -731,11 +787,11 @@ app.post('/api/precall', async (req, res) => {
       siteText || '(website could not be fetched)',
     ].filter(l => l !== null).join('\n');
 
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o',
+    const completion = await client.messages({
+      model: CLAUDE_SMART,
       max_tokens: 4500,
+      system: PRECALL_MASTER_PROMPT,
       messages: [
-        { role: 'system', content: PRECALL_MASTER_PROMPT },
         { role: 'user', content: context },
       ],
     });
@@ -743,7 +799,7 @@ app.post('/api/precall', async (req, res) => {
     // Everything the client submitted goes in here, after the model has finished
     // and without its involvement. See server/precall-facts.js for why.
     const todayIso = new Date().toISOString().slice(0, 10);
-    let notes = substituteBlocks(completion.choices[0]?.message?.content || '', {
+    let notes = substituteBlocks(completion || '', {
       MEETING_DETAILS: {
         heading: 'Meeting Details',
         body: buildMeetingDetails(facts, { orgType, website: resolvedWebsite, hostName: booking?.host?.name }),
