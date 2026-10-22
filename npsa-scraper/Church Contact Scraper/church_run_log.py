@@ -178,9 +178,11 @@ def log_cost_estimate(
     billable_places = max(0, places_calls - 1000)
     places_cost = billable_places * (35.0 / 1000.0)
     hunter_cost = hunter_credits * (50.0 / 1000.0)
-    openai_cost = (openai_input_tokens / 1_000_000.0) * 0.15 + (
+    # Claude Haiku 5.5 rates ($/MTok, prompts <= 100K tokens). The openai_* names
+    # are kept because they match the stored stats/DB fields.
+    openai_cost = (openai_input_tokens / 1_000_000.0) * 0.10 + (
         openai_output_tokens / 1_000_000.0
-    ) * 0.60
+    ) * 0.50
     railway_cost = elapsed_hours * 60.0 * 0.000463
     total_cost = places_cost + hunter_cost + openai_cost + railway_cost
     per = (total_cost / total_contacts) if total_contacts else 0.0
@@ -192,7 +194,7 @@ def log_cost_estimate(
         f"  Google Places: {places_calls:,} calls ({billable_places:,} billable){d}~${places_cost:.2f}"
     )
     _emit(f"  Hunter.io: {hunter_credits:,} credits{d}~${hunter_cost:.2f}")
-    _emit(f"  OpenAI: {openai_calls:,} calls{d}~${openai_cost:.2f}")
+    _emit(f"  Claude: {openai_calls:,} calls{d}~${openai_cost:.2f}")
     _emit(f"  Railway: {elapsed_hours:.1f} hrs{d}~${railway_cost:.2f}")
     tot_sep = d if _use_unicode() else " - "
     _emit(f"  Total: ~${total_cost:.2f}{tot_sep}${per:.3f}/contact")

@@ -5,7 +5,7 @@ Process one church lead through all steps, then write to final CSV only.
 No intermediate CSV files - all in memory streaming.
 
 Usage:
-    python pipeline.py --api-key KEY --openai-key OPENAI_KEY
+    python pipeline.py --api-key KEY --anthropic-key ANTHROPIC_KEY
 """
 
 import os
@@ -100,7 +100,7 @@ class StreamingPipeline:
     def __init__(
         self,
         google_api_key: str,
-        openai_api_key: str,
+        anthropic_api_key: str,
         global_max_api_calls: int = 25,
         max_pages_per_church: int = 3,
         state: str = 'Texas',
@@ -108,7 +108,7 @@ class StreamingPipeline:
         chrome_tmp_dir: Optional[str] = None
     ):
         self.google_api_key = google_api_key
-        self.openai_api_key = openai_api_key
+        self.anthropic_api_key = anthropic_api_key
         self.global_max_api_calls = global_max_api_calls
         self.max_pages_per_church = max_pages_per_church
         self._state = state
@@ -120,12 +120,12 @@ class StreamingPipeline:
             )
         self.church_searcher = ChurchSearcher(google_api_key, global_max_api_calls, max_churches=max_churches, target_state=state)
         
-        if openai_api_key:
+        if anthropic_api_key:
             try:
                 self.llm_church_filter = LLMChurchFilter(
-                    api_key=openai_api_key,
+                    api_key=anthropic_api_key,
                     target_state=state,
-                    model="gpt-4o-mini",
+                    model="claude-haiku-5-5",
                     batch_size=20
                 )
             except Exception as e:
@@ -138,10 +138,10 @@ class StreamingPipeline:
         self.content_collector = step4.ContentCollector(timeout=10, max_retries=3, use_selenium=True, chrome_user_data_dir=chrome_tmp_dir)
         self.html_reducer = step5.HTMLReducer()
         self.html_chunker = step6.HTMLChunker()
-        self.llm_parser = step7.LLMParser(openai_api_key, model="gpt-4o-mini")
+        self.llm_parser = step7.LLMParser(anthropic_api_key, model="claude-haiku-5-5")
         self.csv_parser = step8.CSVParser()
         self.deduplicator = step9.ContactDeduplicator(email_cleaner=self.csv_parser.clean_email)
-        self.title_filter = step10.TitleFilter(openai_api_key, model="gpt-4o-mini", batch_size=10)
+        self.title_filter = step10.TitleFilter(anthropic_api_key, model="claude-haiku-5-5", batch_size=10)
         self.contact_splitter = step11_contact_splitter.ContactSplitter()
         self.final_compiler = step13_final_compiler.FinalCompiler()
         self.enable_hunter_io = os.getenv('HUNTER_IO_API_KEY') is not None
@@ -516,19 +516,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     google_api_key = os.getenv("GOOGLE_PLACES_API_KEY", "")
-    openai_api_key = os.getenv("OPENAI_API_KEY", "")
+    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", "")
     
     if not google_api_key or len(google_api_key) < 10:
         print(f"ERROR: GOOGLE_PLACES_API_KEY environment variable not set or invalid")
         sys.exit(1)
     
-    if not openai_api_key or len(openai_api_key) < 10:
-        print(f"ERROR: OPENAI_API_KEY environment variable not set or invalid")
+    if not anthropic_api_key or len(anthropic_api_key) < 10:
+        print(f"ERROR: ANTHROPIC_API_KEY environment variable not set or invalid")
         sys.exit(1)
     
     pipeline = StreamingPipeline(
         google_api_key=google_api_key,
-        openai_api_key=openai_api_key,
+        anthropic_api_key=anthropic_api_key,
         global_max_api_calls=args.global_max_api_calls,
         max_pages_per_church=args.max_pages_per_church,
         state=args.state,

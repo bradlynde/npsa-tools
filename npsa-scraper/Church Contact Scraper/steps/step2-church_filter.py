@@ -12,10 +12,10 @@ from typing import Optional, List, Dict, Tuple
 from assets.shared.models import Church
 
 try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
+    ANTHROPIC_AVAILABLE = False
 
 # ANSI escape codes for bold text
 BOLD = '\033[1m'
@@ -173,14 +173,14 @@ def passes_pre_filters(church: Church) -> bool:
 
 class LLMChurchFilter:
     """
-    Filter churches using GPT to determine if they're Christian/Catholic churches.
+    Filter churches using Claude to determine if they're Christian/Catholic churches.
     """
     
-    def __init__(self, api_key: str, target_state: str = 'texas', model: str = "gpt-4o-mini", batch_size: int = 20):
-        if not OPENAI_AVAILABLE:
-            raise ImportError("OpenAI library not available. Install with: pip install openai")
+    def __init__(self, api_key: str, target_state: str = 'texas', model: str = "claude-haiku-5-5", batch_size: int = 20):
+        if not ANTHROPIC_AVAILABLE:
+            raise ImportError("Anthropic library not available. Install with: pip install anthropic")
         
-        self.client = OpenAI(api_key=api_key)
+        self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
         self.batch_size = batch_size
         self.target_state = target_state
@@ -212,7 +212,7 @@ class LLMChurchFilter:
             self._process_batch()
     
     def _process_batch(self):
-        """Process current batch of churches through GPT."""
+        """Process current batch of churches through Claude."""
         if not self.pending_churches:
             return
         
@@ -221,14 +221,20 @@ class LLMChurchFilter:
         
         try:
             prompt = self._build_prompt(batch)
-            response = self.client.chat.completions.create(
+            # Thinking off: short classification, and the 200-token cap must hold the answer.
+            # (Claude Haiku 5.5 rejects non-default temperature, so none is sent.)
+            response = self.client.messages.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0,
+                thinking={"type": "disabled"},
                 max_tokens=200
             )
             
-            results = self._parse_responses(response.choices[0].message.content, batch)
+            response_text = "".join(
+                getattr(block, "text", "") for block in response.content
+                if getattr(block, "type", None) == "text"
+            )
+            results = self._parse_responses(response_text, batch)
             
             for church, is_valid in zip(batch, results):
                 self.cache[church.name.lower().strip()] = is_valid
@@ -276,7 +282,7 @@ For each place, respond with ONLY YES or NO, one per line:
         return prompt
     
     def _parse_responses(self, response_text: str, churches: List[Church]) -> List[bool]:
-        """Parse YES/NO responses from GPT."""
+        """Parse YES/NO responses from Claude."""
         results = []
         lines = response_text.strip().split('\n')
         

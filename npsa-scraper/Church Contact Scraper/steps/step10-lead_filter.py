@@ -11,7 +11,7 @@ Input: CSV from Step 9 with ALL extracted contacts (no filtering)
 Output: CSV with filtered contacts (only church administrative/leadership roles)
 """
 
-from openai import OpenAI
+import anthropic
 import pandas as pd
 import csv
 import io
@@ -28,6 +28,25 @@ RESET = '\033[0m'
 def bold(text: str) -> str:
     """Make text bold in terminal output"""
     return f"{BOLD}{text}{RESET}"
+
+
+def _response_text(response) -> str:
+    """Join the text blocks of a Claude response (skips any non-text blocks)."""
+    return "".join(
+        getattr(block, "text", "") for block in response.content
+        if getattr(block, "type", None) == "text"
+    )
+
+
+def _retry_after_seconds(error, default: float = 1.0) -> float:
+    """Seconds to wait after a 429, from the retry-after header (+0.5s buffer)."""
+    try:
+        value = error.response.headers.get("retry-after")
+        if value:
+            return float(value) + 0.5
+    except Exception:
+        pass
+    return default
 
 
 # Title filtering prompt - single contact mode
@@ -126,19 +145,19 @@ KEEP
 class TitleFilter:
     """Filter contacts by title using LLM with batch support"""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini", batch_size: int = 10):
+    def __init__(self, api_key: str, model: str = "claude-haiku-5-5", batch_size: int = 10):
         """
         Initialize title filter
 
         Args:
-            api_key: OpenAI API key
-            model: Model to use (default: gpt-4o-mini)
+            api_key: Anthropic API key
+            model: Model to use (default: claude-haiku-5-5)
             batch_size: Number of contacts per LLM call (default: 10, tested optimal)
         """
         self.api_key = api_key
         self.model = model
         self.batch_size = batch_size
-        self.client = OpenAI(api_key=api_key)
+        self.client = anthropic.Anthropic(api_key=api_key)
         self.total_api_calls = 0
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
@@ -173,25 +192,27 @@ class TitleFilter:
 Last Name: {last_name}
 Title: {title}"""
 
-                response = self.client.chat.completions.create(
+                # Thinking off so the one-word answer fits the small cap.
+                # (Claude Haiku 5.5 rejects non-default temperature, so none is sent.)
+                response = self.client.messages.create(
                     model=self.model,
+                    system=TITLE_FILTERING_PROMPT,
                     messages=[
-                        {"role": "system", "content": TITLE_FILTERING_PROMPT},
                         {"role": "user", "content": user_message},
                     ],
-                    temperature=0.0,
+                    thinking={"type": "disabled"},
                     max_tokens=10,
                 )
 
                 self.total_api_calls += 1
                 u = getattr(response, "usage", None)
                 if u is not None:
-                    self.total_prompt_tokens += int(getattr(u, "prompt_tokens", 0) or 0)
+                    self.total_prompt_tokens += int(getattr(u, "input_tokens", 0) or 0)
                     self.total_completion_tokens += int(
-                        getattr(u, "completion_tokens", 0) or 0
+                        getattr(u, "output_tokens", 0) or 0
                     )
 
-                response_text = response.choices[0].message.content.strip().upper()
+                response_text = _response_text(response).strip().upper()
 
                 # Parse response
                 if "KEEP" in response_text:
@@ -206,24 +227,13 @@ Title: {title}"""
                     )
                     return False
 
-            except Exception as e:
+            except (anthropic.APIStatusError, anthropic.APIConnectionError, Exception) as e:
                 from church_run_log import log_warn
 
-                error_str = str(e)
-                is_rate_limit = "429" in error_str or "rate_limit" in error_str.lower()
+                is_rate_limit = isinstance(e, anthropic.RateLimitError)
 
                 if is_rate_limit:
-                    wait_seconds = 1.0
-                    wait_match = re.search(
-                        r"Please try again in (\d+)(ms|s)", error_str, re.IGNORECASE
-                    )
-                    if wait_match:
-                        wait_value = int(wait_match.group(1))
-                        wait_unit = wait_match.group(2).lower()
-                        if wait_unit == "ms":
-                            wait_seconds = (wait_value / 1000.0) + 0.5
-                        else:
-                            wait_seconds = wait_value + 0.5
+                    wait_seconds = _retry_after_seconds(e)
 
                     if attempt < max_retries - 1:
                         log_warn(
@@ -286,25 +296,25 @@ Title: {title}"""
 
         for attempt in range(max_retries):
             try:
-                response = self.client.chat.completions.create(
+                response = self.client.messages.create(
                     model=self.model,
+                    system=TITLE_FILTERING_PROMPT_BATCH,
                     messages=[
-                        {"role": "system", "content": TITLE_FILTERING_PROMPT_BATCH},
                         {"role": "user", "content": user_message},
                     ],
-                    temperature=0.0,
+                    thinking={"type": "disabled"},
                     max_tokens=len(valid_contacts) * 10,
                 )
 
                 self.total_api_calls += 1
                 u = getattr(response, "usage", None)
                 if u is not None:
-                    self.total_prompt_tokens += int(getattr(u, "prompt_tokens", 0) or 0)
+                    self.total_prompt_tokens += int(getattr(u, "input_tokens", 0) or 0)
                     self.total_completion_tokens += int(
-                        getattr(u, "completion_tokens", 0) or 0
+                        getattr(u, "output_tokens", 0) or 0
                     )
 
-                text = response.choices[0].message.content.strip()
+                text = _response_text(response).strip()
 
                 # Parse batch response — one KEEP/EXCLUDE per line
                 batch_results = []
@@ -332,24 +342,13 @@ Title: {title}"""
                         results[idx] = self.filter_contact(contact, max_retries=max_retries)
                     return results
 
-            except Exception as e:
+            except (anthropic.APIStatusError, anthropic.APIConnectionError, Exception) as e:
                 from church_run_log import log_warn
 
-                error_str = str(e)
-                is_rate_limit = "429" in error_str or "rate_limit" in error_str.lower()
+                is_rate_limit = isinstance(e, anthropic.RateLimitError)
 
                 if is_rate_limit:
-                    wait_seconds = 1.0
-                    wait_match = re.search(
-                        r"Please try again in (\d+)(ms|s)", error_str, re.IGNORECASE
-                    )
-                    if wait_match:
-                        wait_value = int(wait_match.group(1))
-                        wait_unit = wait_match.group(2).lower()
-                        if wait_unit == "ms":
-                            wait_seconds = (wait_value / 1000.0) + 0.5
-                        else:
-                            wait_seconds = wait_value + 0.5
+                    wait_seconds = _retry_after_seconds(e)
 
                     if attempt < max_retries - 1:
                         log_warn(
@@ -437,14 +436,14 @@ if __name__ == "__main__":
     parser.add_argument('--input', required=True, help='Input CSV from Step 5')
     parser.add_argument('--output', default='step10_contacts_filtered.csv', help='Output CSV filename for filtered contacts')
     parser.add_argument('--output-excluded', default=None, help='Output CSV filename for excluded contacts (optional)')
-    parser.add_argument('--model', default='gpt-4o-mini', help='Model to use (default: gpt-4o-mini)')
+    parser.add_argument('--model', default='claude-haiku-5-5', help='Model to use (default: claude-haiku-5-5)')
     parser.add_argument('--batch-size', type=int, default=10, help='Contacts per LLM call (default: 10)')
     args = parser.parse_args()
 
-    # API key must come from OPENAI_API_KEY environment variable
-    api_key = os.getenv('OPENAI_API_KEY')
+    # API key must come from ANTHROPIC_API_KEY environment variable
+    api_key = os.getenv('ANTHROPIC_API_KEY')
     if not api_key:
-        print("ERROR: OPENAI_API_KEY environment variable not set")
+        print("ERROR: ANTHROPIC_API_KEY environment variable not set")
         sys.exit(1)
 
     filterer = TitleFilter(api_key=api_key, model=args.model, batch_size=args.batch_size)
