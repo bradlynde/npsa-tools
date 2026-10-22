@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * API route for polishing custom clauses with AI.
- * Uses OPENAI_API_KEY from env. Set in Vercel: Settings → Environment Variables.
+ * Uses ANTHROPIC_API_KEY from env (Claude Messages API). Set in Vercel: Settings → Environment Variables.
  * The client never touches this file — they edit LOEGenerator.tsx only.
  */
 export async function POST(req: NextRequest) {
@@ -12,24 +12,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid text" }, { status: 400 });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.error("OPENAI_API_KEY not set");
+      console.error("ANTHROPIC_API_KEY not set");
       return NextResponse.json(
-        { error: "AI polish is not configured. Add OPENAI_API_KEY to Vercel environment variables." },
+        { error: "AI polish is not configured. Add ANTHROPIC_API_KEY to Vercel environment variables." },
         { status: 503 }
       );
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "claude-haiku-5-5",
         max_tokens: 1000,
+        // Thinking is on by default on Haiku 5.5 and would count against
+        // max_tokens; this was a non-reasoning rewrite, so keep it off.
+        thinking: { type: "disabled" },
         messages: [
           {
             role: "user",
@@ -43,7 +47,7 @@ Rough clause: ${text}`,
 
     if (!response.ok) {
       const err = await response.text();
-      console.error("OpenAI API error:", response.status, err);
+      console.error("Claude API error:", response.status, err);
       return NextResponse.json(
         { error: "AI service error. Please try again." },
         { status: 502 }
@@ -52,7 +56,13 @@ Rough clause: ${text}`,
 
     const data = await response.json();
     const polished =
-      data.choices?.[0]?.message?.content?.trim() || "Error generating clause.";
+      (Array.isArray(data.content)
+        ? data.content
+            .filter((b: { type?: string }) => b?.type === "text")
+            .map((b: { text?: string }) => b.text || "")
+            .join("")
+        : ""
+      ).trim() || "Error generating clause.";
 
     return NextResponse.json({ polished });
   } catch (err) {
