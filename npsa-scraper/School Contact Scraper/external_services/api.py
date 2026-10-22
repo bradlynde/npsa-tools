@@ -1364,7 +1364,7 @@ def _county_worker(state: str, county: str, run_id: str, county_index: int, tota
         # Initialize pipeline for this county
         pipeline = StreamingPipeline(
             google_api_key=os.getenv("GOOGLE_PLACES_API_KEY", ""),
-            openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             global_max_api_calls=None,  # No limit for full state runs
             max_pages_per_school=2,  # Reduced from 3 to 2 for faster processing
             state=state,

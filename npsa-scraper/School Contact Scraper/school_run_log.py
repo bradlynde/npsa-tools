@@ -118,9 +118,11 @@ def log_cost(
     billable_places = max(0, places_calls - 1000)
     places_cost = billable_places * (35.0 / 1000.0)
     hunter_cost = hunter_credits * (50.0 / 1000.0)
-    openai_cost = (openai_input_tokens / 1_000_000.0) * 0.15 + (
+    # Claude Haiku 5.5 rates ($/MTok, prompts <= 100K tokens). The openai_* names
+    # are kept because they match the stored stats/DB fields.
+    openai_cost = (openai_input_tokens / 1_000_000.0) * 0.10 + (
         openai_output_tokens / 1_000_000.0
-    ) * 0.60
+    ) * 0.50
     railway_cost = elapsed_hours * 60.0 * 0.000463
     total_cost = places_cost + hunter_cost + openai_cost + railway_cost
     per = (total_cost / total_contacts) if total_contacts else 0.0
