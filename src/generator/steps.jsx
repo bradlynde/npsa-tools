@@ -77,8 +77,8 @@ const scopeStep = ({ programsKey = "programs", yearLabel = "Grant Year", locatio
   ),
 });
 
-/* Signer, dates and the custom clause — shared by every document that has them. */
-const signingBlock = (c, { clauseKey, expiration = true }) => (
+/* Signer and dates — shared by every document that has them. */
+const signingBlock = (c, { expiration = true } = {}) => (
   <>
     <Text label="NPSA Signer" value={c.form.npsaSignerName} placeholder="Brad Lynde"
       onChange={(v) => c.setF("npsaSignerName", v)} />
@@ -88,12 +88,6 @@ const signingBlock = (c, { clauseKey, expiration = true }) => (
       <Text label="Offer Expiration Date" type="date" value={c.form.expirationDate}
         onChange={(v) => c.setF("expirationDate", v)} />
     )}
-    <Advanced label="Custom clause">
-      <Field label="Additional Clause" hint="Appended to the letter body.">
-        <textarea className="wz-input" rows={4} value={c.form[clauseKey] || ""}
-          onChange={(e) => c.setF(clauseKey, e.target.value)} />
-      </Field>
-    </Advanced>
   </>
 );
 
@@ -108,7 +102,7 @@ const preTermsStep = (prefix) => ({
         onChange={(v) => c.setF(prefix ? "inhOptShortNotice" : "optShortNotice", v)} />
       <Check label="Reference the NOFO" checked={c.form[prefix ? "inhOptNofo" : "optNofo"]}
         onChange={(v) => c.setF(prefix ? "inhOptNofo" : "optNofo", v)} />
-      {signingBlock(c, { clauseKey: prefix ? "inhCustomClause" : "customClause" })}
+      {signingBlock(c)}
     </>
   ),
 });
@@ -226,7 +220,7 @@ export const STEPS = {
               ]}
             />
           </Field>
-          {signingBlock(c, { clauseKey: "postCustomClause" })}
+          {signingBlock(c)}
         </>
       ),
     },
@@ -383,7 +377,7 @@ export const STEPS = {
       id: "terms",
       title: "Terms",
       // An addendum carries no expiration of its own; it inherits the original.
-      render: (c) => signingBlock(c, { clauseKey: "customClause", expiration: false }),
+      render: (c) => signingBlock(c, { expiration: false }),
     },
     reviewStep,
   ],

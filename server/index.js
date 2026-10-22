@@ -154,26 +154,6 @@ app.use(['/api/clients', '/api/intake', '/api/grant-knowledge'], express.json({ 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
-// AI clause polishing endpoint
-app.post('/api/polish', async (req, res) => {
-  const { text } = req.body;
-  if (!text || !text.trim()) return res.status(400).json({ error: 'No text provided' });
-  try {
-    const completion = await getClaude().messages({
-      model: CLAUDE_FAST,
-      max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: `You are a legal contract drafting assistant for Nonprofit Security Advisors. Rewrite the following rough clause into polished, professional legal contract language. Return ONLY the polished clause text.\n\nRough clause: ${text}`
-      }]
-    });
-    res.json({ result: completion || '' });
-  } catch (err) {
-    console.error('Claude error:', err.message);
-    res.status(500).json({ error: 'AI service error' });
-  }
-});
-
 // ── Pre-Call Notes endpoint ───────────────────────────────────────────────────
 // Fetches a page via Jina AI Reader (handles JS-rendered sites, returns clean text).
 // Best effort — returns null on any failure (timeout, block, bad URL).
