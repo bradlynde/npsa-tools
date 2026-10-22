@@ -2290,12 +2290,6 @@ export default function App() {
                 )}
               </>
             )}
-            {form.polishedClause&&(
-              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.polishedClause}</p>
-              </div>
-            )}
           </>}
           {/* In-House Pre-Award body sections */}
           {isInh&&<>
@@ -2332,12 +2326,6 @@ export default function App() {
    (d) If CLIENT later receives funding, the fees described in Compensation Section 2 shall apply.`
                 )}
               </>
-            )}
-            {form.inhPolishedClause&&(
-              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.inhPolishedClause}</p>
-              </div>
             )}
           </>}
           {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&<>
@@ -2398,12 +2386,6 @@ export default function App() {
             <SH id="post_comp"/><Body id="post_comp"/>
             <SH id="post_term"/><Body id="post_term"/>
             <SH id="post_other"/><Body id="post_other"/>
-            {form.postPolishedClause&&(
-              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.postPolishedClause}</p>
-              </div>
-            )}
           </>}
           {/* ── GRANT WRITER FORM ── */}
           {isGw&&(()=>{
