@@ -7,7 +7,7 @@ Input: HTML chunk from Step 6
 Output: CSV text with contacts
 """
 
-from openai import OpenAI
+import anthropic
 import time
 from typing import List, Dict
 import re
@@ -19,6 +19,28 @@ RESET = '\033[0m'
 def bold(text: str) -> str:
     """Make text bold in terminal output"""
     return f"{BOLD}{text}{RESET}"
+
+
+CSV_HEADER = "First Name,Last Name,Title,Email,Phone"
+
+
+def _response_text(response) -> str:
+    """Join the text blocks of a Claude response (skips any non-text blocks)."""
+    return "".join(
+        getattr(block, "text", "") for block in response.content
+        if getattr(block, "type", None) == "text"
+    )
+
+
+def _retry_after_seconds(error, default: float = 1.0) -> float:
+    """Seconds to wait after a 429, from the retry-after header (+0.5s buffer)."""
+    try:
+        value = error.response.headers.get("retry-after")
+        if value:
+            return float(value) + 0.5
+    except Exception:
+        pass
+    return default
 
 
 # Step 7: Extract ALL contacts (NO filtering - that happens in Step 10)
@@ -80,18 +102,18 @@ IMPORTANT: Extract ALL people with names and titles. Do NOT filter by role - tha
 class LLMParser:
     """Send HTML chunks to LLM and extract contacts."""
     
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str, model: str = "claude-haiku-5-5"):
         """
         Initialize LLM parser
         
         Args:
-            api_key: OpenAI API key
-            model: Model to use (default: gpt-4o-mini)
+            api_key: Anthropic API key
+            model: Model to use (default: claude-haiku-5-5)
         """
         self.api_key = api_key
         self.model = model
         # Note: timeout removed to avoid "signal only works in main thread" error when running in background threads
-        self.client = OpenAI(api_key=api_key)
+        self.client = anthropic.Anthropic(api_key=api_key)
     
     def parse_with_llm(self, html_chunk: str, school_name: str, url: str, max_retries: int = 1) -> str:
         """
@@ -135,66 +157,59 @@ HTML CONTENT:
                     max_tokens = 8000
                 
                 # Note: Removed signal-based timeout as it doesn't work in background threads
-                # The OpenAI library will handle timeouts internally if needed
-                response = self.client.chat.completions.create(
+                # The Anthropic library will handle timeouts internally if needed.
+                # Streamed because the SDK refuses non-streaming requests with
+                # max_tokens above ~21K; get_final_message() returns the full reply.
+                # Thinking is off to match the old non-reasoning model's behavior
+                # and token budget (Claude Haiku 5.5 rejects non-default temperature).
+                with self.client.messages.stream(
                     model=self.model,
+                    system=CONTACT_EXTRACTION_PROMPT,
                     messages=[
-                        {"role": "system", "content": CONTACT_EXTRACTION_PROMPT},
                         {"role": "user", "content": user_message}
                     ],
-                    temperature=0.0,
+                    thinking={"type": "disabled"},
                     max_tokens=max_tokens
-                )
+                ) as stream:
+                    response = stream.get_final_message()
                 
                 # Extract response text
-                response_text = response.choices[0].message.content.strip()
+                response_text = _response_text(response).strip()
+                
+                # Drop any preamble before the CSV header so the CSV parser sees the header first
+                header_pos = response_text.find(CSV_HEADER)
+                if header_pos > 0:
+                    response_text = response_text[header_pos:]
                 
                 return response_text
                 
-            except Exception as e:
-                error_str = str(e)
+            except anthropic.APITimeoutError:
+                print(f"      {bold('[LLM]')} Request timed out (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    time.sleep(1.0)
+                    continue
+                return ""
+            
+            except anthropic.RateLimitError as e:
+                wait_seconds = _retry_after_seconds(e)
                 
-                # Check if it's a timeout error
-                is_timeout = 'timeout' in error_str.lower() or 'timed out' in error_str.lower()
-                if is_timeout:
-                    print(f"      {bold('[LLM]')} Request timed out (attempt {attempt + 1}/{max_retries})")
-                    if attempt < max_retries - 1:
-                        time.sleep(1.0)
-                        continue
-                    return ""
-                
-                # Check if it's a rate limit error (429)
-                is_rate_limit = '429' in error_str or 'rate_limit' in error_str.lower() or 'rate limit' in error_str.lower()
-                
-                if is_rate_limit:
-                    # Try to extract wait time from error message
-                    wait_seconds = 1.0  # Default wait
-                    # Look for "Please try again in Xms" or "Please try again in Xs"
-                    wait_match = re.search(r'Please try again in (\d+)(ms|s)', error_str, re.IGNORECASE)
-                    if wait_match:
-                        wait_value = int(wait_match.group(1))
-                        wait_unit = wait_match.group(2).lower()
-                        if wait_unit == 'ms':
-                            wait_seconds = (wait_value / 1000.0) + 0.5  # Add 0.5s buffer
-                        else:
-                            wait_seconds = wait_value + 0.5  # Add 0.5s buffer
-                    
-                    # For rate limits, wait longer and retry
-                    if attempt < max_retries - 1:
-                        print(f"      {bold('[LLM]')} Rate limit hit (attempt {attempt + 1}/{max_retries}), waiting {wait_seconds:.1f}s...")
-                        time.sleep(wait_seconds)
-                        continue
-                    else:
-                        print(f"      {bold('[LLM]')} Rate limit exceeded after {max_retries} attempts. Skipping this chunk.")
-                        return ""
+                # For rate limits, wait longer and retry
+                if attempt < max_retries - 1:
+                    print(f"      {bold('[LLM]')} Rate limit hit (attempt {attempt + 1}/{max_retries}), waiting {wait_seconds:.1f}s...")
+                    time.sleep(wait_seconds)
+                    continue
                 else:
-                    # For other errors, use exponential backoff
-                    if attempt < max_retries - 1:
-                        wait_time = 2 ** attempt
-                        print(f"      {bold('[LLM]')} Error (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time}s...")
-                        time.sleep(wait_time)
-                        continue
-                    print(f"      {bold('[LLM]')} Error: {e}")
+                    print(f"      {bold('[LLM]')} Rate limit exceeded after {max_retries} attempts. Skipping this chunk.")
                     return ""
+            
+            except (anthropic.APIStatusError, anthropic.APIConnectionError, Exception) as e:
+                # Other API/connection errors: exponential backoff
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    print(f"      {bold('[LLM]')} Error (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                print(f"      {bold('[LLM]')} Error: {e}")
+                return ""
         
         return ""
