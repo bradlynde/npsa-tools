@@ -1423,7 +1423,7 @@ def _county_worker(state: str, county: str, run_id: str, county_index: int, tota
         # Initialize pipeline for this county
         pipeline = StreamingPipeline(
             google_api_key=os.getenv("GOOGLE_PLACES_API_KEY", ""),
-            openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             global_max_api_calls=None,  # No limit for full state runs
             max_pages_per_church=2,  # Reduced from 3 to 2 for faster processing
             state=state,
@@ -1883,9 +1883,10 @@ def aggregate_final_results(run_id: str, state: str, skip_wait: bool = False):
                     "hunter_credits": hunter_credits_used,
                     "hunter_cost": round(hunter_credits_used * 0.05, 2),
                     "openai_calls": int(pr.get("openai_calls_total", 0)),
+                    # Claude Haiku 5.5 rates; key names kept for the stored metadata shape
                     "openai_cost": round(
-                        (openai_input_tok / 1_000_000) * 0.15
-                        + (openai_output_tok / 1_000_000) * 0.60, 2
+                        (openai_input_tok / 1_000_000) * 0.10
+                        + (openai_output_tok / 1_000_000) * 0.50, 2
                     ),
                     "railway_hours": round(elapsed_h, 2),
                     "railway_cost": round(elapsed_h * 60 * 0.000463, 2),
