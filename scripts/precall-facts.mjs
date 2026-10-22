@@ -2,7 +2,7 @@
 /*
  * Facts check for the pre-call briefing.
  *
- * Drives the real /api/precall handler with Calendly and OpenAI replaced by local
+ * Drives the real /api/precall handler with Calendly and Claude replaced by local
  * stand-ins, so the wiring is exercised rather than just its parts.
  *
  * The stub model is deliberately badly behaved: instead of emitting the
@@ -20,11 +20,11 @@
  * where the deadline table is unreachable.
  */
 process.env.PORT = '3211';
-process.env.OPENAI_API_KEY = 'sk-test';
+process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
 process.env.CALENDLY_API_TOKEN = 'cal-test';
-// The OpenAI SDK binds fetch inside its own module, so a globalThis stub never
-// sees its requests. Point it at a local stand-in instead.
-process.env.OPENAI_BASE_URL = 'http://127.0.0.1:3212/v1';
+// Claude is called over real HTTP to a local stand-in of the Messages API, so the
+// request the server builds (headers, model, system, thinking) is checked as sent.
+process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:3212';
 // Every /api route has needed a credential since #266 (server/api-gate.js), and
 // this file kept calling without one — so from then on every check below was
 // reading a 401 body and failing on it, which says nothing about the notes. A
@@ -109,14 +109,10 @@ globalThis.fetch = async (url, init) => {
     } });
   }
 
-  if (u.includes('api.openai.com')) {
-    const body = JSON.parse(init?.body || '{}');
-    const isJsonMode = body.response_format?.type === 'json_object';
-    const content = isJsonMode
-      ? JSON.stringify({ people: [{ email: 'kevin@meritdallas.com', name: 'Kevin Tran', title: 'Facilities Director', evidence: 'Staff page' }] })
-      : MODEL_OUTPUT;
-    return new Response(JSON.stringify({ choices: [{ message: { content } }] }),
-      { status: 200, headers: { 'content-type': 'application/json' } });
+  // Nothing should reach the real API: ANTHROPIC_BASE_URL points at the stand-in.
+  if (u.includes('api.anthropic.com')) {
+    globalThis.__REAL_API_HIT = true;
+    return new Response('{}', { status: 500 });
   }
 
   // Both readers down — the exact condition that emptied a whole briefing in
@@ -132,7 +128,9 @@ globalThis.fetch = async (url, init) => {
   return realFetch(url, init);
 };
 
-// Stand-in OpenAI, spoken to over real HTTP.
+// Stand-in Claude Messages API, spoken to over real HTTP. Every request is kept
+// so the checks below can look at what the server actually sent.
+const claudeCalls = [];
 const http = await import('node:http');
 await new Promise((resolve) => {
   http.createServer((req, res) => {
@@ -140,12 +138,24 @@ await new Promise((resolve) => {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       const parsed = JSON.parse(body || '{}');
-      const isJsonMode = parsed.response_format?.type === 'json_object';
-      const content = isJsonMode
-        ? JSON.stringify({ org_state: 'TX', people: [{ email: 'kevin@meritdallas.com', name: 'Kevin Tran', title: 'Facilities Director', evidence: 'Staff page' }] })
+      claudeCalls.push({ url: req.url, headers: req.headers, body: parsed });
+      if (req.url !== '/v1/messages' || !req.headers['x-api-key'] || !parsed.max_tokens) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'bad request' } }));
+      }
+      // The server asks for bare JSON in its system prompt; Claude has no JSON
+      // mode, so the stand-in answers in a code fence with a lead-in sentence to
+      // prove the extraction copes with the untidy case.
+      const isJsonMode = /single JSON object/.test(parsed.system || '');
+      const text = isJsonMode
+        ? 'Here is the JSON:\n```json\n' + JSON.stringify({ org_state: 'TX', people: [{ email: 'kevin@meritdallas.com', name: 'Kevin Tran', title: 'Facilities Director', evidence: 'Staff page' }] }) + '\n```'
         : MODEL_OUTPUT;
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ choices: [{ message: { content } }] }));
+      res.end(JSON.stringify({
+        id: 'msg_test', type: 'message', role: 'assistant', model: parsed.model,
+        content: [{ type: 'text', text }], stop_reason: 'end_turn',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }));
     });
   }).listen(3212, '127.0.0.1', resolve);
 });
@@ -209,6 +219,22 @@ const checks = {
   'the already-rendered fields are not repeated': !/Organization Name:/.test(n)
     && (n.match(/2147089835/g) || []).length <= 2,
 };
+// The Claude requests themselves: the right endpoint, headers and models, the
+// master prompt carried in `system`, and thinking switched off for each model.
+const briefingCall = claudeCalls.find((c) => /SUBSTITUTION TOKENS/.test(c.body.system || ''));
+const jsonCalls = claudeCalls.filter((c) => /single JSON object/.test(c.body.system || ''));
+Object.assign(checks, {
+  'Claude was called': claudeCalls.length > 0,
+  'real Anthropic API never reached': !globalThis.__REAL_API_HIT,
+  'every call sends key and API version': claudeCalls.every((c) =>
+    c.url === '/v1/messages' && c.headers['x-api-key'] === 'sk-ant-test' && c.headers['anthropic-version'] === '2023-06-01'),
+  'no OpenAI-only fields sent': claudeCalls.every((c) => !('response_format' in c.body) && c.body.messages.every((m) => m.role !== 'system')),
+  'briefing uses Sonnet with the prompt in system': briefingCall?.body.model === 'claude-sonnet-5-5'
+    && briefingCall.body.max_tokens === 4500 && briefingCall.body.thinking?.type === 'between_tools',
+  'website research uses Haiku in JSON form': jsonCalls.length > 0 && jsonCalls.every((c) =>
+    c.body.model === 'claude-haiku-5-5' && c.body.thinking?.type === 'disabled'),
+});
+
 // Now the degraded run: no reader answers at all.
 globalThis.__READERS_DOWN = true;
 const r2 = await realFetch('http://localhost:3211/api/precall', {
