@@ -41,25 +41,6 @@ import "./generator/wizard.css";
 // Where the per-state knowledge base (deadlines included) lives.
 const GRANT_KNOWLEDGE_URL = 'https://npsa-tools.vercel.app/grant-knowledge';
 
-function useAI() {
-  const [loading, setLoading] = useState(false);
-  const polish = async (text, cb) => {
-    if (!text.trim()) return;
-    setLoading(true);
-    try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000,
-          messages:[{role:"user",content:`You are a legal contract drafting assistant for Nonprofit Security Advisors. Rewrite the following rough clause into polished, professional legal contract language. Return ONLY the polished clause text.\n\nRough clause: ${text}`}]})
-      });
-      const d = await r.json();
-      cb(d.content?.find(b=>b.type==="text")?.text||"");
-    } catch { cb("Error generating clause."); }
-    setLoading(false);
-  };
-  return { polish, loading };
-}
-
 // Slot-machine count-up: animates 0 → value whenever `playToken` changes (mount + each hover)
 function RollUp({ value, format, playToken, duration = 850 }) {
   const [display, setDisplay] = useState(value);
@@ -157,7 +138,6 @@ export default function App() {
   const [newRepName, setNewRepName] = useState('');
   const reviewIframeRef = useRef(null);
   const previewRef = useRef();
-  const { polish, loading } = useAI();
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
   /**
@@ -2310,12 +2290,6 @@ export default function App() {
                 )}
               </>
             )}
-            {form.polishedClause&&(
-              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.polishedClause}</p>
-              </div>
-            )}
           </>}
           {/* In-House Pre-Award body sections */}
           {isInh&&<>
@@ -2352,12 +2326,6 @@ export default function App() {
    (d) If CLIENT later receives funding, the fees described in Compensation Section 2 shall apply.`
                 )}
               </>
-            )}
-            {form.inhPolishedClause&&(
-              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.inhPolishedClause}</p>
-              </div>
             )}
           </>}
           {!isPre&&!isGw&&!isInh&&!isProposal&&!isAddendum&&<>
@@ -2418,12 +2386,6 @@ export default function App() {
             <SH id="post_comp"/><Body id="post_comp"/>
             <SH id="post_term"/><Body id="post_term"/>
             <SH id="post_other"/><Body id="post_other"/>
-            {form.postPolishedClause&&(
-              <div style={{border:"1px solid #a7b4c6",borderRadius:4,background:"#f7f9fd",padding:"14px 18px",margin:"16px 0"}}>
-                <div style={{fontSize:11.5,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#00395b",marginBottom:8}}>Additional Terms</div>
-                <p style={{fontSize:13,fontFamily:LETTER_FONT,lineHeight:1.7,margin:0}}>{form.postPolishedClause}</p>
-              </div>
-            )}
           </>}
           {/* ── GRANT WRITER FORM ── */}
           {isGw&&(()=>{

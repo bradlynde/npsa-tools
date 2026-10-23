@@ -33,7 +33,6 @@ const defaultForm = {
   // saved before this field existed must keep the pricing table's discount.
   contingentDiscount:"",
   postAwardFee:"10,000",
-  customClause:"", polishedClause:"",
   // In-house pre-award fields
   inhEngagementModel:"inh-pre-only", inhPricingTier:"undiscounted", inhCustomFee:"", inhCustomContingencyFee:"",
   inhInstallments:false, inhInstallmentCount:2,
@@ -43,11 +42,9 @@ const defaultForm = {
   inhOptNofo:false, inhOptStateSwitch:false, inhOptPostAwardScope:true, inhOptShortNotice:false,
   inhEarlySigningDate:"", inhEarlySigningAmount:"1,500", inhContingentDiscount:"",
   inhPostAwardFee:"0",
-  inhCustomClause:"", inhPolishedClause:"",
   postFee:"7,000", postPmt1:"40", postPmt2:"30", postPmt3:"30",
   postEffectiveDate:"", postReimbursementOption:"",
   postPrograms:[{key:"federal",year:String(new Date().getFullYear())}],
-  postCustomClause:"", postPolishedClause:"",
   // Addendum fields
   addendumClientName:"", addendumOriginalDate:"",
   addendumPrograms:[{key:"illinois",year:String(new Date().getFullYear())}],
