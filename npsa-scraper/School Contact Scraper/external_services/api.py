@@ -118,6 +118,20 @@ pipeline_runs = {}
 # Format: {run_id: {'thread': Thread, 'cancelled': bool}}
 running_threads = {}
 
+# Single gate for starting runs (HTTP + queue worker) — prevents concurrent "start" races
+_run_start_lock = threading.Lock()
+
+
+def _state_already_queued(state: str) -> bool:
+    """True if this state already has a queued (not started) job — duplicate prevention."""
+    if not queue_store.is_enabled():
+        return False
+    s = state.lower()
+    for job in queue_store.queue_list_jobs(SCRAPER_TYPE, limit=500):
+        if job.get("status") == "queued" and (job.get("state") or "").lower() == s:
+            return True
+    return False
+
 
 def _unique_running_states_after_stale_cleanup() -> set:
     """Expire stale 'running' / old 'finalizing' entries in Postgres; return set of state slugs still running."""
@@ -154,23 +168,24 @@ def _school_queue_worker_loop():
                         log_warn(f"[reaper] reclaimed {n} stale county task(s) -> pending")
                 except Exception as e:
                     log_err(f"[reaper] {e}")
-            active = _unique_running_states_after_stale_cleanup()
-            if len(active) >= 1:
-                continue
-            nxt = queue_store.queue_peek_next(SCRAPER_TYPE)
-            if not nxt:
-                continue
-            job_id, st = nxt
-            if _same_state_running(st):
-                continue
-            if _state_finalizing(st):
-                continue
-            if len(active) >= 1:
-                continue
-            run_id = str(uuid.uuid4())
-            if not queue_store.queue_mark_running(job_id, run_id, SCRAPER_TYPE):
-                continue
-            run_streaming_pipeline(st, run_id, False, job_id)
+            with _run_start_lock:
+                active = _unique_running_states_after_stale_cleanup()
+                if len(active) >= 1:
+                    continue
+                nxt = queue_store.queue_peek_next(SCRAPER_TYPE)
+                if not nxt:
+                    continue
+                job_id, st = nxt
+                if _same_state_running(st):
+                    continue
+                if _state_finalizing(st):
+                    continue
+                if len(active) >= 1:
+                    continue
+                run_id = str(uuid.uuid4())
+                if not queue_store.queue_mark_running(job_id, run_id, SCRAPER_TYPE):
+                    continue
+                run_streaming_pipeline(st, run_id, False, job_id)
         except Exception as e:
             log_err(f"Queue: {e}")
 
@@ -2595,96 +2610,106 @@ def run_pipeline():
                 "error": "This is the School scraper. Use type=school"
             }), 400
         
-        # Check if another run for the SAME STATE is already active or finalizing
-        # Allow concurrent runs for DIFFERENT states (supports 2 states with 3 workers each)
-        active_runs_same_state = []
-        finalizing_runs_same_state = []
-        active_runs_all_states = []  # Track all active runs for cap enforcement
-        current_time = time.time()
+        # Single gate for starting runs (HTTP + queue worker): checks and start happen together
+        with _run_start_lock:
+            # Check if another run for the SAME STATE is already active or finalizing
+            # Allow concurrent runs for DIFFERENT states (supports 2 states with 3 workers each)
+            active_runs_same_state = []
+            finalizing_runs_same_state = []
+            active_runs_all_states = []  # Track all active runs for cap enforcement
+            current_time = time.time()
         
-        for rid, run_data in pipeline_runs.items():
-            run_state = run_data.get("state", "").lower()
-            status = run_data.get("status")
+            for rid, run_data in pipeline_runs.items():
+                run_state = run_data.get("state", "").lower()
+                status = run_data.get("status")
             
-            # Check for running runs (all states - for cap enforcement)
-            if status == "running":
-                # Verify thread is actually alive
-                if rid in running_threads:
-                    thread = running_threads[rid].get('thread')
-                    if thread and thread.is_alive():
-                        active_runs_all_states.append(rid)
-                        # Also track same-state runs
+                # Check for running runs (all states - for cap enforcement)
+                if status == "running":
+                    # Verify thread is actually alive
+                    if rid in running_threads:
+                        thread = running_threads[rid].get('thread')
+                        if thread and thread.is_alive():
+                            active_runs_all_states.append(rid)
+                            # Also track same-state runs
+                            if run_state == state:
+                                active_runs_same_state.append(rid)
+                    else:
+                        # Thread missing but status is running - mark as stale
+                        pipeline_runs[rid]["status"] = "cancelled"
+            
+                # Check for finalizing runs (2-minute cooldown)
+                elif status == "finalizing":
+                    finalizing_at = run_data.get("finalizingAt", 0)
+                    elapsed = current_time - finalizing_at
+                    if elapsed < 120:  # Still in 2-minute cooldown
                         if run_state == state:
-                            active_runs_same_state.append(rid)
-                else:
-                    # Thread missing but status is running - mark as stale
-                    pipeline_runs[rid]["status"] = "cancelled"
-            
-            # Check for finalizing runs (2-minute cooldown)
-            elif status == "finalizing":
-                finalizing_at = run_data.get("finalizingAt", 0)
-                elapsed = current_time - finalizing_at
-                if elapsed < 120:  # Still in 2-minute cooldown
-                    if run_state == state:
-                        finalizing_runs_same_state.append(rid)
-                else:
-                    # Cooldown expired, mark as completed
-                    pipeline_runs[rid]["status"] = "completed"
-                    if "completedAt" not in pipeline_runs[rid]:
-                        pipeline_runs[rid]["completedAt"] = current_time
+                            finalizing_runs_same_state.append(rid)
+                    else:
+                        # Cooldown expired, mark as completed
+                        pipeline_runs[rid]["status"] = "completed"
+                        if "completedAt" not in pipeline_runs[rid]:
+                            pipeline_runs[rid]["completedAt"] = current_time
         
-        # Enforce maximum 2 concurrent states cap
-        unique_active_states = set()
-        for rid in active_runs_all_states:
-            if rid in pipeline_runs:
-                run_state = pipeline_runs[rid].get("state", "").lower()
-                if run_state:
-                    unique_active_states.add(run_state)
+            # Enforce maximum 2 concurrent states cap
+            unique_active_states = set()
+            for rid in active_runs_all_states:
+                if rid in pipeline_runs:
+                    run_state = pipeline_runs[rid].get("state", "").lower()
+                    if run_state:
+                        unique_active_states.add(run_state)
         
-        if active_runs_same_state:
-            return jsonify({
-                "status": "error",
-                "error": f"Another run for {state} is already in progress. Please wait for it to complete or stop it first.",
-                "activeRunId": active_runs_same_state[0],
-                "state": state
-            }), 409  # Conflict status code
+            if active_runs_same_state:
+                return jsonify({
+                    "status": "error",
+                    "error": f"Another run for {state} is already in progress. Please wait for it to complete or stop it first.",
+                    "activeRunId": active_runs_same_state[0],
+                    "state": state
+                }), 409  # Conflict status code
         
-        if finalizing_runs_same_state:
-            return jsonify({
-                "status": "error",
-                "error": f"A run for {state} is currently finalizing. Please wait 2 minutes before starting a new run for this state.",
-                "activeRunId": finalizing_runs_same_state[0],
-                "isFinalizing": True,
-                "state": state
-            }), 409  # Conflict status code
+            if finalizing_runs_same_state:
+                return jsonify({
+                    "status": "error",
+                    "error": f"A run for {state} is currently finalizing. Please wait 2 minutes before starting a new run for this state.",
+                    "activeRunId": finalizing_runs_same_state[0],
+                    "isFinalizing": True,
+                    "state": state
+                }), 409  # Conflict status code
         
-        if state.lower() not in unique_active_states and len(unique_active_states) >= 1:
-            if db.is_postgres():
-                dn = _run_display_name(state, SCRAPER_TYPE)
-                q = queue_store.queue_enqueue(state, SCRAPER_TYPE, dn)
+            if _state_already_queued(state):
                 resp = jsonify({
-                    "status": "queued",
-                    "jobId": q["job_id"],
-                    "position": q["position"],
-                    "message": f"Queued: {len(unique_active_states)} states already running ({', '.join(sorted(unique_active_states))})",
-                    "activeStates": sorted(unique_active_states),
+                    "status": "error",
+                    "error": f"{state} is already in the queue. Remove or wait for that job before queueing again.",
+                    "state": state,
                 })
                 resp.headers.add("Access-Control-Allow-Origin", "*")
-                return resp, 202
-            return jsonify({
-                "status": "error",
-                "error": f"Maximum of 2 concurrent states allowed. Currently running: {', '.join(sorted(unique_active_states))}. Please wait for one to complete.",
-                "activeStates": sorted(unique_active_states),
-                "maxConcurrentStates": 2
-            }), 409  # Conflict status code
+                return resp, 409
+
+            if state.lower() not in unique_active_states and len(unique_active_states) >= 1:
+                if db.is_postgres():
+                    dn = _run_display_name(state, SCRAPER_TYPE)
+                    q = queue_store.queue_enqueue(state, SCRAPER_TYPE, dn)
+                    resp = jsonify({
+                        "status": "queued",
+                        "jobId": q["job_id"],
+                        "position": q["position"],
+                        "message": f"Queued: {len(unique_active_states)} states already running ({', '.join(sorted(unique_active_states))})",
+                        "activeStates": sorted(unique_active_states),
+                    })
+                    resp.headers.add("Access-Control-Allow-Origin", "*")
+                    return resp, 202
+                return jsonify({
+                    "status": "error",
+                    "error": f"Maximum of 2 concurrent states allowed. Currently running: {', '.join(sorted(unique_active_states))}. Please wait for one to complete.",
+                    "activeStates": sorted(unique_active_states),
+                    "maxConcurrentStates": 2
+                }), 409  # Conflict status code
         
-        # Generate unique run ID
-        run_id = str(uuid.uuid4())
+            # Generate unique run ID
+            run_id = str(uuid.uuid4())
         
-        # Start pipeline in background thread
-        thread = threading.Thread(target=run_streaming_pipeline, args=(state, run_id, False, None))
-        thread.daemon = True
-        thread.start()
+            # run_streaming_pipeline registers the run and starts its own thread, so
+            # the next request (or the queue worker) sees it once the lock is released
+            run_streaming_pipeline(state, run_id, False, None)
         
         # Return run ID immediately
         response = jsonify({
