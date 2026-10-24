@@ -32,6 +32,27 @@ if DATABASE_URL.startswith("postgres://"):
 CODE_TTL_MINUTES = 10
 MAX_VERIFY_ATTEMPTS = 5
 
+# A per-code guess limit alone is renewed every time a new code is sent, so
+# wrong codes are also counted per address across codes. Once an address
+# reaches this many in the window, it gets no new codes and no code is
+# accepted for it until the oldest failures age out (or someone deletes its
+# rows from login_failures).
+try:
+    MAX_FAILED_VERIFIES = max(int(os.getenv("AUTH_MAX_FAILED_VERIFIES", "15")), 1)
+except ValueError:
+    MAX_FAILED_VERIFIES = 15
+FAILED_VERIFY_WINDOW_HOURS = 24
+
+# Outcomes of verify_login_code. The route turns every one but OK into the
+# same response; the distinction is only for the log.
+VERIFY_OK = "ok"
+VERIFY_INVALID = "invalid"
+VERIFY_LOCKED = "locked"
+
+# Checked against when there is no real code to check, so that a request for
+# an address with no live code costs the same as one with a code.
+_DUMMY_HASH = bcrypt.hashpw(b"not-a-code", bcrypt.gensalt())
+
 # Who can log in. Email is the identity; username is what goes in the JWT and
 # what the rest of the toolbox already knows people by, so it must not change.
 SEED_USERS = [
@@ -90,6 +111,18 @@ def init_db():
             cur.execute(
                 "CREATE INDEX IF NOT EXISTS login_codes_email_idx ON login_codes (email, created_at DESC)"
             )
+
+            # One row per wrong code, kept for the rolling window above.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS login_failures (
+                    id SERIAL PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS login_failures_email_idx ON login_failures (email, created_at DESC)"
+            )
             conn.commit()
 
             # Attach an address to whoever is already here, and add anyone new.
@@ -140,6 +173,34 @@ def codes_sent_recently(email: str, within_seconds: int) -> int:
             return cur.fetchone()[0]
 
 
+def _count_failures(cur, email: str) -> int:
+    cur.execute(
+        """
+        SELECT COUNT(*) AS n FROM login_failures
+        WHERE email = %s AND created_at > NOW() - (%s * INTERVAL '1 hour')
+        """,
+        (email, FAILED_VERIFY_WINDOW_HOURS),
+    )
+    row = cur.fetchone()
+    return row["n"] if isinstance(row, dict) else row[0]
+
+
+def failed_verifies_recently(email: str) -> int:
+    """Wrong codes entered for this address within the rolling window."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            return _count_failures(cur, normalize_email(email))
+
+
+def is_locked_out(email: str) -> bool:
+    return failed_verifies_recently(email) >= MAX_FAILED_VERIFIES
+
+
+def burn_check(code: str) -> None:
+    """Do the work of a code check against nothing, so no path is visibly faster."""
+    bcrypt.checkpw((code or "").strip().encode("utf-8"), _DUMMY_HASH)
+
+
 def create_login_code(email: str) -> str:
     """Mint a code, store only its hash, and return the plaintext to be emailed.
 
@@ -168,11 +229,12 @@ def create_login_code(email: str) -> str:
     return code
 
 
-def verify_login_code(email: str, code: str) -> bool:
+def verify_login_code(email: str, code: str) -> str:
     """Check a code and consume it. One code, one use, a bounded number of guesses.
 
-    Returns False for every failure mode — wrong, expired, already used, or too
-    many attempts — because the caller must not tell them apart either.
+    Returns VERIFY_OK, VERIFY_INVALID (wrong, expired, already used, or too
+    many attempts on this code) or VERIFY_LOCKED (too many wrong codes for this
+    address lately). The caller must answer the last two identically.
     """
     email = normalize_email(email)
     with get_conn() as conn:
@@ -188,7 +250,16 @@ def verify_login_code(email: str, code: str) -> bool:
             )
             row = cur.fetchone()
             if not row:
-                return False
+                conn.commit()
+                burn_check(code)
+                return VERIFY_INVALID
+
+            # Checked with the code row locked, so parallel guesses for one
+            # address are counted one at a time.
+            if _count_failures(cur, email) >= MAX_FAILED_VERIFIES:
+                conn.commit()
+                burn_check(code)
+                return VERIFY_LOCKED
 
             # Count the guess before checking it, so a crash mid-verify costs an
             # attempt rather than granting a free one.
@@ -202,7 +273,8 @@ def verify_login_code(email: str, code: str) -> bool:
                     "UPDATE login_codes SET consumed_at = NOW() WHERE id = %s", (row["id"],)
                 )
                 conn.commit()
-                return False
+                burn_check(code)
+                return VERIFY_INVALID
 
             stored = row["code_hash"]
             if isinstance(stored, str):
@@ -212,22 +284,30 @@ def verify_login_code(email: str, code: str) -> bool:
                 stored = bytes(stored)
 
             # bcrypt.checkpw is constant-time for a given hash.
-            ok = bcrypt.checkpw(code.strip().encode("utf-8"), stored)
+            ok = bcrypt.checkpw((code or "").strip().encode("utf-8"), stored)
             if ok:
                 cur.execute(
                     "UPDATE login_codes SET consumed_at = NOW() WHERE id = %s", (row["id"],)
                 )
+            else:
+                cur.execute("INSERT INTO login_failures (email) VALUES (%s)", (email,))
             conn.commit()
-            return ok
+            return VERIFY_OK if ok else VERIFY_INVALID
 
 
 def purge_expired_codes() -> int:
-    """Housekeeping — spent and expired codes have no reason to be kept."""
+    """Housekeeping — spent and expired codes, and failures older than the
+    window, have no reason to be kept."""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "DELETE FROM login_codes WHERE expires_at < NOW() - INTERVAL '1 day'"
             )
             deleted = cur.rowcount
+            cur.execute(
+                "DELETE FROM login_failures WHERE created_at < NOW() - (%s * INTERVAL '1 hour')",
+                (FAILED_VERIFY_WINDOW_HOURS * 2,),
+            )
+            deleted += cur.rowcount
             conn.commit()
             return deleted
