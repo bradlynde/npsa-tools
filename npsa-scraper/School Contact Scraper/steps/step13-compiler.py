@@ -18,6 +18,7 @@ from pathlib import Path
 import shutil
 from urllib.parse import urlparse
 from assets.shared.models import Contact
+from assets.shared.csv_safety import escape_dataframe
 
 # ANSI escape codes for bold text
 BOLD = '\033[1m'
@@ -486,8 +487,8 @@ class FinalCompiler:
             'source_url': df.get('source_url', '')
         })
         
-        # Save to CSV
-        final_df.to_csv(output_csv, index=False)
+        # Save to CSV (scraped text is escaped so spreadsheets don't run it as a formula)
+        escape_dataframe(final_df).to_csv(output_csv, index=False)
         
         # Count contacts with and without emails
         df_with_emails = final_df[final_df['email'].notna() & (final_df['email'] != '') & (final_df['email'].str.strip() != '')]
@@ -618,7 +619,7 @@ class FinalCompiler:
         
         # Save all contacts to single file
         if not final_df.empty:
-            final_df.to_csv(output_csv, index=False)
+            escape_dataframe(final_df).to_csv(output_csv, index=False)
             self._copy_to_downloads(output_csv)
             print(f"{bold('[STEP 13]')} Saved {len(final_df)} contacts ({len(df_with_emails)} with emails, {len(df_without_emails)} without)")
         else:

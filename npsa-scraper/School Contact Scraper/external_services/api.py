@@ -46,6 +46,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline import StreamingPipeline
 from assets.shared.models import Contact
+from assets.shared.csv_safety import escape_csv_text
 
 # Import authentication module
 from external_services.auth import require_auth
@@ -3426,10 +3427,14 @@ def download_run_csv(run_id: str):
                 "error": "CSV file not found for this run"
             }), 404
         
-        # Read and return CSV
+        # Read and return CSV, escaping formula-like cells (CSVs written before
+        # the compiler did it are served too)
+        from io import BytesIO
         from flask import send_file
+        with open(csv_path, "r", encoding="utf-8", errors="replace", newline="") as f:
+            csv_text = f.read()
         return send_file(
-            csv_path,
+            BytesIO(escape_csv_text(csv_text).encode("utf-8")),
             mimetype='text/csv',
             as_attachment=True,
             download_name=metadata.get("csv_filename", f"run_{run_id}.csv")
