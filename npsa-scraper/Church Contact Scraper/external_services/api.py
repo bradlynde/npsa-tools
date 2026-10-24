@@ -45,6 +45,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline import StreamingPipeline
 from assets.shared.models import Contact
+from assets.shared.csv_safety import escape_csv_text
 from church_run_log import (
     clear_worker_log_queue,
     configure_worker_log_queue,
@@ -89,6 +90,11 @@ step12_hunter_io = load_module_with_hyphen('step12-enrichment.py', 'step12_enric
 step13_final_compiler = load_module_with_hyphen('step13-compiler.py', 'step13_compiler')
 
 app = Flask(__name__)
+
+# Largest request body accepted. /admin/upload-csv is the only route that takes
+# more than a small JSON body; this cap is sized for it.
+UPLOAD_CSV_MAX_BYTES = 50 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = UPLOAD_CSV_MAX_BYTES
 
 # CORS configuration - restrict to allowed origin (REQUIRED in production)
 ALLOWED_ORIGIN = os.getenv("ALLOWED_ORIGIN")
@@ -1362,9 +1368,33 @@ def list_all_runs() -> list:
         return []
 
 
+_STATE_COUNTIES_DIR = Path(__file__).parent.parent / 'assets' / 'data' / 'state_counties'
+_known_states_cache: Optional[frozenset] = None
+
+
+def _known_states() -> frozenset:
+    """Normalized state names that have a county file (e.g. 'new_york')."""
+    global _known_states_cache
+    if _known_states_cache is None:
+        _known_states_cache = frozenset(
+            p.stem for p in _STATE_COUNTIES_DIR.glob('*.txt')
+            if re.fullmatch(r'[a-z_]+', p.stem)
+        )
+    return _known_states_cache
+
+
+def is_known_state(state) -> bool:
+    """True if state names a county file in assets/data/state_counties/."""
+    if not isinstance(state, str):
+        return False
+    return state.lower().replace(' ', '_') in _known_states()
+
+
 def load_counties_from_state(state: str) -> list:
     """Load counties for a given state from assets/data/state_counties/{state}.txt
     For Texas, checks for texas_top50.txt first (for faster processing)"""
+    if not is_known_state(state):
+        raise FileNotFoundError(f"Unknown state: {state!r}")
     state_normalized = state.lower().replace(' ', '_')
     repo_root = Path(__file__).parent.parent
     
@@ -2761,13 +2791,20 @@ def run_pipeline():
     
     try:
         data = request.get_json() or {}
-        state = data.get("state", "").lower()
+        state = data.get("state", "")
+        state = state.strip().lower() if isinstance(state, str) else ""
         type_param = data.get("type", "church")
         
         if not state:
             return jsonify({
                 "status": "error",
                 "error": "State parameter is required"
+            }), 400
+
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state"
             }), 400
         
         if type_param == "school":
@@ -3241,6 +3278,11 @@ def resume_run(run_id: str):
                 "status": "error",
                 "error": "State not found in run metadata"
             }), 400
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state in run metadata"
+            }), 400
         
         state_lower = (state or "").lower()
 
@@ -3355,6 +3397,11 @@ def aggregate_run(run_id: str):
             return jsonify({
                 "status": "error",
                 "error": "State not found in run metadata"
+            }), 400
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state in run metadata"
             }), 400
         
         # Check if run is already aggregating or completed
@@ -3644,21 +3691,63 @@ def unarchive_run(run_id: str):
 def admin_upload_csv():
     """Upload a CSV file to the persistent volume (for recovery/restore).
     POST body: { "filename": "Arizona_leads_....csv", "content": "<csv text>" }
+    An existing file is only replaced when "overwrite": 1 is in the body or
+    ?overwrite=1 is on the URL. Bodies over UPLOAD_CSV_MAX_BYTES are refused.
     """
+    from werkzeug.exceptions import RequestEntityTooLarge
+
+    too_large = {
+        "status": "error",
+        "error": f"Upload is larger than {UPLOAD_CSV_MAX_BYTES // (1024 * 1024)} MB",
+    }
+    if request.content_length is not None and request.content_length > UPLOAD_CSV_MAX_BYTES:
+        return jsonify(too_large), 413
     try:
-        data = request.get_json(force=True)
-        filename = data.get("filename", "").strip()
+        try:
+            data = request.get_json(force=True, silent=True)
+        except RequestEntityTooLarge:
+            return jsonify(too_large), 413
+        if not isinstance(data, dict):
+            return jsonify({"status": "error", "error": "JSON body required"}), 400
+        filename = data.get("filename", "")
         content = data.get("content", "")
+        if not isinstance(filename, str) or not isinstance(content, str):
+            return jsonify({"status": "error", "error": "filename and content must be strings"}), 400
+        filename = filename.strip()
         if not filename or not content:
             return jsonify({"status": "error", "error": "filename and content required"}), 400
-        # Sanitize filename — no path traversal
+        # Sanitize filename — no path traversal, no hidden files
         safe_name = Path(filename).name
-        if not safe_name.endswith(".csv"):
+        if (
+            not safe_name.lower().endswith(".csv")
+            or len(safe_name) <= len(".csv")
+            or safe_name.startswith(".")
+        ):
             return jsonify({"status": "error", "error": "filename must end with .csv"}), 400
+        encoded = content.encode("utf-8")
+        if len(encoded) > UPLOAD_CSV_MAX_BYTES:
+            return jsonify(too_large), 413
+        overwrite_flag = data.get("overwrite", request.args.get("overwrite", ""))
+        overwrite = str(overwrite_flag).strip().lower() in ("1", "true", "yes")
         dest = VOLUME_DIR / safe_name
-        with open(dest, "w") as f:
-            f.write(content)
-        return jsonify({"status": "ok", "path": str(dest), "size": len(content)}), 200
+        existed = dest.exists()
+        if existed and not dest.is_file():
+            return jsonify({"status": "error", "error": "destination is not a file"}), 409
+        try:
+            # "x" fails if the file appeared meanwhile; "w" replaces it on request
+            with open(dest, "wb" if overwrite else "xb") as f:
+                f.write(encoded)
+        except FileExistsError:
+            return jsonify({
+                "status": "error",
+                "error": f"{safe_name} already exists; send overwrite=1 to replace it",
+            }), 409
+        return jsonify({
+            "status": "ok",
+            "path": str(dest),
+            "size": len(encoded),
+            "overwritten": overwrite and existed,
+        }), 200
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
 
@@ -3700,8 +3789,9 @@ def download_run_csv(run_id: str):
             if csv_record:
                 from io import BytesIO
                 from flask import send_file
+                # Escape formula-like cells: CSVs stored before the compiler did it are served too
                 return send_file(
-                    BytesIO(csv_record["csv_data"].encode("utf-8")),
+                    BytesIO(escape_csv_text(csv_record["csv_data"]).encode("utf-8")),
                     mimetype='text/csv',
                     as_attachment=True,
                     download_name=csv_record["csv_filename"]
@@ -3710,9 +3800,12 @@ def download_run_csv(run_id: str):
                 "status": "error",
                 "error": "Run not found"
             }), 404
+        from io import BytesIO
         from flask import send_file
+        with open(csv_path, "r", encoding="utf-8", errors="replace", newline="") as f:
+            csv_text = f.read()
         return send_file(
-            csv_path,
+            BytesIO(escape_csv_text(csv_text).encode("utf-8")),
             mimetype='text/csv',
             as_attachment=True,
             download_name=download_name
