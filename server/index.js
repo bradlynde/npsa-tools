@@ -1,6 +1,6 @@
 import express from 'express';
 import { repairDocx, stripXmlIllegal } from './docx-repair.js';
-import { preserveInlineSpacing } from './docx-style.js';
+import { preserveInlineSpacing, stripImages } from './docx-style.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
@@ -471,7 +471,8 @@ app.post('/api/precall/docx', async (req, res) => {
     // repair pass would catch them either way, but the notes travel through
     // marked, html-to-docx and JSZip first, and it is worth not asking three
     // libraries to be careful with a character XML does not permit at all.
-    const safeHtml = stripXmlIllegal(preserveInlineSpacing(html.replace(/<style[\s\S]*?<\/style>/gi, '')));
+    // Images go too: html-to-docx would fetch each one's src from here (stripImages).
+    const safeHtml = stripXmlIllegal(preserveInlineSpacing(stripImages(String(html).replace(/<style[\s\S]*?<\/style>/gi, ''))));
     const docTitle = stripXmlIllegal(filename || 'Pre-Call Notes').trim() || 'Pre-Call Notes';
     const generated = await HTMLtoDOCX(safeHtml, null, {
       title: docTitle,

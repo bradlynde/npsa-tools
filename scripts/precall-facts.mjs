@@ -246,6 +246,19 @@ Object.assign(checks, {
     c.body.model === 'claude-haiku-5-5' && c.body.thinking?.type === 'disabled'),
 });
 
+// The Word export converts HTML the browser posts. An image in it must not make
+// the server fetch anything; the stand-in on 3212 records every request it gets.
+const probesBefore = claudeCalls.filter((c) => c.url.startsWith('/probe')).length;
+const dx = await realFetch('http://localhost:3211/api/precall/docx', {
+  method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH },
+  body: JSON.stringify({ filename: 'Probe', html: '<html><body><p>Before</p><img src="http://127.0.0.1:3212/probe.png"><IMG/src=http://127.0.0.1:3212/probe2.png><p>After</p></body></html>' }),
+});
+await dx.arrayBuffer();
+Object.assign(checks, {
+  'docx export still answers with a file': dx.status === 200,
+  'docx export fetches no image the HTML names': claudeCalls.filter((c) => c.url.startsWith('/probe')).length === probesBefore,
+});
+
 // Now the degraded run: no reader answers at all.
 globalThis.__READERS_DOWN = true;
 const r2 = await realFetch('http://localhost:3211/api/precall', {
