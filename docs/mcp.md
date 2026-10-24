@@ -206,11 +206,14 @@ keys only.
    code), then the code (`/oauth/login/verify` checks it with the auth service and
    verifies the returned login token against `JWT_SECRET`). A wrong code can be
    retried; ten wrong codes, or ten minutes, and they start again from the app.
+   One sign-in can ask for three codes at most, and each caller address gets ten
+   code requests and thirty code checks per fifteen minutes.
 4. The page sends them back to the app with a one-time code (good for 60 seconds,
    PKCE S256 required), which the app trades at `/token` for an access token (1
    hour) and a refresh token (30 days). Each refresh issues a new pair and retires
    the old one. `/revoke` ends a token. A code presented twice withdraws the tokens
-   it bought.
+   it bought, and so does a refresh token presented again after it was used or
+   revoked: every token descended from that sign-in stops working.
 
 Tokens are only for `https://.../mcp`; a token issued for any other resource is
 refused. Only SHA-256 hashes of codes and tokens are stored (tables `oauth_clients`,
