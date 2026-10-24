@@ -45,6 +45,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline import StreamingPipeline
 from assets.shared.models import Contact
+from assets.shared.csv_safety import escape_csv_text
 from church_run_log import (
     clear_worker_log_queue,
     configure_worker_log_queue,
@@ -3700,8 +3701,9 @@ def download_run_csv(run_id: str):
             if csv_record:
                 from io import BytesIO
                 from flask import send_file
+                # Escape formula-like cells: CSVs stored before the compiler did it are served too
                 return send_file(
-                    BytesIO(csv_record["csv_data"].encode("utf-8")),
+                    BytesIO(escape_csv_text(csv_record["csv_data"]).encode("utf-8")),
                     mimetype='text/csv',
                     as_attachment=True,
                     download_name=csv_record["csv_filename"]
@@ -3710,9 +3712,12 @@ def download_run_csv(run_id: str):
                 "status": "error",
                 "error": "Run not found"
             }), 404
+        from io import BytesIO
         from flask import send_file
+        with open(csv_path, "r", encoding="utf-8", errors="replace", newline="") as f:
+            csv_text = f.read()
         return send_file(
-            csv_path,
+            BytesIO(escape_csv_text(csv_text).encode("utf-8")),
             mimetype='text/csv',
             as_attachment=True,
             download_name=download_name
