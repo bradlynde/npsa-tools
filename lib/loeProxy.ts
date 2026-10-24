@@ -30,7 +30,7 @@ export function loeBaseUrl(): string {
  * `username` comes back only when the signature was actually checked: a name read
  * out of a token nobody verified is a name anyone could have typed.
  */
-function verifyToken(token: string): { ok: boolean; username?: string } {
+export function verifyToken(token: string): { ok: boolean; username?: string } {
   const secret = process.env.JWT_SECRET;
   // Without the shared secret no token can be checked, so none is accepted.
   // These routes now carry the backend key, so a proxy that let any string
@@ -58,6 +58,9 @@ function verifyToken(token: string): { ok: boolean; username?: string } {
     return { ok: false };
   }
 }
+
+/** One path segment: letters, digits, dash, underscore. No dots, slashes or escapes. */
+const SEGMENT = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Forwards {method} {LOE}/api/{prefix}/{path}{query} when the first path segment
@@ -99,6 +102,13 @@ export async function proxyRequest(
       { error: "Edits are off: this deployment cannot verify who is logged in (JWT_SECRET is unset on Vercel)" },
       { status: 503 }
     );
+  }
+
+  // Next decodes %2F inside a segment and fetch collapses "..", so a segment like
+  // "..%2F..%2Fclients" would carry this request past the allowlist to any backend
+  // route, with the toolbox's key. Every path the toolbox builds is plain words and ids.
+  if (!segments.every((s) => SEGMENT.test(s))) {
+    return NextResponse.json({ error: "Endpoint not allowed" }, { status: 404 });
   }
 
   // An empty segment list means the collection root (e.g. /api/letters).

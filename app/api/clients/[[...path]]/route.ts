@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyRequest, loeBaseUrl } from "../../../../lib/loeProxy";
+import { proxyRequest, loeBaseUrl, verifyToken } from "../../../../lib/loeProxy";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +38,10 @@ export async function GET(req: NextRequest, { params }: { params: { path?: strin
   const segments = params.path || [];
   // A file the client uploaded: stream the bytes through as-is (the JSON proxy would mangle them).
   if (segments.length === 3 && SLUG.test(segments[0]) && segments[1] === "uploads" && /^\d+$/.test(segments[2])) {
+    // The bytes go upstream with the server's key, so the login has to be checked
+    // here, not merely be present: any string in the header used to be enough.
     const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!token || !verifyToken(token).ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const upstream = await fetch(`${loeBaseUrl()}/api/clients/${segments[0]}/uploads/${segments[2]}`, {
       headers: { Authorization: `Bearer ${key}` }, cache: "no-store", signal: AbortSignal.timeout(60000),
     });
