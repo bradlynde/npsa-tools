@@ -30,7 +30,7 @@ export function loeBaseUrl(): string {
  * `username` comes back only when the signature was actually checked: a name read
  * out of a token nobody verified is a name anyone could have typed.
  */
-function verifyToken(token: string): { ok: boolean; username?: string } {
+export function verifyToken(token: string): { ok: boolean; username?: string } {
   const secret = process.env.JWT_SECRET;
   // Without the shared secret no token can be checked, so none is accepted.
   // These routes now carry the backend key, so a proxy that let any string
