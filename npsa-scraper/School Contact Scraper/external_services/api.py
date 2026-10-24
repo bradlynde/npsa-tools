@@ -1304,9 +1304,33 @@ def list_all_runs() -> list:
         return []
 
 
+_STATE_COUNTIES_DIR = Path(__file__).parent.parent / 'assets' / 'data' / 'state_counties'
+_known_states_cache: Optional[frozenset] = None
+
+
+def _known_states() -> frozenset:
+    """Normalized state names that have a county file (e.g. 'new_york')."""
+    global _known_states_cache
+    if _known_states_cache is None:
+        _known_states_cache = frozenset(
+            p.stem for p in _STATE_COUNTIES_DIR.glob('*.txt')
+            if re.fullmatch(r'[a-z_]+', p.stem)
+        )
+    return _known_states_cache
+
+
+def is_known_state(state) -> bool:
+    """True if state names a county file in assets/data/state_counties/."""
+    if not isinstance(state, str):
+        return False
+    return state.lower().replace(' ', '_') in _known_states()
+
+
 def load_counties_from_state(state: str) -> list:
     """Load counties for a given state from assets/data/state_counties/{state}.txt
     For Texas, checks for texas_top50.txt first (for faster processing)"""
+    if not is_known_state(state):
+        raise FileNotFoundError(f"Unknown state: {state!r}")
     state_normalized = state.lower().replace(' ', '_')
     repo_root = Path(__file__).parent.parent
     
@@ -2544,13 +2568,20 @@ def run_pipeline():
     
     try:
         data = request.get_json() or {}
-        state = data.get("state", "").lower()
+        state = data.get("state", "")
+        state = state.strip().lower() if isinstance(state, str) else ""
         type_param = data.get("type", "school")
         
         if not state:
             return jsonify({
                 "status": "error",
                 "error": "State parameter is required"
+            }), 400
+
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state"
             }), 400
         
         if type_param == "church":
@@ -2973,6 +3004,11 @@ def resume_run(run_id: str):
                 "status": "error",
                 "error": "State not found in run metadata"
             }), 400
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state in run metadata"
+            }), 400
         
         # Check if another run for the SAME STATE is currently running
         # Allow concurrent runs for DIFFERENT states
@@ -3089,6 +3125,11 @@ def aggregate_run(run_id: str):
             return jsonify({
                 "status": "error",
                 "error": "State not found in run metadata"
+            }), 400
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state in run metadata"
             }), 400
         
         # Check if run is already aggregating or completed
@@ -3415,6 +3456,11 @@ def download_run_csv(run_id: str):
         # Get CSV path from metadata or construct it
         csv_path = metadata.get("final_csv_path")
         if not csv_path:
+            if not is_known_state(metadata.get("state")):
+                return jsonify({
+                    "status": "error",
+                    "error": "CSV file not found for this run"
+                }), 404
             # Try to construct path
             state = metadata.get("state", "").title()
             run_dir = RUNS_DIR / run_id
