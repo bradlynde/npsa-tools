@@ -46,6 +46,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline import StreamingPipeline
 from assets.shared.models import Contact
+from assets.shared.csv_safety import escape_csv_text
 
 # Import authentication module
 from external_services.auth import require_auth
@@ -77,6 +78,11 @@ step12_hunter_io = load_module_with_hyphen('step12-enrichment.py', 'step12_enric
 step13_final_compiler = load_module_with_hyphen('step13-compiler.py', 'step13_compiler')
 
 app = Flask(__name__)
+
+# Largest request body accepted. /admin/upload-csv is the only route that takes
+# more than a small JSON body; this cap is sized for it.
+UPLOAD_CSV_MAX_BYTES = 50 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = UPLOAD_CSV_MAX_BYTES
 
 # CORS configuration
 ALLOWED_ORIGIN = os.getenv("ALLOWED_ORIGIN")
@@ -111,6 +117,20 @@ pipeline_runs = {}
 # Track running threads and cancellation flags
 # Format: {run_id: {'thread': Thread, 'cancelled': bool}}
 running_threads = {}
+
+# Single gate for starting runs (HTTP + queue worker) — prevents concurrent "start" races
+_run_start_lock = threading.Lock()
+
+
+def _state_already_queued(state: str) -> bool:
+    """True if this state already has a queued (not started) job — duplicate prevention."""
+    if not queue_store.is_enabled():
+        return False
+    s = state.lower()
+    for job in queue_store.queue_list_jobs(SCRAPER_TYPE, limit=500):
+        if job.get("status") == "queued" and (job.get("state") or "").lower() == s:
+            return True
+    return False
 
 
 def _unique_running_states_after_stale_cleanup() -> set:
@@ -148,23 +168,24 @@ def _school_queue_worker_loop():
                         log_warn(f"[reaper] reclaimed {n} stale county task(s) -> pending")
                 except Exception as e:
                     log_err(f"[reaper] {e}")
-            active = _unique_running_states_after_stale_cleanup()
-            if len(active) >= 1:
-                continue
-            nxt = queue_store.queue_peek_next(SCRAPER_TYPE)
-            if not nxt:
-                continue
-            job_id, st = nxt
-            if _same_state_running(st):
-                continue
-            if _state_finalizing(st):
-                continue
-            if len(active) >= 1:
-                continue
-            run_id = str(uuid.uuid4())
-            if not queue_store.queue_mark_running(job_id, run_id, SCRAPER_TYPE):
-                continue
-            run_streaming_pipeline(st, run_id, False, job_id)
+            with _run_start_lock:
+                active = _unique_running_states_after_stale_cleanup()
+                if len(active) >= 1:
+                    continue
+                nxt = queue_store.queue_peek_next(SCRAPER_TYPE)
+                if not nxt:
+                    continue
+                job_id, st = nxt
+                if _same_state_running(st):
+                    continue
+                if _state_finalizing(st):
+                    continue
+                if len(active) >= 1:
+                    continue
+                run_id = str(uuid.uuid4())
+                if not queue_store.queue_mark_running(job_id, run_id, SCRAPER_TYPE):
+                    continue
+                run_streaming_pipeline(st, run_id, False, job_id)
         except Exception as e:
             log_err(f"Queue: {e}")
 
@@ -1303,9 +1324,33 @@ def list_all_runs() -> list:
         return []
 
 
+_STATE_COUNTIES_DIR = Path(__file__).parent.parent / 'assets' / 'data' / 'state_counties'
+_known_states_cache: Optional[frozenset] = None
+
+
+def _known_states() -> frozenset:
+    """Normalized state names that have a county file (e.g. 'new_york')."""
+    global _known_states_cache
+    if _known_states_cache is None:
+        _known_states_cache = frozenset(
+            p.stem for p in _STATE_COUNTIES_DIR.glob('*.txt')
+            if re.fullmatch(r'[a-z_]+', p.stem)
+        )
+    return _known_states_cache
+
+
+def is_known_state(state) -> bool:
+    """True if state names a county file in assets/data/state_counties/."""
+    if not isinstance(state, str):
+        return False
+    return state.lower().replace(' ', '_') in _known_states()
+
+
 def load_counties_from_state(state: str) -> list:
     """Load counties for a given state from assets/data/state_counties/{state}.txt
     For Texas, checks for texas_top50.txt first (for faster processing)"""
+    if not is_known_state(state):
+        raise FileNotFoundError(f"Unknown state: {state!r}")
     state_normalized = state.lower().replace(' ', '_')
     repo_root = Path(__file__).parent.parent
     
@@ -2543,13 +2588,20 @@ def run_pipeline():
     
     try:
         data = request.get_json() or {}
-        state = data.get("state", "").lower()
+        state = data.get("state", "")
+        state = state.strip().lower() if isinstance(state, str) else ""
         type_param = data.get("type", "school")
         
         if not state:
             return jsonify({
                 "status": "error",
                 "error": "State parameter is required"
+            }), 400
+
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state"
             }), 400
         
         if type_param == "church":
@@ -2558,96 +2610,106 @@ def run_pipeline():
                 "error": "This is the School scraper. Use type=school"
             }), 400
         
-        # Check if another run for the SAME STATE is already active or finalizing
-        # Allow concurrent runs for DIFFERENT states (supports 2 states with 3 workers each)
-        active_runs_same_state = []
-        finalizing_runs_same_state = []
-        active_runs_all_states = []  # Track all active runs for cap enforcement
-        current_time = time.time()
+        # Single gate for starting runs (HTTP + queue worker): checks and start happen together
+        with _run_start_lock:
+            # Check if another run for the SAME STATE is already active or finalizing
+            # Allow concurrent runs for DIFFERENT states (supports 2 states with 3 workers each)
+            active_runs_same_state = []
+            finalizing_runs_same_state = []
+            active_runs_all_states = []  # Track all active runs for cap enforcement
+            current_time = time.time()
         
-        for rid, run_data in pipeline_runs.items():
-            run_state = run_data.get("state", "").lower()
-            status = run_data.get("status")
+            for rid, run_data in pipeline_runs.items():
+                run_state = run_data.get("state", "").lower()
+                status = run_data.get("status")
             
-            # Check for running runs (all states - for cap enforcement)
-            if status == "running":
-                # Verify thread is actually alive
-                if rid in running_threads:
-                    thread = running_threads[rid].get('thread')
-                    if thread and thread.is_alive():
-                        active_runs_all_states.append(rid)
-                        # Also track same-state runs
+                # Check for running runs (all states - for cap enforcement)
+                if status == "running":
+                    # Verify thread is actually alive
+                    if rid in running_threads:
+                        thread = running_threads[rid].get('thread')
+                        if thread and thread.is_alive():
+                            active_runs_all_states.append(rid)
+                            # Also track same-state runs
+                            if run_state == state:
+                                active_runs_same_state.append(rid)
+                    else:
+                        # Thread missing but status is running - mark as stale
+                        pipeline_runs[rid]["status"] = "cancelled"
+            
+                # Check for finalizing runs (2-minute cooldown)
+                elif status == "finalizing":
+                    finalizing_at = run_data.get("finalizingAt", 0)
+                    elapsed = current_time - finalizing_at
+                    if elapsed < 120:  # Still in 2-minute cooldown
                         if run_state == state:
-                            active_runs_same_state.append(rid)
-                else:
-                    # Thread missing but status is running - mark as stale
-                    pipeline_runs[rid]["status"] = "cancelled"
-            
-            # Check for finalizing runs (2-minute cooldown)
-            elif status == "finalizing":
-                finalizing_at = run_data.get("finalizingAt", 0)
-                elapsed = current_time - finalizing_at
-                if elapsed < 120:  # Still in 2-minute cooldown
-                    if run_state == state:
-                        finalizing_runs_same_state.append(rid)
-                else:
-                    # Cooldown expired, mark as completed
-                    pipeline_runs[rid]["status"] = "completed"
-                    if "completedAt" not in pipeline_runs[rid]:
-                        pipeline_runs[rid]["completedAt"] = current_time
+                            finalizing_runs_same_state.append(rid)
+                    else:
+                        # Cooldown expired, mark as completed
+                        pipeline_runs[rid]["status"] = "completed"
+                        if "completedAt" not in pipeline_runs[rid]:
+                            pipeline_runs[rid]["completedAt"] = current_time
         
-        # Enforce maximum 2 concurrent states cap
-        unique_active_states = set()
-        for rid in active_runs_all_states:
-            if rid in pipeline_runs:
-                run_state = pipeline_runs[rid].get("state", "").lower()
-                if run_state:
-                    unique_active_states.add(run_state)
+            # Enforce maximum 2 concurrent states cap
+            unique_active_states = set()
+            for rid in active_runs_all_states:
+                if rid in pipeline_runs:
+                    run_state = pipeline_runs[rid].get("state", "").lower()
+                    if run_state:
+                        unique_active_states.add(run_state)
         
-        if active_runs_same_state:
-            return jsonify({
-                "status": "error",
-                "error": f"Another run for {state} is already in progress. Please wait for it to complete or stop it first.",
-                "activeRunId": active_runs_same_state[0],
-                "state": state
-            }), 409  # Conflict status code
+            if active_runs_same_state:
+                return jsonify({
+                    "status": "error",
+                    "error": f"Another run for {state} is already in progress. Please wait for it to complete or stop it first.",
+                    "activeRunId": active_runs_same_state[0],
+                    "state": state
+                }), 409  # Conflict status code
         
-        if finalizing_runs_same_state:
-            return jsonify({
-                "status": "error",
-                "error": f"A run for {state} is currently finalizing. Please wait 2 minutes before starting a new run for this state.",
-                "activeRunId": finalizing_runs_same_state[0],
-                "isFinalizing": True,
-                "state": state
-            }), 409  # Conflict status code
+            if finalizing_runs_same_state:
+                return jsonify({
+                    "status": "error",
+                    "error": f"A run for {state} is currently finalizing. Please wait 2 minutes before starting a new run for this state.",
+                    "activeRunId": finalizing_runs_same_state[0],
+                    "isFinalizing": True,
+                    "state": state
+                }), 409  # Conflict status code
         
-        if state.lower() not in unique_active_states and len(unique_active_states) >= 1:
-            if db.is_postgres():
-                dn = _run_display_name(state, SCRAPER_TYPE)
-                q = queue_store.queue_enqueue(state, SCRAPER_TYPE, dn)
+            if _state_already_queued(state):
                 resp = jsonify({
-                    "status": "queued",
-                    "jobId": q["job_id"],
-                    "position": q["position"],
-                    "message": f"Queued: {len(unique_active_states)} states already running ({', '.join(sorted(unique_active_states))})",
-                    "activeStates": sorted(unique_active_states),
+                    "status": "error",
+                    "error": f"{state} is already in the queue. Remove or wait for that job before queueing again.",
+                    "state": state,
                 })
                 resp.headers.add("Access-Control-Allow-Origin", "*")
-                return resp, 202
-            return jsonify({
-                "status": "error",
-                "error": f"Maximum of 2 concurrent states allowed. Currently running: {', '.join(sorted(unique_active_states))}. Please wait for one to complete.",
-                "activeStates": sorted(unique_active_states),
-                "maxConcurrentStates": 2
-            }), 409  # Conflict status code
+                return resp, 409
+
+            if state.lower() not in unique_active_states and len(unique_active_states) >= 1:
+                if db.is_postgres():
+                    dn = _run_display_name(state, SCRAPER_TYPE)
+                    q = queue_store.queue_enqueue(state, SCRAPER_TYPE, dn)
+                    resp = jsonify({
+                        "status": "queued",
+                        "jobId": q["job_id"],
+                        "position": q["position"],
+                        "message": f"Queued: {len(unique_active_states)} states already running ({', '.join(sorted(unique_active_states))})",
+                        "activeStates": sorted(unique_active_states),
+                    })
+                    resp.headers.add("Access-Control-Allow-Origin", "*")
+                    return resp, 202
+                return jsonify({
+                    "status": "error",
+                    "error": f"Maximum of 2 concurrent states allowed. Currently running: {', '.join(sorted(unique_active_states))}. Please wait for one to complete.",
+                    "activeStates": sorted(unique_active_states),
+                    "maxConcurrentStates": 2
+                }), 409  # Conflict status code
         
-        # Generate unique run ID
-        run_id = str(uuid.uuid4())
+            # Generate unique run ID
+            run_id = str(uuid.uuid4())
         
-        # Start pipeline in background thread
-        thread = threading.Thread(target=run_streaming_pipeline, args=(state, run_id, False, None))
-        thread.daemon = True
-        thread.start()
+            # run_streaming_pipeline registers the run and starts its own thread, so
+            # the next request (or the queue worker) sees it once the lock is released
+            run_streaming_pipeline(state, run_id, False, None)
         
         # Return run ID immediately
         response = jsonify({
@@ -2972,6 +3034,11 @@ def resume_run(run_id: str):
                 "status": "error",
                 "error": "State not found in run metadata"
             }), 400
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state in run metadata"
+            }), 400
         
         # Check if another run for the SAME STATE is currently running
         # Allow concurrent runs for DIFFERENT states
@@ -3088,6 +3155,11 @@ def aggregate_run(run_id: str):
             return jsonify({
                 "status": "error",
                 "error": "State not found in run metadata"
+            }), 400
+        if not is_known_state(state):
+            return jsonify({
+                "status": "error",
+                "error": "Unknown state in run metadata"
             }), 400
         
         # Check if run is already aggregating or completed
@@ -3373,20 +3445,65 @@ def unarchive_run(run_id: str):
 @app.route("/admin/upload-csv", methods=["POST"])
 @require_auth
 def admin_upload_csv():
-    """Upload a CSV file to the persistent volume (for recovery/restore)."""
+    """Upload a CSV file to the persistent volume (for recovery/restore).
+    POST body: { "filename": "Arizona_leads_....csv", "content": "<csv text>" }
+    An existing file is only replaced when "overwrite": 1 is in the body or
+    ?overwrite=1 is on the URL. Bodies over UPLOAD_CSV_MAX_BYTES are refused.
+    """
+    from werkzeug.exceptions import RequestEntityTooLarge
+
+    too_large = {
+        "status": "error",
+        "error": f"Upload is larger than {UPLOAD_CSV_MAX_BYTES // (1024 * 1024)} MB",
+    }
+    if request.content_length is not None and request.content_length > UPLOAD_CSV_MAX_BYTES:
+        return jsonify(too_large), 413
     try:
-        data = request.get_json(force=True)
-        filename = data.get("filename", "").strip()
+        try:
+            data = request.get_json(force=True, silent=True)
+        except RequestEntityTooLarge:
+            return jsonify(too_large), 413
+        if not isinstance(data, dict):
+            return jsonify({"status": "error", "error": "JSON body required"}), 400
+        filename = data.get("filename", "")
         content = data.get("content", "")
+        if not isinstance(filename, str) or not isinstance(content, str):
+            return jsonify({"status": "error", "error": "filename and content must be strings"}), 400
+        filename = filename.strip()
         if not filename or not content:
             return jsonify({"status": "error", "error": "filename and content required"}), 400
+        # Sanitize filename — no path traversal, no hidden files
         safe_name = Path(filename).name
-        if not safe_name.endswith(".csv"):
+        if (
+            not safe_name.lower().endswith(".csv")
+            or len(safe_name) <= len(".csv")
+            or safe_name.startswith(".")
+        ):
             return jsonify({"status": "error", "error": "filename must end with .csv"}), 400
+        encoded = content.encode("utf-8")
+        if len(encoded) > UPLOAD_CSV_MAX_BYTES:
+            return jsonify(too_large), 413
+        overwrite_flag = data.get("overwrite", request.args.get("overwrite", ""))
+        overwrite = str(overwrite_flag).strip().lower() in ("1", "true", "yes")
         dest = VOLUME_DIR / safe_name
-        with open(dest, "w") as f:
-            f.write(content)
-        return jsonify({"status": "ok", "path": str(dest), "size": len(content)}), 200
+        existed = dest.exists()
+        if existed and not dest.is_file():
+            return jsonify({"status": "error", "error": "destination is not a file"}), 409
+        try:
+            # "x" fails if the file appeared meanwhile; "w" replaces it on request
+            with open(dest, "wb" if overwrite else "xb") as f:
+                f.write(encoded)
+        except FileExistsError:
+            return jsonify({
+                "status": "error",
+                "error": f"{safe_name} already exists; send overwrite=1 to replace it",
+            }), 409
+        return jsonify({
+            "status": "ok",
+            "path": str(dest),
+            "size": len(encoded),
+            "overwritten": overwrite and existed,
+        }), 200
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
 
@@ -3414,6 +3531,11 @@ def download_run_csv(run_id: str):
         # Get CSV path from metadata or construct it
         csv_path = metadata.get("final_csv_path")
         if not csv_path:
+            if not is_known_state(metadata.get("state")):
+                return jsonify({
+                    "status": "error",
+                    "error": "CSV file not found for this run"
+                }), 404
             # Try to construct path
             state = metadata.get("state", "").title()
             run_dir = RUNS_DIR / run_id
@@ -3426,10 +3548,14 @@ def download_run_csv(run_id: str):
                 "error": "CSV file not found for this run"
             }), 404
         
-        # Read and return CSV
+        # Read and return CSV, escaping formula-like cells (CSVs written before
+        # the compiler did it are served too)
+        from io import BytesIO
         from flask import send_file
+        with open(csv_path, "r", encoding="utf-8", errors="replace", newline="") as f:
+            csv_text = f.read()
         return send_file(
-            csv_path,
+            BytesIO(escape_csv_text(csv_text).encode("utf-8")),
             mimetype='text/csv',
             as_attachment=True,
             download_name=metadata.get("csv_filename", f"run_{run_id}.csv")
