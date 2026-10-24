@@ -12,6 +12,9 @@
 //   1. The per-process internal key (X-Internal-Key). The MCP layer presents it on
 //      its loopback calls.
 //   2. A key from MCP_API_KEYS as a bearer token. The Vercel shell's proxies hold one.
+//      When MCP_WRITE_KEYS is set, a key it does not list may only GET and HEAD,
+//      here and on the self-gated modules alike (keyCanWrite in server/mcp.js), so
+//      the toolbox's own key has to be on it.
 //   3. The person's own login token (the HS256 JWT the auth service issues) as a
 //      bearer token, verified against JWT_SECRET. The Sales Toolbox runs in an iframe
 //      straight off this origin and calls these routes from the browser, so it
@@ -29,7 +32,7 @@
 //   app.use('/api', apiGate({ internalKey }))   // FIRST, ahead of the body parsers
 
 import crypto from 'crypto';
-import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
+import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor, keyCanWrite, READ_ONLY_HEADER } from './mcp.js';
 
 // Modules with their own gate on every route. Matched against the path under /api.
 export const SELF_GATED = /^\/(clients|intake|grant-knowledge)(\/|$)/;
@@ -79,22 +82,31 @@ export function verifyJwt(token, secret) {
   }
 }
 
-/** Who is calling, or null. */
+/**
+ * Who is calling, or null. canWrite says whether they may change anything: the
+ * internal key unless the MCP layer marked the call read-only, a key as
+ * MCP_WRITE_KEYS allows (every key while it is unset), a toolbox login always.
+ */
 export function identify(req, internalKey) {
   if (internalKey && safeEqual(req.get('x-internal-key'), internalKey)) {
-    return { actor: cleanActor(req.get('x-actor')) || 'internal', kind: 'mcp' };
+    return { actor: cleanActor(req.get('x-actor')) || 'internal', kind: 'mcp', canWrite: req.get(READ_ONLY_HEADER) !== '1' };
   }
   const presented = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!presented) return null;
   const keys = splitKeys(process.env.MCP_API_KEYS || process.env.MCP_API_KEY);
   if (keys.length && keyMatches(presented, keys)) {
     const asserted = mayAssertActor(presented) ? cleanActor(req.get('x-actor')) : '';
-    return { actor: asserted || nameFor(presented), kind: asserted ? 'user' : 'key' };
+    return { actor: asserted || nameFor(presented), kind: asserted ? 'user' : 'key', canWrite: keyCanWrite(presented) };
   }
   const jwt = verifyJwt(presented, process.env.JWT_SECRET);
-  if (jwt.ok) return { actor: cleanActor(jwt.username) || 'toolbox', kind: 'user' };
+  if (jwt.ok) return { actor: cleanActor(jwt.username) || 'toolbox', kind: 'user', canWrite: true };
   return null;
 }
+
+/** Reading is GET and HEAD; anything else changes something. */
+export const isRead = req => req.method === 'GET' || req.method === 'HEAD';
+
+export const READ_ONLY_REFUSAL = 'This key can read but not change anything (it is not on MCP_WRITE_KEYS).';
 
 export function apiGate({ internalKey } = {}) {
   return (req, res, next) => {
@@ -113,8 +125,10 @@ export function apiGate({ internalKey } = {}) {
 
     const who = identify(req, internalKey);
     if (who) {
+      if (!who.canWrite && !isRead(req)) return res.status(403).json({ error: READ_ONLY_REFUSAL });
       req.actor = who.actor;
       req.actorKind = who.kind;
+      req.canWrite = who.canWrite;
       return next();
     }
     res.set('WWW-Authenticate', 'Bearer realm="npsa-tools"');

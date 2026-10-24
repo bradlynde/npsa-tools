@@ -181,6 +181,29 @@ await check('the intake link (it carries the client token) goes only to callers 
   for (const v of await views({ ...INTERNAL_H, 'X-Read-Only': '1' })) assert.ok(!('intake_url' in v), 'not when the MCP layer marks the call read-only');
 });
 
+await check('with MCP_WRITE_KEYS set, a key it leaves out reads the team routes but changes nothing', async () => {
+  const slug = 'trinity-wellsprings-church';
+  const writes = headers => [
+    call('POST', '/api/clients', { headers, body: { name: 'Read Only Church', state: 'FL' } }),
+    call('PATCH', `/api/clients/${slug}`, { headers, body: { notes: 'x' } }),
+    call('PUT', `/api/clients/${slug}/answers`, { headers, body: { answers: { q_1_1_1: 'x' } } }),
+    call('POST', `/api/clients/${slug}/token`, { headers, body: {} }),
+    call('DELETE', `/api/clients/${slug}`, { headers }),
+  ];
+  process.env.MCP_WRITE_KEYS = 'team-key-one';
+  try {
+    assert.equal((await call('GET', `/api/clients/${slug}`, { headers: TEAM })).status, 200);
+    assert.equal((await call('GET', '/api/intake/questions', { headers: TEAM })).status, 200);
+    for (const r of await Promise.all(writes(TEAM))) {
+      assert.equal(r.status, 403, JSON.stringify(r.data));
+      assert.match(r.data.error, /MCP_WRITE_KEYS/);
+    }
+    assert.equal((await call('PATCH', `/api/clients/${slug}`, { headers: { Authorization: 'Bearer team-key-one' }, body: { notes: '' } })).status, 200, 'a listed key writes');
+  } finally { delete process.env.MCP_WRITE_KEYS; }
+  for (const r of await Promise.all(writes({ ...INTERNAL_H, 'X-Read-Only': '1' }))) assert.equal(r.status, 403, 'nor a call marked read-only');
+  assert.ok((await call('GET', `/api/clients/${slug}`, { headers: TEAM })).data.slug, 'and the client is untouched');
+});
+
 // ── 3. Answers ────────────────────────────────────────────────────────────────
 await check('a seed with an unknown key is refused by name and writes nothing', async () => {
   const r = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { q_1_1_1: 'Pat Lee', chk_note_10: 'x', chk_who_investment_justification: 'me' } } });

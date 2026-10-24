@@ -38,7 +38,14 @@ Code: `server/mcp.js`, and `server/oauth.js` for the sign-in. Both mounted from
 
    Unset, every key can write. Set, a key not on the list never sees the write
    tools at all, so a read-only key for someone who should only ask questions is
-   one variable away.
+   one variable away. The same list governs the REST routes (`/api/*`, including
+   the self-gated clients, intake and grant knowledge routes): a key not on it may
+   `GET` and `HEAD` and gets `403` for anything else, and it is not given a
+   client's intake link. So **`MCP_WRITE_KEYS` must include the toolbox's own key**
+   (the key the Vercel shell's proxies send, the one `ACTOR_PROXY_KEYS` names),
+   or every save in the toolbox starts failing with 403 the moment the variable
+   is set. Toolbox logins (JWTs) and the internal key are not keys and are not
+   narrowed by it.
 
    ```
    MCP_WRITE_USERS  # comma-separated toolbox usernames allowed the write tools when signed in (OAuth)
@@ -83,7 +90,7 @@ mounted first in `server/index.js`). A route added later is locked by default.
 | Caller | Credential | Reaches |
 | :--- | :--- | :--- |
 | MCP tools (loopback) | per-process internal key, sent automatically | everything |
-| Vercel shell's proxies | a key from `MCP_API_KEYS`, as a bearer token | everything |
+| Vercel shell's proxies | a key from `MCP_API_KEYS`, as a bearer token | everything (reads only, if `MCP_WRITE_KEYS` is set and leaves it out) |
 | Sales Toolbox iframe | the person's login token, handed in by the shell | everything |
 | Zaps and backfill scripts | `X-Zap-Secret` | the Zapier routes only |
 | Client intake page, GK uploads | the client's token, or a signed ticket | their own routes |

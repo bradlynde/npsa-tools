@@ -32,6 +32,7 @@ import { readFileSync } from 'fs';
 import { driveConfigured, uploadToDrive } from './drive.js';
 import { mailConfigured, sendWelcome, senderFor } from './mail.js';
 import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor, keyCanWrite, READ_ONLY_HEADER } from './mcp.js';
+import { isRead, READ_ONLY_REFUSAL } from './api-gate.js';
 import { UPLOAD_MAX_BYTES, sniffUploadType, safeFilename, rawUploadBody, uploadBodyError, readMultipart, contentDisposition } from './uploads.js';
 import { knowledgeFor as knowledgeOf, combinedStateProgram } from './knowledge.js';
 import { JURISDICTIONS } from './grant-knowledge-kinds.js';
@@ -1139,6 +1140,8 @@ export function createMemoryStore() {
 // ── Gates ─────────────────────────────────────────────────────────────────────
 
 export function teamGate({ internalKey }) {
+  // A caller who may not write may still read: GET and HEAD pass, the rest is 403.
+  const pass = (req, res, next) => (req.canWrite || isRead(req) ? next() : res.status(403).json({ error: READ_ONLY_REFUSAL }));
   return (req, res, next) => {
     const internal = req.get('x-internal-key') || '';
     if (internalKey && tokenMatches(internal, internalKey)) {
@@ -1146,7 +1149,7 @@ export function teamGate({ internalKey }) {
       req.actorKind = 'mcp';
       // The MCP layer marks the calls it makes for a read-only caller.
       req.canWrite = req.get(READ_ONLY_HEADER) !== '1';
-      return next();
+      return pass(req, res, next);
     }
     const keys = splitKeys(process.env.MCP_API_KEYS || process.env.MCP_API_KEY);
     const presented = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
@@ -1157,7 +1160,7 @@ export function teamGate({ internalKey }) {
       req.actor = asserted || nameFor(presented);
       req.actorKind = asserted ? 'user' : 'key';
       req.canWrite = keyCanWrite(presented);
-      return next();
+      return pass(req, res, next);
     }
     res.set('WWW-Authenticate', 'Bearer realm="npsa-tools"');
     return res.status(401).json({ error: 'Unauthorized' });
