@@ -11,9 +11,9 @@
     "start": "node server/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "dompurify": "^3.4.17",
-    "express": "^4.21.0",
+    "express": "^4.22.3",
     "express-rate-limit": "^8.7.1",
     "html-to-docx": "^1.8.0",
     "html2pdf.js": "^0.14.0",
