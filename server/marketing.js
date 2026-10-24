@@ -791,7 +791,8 @@ export { EXCLUSION_REASONS, EXCLUSION_LABELS };
 async function calendlyStatus(eventUri, { checkAttendance = false, checkReschedule = false } = {}) {
   const unknown = { cancelled: null, held: null, source: null, oldInvitee: null, host: null };
   const key = process.env.CALENDLY_API_TOKEN;
-  if (!key || !eventUri) return unknown;
+  // The token goes to Calendly and nowhere else, whatever a stored row says.
+  if (!key || !isCalendlyEventUri(eventUri)) return unknown;
   try {
     const ev = await fetch(eventUri, { headers: { Authorization: `Bearer ${key}` } });
     if (!ev.ok) return unknown;
@@ -846,9 +847,19 @@ const eventUriOfInvitee = (uri) => {
 // ─────────────────────────────────────────────────────────────
 const CAL_API = 'https://api.calendly.com';
 
+/**
+ * A Calendly scheduled-event URI, the same test precall-bookings.js applies.
+ * event_uri arrives from the booking Zap and is fetched with the Calendly token,
+ * so anything else is not stored and never fetched.
+ */
+function isCalendlyEventUri(uri) {
+  return typeof uri === 'string' && uri.startsWith(`${CAL_API}/scheduled_events/`);
+}
+
 async function calendlyGet(path) {
   const key = process.env.CALENDLY_API_TOKEN;
   if (!key) throw new Error('CALENDLY_API_TOKEN is not set');
+  if (path.startsWith('http') && !path.startsWith(`${CAL_API}/`)) throw new Error('Not a Calendly API URL');
   const url = path.startsWith('http') ? path : `${CAL_API}${path}`;
   const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
   if (!r.ok) throw new Error(`Calendly ${r.status} on ${url.replace(CAL_API, '')}: ${(await r.text()).slice(0, 200)}`);
@@ -1297,7 +1308,9 @@ async function enrichBooking(pool, id) {
   // often enrichment runs. Retried on a delay rather than every pass, so a booking
   // Calendly cannot place does not cost two API calls every sweep.
   const LOOKUP_RETRY_MS = 6 * 60 * 60 * 1000;
-  let eventUri = row.event_uri;
+  // A stored value that is not a Calendly event (from before ingest checked) is
+  // dropped, so the lookup below can find the real one.
+  let eventUri = isCalendlyEventUri(row.event_uri) ? row.event_uri : null;
   let inviteeUri = null;
   let lookupAt = row.calendly_lookup_at;
   const lookupDue = !lookupAt || Date.now() - new Date(lookupAt).getTime() > LOOKUP_RETRY_MS;
@@ -1502,6 +1515,12 @@ async function settleAllRepeats(pool) {
 // 7. Upsert (ingest)
 // ─────────────────────────────────────────────────────────────
 async function upsertBooking(pool, b) {
+  if (b.event_uri != null && !isCalendlyEventUri(b.event_uri)) {
+    // Kept out rather than refusing the booking: the row is still worth having,
+    // and enrichment finds its event from the email and meeting date instead.
+    console.warn('[marketing] ingest: event_uri is not a Calendly scheduled event; not stored');
+    b = { ...b, event_uri: null };
+  }
   let existing = null;
   if (b.calendly_uri) {
     const r = await pool.query('SELECT id FROM bookings WHERE calendly_uri=$1', [b.calendly_uri]);
