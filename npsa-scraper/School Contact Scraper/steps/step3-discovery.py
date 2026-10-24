@@ -15,6 +15,7 @@ import time
 from typing import List, Dict, Set
 import re
 import pandas as pd
+from assets.shared.url_safety import BlockedURLError, get_public
 
 # ANSI escape codes for bold text
 BOLD = '\033[1m'
@@ -117,9 +118,14 @@ class PageDiscoverer:
                 else:
                     time.sleep(0.3)  # 300ms delay before retries
                 
-                response = requests.get(url, headers=self.headers, timeout=self.timeout)
+                response = get_public(url, headers=self.headers, timeout=self.timeout)
                 response.raise_for_status()
                 return response
+            except BlockedURLError as e:
+                from school_run_log import log_warn
+
+                log_warn(f"Page discovery: skipped {e.url} ({e.reason})")
+                return None
             except requests.exceptions.Timeout:
                 # Silent retry - don't print errors
                 if attempt < self.max_retries - 1:
