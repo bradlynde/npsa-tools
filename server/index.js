@@ -23,6 +23,7 @@ import { createDeadlineSource } from './gk-deadlines.js';
 import { stateFundingBlock } from './precall-state.js';
 import { startKnowledgeSync, briefingFor } from './knowledge.js';
 import crypto from 'crypto';
+import { fetchPublic, assertPublicUrl } from './public-url.js';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -197,8 +198,10 @@ async function fetchDirect(url, ms = 9000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    const r = await fetch(url, {
-      signal: ctrl.signal, redirect: 'follow',
+    // The address comes off the booking form, so it is fetched only while it, and
+    // every redirect it gives, stays on the public internet (server/public-url.js).
+    const r = await fetchPublic(url, {
+      signal: ctrl.signal,
       // Some church and school hosts serve a block page to an unrecognised agent.
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NPSA-PreCall/1.0)', 'Accept': 'text/html' },
     });
@@ -226,6 +229,9 @@ async function fetchDirect(url, ms = 9000) {
  * fallback, where it earns its keep on JS-rendered sites.
  */
 async function fetchPage(url) {
+  // An address that is not a public site is not handed to the reader either.
+  try { await assertPublicUrl(url); }
+  catch (e) { console.warn(`[precall] not fetching ${url}: ${e.message}`); return null; }
   const direct = await fetchDirect(url);
   if (direct && direct.length > 400) return direct;
   const viaJina = await fetchViaJina(url);

@@ -164,6 +164,11 @@ await new Promise((resolve) => {
   }).listen(3212, '127.0.0.1', resolve);
 });
 
+// The site is fetched only once its name resolves to a public address. There is
+// no DNS here, so the stand-in site is given a public address.
+const { __test: publicUrl } = await import(new URL('../server/public-url.js', import.meta.url).href);
+publicUrl.setLookup(async (host) => (/greenlandhills\.org$/.test(host) ? [{ address: '93.184.215.14', family: 4 }] : []));
+
 await import(new URL('../server/index.js', import.meta.url).href);
 await new Promise((r) => setTimeout(r, 1500));
 
