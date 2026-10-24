@@ -32,6 +32,8 @@ process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:3212';
 process.env.MCP_API_KEYS = 'precall-facts-key';
 const AUTH = { Authorization: 'Bearer precall-facts-key' };
 
+import { marked } from 'marked';
+
 const EVENT = 'https://api.calendly.com/scheduled_events/d14f0255';
 
 // The model deliberately misbehaves: it invents a phone number and a fake
@@ -95,6 +97,8 @@ globalThis.fetch = async (url, init) => {
             answer: 'Break-in during evening services.\nUnsecured side entrances.', position: 2 },
           { question: 'How did you hear about us?', answer: 'Referred by Merit Dallas', position: 3 },
           { question: 'Unanswered question', answer: '', position: 4 },
+          // Whoever books the call types these, so an answer is text, never markup.
+          { question: 'Anything else?', answer: '<img src=x onerror=alert(1)> [see](javascript:alert(1)) Costs $& more', position: 5 },
         ],
       }] });
     }
@@ -218,6 +222,13 @@ const checks = {
   // which copy is right.
   'the already-rendered fields are not repeated': !/Organization Name:/.test(n)
     && (n.match(/2147089835/g) || []).length <= 2,
+  // The answer above, as the page renders it: the tag and the link print as
+  // text, and a $ in an answer is not read as a replacement pattern.
+  'a booking answer cannot carry markup': (() => {
+    const html = marked(n);
+    return !/<img|<a [^>]*javascript:/i.test(html) && html.includes('&lt;img src=x onerror=alert(1)&gt;')
+      && html.includes('[see](javascript:alert(1))') && n.includes('Costs $& more');
+  })(),
 };
 // The Claude requests themselves: the right endpoint, headers and models, the
 // master prompt carried in `system`, and thinking switched off for each model.

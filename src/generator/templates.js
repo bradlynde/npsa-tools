@@ -2,6 +2,7 @@
 // notes renderer. The letter wording itself lives in templates/*.json.
 
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import PRE_AWARD from "../../templates/pre-award.json";
 import IN_HOUSE from "../../templates/in-house.json";
 import POST_AWARD from "../../templates/post-award.json";
@@ -56,9 +57,16 @@ const PC_NOTES_CSS = `
   .pc hr{border:none;border-top:1px solid #e2ecf5;margin:18px 0}
   .pc blockquote{border-left:3px solid #dce8f4;margin:0 0 12px;padding:8px 14px;background:#f7fafd;color:#4a5462;font-size:13px}
 `;
-function renderPreCallHtml(md){ return `<style>${PC_NOTES_CSS}</style><div class="pc">${marked(String(md||''))}</div>`; }
+/*
+ * The notes are markdown from a model that has read the client's own website,
+ * with booking answers typed by whoever booked the call spliced in. Either can
+ * carry markup, so what marked makes of it is sanitized before it reaches the
+ * page or the Word export: no script, no event handlers, no javascript: links.
+ */
+function preCallNotesHtml(md){ return DOMPurify.sanitize(marked(String(md||''))); }
+function renderPreCallHtml(md){ return `<style>${PC_NOTES_CSS}</style><div class="pc">${preCallNotesHtml(md)}</div>`; }
 
 export {
   DEFAULT_PRE, DEFAULT_INH, DEFAULT_POST, DEFAULT_ADDENDUM, DEFAULT_PROPOSAL,
-  PC_NOTES_CSS, renderPreCallHtml,
+  PC_NOTES_CSS, renderPreCallHtml, preCallNotesHtml,
 };

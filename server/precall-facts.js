@@ -43,8 +43,22 @@ function hostLine(host) {
     .filter(Boolean).join(' · ');
 }
 
-/** Escapes the pipe and underscore markdown would otherwise eat inside a value. */
-const esc = (s) => String(s == null ? '' : s).replace(/([|_*`])/g, '\\$1');
+/**
+ * Makes a submitted value print as itself.
+ *
+ * Booking answers are typed by whoever books the call, so a value is text and
+ * never markup: < and > become entities, as does an & that would start one, so
+ * nothing in an answer can open a tag on the page or in the Word file. The
+ * markdown characters are backslash-escaped, the backslash first so a value
+ * cannot cancel the escape that follows it; [ and ] among them, so an answer
+ * cannot become a link or an image. A bare & ("Smith & Sons") and quotes are
+ * left alone: they cannot open anything here, and the rep reads this source
+ * in the Edit view.
+ */
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&(?=#?[a-z0-9]+;)/gi, '&amp;')
+  .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/([\\|_*`[\]])/g, '\\$1');
 
 /**
  * Central time, with the abbreviation the date actually falls in.
@@ -241,7 +255,9 @@ export function substituteBlocks(markdown, blocks) {
     // the rest of the section — including the invented values — in place.
     const sectionRe = new RegExp(
       `(^##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$)[\\s\\S]*?(?=^##\\s|(?![\\s\\S]))`, 'mi');
-    if (sectionRe.test(md)) md = md.replace(sectionRe, `$1\n\n${body}\n\n`);
+    // A function, not a replacement string: the body holds what the booker typed,
+    // and a $ in it must not be read as a replacement pattern.
+    if (sectionRe.test(md)) md = md.replace(sectionRe, (_, head) => `${head}\n\n${body}\n\n`);
     else md += `\n\n## ${heading}\n\n${body}\n`;
   }
   // Any token the caller did not supply must not reach the rep as literal angle

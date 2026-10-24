@@ -70,8 +70,16 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
+// A dialog would mean markup in the notes ran as script.
+const dialogs = [];
+page.on("dialog", (d) => { dialogs.push(d.message()); d.dismiss().catch(() => {}); });
 
 let generateBody = null;
+let docxBody = null;
+// Notes that carry markup, as a model could write after reading a hostile page.
+// The preview and the Word export must both show it inert.
+const HOSTILE_NOTES = "# Generated\n\n## Meeting Details\n- ok\n\n<img src=x onerror=alert(1)>\n\n" +
+  "- [open](javascript:alert(2))\n\n<script>alert(3)</script>\n\nAfter the markup.";
 const deadlines = [
   { id: 1, state: "IN", program: "federal", cycle_year: 2025, deadline: "2025-10-21",
     kind: "sub_applicant", note: "FY2025 NOFO posted 2025-07-28.", source: "in.gov/dhs",
@@ -104,7 +112,11 @@ await page.route(/\/api\//, async (route) => {
   }
   if (path === "/api/precall") {
     generateBody = JSON.parse(req.postData() || "{}");
-    return json({ notes: "# Generated\n\n## Meeting Details\n- ok", website: null, websiteFetched: false });
+    return json({ notes: HOSTILE_NOTES, website: null, websiteFetched: false });
+  }
+  if (path === "/api/precall/docx") {
+    docxBody = JSON.parse(req.postData() || "{}");
+    return route.fulfill({ status: 200, contentType: "application/octet-stream", body: "PK" });
   }
   if (path === "/api/letters/stats") return json({ total: 0 });
   if (path === "/api/reps") return json([{ id: 1, name: "Chad Burgess" }]);
@@ -157,6 +169,28 @@ check("generate sends the eventUri so the server re-reads the booking",
 check("submitted phone survives to the request body",
   generateBody?.formData?.attendees?.[0]?.phone === "2147089835",
   JSON.stringify(generateBody?.formData?.attendees?.[0]));
+
+// ── 3b. markup in the notes is inert, on screen and in the export ────────
+await page.locator('text="After the markup."').first().waitFor({ timeout: 5000 }).catch(() => {});
+const preview = await page.evaluate(() => {
+  const el = [...document.querySelectorAll(".pc")].pop();
+  return el ? {
+    text: el.textContent,
+    handlers: el.querySelectorAll("[onerror],[onload],[onclick]").length,
+    scripts: el.querySelectorAll("script").length,
+    jsLinks: [...el.querySelectorAll("a")].filter((a) => /^\s*javascript:/i.test(a.getAttribute("href") || "")).length,
+  } : null;
+});
+check("the notes preview rendered", !!preview && preview.text.includes("After the markup."), JSON.stringify(preview));
+check("no event handler, script or javascript: link survives in the preview",
+  preview && preview.handlers === 0 && preview.scripts === 0 && preview.jsLinks === 0, JSON.stringify(preview));
+
+await page.locator('button:has-text("Download .docx")').click();
+await page.waitForTimeout(600);
+check("the Word export is sent sanitized HTML",
+  !!docxBody && !/onerror|<script|javascript:/i.test(docxBody.html || "") && /After the markup\./.test(docxBody.html || ""),
+  (docxBody?.html || "").slice(0, 300));
+check("nothing in the notes ran as script", dialogs.length === 0, dialogs.join(" | "));
 
 // ── 4. "Deadlines" opens the Grant Knowledge tab on the rep's state ──────
 //
