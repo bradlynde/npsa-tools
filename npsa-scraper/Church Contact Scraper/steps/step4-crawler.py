@@ -36,6 +36,7 @@ import pandas as pd
 from collections import defaultdict
 
 from church_run_log import log_err, log_warn
+from assets.shared.url_safety import UNRESOLVED, BlockedURLError, blocked_reason, get_public
 
 # Try to import psutil for process tree killing (optional)
 try:
@@ -65,6 +66,9 @@ class ContentCollector:
         self.use_selenium = use_selenium
         self.chrome_user_data_dir = chrome_user_data_dir  # Use volume path to avoid ephemeral storage exhaustion
         self.driver = None
+        # URLs refused by the public-address check (incl. via a redirect), so the
+        # Selenium fallback doesn't load them either
+        self._blocked_urls = set()
         
         # Track if selenium was used for current church (for cleanup message)
         self._selenium_used_for_church = False
@@ -651,9 +655,13 @@ class ContentCollector:
                 else:
                     time.sleep(0.3)  # 300ms delay before retries
                 
-                response = requests.get(url, headers=self.headers, timeout=self.timeout)
+                response = get_public(url, headers=self.headers, timeout=self.timeout)
                 response.raise_for_status()
                 return response
+            except BlockedURLError as e:
+                self._blocked_urls.add(url)
+                log_warn(f"Crawler: skipped {e.url} ({e.reason})")
+                return None
             except requests.exceptions.Timeout:
                 # Silent retry - don't print errors
                 if attempt < self.max_retries - 1:
@@ -749,6 +757,15 @@ class ContentCollector:
         Clicks on profile photos, staff cards, and hovers over elements
         to reveal hidden emails (mailto links that appear on interaction)
         """
+        if url in self._blocked_urls:
+            return None
+        reason = blocked_reason(url)
+        if reason:
+            self._blocked_urls.add(url)
+            if reason != UNRESOLVED:
+                log_warn(f"Crawler: skipped {url} in browser ({reason})")
+            return None
+
         driver = None
         max_retries = 2
         try:
