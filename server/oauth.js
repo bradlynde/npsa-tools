@@ -29,6 +29,7 @@
 
 import crypto from 'crypto';
 import express from 'express';
+import { rateLimit as expressRateLimit } from 'express-rate-limit';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { metadataHandler } from '@modelcontextprotocol/sdk/server/auth/handlers/metadata.js';
 import {
@@ -50,6 +51,13 @@ const ACCESS_TTL = 60 * 60 * 1000;
 const REFRESH_TTL = 30 * 24 * 60 * 60 * 1000;
 // Wrong codes allowed against one pending sign-in before it is thrown away.
 const MAX_CODE_ATTEMPTS = 10;
+// Codes one pending sign-in may ask to have emailed. Each one is an email from the
+// auth service, and its per-address limit is shared by every sign-in through here.
+const MAX_CODE_REQUESTS = 3;
+// Calls to each sign-in step per caller address, per window.
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_REQUEST_LIMIT = 10;
+const LOGIN_VERIFY_LIMIT = 30;
 const UPSTREAM_TIMEOUT = 10_000;
 
 export const randomToken = () => crypto.randomBytes(32).toString('base64url');
@@ -110,6 +118,7 @@ export async function ensureOAuthSchema(pool) {
       expires_at  TIMESTAMPTZ NOT NULL,
       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE oauth_pending ADD COLUMN IF NOT EXISTS requests INT NOT NULL DEFAULT 0;
     CREATE TABLE IF NOT EXISTS oauth_codes (
       code_hash       TEXT PRIMARY KEY,
       client_id       TEXT NOT NULL,
@@ -169,6 +178,9 @@ export function createOAuthStore(pool) {
     async countAttempt(idHash) {
       return (await one('UPDATE oauth_pending SET attempts=attempts+1 WHERE id_hash=$1 RETURNING attempts', [idHash]))?.attempts ?? null;
     },
+    async countRequest(idHash) {
+      return (await one('UPDATE oauth_pending SET requests=requests+1 WHERE id_hash=$1 RETURNING requests', [idHash]))?.requests ?? null;
+    },
     async takePending(idHash) {
       const r = await one('DELETE FROM oauth_pending WHERE id_hash=$1 RETURNING *', [idHash]);
       return r && { clientId: r.client_id, params: r.params, attempts: r.attempts, expiresAt: ms(r.expires_at) };
@@ -219,9 +231,10 @@ export function createMemoryOAuthStore() {
   return {
     async getClient(id) { return copy(clients.get(id)); },
     async saveClient(info) { clients.set(info.client_id, copy(info)); },
-    async addPending({ idHash, clientId, params, expiresAt }) { pending.set(idHash, { clientId, params: copy(params), attempts: 0, expiresAt }); },
+    async addPending({ idHash, clientId, params, expiresAt }) { pending.set(idHash, { clientId, params: copy(params), attempts: 0, requests: 0, expiresAt }); },
     async getPending(idHash) { return copy(pending.get(idHash)) || null; },
     async countAttempt(idHash) { const p = pending.get(idHash); if (!p) return null; p.attempts += 1; return p.attempts; },
+    async countRequest(idHash) { const p = pending.get(idHash); if (!p) return null; p.requests += 1; return p.requests; },
     async takePending(idHash) { const p = pending.get(idHash); pending.delete(idHash); return copy(p) || null; },
     async addCode(c) { codes.set(c.codeHash, { ...copy(c), resource: c.resource || null, usedAt: null }); },
     async getCode(codeHash) { return copy(codes.get(codeHash)) || null; },
@@ -350,7 +363,14 @@ export function createOAuthProvider({ store, config, now = Date.now, log = conso
     async exchangeRefreshToken(client, refreshToken, scopes, resource) {
       const hash = sha256(refreshToken);
       const row = await store.tokenByRefresh(hash);
-      if (!row || row.clientId !== client.client_id || row.revokedAt || row.refreshExpires <= now()) {
+      if (row && row.clientId === client.client_id && row.revokedAt) {
+        // A refresh token is good once. Presented again, it may have been copied, so
+        // every token descended from the same sign-in is withdrawn, as for a code.
+        await store.revokeFamily(row.family, now());
+        log(`[oauth] refresh token reused for ${cleanActor(row.username)}; sign-in revoked`);
+        throw new InvalidGrantError('Invalid refresh token');
+      }
+      if (!row || row.clientId !== client.client_id || row.refreshExpires <= now()) {
         throw new InvalidGrantError('Invalid refresh token');
       }
       let granted = row.scopes;
@@ -493,8 +513,16 @@ function signInPage({ nonce, pendingId, clientName, redirectHost }) {
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{1,63}$/;
 const EXPIRED = 'This sign-in has expired. Go back to the app and connect again.';
 
-function loginRoutes({ store, config, now, fetchImpl, log }) {
+function loginRoutes({ store, config, now, fetchImpl, log, rateLimit: limits = {} }) {
   const router = express.Router();
+  // Per caller address, ahead of everything else, so a flood costs nothing upstream.
+  const limiter = (limit, what) => expressRateLimit({
+    windowMs: LOGIN_WINDOW_MS, limit, standardHeaders: true, legacyHeaders: false,
+    message: { error: `Too many ${what}. Wait a few minutes and try again.` },
+    ...limits,
+  });
+  router.use('/request', limiter(LOGIN_REQUEST_LIMIT, 'sign-in codes requested'));
+  router.use('/verify', limiter(LOGIN_VERIFY_LIMIT, 'sign-in attempts'));
   router.use(express.json({ limit: '4kb' }));
 
   // Only this page's own script posts here: JSON (so a cross-site form cannot),
@@ -532,6 +560,11 @@ function loginRoutes({ store, config, now, fetchImpl, log }) {
       if (!(await livePending(pending))) return res.status(400).json({ error: EXPIRED });
       const addr = typeof email === 'string' ? email.trim() : '';
       if (!EMAIL_RE.test(addr) || addr.length > 254) return res.status(400).json({ error: 'Enter a valid email address.' });
+      const requests = await store.countRequest(sha256(pending));
+      if (requests == null) return res.status(400).json({ error: EXPIRED });
+      if (requests > MAX_CODE_REQUESTS) {
+        return res.status(429).json({ error: 'Too many codes asked for on this sign-in. Use the most recent email, or go back to the app and connect again.' });
+      }
       const r = await upstream('/auth/request-code', { email: addr });
       if (r.status === 429) return res.status(429).json({ error: detail(r.data) || 'Too many sign-in attempts. Wait a few minutes and try again.' });
       if (r.status >= 500) log(`[oauth] request-code upstream ${r.status}`);
@@ -658,7 +691,7 @@ export function registerOAuth(app, { pool = null, store, now = Date.now, fetchIm
   };
   const bareResourceMetadata = metadataHandler(prm);
   app.use('/.well-known/oauth-protected-resource', (req, res, next) => (req.path === '/' ? bareResourceMetadata(req, res, next) : next()));
-  app.use('/oauth/login', loginRoutes({ store, config, now, fetchImpl, log }));
+  app.use('/oauth/login', loginRoutes({ store, config, now, fetchImpl, log, rateLimit }));
 
   return {
     config,

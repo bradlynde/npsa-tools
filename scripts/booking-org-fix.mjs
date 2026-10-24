@@ -162,6 +162,18 @@ check('F  "" drops the correction but not the name, until the next import',
 await ingest({ calendly_uri: CAL, organization: 'Centerppoint Church' });
 check('F2 the next import brings back what the invitee typed', (await booking(id)).organization, 'Centerppoint Church');
 
+// ── G. event_uri is fetched with the Calendly token, so only Calendly's is kept ─
+const evUri = async (bid) => (await pool.query('SELECT event_uri FROM bookings WHERE id=$1', [bid])).rows[0].event_uri;
+const g = await ingest({ calendly_uri: 'https://api.calendly.com/scheduled_events/ev-g/invitees/inv-g',
+  event_uri: 'https://example.org/scheduled_events/ev-g', email: 'g@example.org', organization: 'G Church' });
+check('G  an event_uri off api.calendly.com is not stored, and the booking still is',
+  [g.status, await evUri(g.body.id)], [200, null]);
+const g2 = await ingest({ calendly_uri: 'https://api.calendly.com/scheduled_events/ev-h/invitees/inv-h',
+  event_uri: 'https://api.calendly.com/scheduled_events/ev-h', email: 'h@example.org', organization: 'H Church' });
+check('G2 a Calendly scheduled-event URI is stored as sent',
+  await evUri(g2.body.id), 'https://api.calendly.com/scheduled_events/ev-h');
+await new Promise((r) => setTimeout(r, 300));   // ingest enriches in the background
+
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);
 await pool.end();

@@ -157,6 +157,22 @@ export function preserveInlineSpacing(html) {
   );
 }
 
+/**
+ * Takes every image out before conversion.
+ *
+ * html-to-docx downloads the src of each <img> it meets, from the server, and the
+ * HTML it is handed comes from the browser. The pre-call notes have no images (the
+ * branding is applied afterwards, to the styles), so none is lost, and the server
+ * never makes a request on behalf of whatever the posted HTML names.
+ */
+export function stripImages(html) {
+  // Until nothing changes, since taking one tag out can join the text either side
+  // of it into another; and an unclosed tag at the very end counts as one.
+  let out = String(html || '');
+  for (let prev = null; prev !== out;) { prev = out; out = out.replace(/<\/?(?:img|image)\b[^>]*(?:>|$)/gi, ''); }
+  return out;
+}
+
 export const __test = {
   patchStyle, HEADINGS, DOC_DEFAULTS, INK, ACCENT, HEADLINE, RULE, FONT,
   BODY_AFTER, LIST_AFTER,

@@ -92,9 +92,14 @@ function when(r) {
   const day = pretty(r.deadline);
   if (!r.due_time) return day;
   const [h, m] = r.due_time.split(':').map(Number);
-  const zone = r.tz ? ZONE[r.tz] || r.tz.split('/').pop().replace(/_/g, ' ') : '';
+  const zone = r.tz ? ZONE[r.tz] || plain(r.tz.split('/').pop().replace(/_/g, ' ')) : '';
   return `${day}, ${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}${zone ? ` ${zone}` : ''}`;
 }
+
+// Knowledge-base text (a note, a stage label, an agency name) is typed by people
+// and by MCP clients and lands in markdown that is rendered as HTML, so it may
+// carry markdown but never a tag.
+const plain = v => String(v ?? '').replace(/&(?=#?[a-z0-9]+;)/gi, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // A stage label worth saying. "Application due" on a one-stage cycle says nothing
 // the date does not, so a plain cycle reads exactly as it always did.
@@ -141,9 +146,10 @@ function project(rows, todayIso) {
  */
 export function renderDeadlines(rows, { state, saaName, todayIso, now }) {
   const st = String(state || '').toUpperCase();
+  const saa = saaName ? plain(saaName) : '';
   const at = now instanceof Date ? now.getTime() : null;
   const ahead = r => (at !== null && r.instant ? Date.parse(r.instant) > at : r.deadline >= todayIso);
-  const label = r => (r.stage_label && !GENERIC.test(r.stage_label.trim()) ? `${r.stage_label} by ` : '');
+  const label = r => (r.stage_label && !GENERIC.test(r.stage_label.trim()) ? `${plain(r.stage_label)} by ` : '');
   const byStage = (a, b) => (a.stage_order ?? 1) - (b.stage_order ?? 1) || a.deadline.localeCompare(b.deadline);
   const sure = r => (r.confidence === 'illustrative' ? 'recorded — confirm before relying on it' : 'confirmed');
   const cycles = list => [...new Set(list.map(r => r.cycle_year))].sort((a, b) => b - a);
@@ -156,7 +162,7 @@ export function renderDeadlines(rows, { state, saaName, todayIso, now }) {
     const [first, ...rest] = open;
     const then = rest.filter(r => r.cycle_year === first.cycle_year);
     return `${lead} **${label(first)}${when(first)}** (FY${first.cycle_year}, ${sure(first)}).` +
-      (first.note ? ` ${first.note}` : '') +
+      (first.note ? ` ${plain(first.note)}` : '') +
       (then.length ? ` Then: ${then.map(r => `${label(r)}${when(r)}`).join('; ')}.` : '');
   };
 
@@ -172,11 +178,11 @@ export function renderDeadlines(rows, { state, saaName, todayIso, now }) {
     else {
       const p = project(sub, todayIso);
       out.push(p
-        ? `The FY${recent[0]} window has closed. Next window: ${p} — confirm with ${saaName || 'the SAA'}.`
-        : `The FY${recent[0]} window has closed and the next cycle is not yet recorded — confirm with ${saaName || 'the SAA'}.`);
+        ? `The FY${recent[0]} window has closed. Next window: ${p} — confirm with ${saa || 'the SAA'}.`
+        : `The FY${recent[0]} window has closed and the next cycle is not yet recorded — confirm with ${saa || 'the SAA'}.`);
     }
   } else {
-    out.push(`No ${st} sub-applicant deadlines are recorded yet — confirm with ${saaName || 'the SAA'}. ` +
+    out.push(`No ${st} sub-applicant deadlines are recorded yet — confirm with ${saa || 'the SAA'}. ` +
       `(Add them in the Grant Knowledge tab so they appear here next time.)`);
   }
 
@@ -193,7 +199,7 @@ export function renderDeadlines(rows, { state, saaName, todayIso, now }) {
     const years = cycles(pr).slice(0, 3);
     if (!years.length) continue;
     const next = nextLine(pr.filter(r => years.includes(r.cycle_year)), 'Next:');
-    out.push(`**${prog}:** ` + years.map(y => cycleLine(pr, y, true)).join('; ') + '.' +
+    out.push(`**${plain(prog)}:** ` + years.map(y => cycleLine(pr, y, true)).join('; ') + '.' +
       (next ? ` ${next}` : ' Next cycle not yet recorded.'));
   }
 

@@ -301,13 +301,45 @@ await check('a pending sign-in expires after ten minutes', async () => {
   } finally { clock -= 10 * 60 * 1000 + 1; }
 });
 
-// A full browser sign-in, for the checks that need a fresh code.
+await check('one sign-in can ask for at most three codes', async () => {
+  const p = pkce();
+  const id = pendingFrom(await (await fetch(authorizeUrl(chatgpt, { challenge: p.challenge }))).text());
+  const from = { 'X-Forwarded-For': '192.0.2.10' };
+  const before = codeRequests.length;
+  const statuses = [];
+  for (let i = 0; i < 4; i++) statuses.push((await postJson('/oauth/login/request', { pending: id, email: 'stuart@nonprofitsecurityadvisors.com' }, from)).status);
+  assert.deepEqual(statuses, [200, 200, 200, 429]);
+  assert.equal(codeRequests.length - before, 3, 'the fourth never reached the auth service');
+  const r = await postJson('/oauth/login/verify', { pending: id, email: 'stuart@nonprofitsecurityadvisors.com', code: '123456' }, from);
+  assert.equal(r.status, 200, 'the codes already sent still work');
+});
+
+await check('the code steps are rate limited per caller address', async () => {
+  const from = { 'X-Forwarded-For': '192.0.2.20' };
+  const before = codeRequests.length;
+  const req = [];
+  for (let i = 0; i < 11; i++) req.push((await postJson('/oauth/login/request', { pending: 'made-up', email: 'a@b.co' }, from)).status);
+  assert.deepEqual(req.slice(0, 10), Array(10).fill(400), 'ten get an answer');
+  assert.equal(req[10], 429);
+  const verify = [];
+  for (let i = 0; i < 31; i++) verify.push((await postJson('/oauth/login/verify', { pending: 'made-up', email: 'a@b.co', code: '1' }, from)).status);
+  assert.equal(verify.filter(s => s === 429).length, 1, 'thirty verifies, then 429');
+  const other = await postJson('/oauth/login/request', { pending: 'made-up', email: 'a@b.co' }, { 'X-Forwarded-For': '192.0.2.21' });
+  assert.equal(other.status, 400, 'another address is unaffected');
+  assert.equal(codeRequests.length, before);
+});
+
+// A full browser sign-in, for the checks that need a fresh code. Each comes from
+// an address of its own, as different people would, so the per-address limit on
+// the code steps (checked on its own below) does not decide these checks.
+let signInFrom = 0;
 async function signIn(client, { redirect = CHATGPT_REDIRECT, email = 'stuart@nonprofitsecurityadvisors.com' } = {}) {
   const p = pkce();
   const page = await (await fetch(authorizeUrl(client, { challenge: p.challenge, redirect }))).text();
   const id = pendingFrom(page);
-  await postJson('/oauth/login/request', { pending: id, email });
-  const r = await postJson('/oauth/login/verify', { pending: id, email, code: '123456' });
+  const from = { 'X-Forwarded-For': `198.51.100.${++signInFrom}` };
+  assert.equal((await postJson('/oauth/login/request', { pending: id, email }, from)).status, 200);
+  const r = await postJson('/oauth/login/verify', { pending: id, email, code: '123456' }, from);
   return { code: new URL(r.data.redirect).searchParams.get('code'), verifier: p.verifier };
 }
 const exchange = (client, code, verifier, extra = {}) => postForm('/token', {
@@ -479,6 +511,19 @@ await check('refresh rotates the pair and the old refresh token is refused', asy
   assert.equal(again.status, 400);
   assert.equal(again.data.error, 'invalid_grant');
 });
+await check('a refresh token presented again withdraws every token from that sign-in', async () => {
+  const s = await signIn(chatgpt);
+  const t = (await exchange(chatgpt, s.code, s.verifier)).data;
+  const refresh = rt => postForm('/token', { grant_type: 'refresh_token', refresh_token: rt, client_id: chatgpt.client_id, client_secret: chatgpt.client_secret });
+  const next = (await refresh(t.refresh_token)).data;
+  assert.equal((await mcpPost({ Authorization: `Bearer ${next.access_token}` })).status, 200);
+  const replay = await refresh(t.refresh_token);
+  assert.equal(replay.status, 400);
+  assert.equal(replay.data.error, 'invalid_grant');
+  assert.equal((await mcpPost({ Authorization: `Bearer ${next.access_token}` })).status, 401, 'the newer access token is withdrawn');
+  assert.equal((await refresh(next.refresh_token)).status, 400, 'and so is the newer refresh token');
+  assert.ok(oauthLog.some(l => /refresh token reused for stuart/.test(l)));
+});
 await check('revoking the access token ends it on /mcp', async () => {
   const r = await postForm('/revoke', { token: rotated.access_token, client_id: chatgpt.client_id, client_secret: chatgpt.client_secret });
   assert.equal(r.status, 200);
@@ -529,8 +574,9 @@ await check("the MCP SDK's client OAuth flow connects and lists tools", async ()
   assert.ok(saved.authUrl, 'the SDK was sent to /authorize');
   assert.equal(saved.authUrl.searchParams.get('resource'), MCP_URL);
   const id = pendingFrom(await (await fetch(saved.authUrl)).text());
-  await postJson('/oauth/login/request', { pending: id, email: 'stuart@nonprofitsecurityadvisors.com' });
-  const r = await postJson('/oauth/login/verify', { pending: id, email: 'stuart@nonprofitsecurityadvisors.com', code: '123456' });
+  const from = { 'X-Forwarded-For': '198.51.100.250' };
+  assert.equal((await postJson('/oauth/login/request', { pending: id, email: 'stuart@nonprofitsecurityadvisors.com' }, from)).status, 200);
+  const r = await postJson('/oauth/login/verify', { pending: id, email: 'stuart@nonprofitsecurityadvisors.com', code: '123456' }, from);
   const back = new URL(r.data.redirect);
   assert.equal(back.origin + back.pathname, 'http://localhost:33418/callback');
   await transport.finishAuth(back.searchParams.get('code'));

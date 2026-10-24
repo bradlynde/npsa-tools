@@ -11,6 +11,8 @@
  *      expired login token, and a login token when JWT_SECRET is unset.
  *   2. It admits the internal key, an MCP_API_KEYS key, and a login token signed
  *      with JWT_SECRET, and records who the caller is.
+ *      With MCP_WRITE_KEYS set, a key it leaves out may only read; unset, every
+ *      key writes as before. A call the MCP layer marks read-only cannot write.
  *   3. The self-gated modules (clients, intake, grant knowledge) pass straight
  *      through to their own gates, so the client intake page keeps working.
  *   4. The Zapier routes want the Zapier secret, compared exactly, and refuse
@@ -25,6 +27,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import express from 'express';
 import { apiGate, verifyJwt } from '../server/api-gate.js';
+import { fingerprint } from '../server/mcp.js';
 import { buildRaw, welcomeMessage, oneLine } from '../server/mail.js';
 
 const INTERNAL = 'internal-key-for-this-process';
@@ -131,6 +134,38 @@ await check('a login token signed with JWT_SECRET gets in as that person', async
   const r = await call('POST', '/api/letters', bearer(jwt({ username: 'stuart', exp: inAnHour() })), { client_name: 'x' });
   assert.equal(r.status, 200);
   assert.deepEqual([r.data.actor, r.data.kind], ['stuart', 'user']);
+});
+
+await check('with MCP_WRITE_KEYS unset, every key may write, as before', async () => {
+  delete process.env.MCP_WRITE_KEYS;
+  assert.equal((await call('POST', '/api/letters', bearer('team-key-one'), { client_name: 'x' })).status, 200);
+  assert.equal((await call('POST', '/api/letters', bearer('team-key-two'), { client_name: 'x' })).status, 200);
+});
+
+await check('with MCP_WRITE_KEYS set, a key it leaves out reads but cannot write', async () => {
+  process.env.MCP_WRITE_KEYS = 'team-key-one';
+  try {
+    assert.equal((await call('GET', '/api/letters', bearer('team-key-two'))).status, 200);
+    const r = await call('POST', '/api/letters', bearer('team-key-two'), { client_name: 'x' });
+    assert.equal(r.status, 403);
+    assert.match(r.data.error, /MCP_WRITE_KEYS/);
+    assert.equal((await call('POST', '/api/letters', bearer('team-key-one'), { client_name: 'x' })).status, 200, 'a listed key writes');
+    // The toolbox's key acting for a person is still a key: it has to be listed.
+    process.env.ACTOR_PROXY_KEYS = fingerprint('team-key-two');
+    assert.equal((await call('POST', '/api/letters', { ...bearer('team-key-two'), 'X-Actor': 'brad' }, {})).status, 403);
+    process.env.MCP_WRITE_KEYS = 'team-key-one,team-key-two';
+    assert.equal((await call('POST', '/api/letters', { ...bearer('team-key-two'), 'X-Actor': 'brad' }, {})).status, 200);
+    // A toolbox login and the internal key are not keys and are not narrowed.
+    assert.equal((await call('POST', '/api/letters', bearer(jwt({ username: 'stuart', exp: inAnHour() })), {})).status, 200);
+    assert.equal((await call('POST', '/api/letters', { 'X-Internal-Key': INTERNAL }, {})).status, 200);
+  } finally { delete process.env.MCP_WRITE_KEYS; delete process.env.ACTOR_PROXY_KEYS; }
+});
+
+await check('a call the MCP layer marks read-only cannot write', async () => {
+  const ro = { 'X-Internal-Key': INTERNAL, 'X-Read-Only': '1' };
+  assert.equal((await call('GET', '/api/letters', ro)).status, 200);
+  assert.equal((await call('POST', '/api/letters', ro, {})).status, 403);
+  assert.equal((await call('POST', '/api/letters', bearer('team-key-one'), {})).status, 200, 'the mark means nothing from a key');
 });
 
 // ── 3. Self-gated modules ─────────────────────────────────────────────────────

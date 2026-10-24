@@ -158,6 +158,52 @@ await check('an import can supply its old slug and token', async () => {
   assert.equal(slugify('St. Peter\'s Episcopal — Del Mar'), 'st-peter-s-episcopal-del-mar');
 });
 
+await check('the intake link (it carries the client token) goes only to callers who may write', async () => {
+  const slug = 'trinity-wellsprings-church';
+  const views = async headers => {
+    const list = (await call('GET', '/api/clients', { headers })).data.find(c => c.slug === slug);
+    const one = (await call('GET', `/api/clients/${slug}`, { headers })).data;
+    const status = (await call('GET', `/api/clients/${slug}/status`, { headers })).data;
+    return [list, one, status];
+  };
+  const hasLink = v => typeof v.intake_url === 'string' && /[?&]t=/.test(v.intake_url);
+  // MCP_WRITE_KEYS unset: every key may write, as before.
+  for (const v of await views(TEAM)) assert.ok(hasLink(v), 'every key, with MCP_WRITE_KEYS unset');
+  process.env.MCP_WRITE_KEYS = 'team-key-one';
+  try {
+    for (const v of await views(TEAM)) {
+      assert.equal(v.slug, slug);
+      assert.ok(!('intake_url' in v) && !/[?&]t=/.test(JSON.stringify(v)), 'a key off MCP_WRITE_KEYS gets no link');
+    }
+    for (const v of await views({ Authorization: 'Bearer team-key-one' })) assert.ok(hasLink(v), 'a key on it does');
+  } finally { delete process.env.MCP_WRITE_KEYS; }
+  for (const v of await views(INTERNAL_H)) assert.ok(hasLink(v), 'the internal key does');
+  for (const v of await views({ ...INTERNAL_H, 'X-Read-Only': '1' })) assert.ok(!('intake_url' in v), 'not when the MCP layer marks the call read-only');
+});
+
+await check('with MCP_WRITE_KEYS set, a key it leaves out reads the team routes but changes nothing', async () => {
+  const slug = 'trinity-wellsprings-church';
+  const writes = headers => [
+    call('POST', '/api/clients', { headers, body: { name: 'Read Only Church', state: 'FL' } }),
+    call('PATCH', `/api/clients/${slug}`, { headers, body: { notes: 'x' } }),
+    call('PUT', `/api/clients/${slug}/answers`, { headers, body: { answers: { q_1_1_1: 'x' } } }),
+    call('POST', `/api/clients/${slug}/token`, { headers, body: {} }),
+    call('DELETE', `/api/clients/${slug}`, { headers }),
+  ];
+  process.env.MCP_WRITE_KEYS = 'team-key-one';
+  try {
+    assert.equal((await call('GET', `/api/clients/${slug}`, { headers: TEAM })).status, 200);
+    assert.equal((await call('GET', '/api/intake/questions', { headers: TEAM })).status, 200);
+    for (const r of await Promise.all(writes(TEAM))) {
+      assert.equal(r.status, 403, JSON.stringify(r.data));
+      assert.match(r.data.error, /MCP_WRITE_KEYS/);
+    }
+    assert.equal((await call('PATCH', `/api/clients/${slug}`, { headers: { Authorization: 'Bearer team-key-one' }, body: { notes: '' } })).status, 200, 'a listed key writes');
+  } finally { delete process.env.MCP_WRITE_KEYS; }
+  for (const r of await Promise.all(writes({ ...INTERNAL_H, 'X-Read-Only': '1' }))) assert.equal(r.status, 403, 'nor a call marked read-only');
+  assert.ok((await call('GET', `/api/clients/${slug}`, { headers: TEAM })).data.slug, 'and the client is untouched');
+});
+
 // ── 3. Answers ────────────────────────────────────────────────────────────────
 await check('a seed with an unknown key is refused by name and writes nothing', async () => {
   const r = await call('PUT', `/api/clients/${created.slug}/answers`, { headers: INTERNAL_H, body: { answers: { q_1_1_1: 'Pat Lee', chk_note_10: 'x', chk_who_investment_justification: 'me' } } });

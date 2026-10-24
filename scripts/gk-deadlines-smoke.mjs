@@ -191,5 +191,14 @@ await check('a state program keeps its own track, and a state with nothing says 
   assert.match(out, /\*\*NJ-NSGP-THE:\*\* FY2027 — September 10, 2027 \(open\)\. Next: \*\*September 10, 2027\*\* \(FY2027, recorded — confirm before relying on it\)\. Portal opens in August\./);
 });
 
+await check('knowledge-base text reaches the notes as text, never as a tag', async () => {
+  const rows = [{ state: 'NJ', program: 'NJ-<b>X</b>', cycle_year: 2027, deadline: '2027-09-10', confidence: 'confirmed',
+    stage_label: 'Certify <i>first</i>', stage_order: 1, note: '<img src=x onerror=alert(1)> **Bring the EIN.**' }];
+  const out = renderDeadlines(rows, { state: 'NJ', saaName: 'NJ <span>OHSP</span>', todayIso: '2027-03-01' });
+  assert.doesNotMatch(out, /<(img|b|i|span)\b/);
+  assert.match(out, /&lt;img src=x onerror=alert\(1\)&gt; \*\*Bring the EIN\.\*\*/);
+  assert.match(out, /confirm with NJ &lt;span&gt;OHSP&lt;\/span&gt;/);
+});
+
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll deadline checks passed');
 process.exit(failures ? 1 : 0);

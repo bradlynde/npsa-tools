@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import html2pdf from "html2pdf.js";
-import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { LOGO_SRC } from "./generator/logo.js";
 
 // The letters share the intake form's type: Source Sans 3 for text, Libre Franklin
@@ -16,7 +16,7 @@ import {
 } from "./generator/engine.js";
 import {
   DEFAULT_PRE, DEFAULT_INH, DEFAULT_POST, DEFAULT_ADDENDUM, DEFAULT_PROPOSAL,
-  renderPreCallHtml,
+  renderPreCallHtml, preCallNotesHtml,
 } from "./generator/templates.js";
 import { defaultForm, defaultPreCallForm } from "./generator/defaults.js";
 import Wizard, { stepsOf } from "./generator/Wizard.jsx";
@@ -869,10 +869,13 @@ export default function App() {
       : "Engagement Letter - ";
     const clientLabel = form.clientName || "Client";
     const filename = `${docTitle}${clientLabel}.pdf`;
+    // The client name can come straight off a booking, and the print window is
+    // written as a whole document: as text in <title>, never as markup.
+    const titleText = (docTitle + clientLabel).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
     if (isGw) {
       // Grant Writer tab: use print dialog (has checkbox fields that render better via print)
       const bodyHtml = previewRef.current.innerHTML;
-      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle + clientLabel}</title><link rel="preconnect" href="https://fonts.googleapis.com">${LETTER_FONTS_LINK}<style>
+      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titleText}</title><link rel="preconnect" href="https://fonts.googleapis.com">${LETTER_FONTS_LINK}<style>
         body{font-family:${LETTER_FONT};font-size:11.5pt;line-height:1.7;color:#1a1a1a;margin:0;padding:0}
         .page{padding:72pt;max-width:8.5in;margin:0 auto}
         pre{white-space:pre-wrap;font-family:${LETTER_FONT};font-size:11pt;line-height:1.75;margin:0 0 8pt}
@@ -894,7 +897,7 @@ export default function App() {
     } else {
       // Engagement letter tabs: native browser print for perfect page breaks + margins
       const bodyHtml = previewRef.current.innerHTML;
-      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle + clientLabel}</title><link rel="preconnect" href="https://fonts.googleapis.com">${LETTER_FONTS_LINK}<style>
+      const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titleText}</title><link rel="preconnect" href="https://fonts.googleapis.com">${LETTER_FONTS_LINK}<style>
         *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
         @page{margin:0.75in;size:letter}
         body{margin:0;padding:0;font-family:${LETTER_FONT}}
@@ -1630,7 +1633,7 @@ export default function App() {
             </div>
             <button onClick={async()=>{
               const orgName=preCallForm.orgName||'NPSA';
-              const html=`<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif}h1{font-size:18pt;color:var(--ink)}h2{font-size:11pt;color:var(--navy);border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin-top:16pt;text-transform:uppercase}h3{font-size:11pt;color:var(--ink)}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:var(--ink)}a{color:var(--navy)}</style></head><body>${marked(preCallOutput)}</body></html>`;
+              const html=`<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif}h1{font-size:18pt;color:var(--ink)}h2{font-size:11pt;color:var(--navy);border-bottom:1pt solid #c8dce8;padding-bottom:4pt;margin-top:16pt;text-transform:uppercase}h3{font-size:11pt;color:var(--ink)}p,li{font-size:11pt;color:#26334d;line-height:1.5}strong{color:var(--ink)}a{color:var(--navy)}</style></head><body>${preCallNotesHtml(preCallOutput)}</body></html>`;
               setPreCallDownloading(true);
               try {
                 const r=await fetch('/api/precall/docx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({html,filename:`Pre-Call Notes - ${orgName}`})});
@@ -1888,7 +1891,8 @@ export default function App() {
           * notice, in the one colour on the page they might not see.
           */}
         <div className="npsa-paper" style={{maxWidth:800,margin:"0 auto",boxShadow:"0 4px 32px rgba(0,0,0,0.13)",padding:"64px 72px"}} ref={previewRef}>
-          {savedLetterOverride ? <div dangerouslySetInnerHTML={{__html: savedLetterOverride}} /> : isProposal ? (()=>{
+          {/* A saved letter is stored HTML, so it is sanitized on the way back in. */}
+          {savedLetterOverride ? <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(savedLetterOverride)}} /> : isProposal ? (()=>{
             const pgYear = proposalProgs[0]?.year || form.grantYear;
             const isDisc = form.pricingTier==="discounted" && fees.discount>0;
             const complianceIncluded = !form.optPostAwardScope || (fees.postAward||0)===0;

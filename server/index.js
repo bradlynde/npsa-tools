@@ -1,6 +1,6 @@
 import express from 'express';
 import { repairDocx, stripXmlIllegal } from './docx-repair.js';
-import { preserveInlineSpacing } from './docx-style.js';
+import { preserveInlineSpacing, stripImages } from './docx-style.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
@@ -23,6 +23,7 @@ import { createDeadlineSource } from './gk-deadlines.js';
 import { stateFundingBlock } from './precall-state.js';
 import { startKnowledgeSync, briefingFor } from './knowledge.js';
 import crypto from 'crypto';
+import { fetchPublic, assertPublicUrl } from './public-url.js';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -197,8 +198,10 @@ async function fetchDirect(url, ms = 9000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    const r = await fetch(url, {
-      signal: ctrl.signal, redirect: 'follow',
+    // The address comes off the booking form, so it is fetched only while it, and
+    // every redirect it gives, stays on the public internet (server/public-url.js).
+    const r = await fetchPublic(url, {
+      signal: ctrl.signal,
       // Some church and school hosts serve a block page to an unrecognised agent.
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NPSA-PreCall/1.0)', 'Accept': 'text/html' },
     });
@@ -226,6 +229,9 @@ async function fetchDirect(url, ms = 9000) {
  * fallback, where it earns its keep on JS-rendered sites.
  */
 async function fetchPage(url) {
+  // An address that is not a public site is not handed to the reader either.
+  try { await assertPublicUrl(url); }
+  catch (e) { console.warn(`[precall] not fetching ${url}: ${e.message}`); return null; }
   const direct = await fetchDirect(url);
   if (direct && direct.length > 400) return direct;
   const viaJina = await fetchViaJina(url);
@@ -471,7 +477,8 @@ app.post('/api/precall/docx', async (req, res) => {
     // repair pass would catch them either way, but the notes travel through
     // marked, html-to-docx and JSZip first, and it is worth not asking three
     // libraries to be careful with a character XML does not permit at all.
-    const safeHtml = stripXmlIllegal(preserveInlineSpacing(html.replace(/<style[\s\S]*?<\/style>/gi, '')));
+    // Images go too: html-to-docx would fetch each one's src from here (stripImages).
+    const safeHtml = stripXmlIllegal(preserveInlineSpacing(stripImages(String(html).replace(/<style[\s\S]*?<\/style>/gi, ''))));
     const docTitle = stripXmlIllegal(filename || 'Pre-Call Notes').trim() || 'Pre-Call Notes';
     const generated = await HTMLtoDOCX(safeHtml, null, {
       title: docTitle,

@@ -31,7 +31,8 @@ import crypto from 'crypto';
 import { readFileSync } from 'fs';
 import { driveConfigured, uploadToDrive } from './drive.js';
 import { mailConfigured, sendWelcome, senderFor } from './mail.js';
-import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor } from './mcp.js';
+import { splitKeys, keyMatches, nameFor, mayAssertActor, cleanActor, keyCanWrite, READ_ONLY_HEADER } from './mcp.js';
+import { isRead, READ_ONLY_REFUSAL } from './api-gate.js';
 import { UPLOAD_MAX_BYTES, sniffUploadType, safeFilename, rawUploadBody, uploadBodyError, readMultipart, contentDisposition } from './uploads.js';
 import { knowledgeFor as knowledgeOf, combinedStateProgram } from './knowledge.js';
 import { JURISDICTIONS } from './grant-knowledge-kinds.js';
@@ -673,7 +674,8 @@ function uploadView(u, slug, docs = []) {
   };
 }
 
-function statusView(client, answers, base, uploads = []) {
+// withLink: whether the caller may write, and so may hold the intake link and its token.
+function statusView(client, answers, base, uploads = [], withLink = false) {
   const val = k => answers.get(k)?.value || '';
   const progress = progressFor(client, answeredSet(answers), new Set(uploads.map(u => u.key)), programSitesOf(answers));
   const sections = SECTIONS.map(section => {
@@ -759,7 +761,7 @@ function statusView(client, answers, base, uploads = []) {
     : CHECKLIST_STEMS.map(stem => task(stem, 'chk_', null, null));
   return {
     slug: client.slug, name: client.name, state: client.state, phase: client.phase, status: client.status,
-    intake_url: intakeUrl(base, client.slug, client.token),
+    ...(withLink ? { intake_url: intakeUrl(base, client.slug, client.token) } : {}),
     submitted_at: client.submitted_at, last_client_activity_at: client.last_client_activity_at,
     filled_by: lastEditor(answers), status_line: val('_status'),
     applications, applications_set: stored,
@@ -791,10 +793,12 @@ function contactsView(contacts) {
   };
 }
 
-function clientView(client, base) {
+// The intake link carries the client's token, which lets its holder change their
+// answers, contacts and uploads; only a caller who may write gets it (withLink).
+function clientView(client, base, withLink = false) {
   const { token, documents, applications, ...rest } = client;
   return {
-    ...rest, intake_url: intakeUrl(base, client.slug, token), saa: knowledgeFor(client.state).saa || null,
+    ...rest, ...(withLink ? { intake_url: intakeUrl(base, client.slug, token) } : {}), saa: knowledgeFor(client.state).saa || null,
     documents: documentsFor(client), documents_customised: Array.isArray(documents), documents_received: receivedFor(client),
     applications: Array.isArray(applications) ? applicationsFor(client) : [], applications_set: Array.isArray(applications),
     programs: programsFor(client.state),
@@ -1136,12 +1140,16 @@ export function createMemoryStore() {
 // ── Gates ─────────────────────────────────────────────────────────────────────
 
 export function teamGate({ internalKey }) {
+  // A caller who may not write may still read: GET and HEAD pass, the rest is 403.
+  const pass = (req, res, next) => (req.canWrite || isRead(req) ? next() : res.status(403).json({ error: READ_ONLY_REFUSAL }));
   return (req, res, next) => {
     const internal = req.get('x-internal-key') || '';
     if (internalKey && tokenMatches(internal, internalKey)) {
       req.actor = cleanActor(req.get('x-actor')) || 'internal';
       req.actorKind = 'mcp';
-      return next();
+      // The MCP layer marks the calls it makes for a read-only caller.
+      req.canWrite = req.get(READ_ONLY_HEADER) !== '1';
+      return pass(req, res, next);
     }
     const keys = splitKeys(process.env.MCP_API_KEYS || process.env.MCP_API_KEY);
     const presented = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
@@ -1151,7 +1159,8 @@ export function teamGate({ internalKey }) {
       const asserted = mayAssertActor(presented) ? cleanActor(req.get('x-actor')) : '';
       req.actor = asserted || nameFor(presented);
       req.actorKind = asserted ? 'user' : 'key';
-      return next();
+      req.canWrite = keyCanWrite(presented);
+      return pass(req, res, next);
     }
     res.set('WWW-Authenticate', 'Bearer realm="npsa-tools"');
     return res.status(401).json({ error: 'Unauthorized' });
@@ -1294,7 +1303,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       const st = stem => (s.auto_statuses || {})[`chk_status_${stem}`] || ['', ''];
       const na = (s.checklist_na || 0) + autoNotApplicable(r, stem => st(stem)[0], stem => st(stem)[1]).size;
       return {
-        ...clientView(r, base(req)),
+        ...clientView(r, base(req), req.canWrite === true),
         core: progressFor(r, new Set(s.answered_keys || []), new Set(s.uploaded_keys || []), s.program_sites || {}).core,
         checklist: { completed: s.checklist_completed || 0, total: checklistTotal(r) - na, not_applicable: na },
         filled_by: s.last_editor || s.filled_by || '',
@@ -1353,14 +1362,14 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
       if (applications) await tx.updateClient(slug, { applications });
     });
     console.log(`[intake] client_create ${slug} by ${req.actor}`);
-    res.status(201).json(clientView(await store.getClient(slug), base(req)));
+    res.status(201).json(clientView(await store.getClient(slug), base(req), req.canWrite === true));
   }));
 
   app.get('/api/clients/:slug', team, guard(async (req, res) => {
     const c = await loadClient(req, res); if (!c) return;
     const answers = await store.getAnswers(c.id);
     const uploaded = new Set((await store.listUploads(c.id)).map(u => u.key));
-    res.json({ ...clientView(c, base(req)), ...summarise(answers), checklist: checklistCounts(c, answers), core: progressFor(c, answeredSet(answers), uploaded, programSitesOf(answers)).core, filled_by: lastEditor(answers), status_line: answers.get('_status')?.value || '' });
+    res.json({ ...clientView(c, base(req), req.canWrite === true), ...summarise(answers), checklist: checklistCounts(c, answers), core: progressFor(c, answeredSet(answers), uploaded, programSitesOf(answers)).core, filled_by: lastEditor(answers), status_line: answers.get('_status')?.value || '' });
   }));
 
   app.patch('/api/clients/:slug', team, guard(async (req, res) => {
@@ -1459,7 +1468,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     // An invite is the team saying "send it now", so it goes even to someone welcomed before.
     const invited = invite ? await welcome(found, invite, { addedBy: '', force: true, req }) : null;
     console.log(`[intake] client_update ${found.slug} by ${req.actor} ${JSON.stringify(Object.keys(b))}`);
-    const view = clientView(await store.getClient(found.slug), base(req));
+    const view = clientView(await store.getClient(found.slug), base(req), req.canWrite === true);
     res.json(invited ? { ...view, invite: invited } : view);
   }));
 
@@ -1490,7 +1499,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
     const c = await loadClient(req, res); if (!c) return;
     const row = await store.rotateToken(c.slug, mintToken());
     console.log(`[intake] client_token_rotate ${c.slug} by ${req.actor}`);
-    res.json(clientView(row, base(req)));
+    res.json(clientView(row, base(req), req.canWrite === true));
   }));
 
   app.get('/api/clients/:slug/answers', team, guard(async (req, res) => {
@@ -1537,7 +1546,7 @@ export function registerIntake(app, { store, internalKey, publicBase, renderPage
 
   app.get('/api/clients/:slug/status', team, guard(async (req, res) => {
     const c = await loadClient(req, res); if (!c) return;
-    res.json(statusView(c, await store.getAnswers(c.id), base(req), await store.listUploads(c.id)));
+    res.json(statusView(c, await store.getAnswers(c.id), base(req), await store.listUploads(c.id), req.canWrite === true));
   }));
 
   app.get('/api/clients/:slug/uploads', team, guard(async (req, res) => {

@@ -38,7 +38,14 @@ Code: `server/mcp.js`, and `server/oauth.js` for the sign-in. Both mounted from
 
    Unset, every key can write. Set, a key not on the list never sees the write
    tools at all, so a read-only key for someone who should only ask questions is
-   one variable away.
+   one variable away. The same list governs the REST routes (`/api/*`, including
+   the self-gated clients, intake and grant knowledge routes): a key not on it may
+   `GET` and `HEAD` and gets `403` for anything else, and it is not given a
+   client's intake link. So **`MCP_WRITE_KEYS` must include the toolbox's own key**
+   (the key the Vercel shell's proxies send, the one `ACTOR_PROXY_KEYS` names),
+   or every save in the toolbox starts failing with 403 the moment the variable
+   is set. Toolbox logins (JWTs) and the internal key are not keys and are not
+   narrowed by it.
 
    ```
    MCP_WRITE_USERS  # comma-separated toolbox usernames allowed the write tools when signed in (OAuth)
@@ -83,7 +90,7 @@ mounted first in `server/index.js`). A route added later is locked by default.
 | Caller | Credential | Reaches |
 | :--- | :--- | :--- |
 | MCP tools (loopback) | per-process internal key, sent automatically | everything |
-| Vercel shell's proxies | a key from `MCP_API_KEYS`, as a bearer token | everything |
+| Vercel shell's proxies | a key from `MCP_API_KEYS`, as a bearer token | everything (reads only, if `MCP_WRITE_KEYS` is set and leaves it out) |
 | Sales Toolbox iframe | the person's login token, handed in by the shell | everything |
 | Zaps and backfill scripts | `X-Zap-Secret` | the Zapier routes only |
 | Client intake page, GK uploads | the client's token, or a signed ticket | their own routes |
@@ -199,11 +206,14 @@ keys only.
    code), then the code (`/oauth/login/verify` checks it with the auth service and
    verifies the returned login token against `JWT_SECRET`). A wrong code can be
    retried; ten wrong codes, or ten minutes, and they start again from the app.
+   One sign-in can ask for three codes at most, and each caller address gets ten
+   code requests and thirty code checks per fifteen minutes.
 4. The page sends them back to the app with a one-time code (good for 60 seconds,
    PKCE S256 required), which the app trades at `/token` for an access token (1
    hour) and a refresh token (30 days). Each refresh issues a new pair and retires
    the old one. `/revoke` ends a token. A code presented twice withdraws the tokens
-   it bought.
+   it bought, and so does a refresh token presented again after it was used or
+   revoked: every token descended from that sign-in stops working.
 
 Tokens are only for `https://.../mcp`; a token issued for any other resource is
 refused. Only SHA-256 hashes of codes and tokens are stored (tables `oauth_clients`,
@@ -282,8 +292,8 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `marketing_timeseries` | Bookings by week/month, or sales by month/quarter |
 | `marketing_bookings` | Individual booking rows with attribution |
 | `marketing_untracked_wins` | Wins with no matching booking |
-| `clients_list` | In-house grant clients with phase, status, intake link, contacts (name, email, side), counts and quiet clock. A slim view: documents, applications and notes are in `client_get` |
-| `client_get` | One client's record, contacts, documents, applications and headline intake counts |
+| `clients_list` | In-house grant clients with phase, status, intake link (callers with the write tools only: it carries the client's token), contacts (name, email, side), counts and quiet clock. A slim view: documents, applications and notes are in `client_get` |
+| `client_get` | One client's record (intake link as for `clients_list`), contacts, documents, applications and headline intake counts |
 | `intake_questions` | The intake form's key catalog; look keys up here before seeding |
 | `intake_answers` | A client's intake answers in form order, filterable by section |
 | `intake_status` | Per-section counts, the 24 checklist tasks, submission stamp, uploads |

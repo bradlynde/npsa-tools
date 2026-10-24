@@ -32,6 +32,8 @@ process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:3212';
 process.env.MCP_API_KEYS = 'precall-facts-key';
 const AUTH = { Authorization: 'Bearer precall-facts-key' };
 
+import { marked } from 'marked';
+
 const EVENT = 'https://api.calendly.com/scheduled_events/d14f0255';
 
 // The model deliberately misbehaves: it invents a phone number and a fake
@@ -95,6 +97,8 @@ globalThis.fetch = async (url, init) => {
             answer: 'Break-in during evening services.\nUnsecured side entrances.', position: 2 },
           { question: 'How did you hear about us?', answer: 'Referred by Merit Dallas', position: 3 },
           { question: 'Unanswered question', answer: '', position: 4 },
+          // Whoever books the call types these, so an answer is text, never markup.
+          { question: 'Anything else?', answer: '<img src=x onerror=alert(1)> [see](javascript:alert(1)) Costs $& more', position: 5 },
         ],
       }] });
     }
@@ -160,6 +164,11 @@ await new Promise((resolve) => {
   }).listen(3212, '127.0.0.1', resolve);
 });
 
+// The site is fetched only once its name resolves to a public address. There is
+// no DNS here, so the stand-in site is given a public address.
+const { __test: publicUrl } = await import(new URL('../server/public-url.js', import.meta.url).href);
+publicUrl.setLookup(async (host) => (/greenlandhills\.org$/.test(host) ? [{ address: '93.184.215.14', family: 4 }] : []));
+
 await import(new URL('../server/index.js', import.meta.url).href);
 await new Promise((r) => setTimeout(r, 1500));
 
@@ -218,6 +227,13 @@ const checks = {
   // which copy is right.
   'the already-rendered fields are not repeated': !/Organization Name:/.test(n)
     && (n.match(/2147089835/g) || []).length <= 2,
+  // The answer above, as the page renders it: the tag and the link print as
+  // text, and a $ in an answer is not read as a replacement pattern.
+  'a booking answer cannot carry markup': (() => {
+    const html = marked(n);
+    return !/<img|<a [^>]*javascript:/i.test(html) && html.includes('&lt;img src=x onerror=alert(1)&gt;')
+      && html.includes('[see](javascript:alert(1))') && n.includes('Costs $& more');
+  })(),
 };
 // The Claude requests themselves: the right endpoint, headers and models, the
 // master prompt carried in `system`, and thinking switched off for each model.
@@ -233,6 +249,19 @@ Object.assign(checks, {
     && briefingCall.body.max_tokens === 4500 && briefingCall.body.thinking?.type === 'between_tools',
   'website research uses Haiku in JSON form': jsonCalls.length > 0 && jsonCalls.every((c) =>
     c.body.model === 'claude-haiku-5-5' && c.body.thinking?.type === 'disabled'),
+});
+
+// The Word export converts HTML the browser posts. An image in it must not make
+// the server fetch anything; the stand-in on 3212 records every request it gets.
+const probesBefore = claudeCalls.filter((c) => c.url.startsWith('/probe')).length;
+const dx = await realFetch('http://localhost:3211/api/precall/docx', {
+  method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH },
+  body: JSON.stringify({ filename: 'Probe', html: '<html><body><p>Before</p><img src="http://127.0.0.1:3212/probe.png"><IMG/src=http://127.0.0.1:3212/probe2.png><p>After</p></body></html>' }),
+});
+await dx.arrayBuffer();
+Object.assign(checks, {
+  'docx export still answers with a file': dx.status === 200,
+  'docx export fetches no image the HTML names': claudeCalls.filter((c) => c.url.startsWith('/probe')).length === probesBefore,
 });
 
 // Now the degraded run: no reader answers at all.

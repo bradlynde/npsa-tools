@@ -163,13 +163,19 @@ is used. Set the variable to `https://npsa-tools.vercel.app` once the passthroug
 and to the custom domain after that. Links already sent keep working across the change
 because the `.vercel.app` alias stays.
 
+The token in `intake_url` lets whoever holds it change the client's answers, contacts and
+uploads, so `intake_url` is only in responses to callers who may write: the internal key
+(unless the MCP layer marks the call read-only, `X-Read-Only: 1`, for a caller without the
+write tools), and a key from `MCP_API_KEYS` that `MCP_WRITE_KEYS` allows (every key while
+it is unset). The toolbox's "Copy link" reads it with the toolbox's key.
+
 ## MCP tools
 
 Reads, annotated read-only:
 
 | Tool | Inputs | Route |
 | :-- | :-- | :-- |
-| `clients_list` | `status?` (active/submitted/cancelled/closed/all), `phase?`, `search?`, `limit?` | `GET /api/clients`, slimmed: each contact is `{ name, email, side }`, and `documents`, `documents_customised`, `documents_received`, `applications`, `applications_set`, `programs` and `notes` are left out (they are in `client_get`). Progress (`core`, `checklist`, `filled_by`) and `intake_url` stay. |
+| `clients_list` | `status?` (active/submitted/cancelled/closed/all), `phase?`, `search?`, `limit?` | `GET /api/clients`, slimmed: each contact is `{ name, email, side }`, and `documents`, `documents_customised`, `documents_received`, `applications`, `applications_set`, `programs` and `notes` are left out (they are in `client_get`). Progress (`core`, `checklist`, `filled_by`) and `intake_url` stay; `intake_url` only for a caller with the write tools. |
 | `client_get` | `slug` | `GET /api/clients/:slug`, in full |
 | `intake_questions` | `section?`, `prefix?` | `GET /api/intake/questions`. The description tells Claude to look keys up here before seeding. |
 | `intake_answers` | `slug`, `section?`, `include_empty?` | `GET /api/clients/:slug/answers` |

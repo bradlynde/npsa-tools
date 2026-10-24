@@ -34,8 +34,10 @@ const ONE = [{ user_email: HOST, user_name: 'Jeff Markely' }];
 const TWO = [{ user_email: HOST }, { user_email: 'stuart@nonprofitsecurityadvisors.com' }];
 
 let plan = {};
+const fetched = [];
 globalThis.fetch = async (url) => {
   const u = String(url);
+  fetched.push(u);
   const hit = u.endsWith('/invitees') ? plan.invitees : plan.event;
   if (!hit) return new Response('nope', { status: 404 });
   return new Response(JSON.stringify(hit), {
@@ -47,7 +49,7 @@ process.env.CALENDLY_API_TOKEN = 'test-token';
 const TARGET = process.env.TARGET
   ? new URL(process.env.TARGET, `file://${process.cwd()}/`)
   : new URL('../server/marketing.js', import.meta.url);
-const { calendlyStatus } = await import(TARGET.href);
+const { calendlyStatus, calendlyGet } = await import(TARGET.href);
 
 const results = [];
 const check = (name, got, want) => {
@@ -102,6 +104,16 @@ process.env.CALENDLY_API_TOKEN = noToken;
 plan = { event: event('active', []) };
 check('F  an event with no memberships reports null',
   (await calendlyStatus(EVENT)).host, null);
+
+// F2. The Calendly token goes to Calendly only. An event_uri that is not a
+//     Calendly scheduled event (stored before ingest checked it) is never fetched.
+plan = { event: event('active', ONE) };
+fetched.length = 0;
+check('F2 a non-Calendly event uri is not fetched, and reports null',
+  [(await calendlyStatus('https://example.org/scheduled_events/x', { checkAttendance: true })).host, fetched.length], [null, 0]);
+check('F3 calendlyGet refuses an absolute URL off api.calendly.com',
+  await calendlyGet('https://example.org/users/me').then(() => 'fetched', e => e.message), 'Not a Calendly API URL');
+check('F4 and nothing was requested', fetched.length, 0);
 
 // G. The write. Calendly WINS over the stored value here, the opposite of the
 //    columns around it, because a round robin can be reassigned and the calendar is
