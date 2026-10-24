@@ -150,6 +150,20 @@ export function oauthCanWrite(username) {
   return splitKeys(process.env.MCP_WRITE_USERS).some(u => u.toLowerCase() === name);
 }
 
+/**
+ * Whether a key from MCP_API_KEYS may change data. Every key may unless
+ * MCP_WRITE_KEYS is set, and then only the keys it lists. One rule for /mcp and
+ * the REST routes alike.
+ */
+export function keyCanWrite(presented) {
+  const writeKeys = splitKeys(process.env.MCP_WRITE_KEYS);
+  return writeKeys.length ? keyMatches(String(presented || ''), writeKeys) : true;
+}
+
+// Sent with the internal key on the loopback calls a read-only MCP caller makes,
+// so the routes answer them as read-only too (no intake-link token).
+export const READ_ONLY_HEADER = 'x-read-only';
+
 export function mcpAuth({ oauth = null } = {}) {
   const challenge = presented => oauth
     ? `Bearer realm="npsa-tools", resource_metadata="${oauth.resourceMetadataUrl}"${presented ? ', error="invalid_token"' : ''}`
@@ -162,12 +176,7 @@ export function mcpAuth({ oauth = null } = {}) {
     const presented = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
     if (presented && keys.length && keyMatches(presented, keys)) {
       // Writes are open to every key unless MCP_WRITE_KEYS narrows them.
-      const writeKeys = splitKeys(process.env.MCP_WRITE_KEYS);
-      req.mcp = {
-        actor: nameFor(presented),
-        canWrite: writeKeys.length ? keyMatches(presented, writeKeys) : true,
-        kind: 'key',
-      };
+      req.mcp = { actor: nameFor(presented), canWrite: keyCanWrite(presented), kind: 'key' };
       return next();
     }
     if (presented && oauth) {
@@ -689,16 +698,25 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
   // they are: name, email (inbound mail is matched to clients on it) and side.
   // client_get still returns all of it.
   const LIST_DROPS = ['documents', 'documents_customised', 'documents_received', 'applications', 'applications_set', 'programs', 'notes'];
+  // The intake link carries the client's token, and the token lets its holder
+  // change the client's answers, contacts and uploads. So only a caller who may
+  // write sees it. The routes already leave it out for a read-only caller; this
+  // holds even if one forgets.
+  const linkFor = c => {
+    if (canWrite || !c || typeof c !== 'object' || Array.isArray(c)) return c;
+    const { intake_url, ...rest } = c;
+    return rest;
+  };
   const listView = c => {
     if (!c || typeof c !== 'object') return c;
-    const out = Object.fromEntries(Object.entries(c).filter(([k]) => !LIST_DROPS.includes(k)));
+    const out = Object.fromEntries(Object.entries(linkFor(c)).filter(([k]) => !LIST_DROPS.includes(k)));
     if (Array.isArray(c.contacts)) out.contacts = c.contacts.map(({ name, email, side }) => ({ name, email, side }));
     return out;
   };
 
   server.registerTool('clients_list', {
     title: 'List grant clients',
-    description: 'In-house NSGP grant-writing clients and where each stands: phase (1 sales, 2 grant writing, 3 compliance, 4 implementation), status, intake link, contacts (name, email, side), core questions answered and checklist tasks done vs total, who is filling the form in, last client save (the quiet clock), submission stamp. client_get has documents, applications and notes. Default status "active"; "all" for everyone.',
+    description: 'In-house NSGP grant-writing clients and where each stands: phase (1 sales, 2 grant writing, 3 compliance, 4 implementation), status, intake link (only for callers allowed to write, since it carries the client token), contacts (name, email, side), core questions answered and checklist tasks done vs total, who is filling the form in, last client save (the quiet clock), submission stamp. client_get has documents, applications and notes. Default status "active"; "all" for everyone.',
     inputSchema: {
       status: z.enum([...CLIENT_STATUSES, 'all']).optional().describe('Default "active"'),
       phase: z.number().int().min(1).max(4).optional(),
@@ -716,10 +734,10 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
 
   server.registerTool('client_get', {
     title: 'Get grant client',
-    description: 'One grant client by slug: record, contacts, intake link, SAA, documents, applications, headline intake counts. Detail is in intake_status and intake_answers.',
+    description: 'One grant client by slug: record, contacts, intake link (only for callers allowed to write), SAA, documents, applications, headline intake counts. Detail is in intake_status and intake_answers.',
     inputSchema: { slug: z.string().min(1).describe('Client slug from clients_list, e.g. "trinity-wellsprings-church"') },
     annotations: READ,
-  }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}`)));
+  }, tool(async ({ slug }) => linkFor(await api(`/clients/${encodeURIComponent(slug)}`))));
 
   server.registerTool('intake_questions', {
     title: 'Intake question catalog',
@@ -759,7 +777,7 @@ export function buildMcpServer({ api, canWrite = false, actor = 'unknown', log =
     description: 'Where a client\'s intake stands: answered vs total per section; wish list progress per facility (prioritised items, detail fields filled of five; truer than raw section counts), per application in wish_lists (wish_list = the first); checklist tasks with status, due date, owner, note (wish list, budget, IJ and submission tasks repeat per application, tagged application and application_label); who is filling it in; submission stamp; last client save; uploads; with per-campus answers on, campuses (site, name, lead, answered/total for sections 3 to 5). Check it before a nudge or drafting the IJ.',
     inputSchema: { slug: z.string().min(1) },
     annotations: READ,
-  }, tool(async ({ slug }) => api(`/clients/${encodeURIComponent(slug)}/status`)));
+  }, tool(async ({ slug }) => linkFor(await api(`/clients/${encodeURIComponent(slug)}/status`))));
 
   server.registerTool('intake_uploads_list', {
     title: 'Intake uploads',
@@ -893,13 +911,14 @@ export function registerMcp(app, { port, internalKey, oauth = null }) {
   // The grant-client routes are keyed. Loopback calls get in with the key this
   // process minted at boot, plus the caller's name or fingerprint so the route's
   // own log line names the same actor the MCP audit line does.
-  async function api(path, { method = 'GET', body, actor } = {}) {
+  async function api(path, { method = 'GET', body, actor, readOnly = false } = {}) {
     const r = await fetch(`${base()}${path}`, {
       method,
       headers: {
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(internalKey ? { 'X-Internal-Key': internalKey, 'X-Actor': actor || 'mcp' } : {}),
+        ...(readOnly ? { [READ_ONLY_HEADER]: '1' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
@@ -924,7 +943,8 @@ export function registerMcp(app, { port, internalKey, oauth = null }) {
 
   app.post(MCP_PATH, requireAuth, async (req, res) => {
     const { actor } = req.mcp;
-    const server = buildMcpServer({ api: (path, opts) => api(path, { ...opts, actor }), canWrite: req.mcp.canWrite, actor });
+    const readOnly = !req.mcp.canWrite;
+    const server = buildMcpServer({ api: (path, opts) => api(path, { ...opts, actor, readOnly }), canWrite: req.mcp.canWrite, actor });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless: nothing to resume, nothing to leak
       enableJsonResponse: true,

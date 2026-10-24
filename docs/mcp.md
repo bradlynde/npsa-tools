@@ -282,8 +282,8 @@ Dollar figures USD, dates ISO, states two-letter. Read tools first, then writes.
 | `marketing_timeseries` | Bookings by week/month, or sales by month/quarter |
 | `marketing_bookings` | Individual booking rows with attribution |
 | `marketing_untracked_wins` | Wins with no matching booking |
-| `clients_list` | In-house grant clients with phase, status, intake link, contacts (name, email, side), counts and quiet clock. A slim view: documents, applications and notes are in `client_get` |
-| `client_get` | One client's record, contacts, documents, applications and headline intake counts |
+| `clients_list` | In-house grant clients with phase, status, intake link (callers with the write tools only: it carries the client's token), contacts (name, email, side), counts and quiet clock. A slim view: documents, applications and notes are in `client_get` |
+| `client_get` | One client's record (intake link as for `clients_list`), contacts, documents, applications and headline intake counts |
 | `intake_questions` | The intake form's key catalog; look keys up here before seeding |
 | `intake_answers` | A client's intake answers in form order, filterable by section |
 | `intake_status` | Per-section counts, the 24 checklist tasks, submission stamp, uploads |

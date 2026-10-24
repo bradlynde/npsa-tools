@@ -22,7 +22,8 @@
  *      right destructive and idempotent hints, forwards the right method and body
  *      to the right route, is logged with the caller's name or key fingerprint,
  *      the argument names and the outcome (never the values), and disappears
- *      entirely for a key that MCP_WRITE_KEYS leaves out.
+ *      entirely for a key that MCP_WRITE_KEYS leaves out, and the intake link (it
+ *      carries the client's token) left out of the read tools for that key.
  *   5. Grant clients. The twelve client/intake tools reach the keyed
  *      /api/clients routes with the internal key and the caller's fingerprint,
  *      forward the right shapes (client_invite as the PATCH with
@@ -83,7 +84,13 @@ app.get('/api/marketing/stats', (_req, res) => res.status(503).json({ error: 'St
 
 // Grant-client routes are keyed; the fakes insist on the internal key the same way.
 const INTERNAL = 'boot-secret';
-const keyed = (req, res, next) => req.get('x-internal-key') === INTERNAL ? next() : res.status(401).json({ error: 'Unauthorized' });
+// The read-only marker on each loopback call, newest last.
+const readOnlySeen = [];
+const keyed = (req, res, next) => {
+  if (req.get('x-internal-key') !== INTERNAL) return res.status(401).json({ error: 'Unauthorized' });
+  readOnlySeen.push(req.get('x-read-only') || '');
+  next();
+};
 const FAKE_CLIENT = {
   id: 1, slug: 'trinity-wellsprings-church', name: 'Trinity Wellsprings Church', state: 'FL', phase: 2, status: 'active',
   program_track: '2026 federal NSGP', kickoff_date: '2026-09-08', submitted_at: null, last_client_activity_at: '2026-09-20T15:00:00Z',
@@ -117,7 +124,7 @@ app.put('/api/clients/:slug/answers', keyed, (req, res) => {
   if (unknown.length) return res.status(400).json({ error: `Unknown intake keys: ${unknown.join(', ')}. Use the question catalog for the exact keys.`, unknown_keys: unknown });
   record(req, res, { ok: true, written: Object.keys(req.body.answers).length });
 });
-app.get('/api/clients/:slug/status', keyed, (req, res) => res.json({ slug: req.params.slug, core: { answered: 3, total: 130 }, checklist: { completed: 1, total: 24 } }));
+app.get('/api/clients/:slug/status', keyed, (req, res) => res.json({ slug: req.params.slug, intake_url: FAKE_CLIENT.intake_url, core: { answered: 3, total: 130 }, checklist: { completed: 1, total: 24 } }));
 app.get('/api/clients/:slug/uploads', keyed, (req, res) => res.json({ slug: req.params.slug, count: 1, uploads: [{ id: 3, key: 'up_501c3', filename: 'irs.pdf', drive_url: null, download_path: `/api/clients/${req.params.slug}/uploads/3` }] }));
 app.get('/api/intake/questions', keyed, (req, res) => res.json({ count: 2, q: req.query, questions: [{ key: 'chk_status_kickoff_call' }, { key: 'chk_who_state_reg' }] }));
 
@@ -585,6 +592,29 @@ await check('a key outside MCP_WRITE_KEYS cannot call a write tool', async () =>
 
 await check('a key on MCP_WRITE_KEYS still has everything', async () => {
   assert.deepEqual(await names(writer), [...READ_TOOLS, ...WRITE_TOOLS].sort());
+});
+
+await check('a read-only caller is not given the intake link (it carries the client token)', async () => {
+  const slug = 'trinity-wellsprings-church';
+  readOnlySeen.length = 0;
+  const list = text(await reader.callTool({ name: 'clients_list', arguments: {} })).clients[0];
+  const one = text(await reader.callTool({ name: 'client_get', arguments: { slug } }));
+  const status = text(await reader.callTool({ name: 'intake_status', arguments: { slug } }));
+  for (const [name, v] of [['clients_list', list], ['client_get', one], ['intake_status', status]]) {
+    assert.ok(v && !('intake_url' in v), `${name} leaves intake_url out`);
+    assert.doesNotMatch(JSON.stringify(v), /[?&]t=/, `${name} carries no token`);
+  }
+  assert.equal(one.slug, slug, 'the rest of the record is still there');
+  assert.deepEqual(readOnlySeen, ['1', '1', '1'], 'and the routes are told the caller is read-only');
+});
+
+await check('a caller who may write still gets the intake link', async () => {
+  const slug = 'trinity-wellsprings-church';
+  readOnlySeen.length = 0;
+  assert.match(text(await writer.callTool({ name: 'clients_list', arguments: {} })).clients[0].intake_url, /\?t=abc$/);
+  assert.match(text(await writer.callTool({ name: 'client_get', arguments: { slug } })).intake_url, /\?t=abc$/);
+  assert.match(text(await writer.callTool({ name: 'intake_status', arguments: { slug } })).intake_url, /\?t=abc$/);
+  assert.deepEqual(readOnlySeen, ['', '', '']);
 });
 
 await reader.close();
