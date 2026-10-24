@@ -1,7 +1,10 @@
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
+fastapi==0.142.4
+# Pinned on its own: fastapi only sets a lower bound, and older starlette
+# releases have known vulnerabilities.
+starlette==1.7.0
+uvicorn[standard]==0.54.0
 bcrypt==4.1.2
 psycopg2-binary==2.9.9
-PyJWT==2.8.0
-pydantic[email]==2.5.3
-httpx==0.26.0
+PyJWT==2.15.1
+pydantic[email]==2.14.1
+httpx==0.28.1

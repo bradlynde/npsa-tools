@@ -4,9 +4,10 @@ Sending login codes, via Resend.
 Deliberately a thin call rather than the Resend SDK: one POST, one dependency
 we already have, and nothing to keep up to date.
 
-If RESEND_API_KEY is unset the code is logged instead of sent. That keeps local
-development working without a key — and it is why the log line is explicit
-about what just happened, so nobody mistakes it for production behaviour.
+If RESEND_API_KEY is unset nothing is sent. The code is written to the log
+only when AUTH_DEV_LOG_CODES=1 is also set, for local development; otherwise
+the log says a code could not be sent and leaves the code out, so a missing key
+in a real deployment never puts working codes in the logs.
 """
 
 import logging
@@ -17,6 +18,7 @@ import httpx
 log = logging.getLogger("auth.mailer")
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+DEV_LOG_CODES = os.getenv("AUTH_DEV_LOG_CODES", "").strip() == "1"
 MAIL_FROM = os.getenv("AUTH_EMAIL_FROM", "NPSA Tools <login@nonprofitsecurityadvisors.com>")
 CODE_TTL_MINUTES = 10
 
@@ -75,7 +77,10 @@ def send_login_code(email: str, code: str) -> bool:
     logged and swallowed at the route, so the endpoint stays uniform.
     """
     if not RESEND_API_KEY:
-        log.warning("RESEND_API_KEY unset — NOT sending. Code for %s is %s", email, code)
+        if DEV_LOG_CODES:
+            log.warning("RESEND_API_KEY unset — NOT sending (AUTH_DEV_LOG_CODES=1). Code for %s is %s", email, code)
+        else:
+            log.error("RESEND_API_KEY unset — could not send a code to %s (code not logged)", email)
         return False
 
     try:
